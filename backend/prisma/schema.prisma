@@ -1,0 +1,1355 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                       String   @id @default(uuid())
+  displayId                String   @unique @default("")
+  email                    String   @unique
+  passwordHash             String
+  firstName                String
+  lastName                 String
+  phoneNumber              String?
+  isActive                 Boolean  @default(true)
+  lastLoginAt              DateTime?
+  mustChangePasswordOnNext Boolean  @default(false)
+  passwordChangedAt        DateTime @default(now())
+  organizationUnitId       String?
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  createdBy                String?
+  updatedBy                String?
+
+  // OIDC / Entra ID fields
+  oidcId                   String?
+  oidcProvider             String?
+
+  // User preferences
+  language                 String?  @default("en")
+  darkMode                 Boolean?
+
+  organizationUnit         OrganizationUnit? @relation("UserOrgUnit", fields: [organizationUnitId], references: [id])
+  userRoles                UserRole[] @relation("UserRoles")
+  userGroups               UserGroup[] @relation("UserGroups")
+
+  @@index([oidcId, oidcProvider])
+  @@map("users")
+}
+
+model UserRole {
+  id                       String   @id @default(uuid())
+  userId                   String
+  roleName                 String
+  roleId                   String?
+  organizationUnitId       String?
+  scopeId                  String?
+  validFrom                DateTime @default(now())
+  validUntil               DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user                     User     @relation("UserRoles", fields: [userId], references: [id])
+  role                     Role?    @relation("RoleUsers", fields: [roleId], references: [id])
+
+  @@map("user_roles")
+}
+
+model Role {
+  id                       String   @id @default(uuid())
+  name                     String   @unique
+  description              String?
+  isBuiltIn                Boolean  @default(false)
+  permissions              Json
+  canAccessAdmin           Boolean  @default(false)
+  entityPermissions        Json?                                    // { assets: 'none'|'readonly'|'readwrite', risks: ..., controls: ..., incidents: ... }
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  userRoleAssignments      UserRole[] @relation("RoleUsers")
+  groupRoleAssignments     GroupRole[] @relation("GroupRoles")
+
+  @@map("roles")
+}
+
+model Group {
+  id                       String   @id @default(uuid())
+  name                     String   @unique
+  description              String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  userGroups               UserGroup[] @relation("GroupUsers")
+  groupRoles               GroupRole[] @relation("GroupRoles")
+
+  @@map("groups")
+}
+
+model UserGroup {
+  id                       String   @id @default(uuid())
+  userId                   String
+  groupId                  String
+  createdAt                DateTime @default(now())
+
+  user                     User     @relation("UserGroups", fields: [userId], references: [id])
+  group                    Group    @relation("GroupUsers", fields: [groupId], references: [id])
+
+  @@unique([userId, groupId])
+  @@map("user_groups")
+}
+
+model GroupRole {
+  id                       String   @id @default(uuid())
+  groupId                  String
+  roleName                 String
+  roleId                   String?
+  createdAt                DateTime @default(now())
+
+  group                    Group    @relation("GroupRoles", fields: [groupId], references: [id])
+  role                     Role?    @relation("GroupRoles", fields: [roleId], references: [id])
+
+  @@map("group_roles")
+}
+
+model OidcConfig {
+  id                       String   @id @default(uuid())
+  enabled                  Boolean  @default(false)
+  providerName             String   @default("entra_id")
+  tenantId                 String?
+  clientId                 String?
+  clientSecret             String?
+  redirectUri              String?
+  allowedEmailDomains      Json
+  autoProvisioning         Boolean  @default(false)
+  defaultRoleForNewUsers   String   @default("employee")
+  enableGroupMapping       Boolean  @default(false)
+  groupClaimToRoleMapping  Json
+  enableLocalLogin         Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("oidc_configs")
+}
+
+model OrganizationUnit {
+  id                       String   @id @default(uuid())
+  name                     String
+  description              String?
+  parentId                 String?
+  type                     String   @default("department")
+  legalEntityId            String?
+  responsibleUserId        String?
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  createdBy                String?
+  updatedBy                String?
+
+  parent                   OrganizationUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children                 OrganizationUnit[] @relation("OrgUnitHierarchy")
+  users                    User[]             @relation("UserOrgUnit")
+  sites                    Site[]             @relation("SiteOrgUnit")
+  assets                   Asset[]            @relation("AssetOrgUnit")
+  risks                    Risk[]             @relation("RiskOrgUnit")
+
+  @@map("organization_units")
+}
+
+model Site {
+  id                       String   @id @default(uuid())
+  name                     String
+  address                  String
+  city                     String
+  postalCode               String?
+  country                  String
+  organizationUnitId       String?
+  isCritical               Boolean  @default(false)
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  createdBy                String?
+  updatedBy                String?
+
+  organizationUnit         OrganizationUnit?  @relation("SiteOrgUnit", fields: [organizationUnitId], references: [id])
+  assets                   Asset[]     @relation("AssetLocation")
+
+  @@map("sites")
+}
+
+model IsmsScope {
+  id                       String   @id @default(uuid())
+  name                     String
+  description              String
+  includedCompanies        Json
+  includedLocations        Json
+  includedBusinessProcesses Json
+  includedServices         Json
+  includedAssets           Json
+  explicitExclusions       Json
+  exclusionJustifications  Json
+  responsibleUserId        String
+  approvalStatus           String   @default("draft")
+  validFrom                DateTime @default(now())
+  validUntil               DateTime?
+  nextReviewDate           DateTime
+  version                  String   @default("1.0.0")
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  createdBy                String?
+  updatedBy                String?
+
+  @@map("isms_scopes")
+}
+
+model InterestedParty {
+  id                       String   @id @default(uuid())
+  name                     String
+  type                     String
+  requirements             Json?
+  contactPerson            String?
+  contactEmail             String?
+  contactPhone             String?
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  createdBy                String?
+  updatedBy                String?
+
+  @@map("interested_parties")
+}
+
+model AssetType {
+  id                       String   @id @default(uuid())
+  name                     String   @unique
+  description              String?
+  category                 String
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  assets                   Asset[] @relation("AssetTypeRelation")
+
+  @@map("asset_types")
+}
+
+model Asset {
+  id                          String    @id @default(uuid())
+  displayId                   String    @unique
+  name                        String
+  description                 String?
+  assetTypeId                 String
+  subType                     String?
+  manufacturer                String?
+  model                       String?
+  serialNumber                String?
+  externalId                  String?
+  organizationUnitId          String?
+  locationId                  String?
+  technicalOperatorId         String?
+  businessOwnerId             String?
+  informationSecurityResponsibleId String?
+  businessProcessId           String?
+  serviceId                   String?
+
+  // Contract/License info (AST-002)
+  contractId                  String?
+  licenseId                   String?
+  licenseInfo                 String?
+  contractEndsAt              DateTime?
+  licenseExpiresAt            DateTime?
+
+  // Extended rating dimensions (AST-004)
+  personnelSafetyRelevance    String    @default("low")     // low, medium, high
+  regulatoryRelevance         String    @default("low")     // low, medium, high
+  financialDamagePotential    String    @default("low")     // low, medium, high
+  productionDowntimeImpact    String    @default("low")     // low, medium, high
+
+  lifecycleStatus             String    @default("planned")
+  purchaseDate                DateTime?
+  commissioningDate           DateTime?
+  endOfSaleDate               DateTime?
+  endOfLifeDate               DateTime?
+  endOfSupportDate            DateTime?
+  confidentialityNeed         String    @default("low")
+  integrityNeed               String    @default("low")
+  availabilityNeed            String    @default("low")
+  dataProtectionRelevance     Boolean   @default(false)
+  criticality                 String    @default("low")
+  networkAddresses            String?   // Comma-separated IPs/CIDRs
+  dnsNames                    String?   // Comma-separated DNS names
+  dataSource                  String?
+  lastDetectedAt              DateTime?
+  status                      String    @default("active")
+  version                     String    @default("1.0.0")
+  isArchived                  Boolean   @default(false)
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  assetType                   AssetType @relation("AssetTypeRelation", fields: [assetTypeId], references: [id])
+  organizationUnit            OrganizationUnit? @relation("AssetOrgUnit", fields: [organizationUnitId], references: [id])
+  location                    Site?     @relation("AssetLocation", fields: [locationId], references: [id])
+
+  sourceRelations             AssetRelation[] @relation("AssetSource")
+  targetRelations             AssetRelation[] @relation("AssetTarget")
+
+  risks                       Risk[]    @relation("AssetRisks")
+  controls                    Control[] @relation("AssetControls")
+
+  // Documents and evidence (AST-002)
+  documents                   AssetDocument[]
+
+  // Vulnerability/Incident relations (AST-002 gap)
+  vulnerabilities             VulnerabilityAsset[]
+  incidents                   IncidentAsset[]
+  riskAssets                  RiskAsset[]
+
+  // Contract/License relations
+  contract                    Contract? @relation("AssetContract", fields: [contractId], references: [id])
+  license                     License? @relation("AssetLicense", fields: [licenseId], references: [id])
+
+  @@map("assets")
+}
+
+model AssetRelation {
+  id                       String   @id @default(uuid())
+  sourceAssetId            String
+  targetAssetId            String
+  relationshipType         String
+  description              String?
+  createdAt                DateTime @default(now())
+  createdBy                String?
+
+  sourceAsset              Asset    @relation("AssetSource", fields: [sourceAssetId], references: [id])
+  targetAsset              Asset    @relation("AssetTarget", fields: [targetAssetId], references: [id])
+
+  @@map("asset_relations")
+}
+
+model RiskMethod {
+  id                       String   @id @default(uuid())
+  displayId               String   @unique
+  name                     String
+  description              String?
+  version                  String
+  likelihoodScale          Json     // configurable scale definition
+  impactScale              Json     // configurable scale definition
+  ratingDimensions         Json     // configurable dimensions
+  formula                  String   // calculation formula
+  riskClasses              Json     // risk class definitions
+  acceptanceThresholds     Json?    // acceptable risk thresholds
+  escalationThresholds     Json?    // escalation triggers (RSK-022)
+  approvalRules            Json?    // RSK-021: approval rules for acceptance
+  reviewInterval           Int?     // days between reviews
+  isActive                 Boolean  @default(true)
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("risk_methods")
+}
+
+model Risk {
+  id                          String   @id @default(uuid())
+  displayId                   String   @unique
+  title                       String
+  description                 String
+  organizationUnitId          String?
+  affectedAssetIds            String[] @default([])
+  affectedProcessIds          String[] @default([])
+  affectedServiceIds          String[] @default([])
+  threatId                    String?
+  vulnerabilityId             String?
+  possibleImpact              String
+  existingControls            String[] @default([])
+  likelihood                  Int
+  impact                      Int
+  inherentRisk                String
+  residualRisk                String
+  targetRisk                  String
+  riskOwnerId                 String
+  assessorId                  String
+  assessmentDate              DateTime @default(now())
+  nextReviewDate              DateTime
+  evaluationJustification     String?
+  businessProcessId           String?
+  status                      String   @default("identified")
+  version                     String   @default("1.0.0")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  organizationUnit            OrganizationUnit? @relation("RiskOrgUnit", fields: [organizationUnitId], references: [id])
+  assets                      Asset[]           @relation("AssetRisks")
+  controls                    Control[]         @relation("RiskControls")
+  businessProcess             BusinessProcess?  @relation("ProcessRisks", fields: [businessProcessId], references: [id])
+  evidenceLinks               RiskEvidence[]
+  riskAssets                  RiskAsset[]
+  treatments                  RiskTreatment[]
+
+  @@map("risks")
+}
+
+model RiskTreatment {
+  id                      String    @id @default(uuid())
+  displayId               String    @unique
+  riskId                  String
+  treatmentOption         String                // avoid, reduce, transfer, accept
+  plannedActions          String?
+  responsibleUserId       String?
+  budget                  Decimal?
+  targetDate              DateTime?
+  expectedReduction       String?
+  dependencies            String?
+  implementationStatus    String    @default("planned")
+  effectivenessReview     String?
+  completionApproval      String?
+  justification           String?   // required for acceptance
+  expiryDate              DateTime? // RSK-023: acceptance cannot be unlimited
+  approvedByUserId        String?
+  isArchived              Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  risk                    Risk      @relation(fields: [riskId], references: [id])
+
+  @@map("risk_treatments")
+}
+
+model Threat {
+  id                          String   @id @default(uuid())
+  name                        String
+  description                 String
+  category                    String
+  source                      String?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("threats")
+}
+
+model Vulnerability {
+  id                          String   @id @default(uuid())
+  name                        String
+  description                 String
+  category                    String
+  severity                    String   @default("low")
+  cveId                       String?
+  cvssScore                   Decimal?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  assets            VulnerabilityAsset[]
+
+  @@map("vulnerabilities")
+}
+
+// ==========================================
+// Generic Document model (for AssetDocument junction)
+// ==========================================
+
+model Document {
+  id              String   @id @default(uuid())
+  displayId       String   @unique
+  title           String
+  description     String?
+  documentType    String   // contract, license, certificate, manual, etc.
+  url             String?
+  filePath        String?
+  fileHash        String?
+  mimeType        String?
+  fileSize        Int?
+  version         String   @default("1.0")
+  status          String   @default("active")
+  isArchived      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  assetLinks      AssetDocument[]
+
+  @@map("documents")
+}
+
+model Framework {
+  id                          String   @id @default(uuid())
+  name                        String
+  code                        String   @unique
+  description                 String?
+  version                     String
+  publisher                   String?
+  publicationDate             DateTime?
+  licenseInfo                 String?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("frameworks")
+}
+
+model Control {
+  id                          String   @id @default(uuid())
+  catalogId                   String
+  catalogVersion              String
+  title                       String
+  description                 String
+  controlGoal                 String
+  responsibleId               String?
+  applicability               String   @default("under_review")
+  applicabilityJustification  String?
+  implementationStatus        String   @default("planned")
+  maturityLevel               Int      @default(0)
+  implementationDescription   String?
+  affectedAssetIds            String[] @default([])
+  affectedProcessIds          String[] @default([])
+  affectedSiteIds             String[] @default([])
+  relatedRiskIds              String[] @default([])
+  evidenceIds                 String[] @default([])
+  testMethod                  String?
+  testFrequency               String?
+  lastEffectivenessReview     DateTime?
+  nextTestDate                DateTime?
+  findings                    String?
+  actions                     String?
+  status                      String   @default("active")
+  version                     String   @default("1.0.0")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  assets                      Asset[]           @relation("AssetControls")
+  risks                       Risk[]            @relation("RiskControls")
+
+  @@map("controls")
+}
+
+model StatementOfApplicability {
+  id                          String   @id @default(uuid())
+  frameworkId                 String
+  frameworkVersion            String
+  scopeId                     String
+  version                     Int      @default(1)
+  controls                    Json
+  approvalStatus              String   @default("draft")
+  approvedAt                  DateTime?
+  approvedBy                  String?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("statements_of_applicability")
+}
+
+model Incident {
+  id                          String   @id @default(uuid())
+  displayId                   String   @unique
+  title                       String
+  description                 String
+  detectionTime               DateTime
+  knowledgeTime               DateTime
+  reporterId                  String?
+  reporterSource              String?
+  affectedAssetIds            String[] @default([])
+  affectedServiceIds          String[] @default([])
+  affectedProcessIds          String[] @default([])
+  confidentialityImpact       String   @default("none")
+  integrityImpact             String   @default("none")
+  availabilityImpact          String   @default("none")
+  operationalImpact           String?
+  financialImpact             Decimal?
+  legalImpact                 String?
+  personalDataImpact          Boolean  @default(false)
+  affectedCustomers           String[] @default([])
+  affectedThirdParties        String[] @default([])
+  suspectedCause              String?
+  isIntentional               Boolean?
+  hasCrossBorderImpact        Boolean?
+  indicatorsOfCompromise      String[] @default([])
+  immediateActions            String[] @default([])
+  incidentManagerId           String
+  status                      String   @default("new")
+  severity                    String   @default("low")
+  notificationStatus          String   @default("not_required")
+  version                     String   @default("1.0.0")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  incidentAssets      IncidentAsset[]
+
+  @@map("incidents")
+}
+
+model IncidentAssessment {
+  id                          String   @id @default(uuid())
+  incidentId                  String   @unique
+  assessorId                  String
+  isReportable                Boolean  @default(false)
+  reportingJustification      String?
+  decisionNotToReport         String?
+  decisionApprovedBy          String?
+  assessmentDate              DateTime @default(now())
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("incident_assessments")
+}
+
+model NotificationDeadline {
+  id                          String   @id @default(uuid())
+  incidentId                  String
+  notificationType            String
+  deadlineDate                DateTime
+  knowledgeTimeReference      DateTime
+  status                      String   @default("pending")
+  sentAt                      DateTime?
+  sentBy                      String?
+  submissionProof             String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@map("notification_deadlines")
+}
+
+model Evidence {
+  id                          String   @id @default(uuid())
+  title                       String
+  description                 String?
+  evidenceType                String
+  source                      String?
+  createdAt                   DateTime @default(now())
+  createdBy                   String
+  validFrom                   DateTime @default(now())
+  validUntil                  DateTime?
+  classification              String?
+  responsibleId               String
+  relatedControlIds           String[] @default([])
+  relatedRiskIds              String[] @default([])
+  fileHash                    String?
+  retentionPeriod             String?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  updatedAt                   DateTime @updatedAt
+  updatedBy                   String?
+
+  riskLinks           RiskEvidence[]
+
+  @@map("evidence")
+}
+
+model AuditLog {
+  id                          String   @id @default(uuid())
+  actorId                     String
+  actorType                   String
+  timestamp                   DateTime @default(now())
+  action                      String
+  objectId                    String
+  objectType                  String
+  previousValue               Json?
+  newValue                    Json?
+  origin                      String?
+  correlationId               String?
+  justification               String?
+
+  @@index([timestamp])
+  @@index([objectId, objectType])
+  @@map("audit_logs")
+}
+
+model PolicyDocument {
+  id                          String   @id @default(uuid())
+  title                       String
+  description                 String?
+  documentType                String
+  workflowStatus              String   @default("draft")
+  version                     String   @default("1.0.0")
+  ownerId                     String
+  validFrom                   DateTime @default(now())
+  validUntil                  DateTime?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  versions                    DocumentVersion[]
+
+  @@map("policy_documents")
+}
+
+model DocumentVersion {
+  id                          String   @id @default(uuid())
+  documentId                  String
+  versionNumber               String
+  authorId                    String
+  reviewerId                  String?
+  approverId                  String?
+  content                     String
+  changeLog                   String?
+  createdAt                   DateTime @default(now())
+  approvedAt                  DateTime?
+
+  document                    PolicyDocument @relation(fields: [documentId], references: [id])
+
+  @@map("document_versions")
+}
+
+model Supplier {
+  id                          String   @id @default(uuid())
+  legalName                   String
+  contactPerson               String?
+  contactEmail                String?
+  productsAndServices         String?
+  supportedBusinessProcesses  String[] @default([])
+  affectedAssets              String[] @default([])
+  processedDataTypes          String[] @default([])
+  accessMethods               String?
+  locations                   String[] @default([])
+  subcontractors              String[] @default([])
+  contractPeriod              String?
+  exitRules                   String?
+  securityRequirements        String?
+  certifications              String[] @default([])
+  criticality                 String   @default("low")
+  riskAssessment              String?
+  lastReviewDate              DateTime?
+  nextReviewDate              DateTime?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("suppliers")
+}
+
+model BusinessImpactAnalysis {
+  id                          String   @id @default(uuid())
+  businessProcessOrService    String
+  processOwnerId              String
+  timeDependentImpacts        Json
+  maximumTolerablePause       Int?
+  recoveryTimeObjective       Int?
+  recoveryPointObjective      Int?
+  minimumOperatingLevel       String?
+  requiredPersonnel           String[] @default([])
+  requiredLocations           String[] @default([])
+  dependentAssets             String[] @default([])
+  dependentSuppliers          String[] @default([])
+  dependentCommunication      String[] @default([])
+  emergencyProcedures         String?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("business_impact_analyses")
+}
+
+model Audit {
+  id                          String   @id @default(uuid())
+  auditType                   String
+  scope                       String
+  criteria                    String
+  auditorIds                  String[] @default([])
+  independenceConfirmation    Boolean  @default(false)
+  dates                       Json
+  interviewees                String[] @default([])
+  samples                     String[] @default([])
+  findings                    String[] @default([])
+  report                      String?
+  approvalStatus              String   @default("planned")
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("audits")
+}
+
+model AuditFinding {
+  id                          String   @id @default(uuid())
+  auditId                     String
+  findingType                 String
+  description                 String
+  relatedRequirementIds       String[] @default([])
+  relatedControlIds           String[] @default([])
+  relatedAssetIds             String[] @default([])
+  relatedRiskIds              String[] @default([])
+  evidenceIds                 String[] @default([])
+  correctiveActionId          String?
+  status                      String   @default("open")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("audit_findings")
+}
+
+model CorrectiveAction {
+  id                          String   @id @default(uuid())
+  description                 String
+  responsibleId               String
+  targetDate                  DateTime
+  status                      String   @default("open")
+  implementationStatus        String   @default("not_started")
+  effectivenessReview         String?
+  rootCause                   String?
+  version                     String   @default("1.0.0")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("corrective_actions")
+}
+
+model Training {
+  id                          String   @id @default(uuid())
+  title                       String
+  targetGroup                 String
+  isMandatory                 Boolean  @default(false)
+  dueDate                     DateTime
+  repeatInterval              String?
+  executionDate               DateTime?
+  participants                String[] @default([])
+  result                      String?
+  certificate                 String?
+  expiryDate                  DateTime?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("trainings")
+}
+
+model ManagementReview {
+  id                          String   @id @default(uuid())
+  participants                String[] @default([])
+  date                        DateTime
+  previousActionsStatus       String?
+  contextChanges              String?
+  securityGoals               String?
+  kpis                        String?
+  auditResults                String?
+  incidentSummary             String?
+  riskDevelopment             String?
+  correctiveActionsStatus     String?
+  resourceNeeds               String?
+  managementDecisions         String?
+  newActions                  String?
+  newResponsibilities         String?
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("management_reviews")
+}
+
+model Nis2Assessment {
+  id                          String   @id @default(uuid())
+  organizationUnitId          String?
+  assessmentType              String   @default("applicability")
+  result                      String?
+  justification               String?
+  approvedBy                  String?
+  approvedAt                  DateTime?
+  version                     String   @default("1.0.0")
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("nis2_assessments")
+}
+
+model Nis2Registration {
+  id                          String   @id @default(uuid())
+  entityType                  String
+  registrationDate            DateTime?
+  deadline                    DateTime?
+  contactPerson               String?
+  contactDetails              String?
+  submittedData               Json?
+  submissionProof             String?
+  bsiConfirmation             String?
+  changeNotifications         Json?
+  lastReviewDate              DateTime?
+  status                      String   @default("pending")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("nis2_registrations")
+}
+
+model Workflow {
+  id                          String   @id @default(uuid())
+  name                        String
+  description                 String?
+  version                     String   @default("1.0.0")
+  definition                  Json
+  status                      String   @default("active")
+  isArchived                  Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  createdBy                   String?
+  updatedBy                   String?
+
+  @@map("workflows")
+}
+
+model WorkflowInstance {
+  id                          String   @id @default(uuid())
+  workflowId                  String
+  objectId                    String
+  objectType                  String
+  currentStep                 String
+  status                      String   @default("pending")
+  startedAt                   DateTime @default(now())
+  completedAt                 DateTime?
+  createdBy                   String?
+  updatedAt                   DateTime @updatedAt
+
+  @@map("workflow_instances")
+}
+
+model Session {
+  id                          String   @id @default(uuid())
+  userId                      String
+  refreshToken                String   @unique
+  expiresAt                   DateTime
+  createdAt                   DateTime @default(now())
+  isActive                    Boolean  @default(true)
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id                          String   @id @default(uuid())
+  token                       String   @unique
+  userId                      String
+  expiresAt                   DateTime
+  revoked                     Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// Intune Integration Models
+// ==========================================
+
+model IntuneDeviceSync {
+  id                       String   @id @default(uuid())
+  intuneId                 String   @unique                    // device id from Intune (GUID)
+  name                     String?
+  serialNumber             String?
+  manufacturer             String?
+  model                    String?
+  osName                   String?
+  osVersion                String?
+  deviceEnrollmentType     String?
+  managementType           String?
+  complianceStatus         String?
+  deviceState              String?
+  enrollmentDateTime       DateTime?
+  lastSyncDateTime         DateTime?
+  primaryUserEmail         String?
+  primaryUserDisplayName   String?
+  endpointSecurityStatus   Json?
+  malwareStatus            Json?
+  compliancePolicyName     String?
+  configurationPolicyName  String?
+  autopilotStatus          String?
+  autopilotProfileName     String?
+  lastSeenDateTime         DateTime?
+  intuneLicenseState       String?
+  deviceWpdsStatus         String?
+  syncStatus               String   @default("pending")        // pending, synced, error, deleted
+  syncErrorMessage         String?
+  syncAttempts             Int      @default(0)
+  lastSyncAt               DateTime?
+  assetId                  String?  @unique                    // linked asset in local DB
+  sourceIntuneId           String?
+  sourceUpdatedAt          DateTime?
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([intuneId])
+  @@index([syncStatus])
+  @@index([lastSyncDateTime])
+  @@map("intune_device_syncs")
+}
+
+model IntuneDetectedApp {
+  id                       String   @id @default(uuid())
+  intuneAppId              String                        // app identity id from Intune
+  deviceId                 String                        // FK to IntuneDeviceSync.intuneId
+  name                     String?
+  version                  String?
+  publisher                String?
+  platform                 String?                        // ios, android, windows, macos
+  appCategory              String?                       // enterprise, corporate, etc.
+  isManaged                Boolean  @default(false)
+  syncStatus               String   @default("pending")   // pending, synced, error
+  syncErrorMessage         String?
+  syncAttempts             Int      @default(0)
+  lastSyncAt               DateTime?
+  sourceIntuneId           String?
+  sourceUpdatedAt          DateTime?
+  isArchived               Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([intuneAppId, deviceId])
+  @@index([intuneAppId])
+  @@index([deviceId])
+  @@map("intune_detected_apps")
+}
+
+model IntuneSyncStatus {
+  id                       String   @id @default(uuid())
+  syncType                 String                        // full, incremental
+  status                   String   @default("idle")    // idle, running, success, error
+  deviceCount              Int      @default(0)
+  deviceSynced             Int      @default(0)
+  deviceErrors             Int      @default(0)
+  appCount                 Int      @default(0)
+  appSynced                Int      @default(0)
+  appErrors                Int      @default(0)
+  lastSyncStartedAt        DateTime?
+  lastSyncCompletedAt      DateTime?
+  lastSyncDurationMs       Int?
+  lastError                String?
+  totalSyncs               Int      @default(0)
+  totalDevicesSynced       Int      @default(0)
+  totalDevicesErrors       Int      @default(0)
+  healthStatus             String   @default("healthy")  // healthy, degraded, unhealthy
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("intune_sync_status")
+}
+
+model IntuneSyncConfig {
+  id                       String   @id @default(uuid())
+  enabled                  Boolean  @default(false)
+  fullSyncIntervalHours    Int      @default(24)
+  incrementalSyncIntervalMinutes Int   @default(120)
+  gracePeriodHours         Int      @default(168)        // 7 days before archiving
+  maxRetryAttempts         Int      @default(3)
+  retryDelayMs             Int      @default(5000)
+  batchSize                Int      @default(100)
+  lastFullSyncAt           DateTime?
+  lastIncrementalSyncAt    DateTime?
+  nextFullSyncAt           DateTime?
+  nextIncrementalSyncAt    DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("intune_sync_config")
+}
+
+// ==========================================
+// Intune App Credentials Model
+// Separate Entra app credentials for Intune (different from OIDC)
+// ==========================================
+
+model IntuneAppCredentials {
+  id                       String   @id @default(uuid())
+  name                     String   @default("Intune API Credentials")
+  tenantId                 String?
+  appId                    String?                       // Application (client) ID
+  clientSecret             String?                       // App secret value
+  clientSecretExpiresAt    DateTime?
+  certificateThumbprint    String?                       // Alternative: use certificate thumbprint
+  isConfigured             Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("intune_app_credentials")
+}
+
+// ==========================================
+// ISO27001 - Contract and License Management (AST-002)
+// ==========================================
+
+model Contract {
+  id              String    @id @default(uuid())
+  displayId       String    @unique
+  title           String
+  description     String?
+  contractType    String                // purchase, maintenance, sla, support, etc.
+  supplierId      String?               // FK to Asset (supplier type)
+  startDate       DateTime?
+  endDate         DateTime?
+  renewalDate     DateTime?
+  value           Decimal?
+  currency        String?
+  status          String    @default("active")
+  isArchived      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  assets          Asset[]   @relation("AssetContract")
+
+  @@map("contracts")
+}
+
+model License {
+  id              String    @id @default(uuid())
+  displayId       String    @unique
+  title           String
+  description     String?
+  licenseType     String                // perpetual, subscription, concurrent, etc.
+  vendor          String?
+  productId       String?               // Reference to software asset
+  licenseKey      String?
+  seats           Int?
+  startDate       DateTime?
+  endDate         DateTime?
+  renewalDate     DateTime?
+  cost            Decimal?
+  currency        String?
+  status          String    @default("active")
+  isArchived      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  assets          Asset[]   @relation("AssetLicense")
+
+  @@map("licenses")
+}
+
+model BusinessProcess {
+  id              String    @id @default(uuid())
+  displayId       String    @unique
+  name            String
+  description     String?
+  processOwner    String                // User ID
+  category        String?               // core, supporting, management
+  siacControlled  Boolean   @default(false)
+  criticality     String    @default("low")
+  status          String    @default("active")
+  isArchived      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  risks           Risk[]    @relation("ProcessRisks")
+
+  @@map("business_processes")
+}
+
+model AssetDocument {
+  id             String   @id @default(uuid())
+  assetId        String
+  documentId     String
+
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  document       Document @relation(fields: [documentId], references: [id])
+
+  @@unique([assetId, documentId])
+  @@map("asset_documents")
+}
+
+model RiskEvidence {
+  id         String   @id @default(uuid())
+  riskId     String
+  evidenceId String
+
+  risk       Risk     @relation(fields: [riskId], references: [id])
+  evidence   Evidence @relation(fields: [evidenceId], references: [id])
+
+  @@unique([riskId, evidenceId])
+  @@map("risk_evidence")
+}
+
+// Risk-Asset junction table (replaces affectedAssetIds array)
+model RiskAsset {
+  id        String @id @default(uuid())
+  riskId    String
+  assetId   String
+
+  risk      Risk   @relation(fields: [riskId], references: [id])
+  asset     Asset  @relation(fields: [assetId], references: [id])
+
+  @@unique([riskId, assetId])
+  @@map("risk_assets")
+}
+
+// Vulnerability-Asset junction table
+model VulnerabilityAsset {
+  id              String   @id @default(uuid())
+  vulnerabilityId String
+  assetId         String
+
+  vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id])
+  asset           Asset         @relation(fields: [assetId], references: [id])
+
+  @@unique([vulnerabilityId, assetId])
+  @@map("vulnerability_assets")
+}
+
+// Incident-Asset junction table
+model IncidentAsset {
+  id          String   @id @default(uuid())
+  incidentId  String
+  assetId     String
+
+  incident    Incident @relation(fields: [incidentId], references: [id])
+  asset       Asset    @relation(fields: [assetId], references: [id])
+
+  @@unique([incidentId, assetId])
+  @@map("incident_assets")
+}
+
+// Asset Lifecycle Log (AST-030)
+model AssetLifecycleLog {
+  id              String   @id @default(uuid())
+  assetId         String
+  previousStatus  String?
+  newStatus       String
+  changedAt       DateTime @default(now())
+  changedByUserId String?
+  reason          String?
+  disposalEvidence String?  // AST-031: data destruction proof
+
+  @@map("asset_lifecycle_logs")
+}
+
+// ==========================================
+// VMware vCenter Integration Models
+// ==========================================
+
+model VmwareCredential {
+  id                String        @id @default(uuid())
+  name              String
+  username          String
+  passwordEncrypted String
+  isDefault         Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  vCenters          VCenterServer[]
+
+  @@map("vmware_credentials")
+}
+
+model VCenterServer {
+  id                String            @id @default(uuid())
+  name              String
+  host              String
+  port              Int               @default(443)
+  credentialId      String
+  enabled           Boolean           @default(true)
+  lastSyncAt        DateTime?
+  lastSyncStatus    String?
+  lastSyncError     String?
+  vmCount           Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  credential        VmwareCredential  @relation(fields: [credentialId], references: [id])
+
+  @@unique([host, port])
+  @@index([credentialId])
+  @@map("vcenter_servers")
+}
+
+// Proxmox Credential - shared credentials for PVE
+model ProxmoxCredential {
+  id              String   @id @default(uuid())
+  name            String
+  username        String   // e.g., 'admin@pam' or API token user
+  passwordEncrypted String? // encrypted password (or use API token)
+  apiToken        String?   // alternative: API token value encrypted
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  proxmoxServers  ProxmoxServer[]
+  
+  @@map("proxmox_credentials")
+}
+
+// Proxmox Server configuration
+model ProxmoxServer {
+  id              String           @id @default(uuid())
+  name            String
+  host            String           // FQDN or IP of PVE
+  port            Int              @default(8006)
+  nodeId          String?          // specific node to import from (null = all nodes)
+  credentialId    String
+  enabled         Boolean          @default(true)
+  lastSyncAt      DateTime?
+  lastSyncStatus  String?          // success, error, pending
+  lastSyncError   String?
+  vmCount         Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  credential      ProxmoxCredential @relation(fields: [credentialId], references: [id])
+  
+  @@unique([host, port, nodeId])
+  @@index([credentialId])
+  @@map("proxmox_servers")
+}

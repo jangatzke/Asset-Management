@@ -1,0 +1,110 @@
+import { Router } from 'express';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { authService } from '../services/auth.service';
+import { oidcService } from '../services/oidc.service';
+import crypto from 'crypto';
+
+export const authRouter = Router();
+
+authRouter.get('/has-admin', async (_req, res, next) => {
+  try {
+    const hasAdmin = await authService.hasAdminUsers();
+    res.json({ hasAdmin });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/create-first-admin', async (req, res, next) => {
+  try {
+    const result = await authService.createFirstAdmin(req.body);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/register', async (req, res, next) => {
+  try {
+    const result = await authService.register(req.body);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/login', async (req, res, next) => {
+  try {
+    // Check if local login is enabled
+    const localLoginEnabled = await oidcService.isLocalLoginEnabled();
+    if (!localLoginEnabled) {
+      return res.status(403).json({ error: { message: 'Local login is disabled. Please use Entra ID login.' } });
+    }
+    const result = await authService.login(req.body);
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// OIDC endpoints
+authRouter.get('/oidc/authorize', async (_req, res, next) => {
+  try {
+    const state = crypto.randomUUID();
+    // Store state in session or cache - for now use query param approach
+    const authorizeUrl = await oidcService.getAuthorizationUrl(state);
+    // Redirect with state stored
+    res.json({ authorizeUrl, state });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/oidc/callback', async (req, res, next) => {
+  try {
+    const { code, state } = req.body;
+    const result = await oidcService.handleCallback(code, state);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.get('/oidc/config', authenticate, async (_req, res, next) => {
+  try {
+    const config = await oidcService.getConfig();
+    // Don't expose clientSecret
+    const { clientSecret, ...safeConfig } = config;
+    res.json(safeConfig);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/refresh', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await authService.refreshToken(req.userId!);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await authService.getCurrentUser(req.userId!);
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.patch('/me/preferences', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const { language, darkMode } = req.body;
+    const user = await authService.updatePreferences(req.userId!, { language, darkMode });
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
