@@ -170,11 +170,17 @@ export class RiskService {
       throw new AppError('Risk not found', 404);
     }
 
-    const treatmentPlan = await prisma.riskTreatmentPlan.create({
+    const displayId = `RT-${Date.now()}`;
+    const treatmentPlan = await prisma.riskTreatment.create({
       data: {
+        displayId,
         riskId,
-        ...data,
+        treatmentOption: data.treatmentOption,
+        responsibleUserId: data.responsibleId,
         budget: data.budget ? new (require('@prisma/client/runtime/client').Decimal)(data.budget) : undefined,
+        targetDate: data.targetDate,
+        expectedReduction: data.expectedRiskReduction,
+        dependencies: Array.isArray(data.dependencies) ? data.dependencies.join(',') : data.dependencies,
       },
     });
 
@@ -196,6 +202,97 @@ export class RiskService {
     });
 
     return updated;
+  }
+
+  // RSK-024: Check if an event triggers an unplanned risk review
+  // Events that should trigger a review:
+  //   - Security incident (severe)
+  //   - Technical change on critical asset
+  //   - New critical supplier
+  //   - New vulnerability
+  //   - Regulatory change
+  //   - Criticality change
+  //   - KPI threshold exceeded
+  //   - Risk approval expiring
+  async checkUnplannedReviewTrigger(event: {
+    type: 'security_incident' | 'technical_change' | 'new_critical_supplier' | 'new_vulnerability' | 'regulatory_change' | 'criticality_change' | 'kpi_threshold_exceeded' | 'risk_approval_expiring';
+    severity?: 'low' | 'medium' | 'high' | 'very_high';
+    assetId?: string;
+    riskId?: string;
+    details?: string;
+  }) {
+    const severeIncidents = ['security_incident', 'new_vulnerability', 'regulatory_change'];
+    const criticalEvents = ['technical_change', 'criticality_change', 'kpi_threshold_exceeded'];
+
+    let requiresReview = false;
+    let reason = '';
+
+    // Security incidents always require review when severity is high or very_high
+    if (severeIncidents.includes(event.type)) {
+      if (event.severity === 'high' || event.severity === 'very_high') {
+        requiresReview = true;
+        reason = `Severe ${event.type} detected requiring immediate risk reassessment`;
+      } else {
+        requiresReview = true;
+        reason = `${event.type} detected - review recommended`;
+      }
+    }
+
+    // Technical changes on critical assets require review
+    if (criticalEvents.includes(event.type)) {
+      if (event.assetId) {
+        const asset = await prisma.asset.findUnique({ where: { id: event.assetId } });
+        if (asset && ['high', 'very_high'].includes(asset.criticality)) {
+          requiresReview = true;
+          reason = `${event.type} on critical asset ${asset.displayId} (${asset.name})`;
+        }
+      } else {
+        requiresReview = true;
+        reason = `${event.type} detected - review recommended`;
+      }
+    }
+
+    // New critical supplier always triggers review
+    if (event.type === 'new_critical_supplier') {
+      requiresReview = true;
+      reason = 'New critical supplier identified requiring supply chain risk assessment';
+    }
+
+    // Risk approval expiring triggers review
+    if (event.type === 'risk_approval_expiring' && event.riskId) {
+      const risk = await prisma.risk.findUnique({ where: { id: event.riskId } });
+      if (risk && risk.status === 'accepted') {
+        requiresReview = true;
+        reason = `Accepted risk ${risk.displayId} (${risk.title}) approval is expiring`;
+      }
+    }
+
+    // If review is required, find affected risks
+    let affectedRisks: any[] = [];
+    if (requiresReview) {
+      const where: Prisma.RiskWhereInput = { status: { notIn: ['accepted', 'closed'] } };
+      if (event.assetId) {
+        where.affectedAssetIds = { has: event.assetId };
+      }
+      affectedRisks = await prisma.risk.findMany({
+        where,
+        include: { organizationUnit: true },
+      });
+    }
+
+    return {
+      requiresReview,
+      reason,
+      eventType: event.type,
+      affectedRiskCount: affectedRisks.length,
+      affectedRisks: affectedRisks.map(r => ({
+        id: r.id,
+        displayId: r.displayId,
+        title: r.title,
+        status: r.status,
+        inherentRisk: r.inherentRisk,
+      })),
+    };
   }
 
   private calculateRiskLevel(likelihood: number, impact: number): string {

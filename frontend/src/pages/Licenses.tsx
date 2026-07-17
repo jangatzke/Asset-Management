@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { licenseApi } from '../services/api';
 import { Modal } from '../components/Modal';
-import { useI18n } from '../context/I18nContext';
 
 interface License {
   id: string;
@@ -47,7 +46,6 @@ const initialForm: LicenseForm = {
 };
 
 const Licenses = () => {
-  const { t } = useI18n();
   const [licenses, setLicenses] = useState<License[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

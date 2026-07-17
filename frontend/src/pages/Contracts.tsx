@@ -2,8 +2,6 @@
 import { useState, useEffect } from 'react';
 import { contractApi } from '../services/api';
 import { Modal } from '../components/Modal';
-import EntitySearchSelect from '../components/EntitySearchSelect';
-import { useI18n } from '../context/I18nContext';
 
 interface Contract {
   id: string;
@@ -47,7 +45,6 @@ const initialForm: ContractForm = {
 };
 
 const Contracts = () => {
-  const { t } = useI18n();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { processApi } from '../services/api';
 import { Modal } from '../components/Modal';
-import { useI18n } from '../context/I18nContext';
 
 interface Process {
   id: string;

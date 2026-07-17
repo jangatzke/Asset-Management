@@ -906,7 +906,7 @@ export class AdminService {
       id: p.id,
       name: p.name,
       description: p.description,
-      owner: p.owner,
+      owner: p.processOwner,
       criticality: p.criticality,
       status: p.status,
       riskCount: p._count.risks,
@@ -933,7 +933,7 @@ export class AdminService {
       id: process.id,
       name: process.name,
       description: process.description,
-      owner: process.owner,
+      owner: process.processOwner,
       criticality: process.criticality,
       status: process.status,
       risks: process.risks,
@@ -942,7 +942,7 @@ export class AdminService {
     };
   }
 
-  async createBusinessProcess(data: { name: string; description?: string; owner?: string; criticality?: number; status?: string }) {
+  async createBusinessProcess(data: { name: string; description?: string; owner?: string; criticality?: string; status?: string }) {
     const existing = await prisma.businessProcess.findFirst({
       where: { name: data.name },
     });
@@ -950,13 +950,15 @@ export class AdminService {
       throw new AppError('Business process with this name already exists', 409);
     }
 
+    const displayId = `BP-${Date.now()}`;
     const process = await prisma.businessProcess.create({
       data: {
         name: data.name,
         description: data.description ?? null,
-        owner: data.owner ?? null,
-        criticality: data.criticality ?? null,
+        processOwner: data.owner ?? '',
+        criticality: data.criticality ?? 'low',
         status: data.status ?? 'active',
+        displayId,
       },
     });
 
@@ -964,7 +966,7 @@ export class AdminService {
       id: process.id,
       name: process.name,
       description: process.description,
-      owner: process.owner,
+      owner: process.processOwner,
       criticality: process.criticality,
       status: process.status,
       createdAt: process.createdAt,
@@ -972,7 +974,7 @@ export class AdminService {
     };
   }
 
-  async updateBusinessProcess(id: string, data: { name?: string; description?: string; owner?: string; criticality?: number; status?: string }) {
+  async updateBusinessProcess(id: string, data: { name?: string; description?: string; owner?: string; criticality?: string; status?: string }) {
     const existing = await prisma.businessProcess.findUnique({
       where: { id },
     });
@@ -992,7 +994,7 @@ export class AdminService {
     const updateData: Record<string, any> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.owner !== undefined) updateData.owner = data.owner;
+    if (data.owner !== undefined) updateData.processOwner = data.owner;
     if (data.criticality !== undefined) updateData.criticality = data.criticality;
     if (data.status !== undefined) updateData.status = data.status;
 
@@ -1005,7 +1007,7 @@ export class AdminService {
       id: process.id,
       name: process.name,
       description: process.description,
-      owner: process.owner,
+      owner: process.processOwner,
       criticality: process.criticality,
       status: process.status,
       createdAt: process.createdAt,

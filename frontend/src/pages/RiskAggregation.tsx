@@ -70,16 +70,6 @@ const RiskAggregation = () => {
 
   const currentData = data[activeTab] || [];
 
-  const severityColor = (level: string) => {
-    switch (level?.toLowerCase()) {
-      case 'very_high': return 'text-red-600 dark:text-red-400';
-      case 'critical': return 'text-red-600 dark:text-red-400';
-      case 'high': return 'text-orange-600 dark:text-orange-400';
-      case 'medium': return 'text-yellow-600 dark:text-yellow-400';
-      default: return 'text-green-600 dark:text-green-400';
-    }
-  };
-
   const severityBg = (level: string) => {
     switch (level?.toLowerCase()) {
       case 'very_high': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';

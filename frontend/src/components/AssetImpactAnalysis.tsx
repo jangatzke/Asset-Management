@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import { assetApi } from '../services/api';
-import { useI18n } from '../context/I18nContext';
 
 interface ImpactNode {
   id: string;
@@ -43,7 +42,6 @@ const SEVERITY_BORDER: Record<string, string> = {
 };
 
 const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) => {
-  const { t } = useI18n();
   const [data, setData] = useState<ImpactAnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

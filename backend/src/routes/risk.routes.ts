@@ -140,6 +140,16 @@ riskRouter.get('/aggregate/by-org-unit', authenticate, requireAdminAccess, async
   }
 });
 
+// RSK-024: Check if an event triggers an unplanned risk review
+riskRouter.post('/check-unplanned-review', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await riskService.checkUnplannedReviewTrigger(req.body);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 riskRouter.get('/aggregate/by-asset-type', authenticate, requireAdminAccess, async (_req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByAssetType();

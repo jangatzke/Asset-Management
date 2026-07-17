@@ -29,8 +29,8 @@ export interface CreateAssetData {
   availabilityNeed?: string;
   dataProtectionRelevance?: boolean;
   criticality?: string;
-  networkAddresses?: string[];
-  dnsNames?: string[];
+  networkAddresses?: string;
+  dnsNames?: string;
   dataSource?: string;
   lastDetectedAt?: Date;
 }
@@ -277,9 +277,11 @@ export class AssetService {
     });
   }
 
-  // AST-032: Find assets without owner, without criticality rating, or without current audit status
+  // AST-032 + AST-034: Find assets without owner, without criticality rating, without audit status, or past end-of-life/support/sale dates
   async findIncompleteAssets() {
-    const [withoutOwner, withoutCriticality, withoutAuditStatus] = await Promise.all([
+    const now = new Date();
+
+    const [withoutOwner, withoutCriticality, withoutAuditStatus, endOfSupportPassed, endOfLifePassed, endOfSalePassed] = await Promise.all([
       // Assets missing business owner OR technical operator
       prisma.asset.findMany({
         where: {
@@ -314,12 +316,49 @@ export class AssetService {
           id: true, name: true, displayId: true, assetTypeId: true, dataSource: true,
         },
       }),
+      // AST-034: Assets past end of support date (no longer supported by vendor)
+      prisma.asset.findMany({
+        where: {
+          isArchived: false,
+          endOfSupportDate: { lt: now },
+        },
+        select: {
+          id: true, name: true, displayId: true, assetTypeId: true,
+          endOfSupportDate: true, criticality: true,
+        },
+      }),
+      // AST-034: Assets past end of life date (should be decommissioned)
+      prisma.asset.findMany({
+        where: {
+          isArchived: false,
+          endOfLifeDate: { lt: now },
+        },
+        select: {
+          id: true, name: true, displayId: true, assetTypeId: true,
+          endOfLifeDate: true, criticality: true, lifecycleStatus: true,
+        },
+      }),
+      // AST-034: Assets past end of sale date (no longer available for purchase)
+      prisma.asset.findMany({
+        where: {
+          isArchived: false,
+          endOfSaleDate: { lt: now },
+        },
+        select: {
+          id: true, name: true, displayId: true, assetTypeId: true,
+          endOfSaleDate: true, criticality: true,
+        },
+      }),
     ]);
 
     return {
       withoutOwner: withoutOwner.map(a => ({ ...a, issue: 'missing_owner' as const })),
       withoutCriticality: withoutCriticality.map(a => ({ ...a, issue: 'unrated_criticality' as const })),
       withoutAuditStatus: withoutAuditStatus.map(a => ({ ...a, issue: 'no_audit_status' as const })),
+      // AST-034: Unmanaged asset reports for end-of-life/support/sale
+      endOfSupportPassed: endOfSupportPassed.map(a => ({ ...a, issue: 'end_of_support_passed' as const })),
+      endOfLifePassed: endOfLifePassed.map(a => ({ ...a, issue: 'end_of_life_passed' as const })),
+      endOfSalePassed: endOfSalePassed.map(a => ({ ...a, issue: 'end_of_sale_passed' as const })),
     };
   }
 

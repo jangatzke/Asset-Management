@@ -27,6 +27,7 @@ export const createMockPrismaClient = () => {
   });
 
   return {
+    // Core identity & access models
     user: createMockModel(),
     userRole: createMockModel(),
     userGroup: createMockModel(),
@@ -34,13 +35,92 @@ export const createMockPrismaClient = () => {
     groupRole: createMockModel(),
     role: createMockModel(),
     oidcConfig: createMockModel(),
+
+    // Organization models
+    organizationUnit: createMockModel(),
+    site: createMockModel(),
+
+    // ISMS models
+    ismsScope: createMockModel(),
+    interestedParty: createMockModel(),
+
+    // Asset models
     asset: createMockModel(),
     assetType: createMockModel(),
+    assetRelation: createMockModel(),
+
+    // Risk models
+    riskMethod: createMockModel(),
     risk: createMockModel(),
+    riskTreatment: createMockModel(),
+    threat: createMockModel(),
+    vulnerability: createMockModel(),
+
+    // Document & Evidence models
+    document: createMockModel(),
+    evidence: createMockModel(),
+
+    // Framework & Control models
+    framework: createMockModel(),
     control: createMockModel(),
+    statementOfApplicability: createMockModel(),
+
+    // Incident models
     incident: createMockModel(),
+    incidentAssessment: createMockModel(),
+    notificationDeadline: createMockModel(),
+
+    // Audit & Compliance models
     auditLog: createMockModel(),
-    organizationUnit: createMockModel(),
+    policyDocument: createMockModel(),
+    documentVersion: createMockModel(),
+    supplier: createMockModel(),
+    businessImpactAnalysis: createMockModel(),
+    audit: createMockModel(),
+    auditFinding: createMockModel(),
+    correctiveAction: createMockModel(),
+    training: createMockModel(),
+    managementReview: createMockModel(),
+
+    // NIS2 models
+    nis2Assessment: createMockModel(),
+    nis2Registration: createMockModel(),
+
+    // Workflow models
+    workflow: createMockModel(),
+    workflowInstance: createMockModel(),
+
+    // Session & Auth models
+    session: createMockModel(),
+    refreshToken: createMockModel(),
+
+    // Intune models
+    intuneDeviceSync: createMockModel(),
+    intuneDetectedApp: createMockModel(),
+    intuneSyncStatus: createMockModel(),
+    intuneSyncConfig: createMockModel(),
+    intuneAppCredentials: createMockModel(),
+
+    // ISO 27001 new models
+    contract: createMockModel(),
+    license: createMockModel(),
+    businessProcess: createMockModel(),
+    assetDocument: createMockModel(),
+    riskEvidence: createMockModel(),
+    riskAsset: createMockModel(),
+    vulnerabilityAsset: createMockModel(),
+    incidentAsset: createMockModel(),
+    assetLifecycleLog: createMockModel(),
+
+    // VMware models
+    vmwareCredential: createMockModel(),
+    vCenterServer: createMockModel(),
+
+    // Proxmox models
+    proxmoxCredential: createMockModel(),
+    proxmoxServer: createMockModel(),
+
+    // Prisma internal methods
     $connect: jest.fn(),
     $disconnect: jest.fn(),
     $transaction: jest.fn<any>(),

@@ -15,7 +15,7 @@ import {
   KeyIcon,
   DocumentTextIcon,
   ClipboardDocumentListIcon,
-  CircuitBoardIcon,
+  ServerIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 
@@ -55,7 +55,7 @@ const Layout = () => {
     { name: t('navigation.incidents'), href: '/incidents', icon: FireIcon },
     { name: 'Contracts', href: '/contracts', icon: DocumentTextIcon },
     { name: 'Licenses', href: '/licenses', icon: ClipboardDocumentListIcon },
-    { name: 'Processes', href: '/processes', icon: CircuitBoardIcon },
+    { name: 'Processes', href: '/processes', icon: ServerIcon },
     ...(isAdmin ? [
       { name: 'Risk Aggregation', href: '/risk-aggregation', icon: ChartBarIcon },
       { name: t('navigation.admin'), href: '/admin/users', icon: Cog6ToothIcon },
