@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditService } from './audit.service';
 
 export interface CreateIncidentData {
   title: string;
@@ -120,6 +121,17 @@ export class IncidentService {
       },
     });
 
+    // Audit log for incident creation
+    if (createdBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: createdBy,
+        action: 'INCIDENT_CREATE',
+        entityType: 'Incident',
+        entityId: incident.id,
+        details: `Created incident: ${data.title}`,
+      });
+    }
+
     return incident;
   }
 
@@ -127,6 +139,19 @@ export class IncidentService {
     const existing = await prisma.incident.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Incident not found', 404);
+    }
+
+    // Audit log for incident update (if status or severity changed)
+    if (updatedBy && (data.status !== undefined || data.severity !== undefined)) {
+      await auditService.logEventStandalone(prisma, {
+        userId: updatedBy,
+        action: 'INCIDENT_UPDATE',
+        entityType: 'Incident',
+        entityId: id,
+        details: `Updated incident: ${existing.title}`,
+        oldValue: { status: existing.status, severity: existing.severity },
+        newValue: { status: data.status ?? existing.status, severity: data.severity ?? existing.severity },
+      });
     }
 
     const incident = await prisma.incident.update({
@@ -140,10 +165,21 @@ export class IncidentService {
     return incident;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.incident.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Incident not found', 404);
+    }
+
+    // Audit log for incident deletion (archiving)
+    if (deletedBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: deletedBy,
+        action: 'INCIDENT_DELETE',
+        entityType: 'Incident',
+        entityId: id,
+        details: `Archived incident: ${existing.title}`,
+      });
     }
 
     await prisma.incident.update({

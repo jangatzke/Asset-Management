@@ -7,3 +7,5 @@ export * from './types/control';
 export * from './types/incident';
 export * from './types/organization';
 export * from './types/user';
+export * from './types/graph';
+export * from './dtos/index';

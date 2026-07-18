@@ -1,0 +1,92 @@
+FAIL src/__tests__/oidc.security.test.ts
+  OidcService Security
+    getAuthorizationUrl
+      √ should include state, nonce, and PKCE code_challenge in URL (2 ms)
+      √ should throw error if OIDC not configured (5 ms)
+    handleCallback
+      √ should throw error for invalid state (1 ms)
+      × should throw error for invalid code_verifier (8 ms)
+      × should successfully handle callback with valid state and PKCE (1 ms)
+      × should throw error if auto-provisioning is disabled and user does not exist (1 ms)
+      × should throw error if auto-provisioning requires approval (1 ms)
+
+  ● OidcService Security › handleCallback › should throw error for invalid code_verifier
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Invalid code verifier"
+    Received message:   "Invalid state"
+
+        [0m [90m 144 |[39m     [36mconst[39m stored [33m=[39m [36mthis[39m[33m.[39mstateNonceStore[33m.[39m[36mget[39m(state)[33m;[39m
+         [90m 145 |[39m     [36mif[39m ([33m![39mstored) {
+        [31m[1m>[22m[39m[90m 146 |[39m       [36mthrow[39m [36mnew[39m [33mAppError[39m([32m'Invalid state'[39m[33m,[39m [35m401[39m)[33m;[39m
+         [90m     |[39m             [31m[1m^[22m[39m
+         [90m 147 |[39m     }
+         [90m 148 |[39m     [36mconst[39m { codeChallenge[33m:[39m storedCodeChallenge } [33m=[39m stored[33m;[39m
+         [90m 149 |[39m[0m
+
+      at OidcService.handleCallback (src/services/oidc.service.ts:146:13)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:116:7)
+      at Object.toThrow (../node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:116:84)
+
+  ● OidcService Security › handleCallback › should successfully handle callback with valid state and PKCE
+
+    AppError: Invalid code verifier
+
+    [0m [90m 154 |[39m     [36mconst[39m computedChallenge [33m=[39m [36mthis[39m[33m.[39mbase64urlEncode([36mthis[39m[33m.[39msha256(codeVerifier))[33m;[39m
+     [90m 155 |[39m     [36mif[39m (computedChallenge [33m!==[39m storedCodeChallenge) {
+    [31m[1m>[22m[39m[90m 156 |[39m       [36mthrow[39m [36mnew[39m [33mAppError[39m([32m'Invalid code verifier'[39m[33m,[39m [35m401[39m)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 157 |[39m     }
+     [90m 158 |[39m
+     [90m 159 |[39m     [90m// Exchange code for tokens[39m[0m
+
+      at OidcService.handleCallback (src/services/oidc.service.ts:156:13)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:169:22)
+
+  ● OidcService Security › handleCallback › should throw error if auto-provisioning is disabled and user does not exist
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Auto-provisioning is disabled"
+    Received message:   "Invalid state"
+
+        [0m [90m 144 |[39m     [36mconst[39m stored [33m=[39m [36mthis[39m[33m.[39mstateNonceStore[33m.[39m[36mget[39m(state)[33m;[39m
+         [90m 145 |[39m     [36mif[39m ([33m![39mstored) {
+        [31m[1m>[22m[39m[90m 146 |[39m       [36mthrow[39m [36mnew[39m [33mAppError[39m([32m'Invalid state'[39m[33m,[39m [35m401[39m)[33m;[39m
+         [90m     |[39m             [31m[1m^[22m[39m
+         [90m 147 |[39m     }
+         [90m 148 |[39m     [36mconst[39m { codeChallenge[33m:[39m storedCodeChallenge } [33m=[39m stored[33m;[39m
+         [90m 149 |[39m[0m
+
+      at OidcService.handleCallback (src/services/oidc.service.ts:146:13)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:202:7)
+      at Object.toThrow (../node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:202:83)
+
+  ● OidcService Security › handleCallback › should throw error if auto-provisioning requires approval
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Auto-provisioning requires approval"
+    Received message:   "Invalid state"
+
+        [0m [90m 144 |[39m     [36mconst[39m stored [33m=[39m [36mthis[39m[33m.[39mstateNonceStore[33m.[39m[36mget[39m(state)[33m;[39m
+         [90m 145 |[39m     [36mif[39m ([33m![39mstored) {
+        [31m[1m>[22m[39m[90m 146 |[39m       [36mthrow[39m [36mnew[39m [33mAppError[39m([32m'Invalid state'[39m[33m,[39m [35m401[39m)[33m;[39m
+         [90m     |[39m             [31m[1m^[22m[39m
+         [90m 147 |[39m     }
+         [90m 148 |[39m     [36mconst[39m { codeChallenge[33m:[39m storedCodeChallenge } [33m=[39m stored[33m;[39m
+         [90m 149 |[39m[0m
+
+      at OidcService.handleCallback (src/services/oidc.service.ts:146:13)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:237:7)
+      at Object.toThrow (../node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (src/__tests__/oidc.security.test.ts:237:83)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 3 passed, 7 total
+Snapshots:   0 total
+Time:        1.319 s, estimated 3 s
+Ran all test suites matching /src\\__tests__\\oidc.security.test.ts/i.

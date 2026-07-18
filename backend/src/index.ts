@@ -34,8 +34,10 @@ const PORT = process.env.PORT || 3000;
 // Global middleware
 app.use(helmet());
 app.use(compression());
+// CORS configuration - explicit origins only, no wildcard default (SEC-003)
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').filter(Boolean);
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: allowedOrigins.length > 0 ? allowedOrigins : ['http://localhost:3000'],
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));

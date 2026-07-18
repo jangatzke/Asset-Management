@@ -7,6 +7,7 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { initializeSyncService, getSyncService } from '../services/intune.service';
 import { initializeScheduler, getScheduler } from '../services/intune.scheduler';
 import { adminService } from '../services/admin.service';
@@ -24,7 +25,7 @@ function getSyncServiceInstance() {
 
 // ---- Sync Status ----
 
-intuneRouter.get('/status', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/status', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     const status = await service.getStatus();
@@ -36,7 +37,7 @@ intuneRouter.get('/status', authenticate, async (_req: AuthRequest, res: Respons
 
 // ---- Configuration ----
 
-intuneRouter.get('/config', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/config', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     const config = await service.getConfig();
@@ -46,7 +47,7 @@ intuneRouter.get('/config', authenticate, async (_req: AuthRequest, res: Respons
   }
 });
 
-intuneRouter.put('/config', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.put('/config', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     const config = await service.updateConfig(req.body);
@@ -58,7 +59,7 @@ intuneRouter.put('/config', authenticate, async (req: AuthRequest, res: Response
 
 // ---- Sync Triggers ----
 
-intuneRouter.post('/sync/full', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/sync/full', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     const result = await service.runFullSync();
@@ -68,7 +69,7 @@ intuneRouter.post('/sync/full', authenticate, async (_req: AuthRequest, res: Res
   }
 });
 
-intuneRouter.post('/sync/incremental', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/sync/incremental', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     const result = await service.runIncrementalSync();
@@ -80,7 +81,7 @@ intuneRouter.post('/sync/incremental', authenticate, async (_req: AuthRequest, r
 
 // ---- Devices ----
 
-intuneRouter.get('/devices', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/devices', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -94,7 +95,7 @@ intuneRouter.get('/devices', authenticate, async (req: AuthRequest, res: Respons
   }
 });
 
-intuneRouter.get('/devices/:id', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/devices/:id', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     getSyncServiceInstance();
     // Find specific device
@@ -104,7 +105,7 @@ intuneRouter.get('/devices/:id', authenticate, async (_req: AuthRequest, res: Re
   }
 });
 
-intuneRouter.post('/devices/:id/resync', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/devices/:id/resync', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     await service.resyncDevice(req.params.id);
@@ -114,7 +115,7 @@ intuneRouter.post('/devices/:id/resync', authenticate, async (req: AuthRequest, 
   }
 });
 
-intuneRouter.delete('/devices/:id/archive', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.delete('/devices/:id/archive', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     await service.archiveDevice(req.params.id);
@@ -126,7 +127,7 @@ intuneRouter.delete('/devices/:id/archive', authenticate, async (req: AuthReques
 
 // ---- Health Check ----
 
-intuneRouter.get('/health', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/health', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
     const health = await service.checkHealth();
@@ -141,7 +142,7 @@ intuneRouter.get('/health', authenticate, async (req: AuthRequest, res: Response
 
 // ---- Scheduler Control ----
 
-intuneRouter.post('/scheduler/start', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/scheduler/start', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const scheduler = initializeScheduler();
     await scheduler.start();
@@ -151,7 +152,7 @@ intuneRouter.post('/scheduler/start', authenticate, async (_req: AuthRequest, re
   }
 });
 
-intuneRouter.post('/scheduler/stop', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/scheduler/stop', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const scheduler = getScheduler();
     if (scheduler) {
@@ -169,7 +170,7 @@ intuneRouter.post('/scheduler/stop', authenticate, async (_req: AuthRequest, res
 // ==========================================
 
 // GET /credentials - Get current Intune app credentials (without secrets)
-intuneRouter.get('/credentials', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/credentials', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const credentials = await adminService.getIntuneCredentials();
     res.json(credentials);
@@ -179,7 +180,7 @@ intuneRouter.get('/credentials', authenticate, async (_req: AuthRequest, res: Re
 });
 
 // POST /credentials - Create new Intune app credentials
-intuneRouter.post('/credentials', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/credentials', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const credentials = await adminService.createIntuneCredentials(req.body);
     res.status(201).json(credentials);
@@ -189,7 +190,7 @@ intuneRouter.post('/credentials', authenticate, async (req: AuthRequest, res: Re
 });
 
 // PUT /credentials - Update existing Intune app credentials
-intuneRouter.put('/credentials', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.put('/credentials', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const credentials = await adminService.updateIntuneCredentials(req.body);
     res.json(credentials);
@@ -199,7 +200,7 @@ intuneRouter.put('/credentials', authenticate, async (req: AuthRequest, res: Res
 });
 
 // DELETE /credentials - Delete Intune app credentials
-intuneRouter.delete('/credentials', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.delete('/credentials', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await adminService.deleteIntuneCredentials();
     res.json(result);

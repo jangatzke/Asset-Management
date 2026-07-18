@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditService } from './audit.service';
 
 export interface CreateControlData {
   catalogId: string;
@@ -104,6 +105,17 @@ export class ControlService {
       },
     });
 
+    // Audit log for control creation
+    if (createdBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: createdBy,
+        action: 'CONTROL_CREATE',
+        entityType: 'Control',
+        entityId: control.id,
+        details: `Created control: ${data.title}`,
+      });
+    }
+
     return control;
   }
 
@@ -111,6 +123,19 @@ export class ControlService {
     const existing = await prisma.control.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Control not found', 404);
+    }
+
+    // Audit log for control update (if status or implementation changed)
+    if (updatedBy && (data.status !== undefined || data.implementationStatus !== undefined)) {
+      await auditService.logEventStandalone(prisma, {
+        userId: updatedBy,
+        action: 'CONTROL_UPDATE',
+        entityType: 'Control',
+        entityId: id,
+        details: `Updated control: ${existing.title}`,
+        oldValue: { status: existing.status, implementationStatus: existing.implementationStatus },
+        newValue: { status: data.status ?? existing.status, implementationStatus: data.implementationStatus ?? existing.implementationStatus },
+      });
     }
 
     const control = await prisma.control.update({
@@ -124,10 +149,21 @@ export class ControlService {
     return control;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.control.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Control not found', 404);
+    }
+
+    // Audit log for control deletion (archiving)
+    if (deletedBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: deletedBy,
+        action: 'CONTROL_DELETE',
+        entityType: 'Control',
+        entityId: id,
+        details: `Archived control: ${existing.title}`,
+      });
     }
 
     await prisma.control.update({

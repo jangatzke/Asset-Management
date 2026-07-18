@@ -1,0 +1,404 @@
+- id: IAM-001
+  title: Administrationsschutz
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/routes/admin.routes.ts
+    - backend/src/middleware/auth.ts
+    - backend/src/middleware/entityAuth.ts
+    - backend/src/services/authorization.service.ts
+    - backend/src/routes/intune.routes.ts
+    - backend/src/routes/vmware.routes.ts
+    - backend/src/routes/proxmox.routes.ts
+  tests:
+    - backend/src/__tests__/authorization.integration.test.ts
+    - backend/src/__tests__/admin.service.test.ts
+  gaps: []
+  evidence:
+    - requireAdminAccess middleware prüft role.canAccessAdmin aus Datenbank (nicht Legacy-String)
+    - Abgelaufene Rollen (validUntil < now) werden als unwirksam behandelt
+    - Alle Admin-, Intune-, VMware- und Proxmox-Routen geschützt
+    - Group-basierte Rollen-Zuweisungen unterstützt
+
+- id: IAM-002
+  title: Entity-Level Authorization
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/services/authorization.service.ts
+    - backend/src/middleware/entityAuth.ts
+    - backend/src/routes/asset.routes.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/routes/control.routes.ts
+    - backend/src/routes/incident.routes.ts
+  tests:
+    - backend/src/__tests__/authorization.integration.test.ts
+  gaps: []
+  evidence:
+    - authorizationService.checkEntityPermission() prüft entityPermissions pro Rolle
+    - authorizeEntityWrite/authorizeEntityDelete Middleware schützt POST/PUT/PATCH/DELETE
+    - Permission-Aggregation über multiple Rollen (max wins)
+    - Scope- und Organisationseinschränkungen vorbereitet
+
+- id: IAM-003
+  title: Routenreihenfolge und Konfliktfreiheit
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/index.ts
+    - backend/src/routes/asset.routes.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/routes/control.routes.ts
+  tests:
+    - backend/src/__tests__/auth.routes.test.ts
+    - backend/src/__tests__/route.order.test.ts
+  gaps: []
+  evidence:
+    - Statische Routen (/types, /graph, /incomplete, /import) VOR parametrisierten Routes (/:id) in asset.routes.ts
+    - Aggregierte Routes (/aggregated/*, /dashboard-summary, /check-unplanned-review) VOR /:id in risk.routes.ts
+    - Statische Route /soa VOR /:id in control.routes.ts
+    - Admin-Sub-Routern (/admin/vmware, /admin/proxmox) werden nach /admin gemountet - Reihenfolge korrekt
+    - Integrationstest für Route-Konflikte (route.order.test.ts)
+
+- id: SEC-001
+  title: JWT-Härtung
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/auth.ts
+    - backend/src/services/auth.service.ts
+    - backend/src/services/oidc.service.ts
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/oidc.security.test.ts
+  gaps: []
+  evidence:
+    - JWT_SECRET ist zwingend erforderlich (kein Fallback)
+    - App startet nicht ohne JWT_SECRET
+    - Algorithmus HS256 explizit gesetzt
+    - Refresh-Token-Rotation implementiert
+    - Refresh-Tokens werden gehasht gespeichert
+    - Logout widerruft alle Tokens der Session
+    - Token-Logging entfernt
+
+- id: SEC-002
+  title: OIDC - State, Nonce und PKCE
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/services/oidc.service.ts
+    - backend/src/routes/auth.routes.ts
+  tests:
+    - backend/src/__tests__/oidc.security.test.ts
+  gaps: []
+  evidence:
+    - State-Parameter wird bei Callback validiert
+    - Nonce wird generiert und validiert
+    - PKCE code_verifier wird validiert
+    - Selbstregistrierung deaktiviert ohne Freigabe
+    - First-Admin-Race durch Transaktion verhindert
+
+- id: SEC-003
+  title: CORS-Härtung
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/index.ts
+  tests:
+    - backend/src/__tests__/cors.config.test.ts
+  gaps: []
+  evidence:
+    - Kein Wildcard '*' als Default mehr (Paket 1.3)
+    - Explizite Allowed Origins aus CORS_ORIGINS Umgebungsvariable
+    - Fallback auf ['http://localhost:3000'] statt '*' wenn keine Origins konfiguriert
+    - Ursprüngliches Problem: Wildcard-Fallback '*' wenn CORS_ORIGIN nicht gesetzt (index.ts:38)
+
+- id: SEC-004
+  title: Passwort-Policy
+  priority: P0
+  status: partial
+  implementation:
+    - backend/src/services/auth.service.ts
+  tests: []
+  gaps:
+    - Keine Validierung der Passwortstärke bei register() und createFirstAdmin()
+  evidence: []
+
+- id: SEC-005
+  title: Zentrales Auditlog
+  priority: P0
+  status: partial
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/routes/auditLog.routes.ts
+  tests:
+    - backend/src/__tests__/placeholder.endpoints.test.ts
+  gaps:
+    - Routen sind Stubs - liefern 501 Not Implemented (explizit gekennzeichnet, Paket 1.3)
+    - Kein automatisches Schreiben von Audit-Einträgen bei CRUD-Operationen
+  evidence: []
+
+- id: SEC-006
+  title: Registrierungsschutz
+  priority: P0
+  status: non_compliant
+  implementation:
+    - backend/src/routes/auth.routes.ts
+    - backend/src/services/auth.service.ts
+  tests: []
+  gaps:
+    - Öffentliche Registrierung ohne Kontrolle (POST /auth/register)
+    - Kein Rate-Limiting auf Auth-Endpunkte
+  evidence: []
+
+- id: IAM-004
+  title: Display-ID Generierung
+  priority: P1
+  status: partial
+  implementation:
+    - backend/src/services/auth.service.ts
+  tests: []
+  gaps:
+    - Date.now()-basierte IDs statt sequenzieller Nummern
+  evidence: []
+
+- id: AST-001
+  title: Asset-Verantwortliche Bestätigung
+  priority: P1
+  status: partial
+  implementation:
+    - backend/src/routes/asset.routes.ts
+  tests: []
+  gaps:
+    - Kein Statusfeld responsibilityConfirmed im Schema
+  evidence: []
+
+- id: AST-002
+  title: Vollständige Asset-Felder
+  priority: P1
+  status: partial
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: RSK-001
+  title: Prozessbasierte Risikobewertung
+  priority: P1
+  status: partial
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/routes/businessprocess.routes.ts
+  tests:
+    - backend/src/__tests__/businessprocess.service.test.ts
+  gaps:
+    - affectedProcessIds im Risk-Modell ist noch String[] (denormalisiert)
+  evidence: []
+
+- id: RSK-002
+  title: Aggregierte Risikoverteilungen
+  priority: P1
+  status: missing
+  implementation: []
+  tests:
+    - backend/src/__tests__/risk.aggregation.test.ts
+  gaps:
+    - Kein API-Endpoint für Aggregation
+  evidence: []
+
+- id: CTL-001
+  title: Statement of Applicability
+  priority: P1
+  status: partial
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/routes/control.routes.ts
+  tests: []
+  gaps:
+    - Keine automatische Control-Auflistung pro Framework
+  evidence: []
+
+- id: INC-001
+  title: Incident-Bewertung und Meldefristen
+  priority: P1
+  status: partial
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/routes/incident.routes.ts
+  tests: []
+  gaps:
+    - Keine automatische Fristberechnung
+  evidence: []
+
+- id: AST-003
+  title: Asset-Lebenszyklus-Protokollierung
+  priority: P2
+  status: partial
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps:
+    - Keine automatische Protokollierung bei Statusänderungen
+  evidence: []
+
+- id: AST-004
+  title: Erweiterte Bewertungsdimensionen
+  priority: P2
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: AST-005
+  title: Graphvisualisierung (AST-011)
+  priority: P2
+  status: partial
+  implementation:
+    - backend/src/services/asset.graph.ts
+    - frontend/src/components/AssetGraph.tsx
+    - shared/src/types/graph.ts
+  tests:
+    - backend/src/__tests__/asset.graph.test.ts
+  gaps:
+    - Filterung nach Relationship-Typ und Criticality nicht implementiert
+  evidence: []
+
+- id: AST-006
+  title: Impact Analysis (AST-012)
+  priority: P2
+  status: partial
+  implementation:
+    - frontend/src/components/AssetImpactAnalysis.tsx
+  tests: []
+  gaps:
+    - Konfigurierbare Traversiertiefe nicht implementiert
+  evidence: []
+
+- id: RSK-003
+  title: Risikobehandlungspläne
+  priority: P2
+  status: partial
+  implementation:
+    - backend/src/routes/risktreatment.routes.ts
+    - backend/src/services/risktreatment.service.ts
+  tests:
+    - backend/src/__tests__/risktreatment.service.test.ts
+  gaps:
+    - Validierung für accept-Option nicht implementiert
+  evidence: []
+
+- id: UX-001
+  title: Internationalisierung (i18n)
+  priority: P2
+  status: partial
+  implementation:
+    - frontend/src/context/I18nContext.tsx
+    - frontend/src/locales/de.json
+    - frontend/src/locales/en.json
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: UX-002
+  title: Dark Mode
+  priority: P2
+  status: partial
+  implementation:
+    - frontend/src/context/DarkModeContext.tsx
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: OPS-001
+  title: Intune-Integration
+  priority: P3
+  status: partial
+  implementation:
+    - backend/src/services/intune.service.ts
+    - backend/src/services/intune.scheduler.ts
+    - backend/src/routes/intune.routes.ts
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: OPS-002
+  title: VMware vCenter-Integration
+  priority: P3
+  status: partial
+  implementation:
+    - backend/src/services/vcenter.service.ts
+    - backend/src/routes/vmware.routes.ts
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: OPS-003
+  title: Proxmox-Integration
+  priority: P3
+  status: partial
+  implementation:
+    - backend/src/services/proxmox.service.ts
+    - backend/src/routes/proxmox.routes.ts
+  tests: []
+  gaps: []
+  evidence: []
+
+- id: OPS-004
+  title: Health Check und Monitoring
+  priority: P3
+  status: partial
+  implementation:
+    - backend/src/index.ts
+  tests: []
+  gaps:
+    - Keine DB-Konnektivitätsprüfung
+  evidence: []
+
+- id: API-001
+  title: Zentrale DTOs in shared/
+  priority: P0
+  status: compliant
+  implementation:
+    - shared/src/dtos/index.ts
+    - shared/src/types/graph.ts
+    - shared/src/index.ts
+  tests:
+    - backend/src/__tests__/validation.middleware.test.ts
+  gaps: []
+  evidence:
+    - Request- und Response-DTOs mit Zod-Schemas in shared/src/dtos/
+    - Gemeinsames Graph-DTO (GraphNode, GraphEdge) in shared/src/types/graph.ts
+    - Konsistente Struktur für alle Entity-Typen
+
+- id: API-002
+  title: Request Validation mit Zod
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/validation.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/validation.middleware.test.ts
+  gaps: []
+  evidence:
+    - Zod-basierte Validierungsmiddleware (validateBody, validateQuery, validateParams)
+    - Alle Eingaben können validiert werden
+    - Detaillierte Fehlermeldungen mit Feld- und Fehlerinformationen
+
+- id: API-003
+  title: Platzhalterendpunkte mit 501
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/routes/user.routes.ts
+    - backend/src/routes/auditLog.routes.ts
+    - backend/src/routes/organization.routes.ts
+  tests:
+    - backend/src/__tests__/placeholder.endpoints.test.ts
+  gaps: []
+  evidence:
+    - Alle unimplementierten Routes geben explizit HTTP 501 Not Implemented zurück
+    - Konsistentes Fehlerformat mit "error: 'Not Implemented'" und beschreibender Nachricht

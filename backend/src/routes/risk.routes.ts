@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
 import { riskService } from '../services/risk.service';
 import { riskAggregationService } from '../services/risk.aggregation';
 
 const requireAdminAccess = authorize('system_admin');
 
 export const riskRouter = Router();
+
+// ==========================================
+// Static routes MUST come BEFORE parametric routes (/id)
+// ==========================================
 
 riskRouter.get('/', authenticate, async (req, res, next) => {
   try {
@@ -16,55 +21,10 @@ riskRouter.get('/', authenticate, async (req, res, next) => {
   }
 });
 
-riskRouter.get('/:id', authenticate, async (req, res, next) => {
-  try {
-    const risk = await riskService.getById(req.params.id);
-    res.json(risk);
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
+riskRouter.post('/', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
   try {
     const risk = await riskService.create(req.body, req.userId);
     res.status(201).json(risk);
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.put('/:id', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const risk = await riskService.update(req.params.id, req.body, req.userId);
-    res.json(risk);
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.delete('/:id', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const result = await riskService.delete(req.params.id);
-    res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.post('/:id/treatment', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const plan = await riskService.createTreatmentPlan(req.params.id, req.body);
-    res.status(201).json(plan);
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.post('/:id/accept', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const risk = await riskService.acceptRisk(req.params.id, req.userId!);
-    res.json(risk);
   } catch (error) {
     next(error);
   }
@@ -130,20 +90,20 @@ riskRouter.get('/dashboard-summary', authenticate, requireAdminAccess, async (_r
   }
 });
 
-// Legacy aliases for backward compatibility
-riskRouter.get('/aggregate/by-org-unit', authenticate, requireAdminAccess, async (_req, res, next) => {
+// RSK-024: Check if an event triggers an unplanned risk review
+riskRouter.post('/check-unplanned-review', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    const result = await riskAggregationService.aggregateByOrganizationUnit();
+    const result = await riskService.checkUnplannedReviewTrigger(req.body);
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// RSK-024: Check if an event triggers an unplanned risk review
-riskRouter.post('/check-unplanned-review', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+// Legacy aliases for backward compatibility
+riskRouter.get('/aggregate/by-org-unit', authenticate, requireAdminAccess, async (_req, res, next) => {
   try {
-    const result = await riskService.checkUnplannedReviewTrigger(req.body);
+    const result = await riskAggregationService.aggregateByOrganizationUnit();
     res.json(result);
   } catch (error) {
     next(error);
@@ -163,6 +123,55 @@ riskRouter.get('/aggregate/by-business-process', authenticate, requireAdminAcces
   try {
     const result = await riskAggregationService.aggregateByBusinessProcess();
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==========================================
+// Parametric routes - /:id must come AFTER all static routes
+// ==========================================
+
+riskRouter.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const risk = await riskService.getById(req.params.id);
+    res.json(risk);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.put('/:id', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const risk = await riskService.update(req.params.id, req.body, req.userId);
+    res.json(risk);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.delete('/:id', authenticate, authorizeEntityDelete('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await riskService.delete(req.params.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/:id/treatment', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const plan = await riskService.createTreatmentPlan(req.params.id, req.body);
+    res.status(201).json(plan);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/:id/accept', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const risk = await riskService.acceptRisk(req.params.id, req.userId!);
+    res.json(risk);
   } catch (error) {
     next(error);
   }

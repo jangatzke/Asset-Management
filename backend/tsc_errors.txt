@@ -1,0 +1,2 @@
+src/middleware/entityAuth.ts(8,10): error TS6133: 'Request' is declared but its value is never read.
+src/routes/asset.routes.ts(3,55): error TS6133: 'authorizeEntityRead' is declared but its value is never read.

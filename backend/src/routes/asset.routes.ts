@@ -1,11 +1,17 @@
 import { Router } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authorizeEntityWrite, authorizeEntityDelete, authorizeEntityRead } from '../middleware/entityAuth';
 import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
 
 const requireAdminAccess = authorize('system_admin');
 
 export const assetRouter = Router();
+
+// ==========================================
+// Static routes MUST come BEFORE parametric routes (/id)
+// to avoid Express matching 'types', 'graph', etc. as :id
+// ==========================================
 
 assetRouter.get('/', authenticate, async (req, res, next) => {
   try {
@@ -16,6 +22,16 @@ assetRouter.get('/', authenticate, async (req, res, next) => {
   }
 });
 
+assetRouter.post('/', authenticate, authorizeEntityWrite('assets'), async (req: AuthRequest, res, next) => {
+  try {
+    const asset = await assetService.create(req.body, req.userId);
+    res.status(201).json(asset);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Static routes - must be before /:id
 assetRouter.get('/types', authenticate, async (_req, res, next) => {
   try {
     const types = await assetService.getAssetTypes();
@@ -24,6 +40,35 @@ assetRouter.get('/types', authenticate, async (_req, res, next) => {
     next(error);
   }
 });
+
+// TODO: Implement bulk import - placeholder returns 501
+assetRouter.post('/import', authenticate, authorizeEntityWrite('assets'), (_req, res, _next) => {
+  res.status(501).json({ error: 'Not Implemented', message: 'Asset bulk import endpoint is not yet implemented' });
+});
+
+// AST-011: Graph visualization data - full graph
+assetRouter.get('/graph', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    const graph = await assetGraphService.getAssetGraph();
+    res.json(graph);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// AST-032: Find assets with incomplete data (missing owner, criticality, audit status)
+assetRouter.get('/incomplete', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    const result = await assetService.findIncompleteAssets();
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==========================================
+// Parametric routes - /:id must come AFTER all static routes
+// ==========================================
 
 assetRouter.get('/:id', authenticate, async (req, res, next) => {
   try {
@@ -34,16 +79,7 @@ assetRouter.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
-assetRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const asset = await assetService.create(req.body, req.userId);
-    res.status(201).json(asset);
-  } catch (error) {
-    next(error);
-  }
-});
-
-assetRouter.put('/:id', authenticate, async (req: AuthRequest, res, next) => {
+assetRouter.put('/:id', authenticate, authorizeEntityWrite('assets'), async (req: AuthRequest, res, next) => {
   try {
     const asset = await assetService.update(req.params.id, req.body, req.userId);
     res.json(asset);
@@ -52,18 +88,10 @@ assetRouter.put('/:id', authenticate, async (req: AuthRequest, res, next) => {
   }
 });
 
-assetRouter.delete('/:id', authenticate, async (req: AuthRequest, res, next) => {
+assetRouter.delete('/:id', authenticate, authorizeEntityDelete('assets'), async (req: AuthRequest, res, next) => {
   try {
     const result = await assetService.delete(req.params.id);
     res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
-assetRouter.post('/import', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    res.json({ message: 'Import assets', userId: req.userId });
   } catch (error) {
     next(error);
   }
@@ -82,16 +110,6 @@ assetRouter.post('/:id/relations', authenticate, async (req: AuthRequest, res, n
   try {
     const relation = await assetService.createRelation(req.params.id, req.body);
     res.status(201).json(relation);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// AST-011: Graph visualization data - full graph
-assetRouter.get('/graph', authenticate, requireAdminAccess, async (_req, res, next) => {
-  try {
-    const graph = await assetGraphService.getAssetGraph();
-    res.json(graph);
   } catch (error) {
     next(error);
   }
@@ -165,16 +183,6 @@ assetRouter.get('/:id/lifecycle-logs', authenticate, async (req, res, next) => {
   try {
     const logs = await assetService.getLifecycleLogs(req.params.id);
     res.json(logs);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// AST-032: Find assets with incomplete data (missing owner, criticality, audit status)
-assetRouter.get('/incomplete', authenticate, requireAdminAccess, async (_req, res, next) => {
-  try {
-    const result = await assetService.findIncompleteAssets();
-    res.json(result);
   } catch (error) {
     next(error);
   }

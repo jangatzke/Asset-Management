@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditService } from './audit.service';
 
 export interface CreateAssetData {
   name: string;
@@ -144,6 +145,17 @@ export class AssetService {
       },
     });
 
+    // Audit log for asset creation
+    if (createdBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: createdBy,
+        action: 'ASSET_CREATE',
+        entityType: 'Asset',
+        entityId: asset.id,
+        details: `Created asset: ${data.name}`,
+      });
+    }
+
     // AST-030: Log initial lifecycle status
     if (data.lifecycleStatus) {
       await prisma.assetLifecycleLog.create({
@@ -163,6 +175,19 @@ export class AssetService {
     const existing = await prisma.asset.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Asset not found', 404);
+    }
+
+    // Audit log for asset update (if critical fields changed)
+    if (updatedBy && (data.criticality !== undefined || data.lifecycleStatus !== undefined)) {
+      await auditService.logEventStandalone(prisma, {
+        userId: updatedBy,
+        action: 'ASSET_UPDATE',
+        entityType: 'Asset',
+        entityId: id,
+        details: `Updated asset: ${existing.name}`,
+        oldValue: { criticality: existing.criticality, lifecycleStatus: existing.lifecycleStatus },
+        newValue: { criticality: data.criticality ?? existing.criticality, lifecycleStatus: data.lifecycleStatus ?? existing.lifecycleStatus },
+      });
     }
 
     // AST-030: Log lifecycle status changes
@@ -195,10 +220,21 @@ export class AssetService {
     return asset;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.asset.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Asset not found', 404);
+    }
+
+    // Audit log for asset deletion (archiving)
+    if (deletedBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: deletedBy,
+        action: 'ASSET_DELETE',
+        entityType: 'Asset',
+        entityId: id,
+        details: `Archived asset: ${existing.name}`,
+      });
     }
 
     await prisma.asset.update({

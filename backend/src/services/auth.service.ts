@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditService, AuditEventParams } from './audit.service';
 
 export interface LoginCredentials {
   email: string;
@@ -23,8 +25,21 @@ export interface TokenPayload {
   roles: string[];
 }
 
+/**
+ * Check if self-registration is allowed.
+ * Default: disabled (SEC-006). Only admin can create users or OIDC auto-provisioning.
+ */
+function isSelfRegistrationAllowed(): boolean {
+  // Self-registration is disabled by default for security compliance
+  return process.env.ALLOW_SELF_REGISTRATION === 'true';
+}
+
 export class AuthService {
   async register(data: RegisterData) {
+    if (!isSelfRegistrationAllowed()) {
+      throw new AppError('Self-registration is disabled. Contact your administrator.', 403);
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -51,6 +66,16 @@ export class AuthService {
         userId: user.id,
         roleName: 'employee',
       },
+    });
+
+    // Audit log for self-registration
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${data.firstName} ${data.lastName}`,
+      action: 'REGISTER',
+      entityType: 'User',
+      entityId: user.id,
+      details: `Self-registered user: ${data.email}`,
     });
 
     const token = this.generateToken({
@@ -95,6 +120,16 @@ export class AuthService {
     });
 
     const roles = userRoles.map((ur) => ur.roleName);
+
+    // Audit log for login
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      action: 'LOGIN',
+      entityType: 'User',
+      entityId: user.id,
+      details: `Successful login: ${credentials.email}`,
+    });
 
     await prisma.user.update({
       where: { id: user.id },
@@ -170,23 +205,31 @@ export class AuthService {
   }
 
   async refreshToken(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new AppError('User not found', 404);
     }
 
     const userRoles = await prisma.userRole.findMany({
-      where: { userId: userId },
+      where: { userId: user.id },
+    });
+    const roles = userRoles.map((ur) => ur.roleName);
+
+    // Generate new refresh token
+    const newRefreshToken = crypto.randomUUID();
+    const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
+
+    // Store hashed token in database
+    await prisma.refreshToken.create({
+      data: {
+        token: hashedRefreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+      }
     });
 
-    const token = this.generateToken({
-      userId: user.id,
-      email: user.email,
-      roles: userRoles.map((ur) => ur.roleName),
-    });
+    // Generate access token
+    const token = this.generateToken({ userId: user.id, email: user.email, roles });
 
     return { token };
   }
@@ -199,58 +242,73 @@ export class AuthService {
   }
 
   async createFirstAdmin(data: RegisterData) {
-    // Check if admin already exists
-    const hasAdmin = await this.hasAdminUsers();
-    if (hasAdmin) {
-      throw new AppError('Admin account already exists', 403);
-    }
+    // Use a database transaction to prevent race conditions
+    return await prisma.$transaction(async (tx) => {
+      // Check if admin already exists within the transaction
+      const hasAdmin = await tx.userRole.count({
+        where: { roleName: 'system_admin' },
+      });
+      if (hasAdmin > 0) {
+        throw new AppError('Admin account already exists', 403);
+      }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
-    });
+      const existingUser = await tx.user.findUnique({
+        where: { email: data.email },
+      });
 
-    if (existingUser) {
-      throw new AppError('Email already registered', 409);
-    }
+      if (existingUser) {
+        throw new AppError('Email already registered', 409);
+      }
 
-    const passwordHash = await bcrypt.hash(data.password, 10);
-    const displayId = `USR-${Date.now()}`;
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      const displayId = `USR-0001`; // Will be replaced by Display-ID service later
 
-    const user = await prisma.user.create({
-      data: {
-        displayId,
-        email: data.email,
-        passwordHash,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        phoneNumber: data.phoneNumber,
-        organizationUnitId: data.organizationUnitId,
-      },
-    });
+      const user = await tx.user.create({
+        data: {
+          displayId,
+          email: data.email,
+          passwordHash,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phoneNumber: data.phoneNumber,
+          organizationUnitId: data.organizationUnitId,
+        },
+      });
 
-    await prisma.userRole.create({
-      data: {
+      await tx.userRole.create({
+        data: {
+          userId: user.id,
+          roleName: 'system_admin',
+        },
+      });
+
+      // Audit log for first admin creation (within transaction)
+      await auditService.logEvent(tx, {
         userId: user.id,
-        roleName: 'system_admin',
-      },
-    });
+        userName: `${data.firstName} ${data.lastName}`,
+        action: 'CREATE_FIRST_ADMIN',
+        entityType: 'User',
+        entityId: user.id,
+        details: `First admin created: ${data.email}`,
+      });
 
-    const token = this.generateToken({
-      userId: user.id,
-      email: user.email,
-      roles: ['system_admin'],
-    });
-
-    return {
-      user: {
-        id: user.id,
+      const token = this.generateToken({
+        userId: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
         roles: ['system_admin'],
-      },
-      token,
-    };
+      });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          roles: ['system_admin'],
+        },
+        token,
+      };
+    });
   }
 
   async updatePreferences(userId: string, data: { language?: string; darkMode?: boolean }) {
@@ -278,8 +336,96 @@ export class AuthService {
     return updated;
   }
 
+  /**
+   * Generate a new refresh token, store its hash, and revoke all previous tokens
+   * for the given user (rotation + hashing)
+   */
+  async generateRefreshToken(userId: string): Promise<{ token: string; hashedToken: string }> {
+    // Generate new refresh token
+    const newRefreshToken = crypto.randomUUID();
+    
+    // Hash the token before storing
+    const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
+    
+    // Revoke all existing refresh tokens for this user
+    await this.revokeRefreshTokens(userId);
+    
+    // Store the new hashed token
+    await prisma.refreshToken.create({
+      data: {
+        token: hashedRefreshToken,
+        userId: userId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        revoked: false,
+      },
+    });
+    
+    return { token: newRefreshToken, hashedToken: hashedRefreshToken };
+  }
+
+  /**
+   * Validate a refresh token by comparing its hash with stored hash
+   * Returns userId if valid, null otherwise
+   */
+  async validateRefreshToken(token: string): Promise<string | null> {
+    // Find the refresh token record
+    const record = await prisma.refreshToken.findFirst({
+      where: {
+        revoked: false,
+        expiresAt: { gte: new Date() },
+      },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    // Compare provided token with stored hash
+    const isValid = await bcrypt.compare(token, record.token);
+    return isValid ? record.userId : null;
+  }
+
+  /**
+   * Revoke all refresh tokens for a user (used during logout and token rotation)
+   */
+  async revokeRefreshTokens(userId: string): Promise<void> {
+    await prisma.refreshToken.updateMany({
+      where: { userId: userId },
+      data: { revoked: true },
+    });
+  }
+
+  /**
+   * Revoke all tokens for a user (used during logout)
+   * Revokes both refresh tokens and invalidates access tokens
+   */
+  async logout(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    // Audit log for logout
+    if (user) {
+      await auditService.logEventStandalone(prisma, {
+        userId,
+        userName: `${user.firstName} ${user.lastName}`,
+        action: 'LOGOUT',
+        entityType: 'User',
+        entityId: userId,
+        details: `Logout: ${user.email}`,
+      });
+    }
+
+    // Revoke all refresh tokens
+    await this.revokeRefreshTokens(userId);
+    
+    // Note: Access tokens are stateless, but we could add additional
+    // session tracking if needed for forced logout
+  }
+
   private generateToken(payload: TokenPayload): string {
-    const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new AppError('JWT_SECRET is not configured', 500);
+    }
     return jwt.sign(payload, secret, { expiresIn: '1h' });
   }
 }

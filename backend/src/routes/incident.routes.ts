@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
 import { incidentService } from '../services/incident.service';
 
 export const incidentRouter = Router();
@@ -22,7 +23,7 @@ incidentRouter.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
-incidentRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
+incidentRouter.post('/', authenticate, authorizeEntityWrite('incidents'), async (req: AuthRequest, res, next) => {
   try {
     const incident = await incidentService.create(req.body, req.userId);
     res.status(201).json(incident);
@@ -31,7 +32,7 @@ incidentRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
   }
 });
 
-incidentRouter.put('/:id', authenticate, async (req: AuthRequest, res, next) => {
+incidentRouter.put('/:id', authenticate, authorizeEntityWrite('incidents'), async (req: AuthRequest, res, next) => {
   try {
     const incident = await incidentService.update(req.params.id, req.body, req.userId);
     res.json(incident);
@@ -40,7 +41,7 @@ incidentRouter.put('/:id', authenticate, async (req: AuthRequest, res, next) => 
   }
 });
 
-incidentRouter.delete('/:id', authenticate, async (req: AuthRequest, res, next) => {
+incidentRouter.delete('/:id', authenticate, authorizeEntityDelete('incidents'), async (req: AuthRequest, res, next) => {
   try {
     const result = await incidentService.delete(req.params.id);
     res.json(result);
@@ -49,7 +50,7 @@ incidentRouter.delete('/:id', authenticate, async (req: AuthRequest, res, next) 
   }
 });
 
-incidentRouter.post('/:id/assess', authenticate, async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/assess', authenticate, authorizeEntityWrite('incidents'), async (req: AuthRequest, res, next) => {
   try {
     const assessment = await incidentService.assessIncident(req.params.id, req.body);
     res.status(201).json(assessment);
@@ -58,7 +59,7 @@ incidentRouter.post('/:id/assess', authenticate, async (req: AuthRequest, res, n
   }
 });
 
-incidentRouter.post('/:id/report', authenticate, async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/report', authenticate, authorizeEntityWrite('incidents'), async (req: AuthRequest, res, next) => {
   try {
     const report = await incidentService.createReport(req.params.id, req.body);
     res.status(201).json(report);

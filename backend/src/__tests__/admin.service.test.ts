@@ -9,6 +9,9 @@ import bcrypt from 'bcryptjs';
 
 // Using any type for mocks to avoid strict TypeScript 'never' inference issues
 const mockPrismaClient: any = {
+  auditLog: {
+    create: jest.fn(),
+  },
   user: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -161,8 +164,13 @@ describe('AdminService', () => {
         phoneNumber: '+491234567890',
       };
 
-      // findUnique called twice: 1st for email check, 2nd after create to get full user
+      // findUnique called 3x: 1st for email check, 2nd for admin name lookup, 3rd after create to get full user
       mockPrismaClient.user.findUnique.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          ...testUser,
+          firstName: 'Admin',
+          lastName: 'User',
+        })
         .mockResolvedValueOnce({
           ...testUser,
           id: 'new-user-id',
@@ -264,6 +272,8 @@ describe('AdminService', () => {
         userRoles: [],
         userGroups: [],
       });
+      // Get current roles for audit log (empty since no existing roles)
+      mockPrismaClient.userRole.findMany.mockResolvedValue([]);
       mockPrismaClient.userRole.deleteMany.mockResolvedValue({ count: 0 });
       // Create a mock role with roleName 'system_admin' for the second create call
       const systemAdminRole = {
@@ -769,6 +779,150 @@ describe('AdminService', () => {
         mockPrismaClient.intuneAppCredentials.findFirst.mockResolvedValue(null);
 
         await expect(adminService.deleteIntuneCredentials()).rejects.toThrow(AppError);
+      });
+    });
+  });
+
+  // ==========================================
+  // Authorization Tests (Paket 1.1 - P0-01, P0-02)
+  // ==========================================
+
+  describe('Role-based Authorization', () => {
+    describe('createRole with canAccessAdmin', () => {
+      it('should create role with canAccessAdmin=true', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue(null);
+        mockPrismaClient.role.create.mockResolvedValue({
+          id: 'new-role',
+          name: 'security_admin',
+          description: 'Security administrator',
+          isBuiltIn: false,
+          permissions: [],
+          canAccessAdmin: true,
+          entityPermissions: { risks: 'readwrite', controls: 'readwrite' },
+        });
+
+        const result = await adminService.createRole({
+          name: 'security_admin',
+          description: 'Security administrator',
+          permissions: [],
+          canAccessAdmin: true,
+          entityPermissions: { risks: 'readwrite', controls: 'readwrite' },
+        });
+
+        expect(result.canAccessAdmin).toBe(true);
+        expect(result.entityPermissions.risks).toBe('readwrite');
+      });
+
+      it('should create role with canAccessAdmin=false by default', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue(null);
+        mockPrismaClient.role.create.mockResolvedValue({
+          id: 'new-role',
+          name: 'viewer',
+          description: 'Read-only viewer',
+          isBuiltIn: false,
+          permissions: [],
+          canAccessAdmin: false,
+          entityPermissions: { assets: 'readonly' },
+        });
+
+        const result = await adminService.createRole({
+          name: 'viewer',
+          permissions: [],
+          entityPermissions: { assets: 'readonly' },
+        });
+
+        expect(result.canAccessAdmin).toBe(false);
+      });
+    });
+
+    describe('updateRole canAccessAdmin', () => {
+      it('should update canAccessAdmin flag on custom role', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue({
+          id: 'role-123',
+          name: 'custom_role',
+          isBuiltIn: false,
+          canAccessAdmin: false,
+        });
+        mockPrismaClient.role.update.mockResolvedValue({
+          id: 'role-123',
+          name: 'custom_role',
+          isBuiltIn: false,
+          canAccessAdmin: true,
+        });
+
+        const result = await adminService.updateRole('role-123', {
+          canAccessAdmin: true,
+        });
+
+        expect(result.canAccessAdmin).toBe(true);
+      });
+
+      it('should prevent modifying built-in roles', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue({
+          id: 'role-123',
+          name: 'system_admin',
+          isBuiltIn: true,
+        });
+
+        await expect(
+          adminService.updateRole('role-123', { canAccessAdmin: false })
+        ).rejects.toThrow('Built-in roles cannot be modified');
+      });
+    });
+
+    describe('initializeBuiltInRoles', () => {
+      it('should create system_admin with canAccessAdmin=true', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue(null);
+        mockPrismaClient.role.create.mockResolvedValue({
+          id: 'builtin-admin',
+          name: 'system_admin',
+          canAccessAdmin: true,
+          isBuiltIn: true,
+        });
+
+        await adminService.initializeBuiltInRoles();
+
+        expect(mockPrismaClient.role.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              name: 'system_admin',
+              canAccessAdmin: true,
+            }),
+          })
+        );
+      });
+
+      it('should create employee with canAccessAdmin=false', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue(null);
+        mockPrismaClient.role.create.mockResolvedValue({
+          id: 'builtin-employee',
+          name: 'employee',
+          canAccessAdmin: false,
+          isBuiltIn: true,
+        });
+
+        await adminService.initializeBuiltInRoles();
+
+        expect(mockPrismaClient.role.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              name: 'employee',
+              canAccessAdmin: false,
+            }),
+          })
+        );
+      });
+
+      it('should skip built-in roles that already exist', async () => {
+        mockPrismaClient.role.findUnique.mockResolvedValue({
+          id: 'existing',
+          name: 'system_admin',
+          canAccessAdmin: true,
+        });
+
+        await adminService.initializeBuiltInRoles();
+
+        expect(mockPrismaClient.role.create).not.toHaveBeenCalled();
       });
     });
   });

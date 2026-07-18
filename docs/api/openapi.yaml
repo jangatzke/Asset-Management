@@ -1,0 +1,847 @@
+openapi: 3.1.0
+info:
+  title: Asset Management System API (ISO 27001)
+  version: 1.0.0
+  description: RESTful API for IT Asset & ISMS Management with ISO 27001 compliance
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development
+
+paths:
+  # ==================== Health ====================
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  timestamp: { type: string, format: date-time }
+
+  # ==================== Authentication ====================
+  /auth/has-admin:
+    get:
+      summary: Check if admin user exists
+      tags: [Authentication]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hasAdmin: { type: boolean }
+
+  /auth/create-first-admin:
+    post:
+      summary: Create first admin user (one-time setup)
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/register:
+    post:
+      summary: Register new user
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email already registered
+
+  /auth/login:
+    post:
+      summary: Login with email/password
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      summary: Get current user profile
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /auth/me/preferences:
+    patch:
+      summary: Update user preferences (language, darkMode)
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language: { type: string, example: de }
+                darkMode: { type: boolean }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /auth/refresh:
+    post:
+      summary: Refresh JWT token
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+
+  # ==================== OIDC ====================
+  /auth/oidc/authorize:
+    get:
+      summary: Get OIDC authorization URL (with PKCE)
+      tags: [OIDC]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authorizeUrl: { type: string }
+                  state: { type: string }
+                  codeChallenge: { type: string }
+
+  /auth/oidc/callback:
+    post:
+      summary: OIDC callback handler
+      tags: [OIDC]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, state]
+              properties:
+                code: { type: string }
+                state: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/oidc/config:
+    get:
+      summary: Get OIDC configuration (safe, no secrets)
+      tags: [OIDC]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcConfigResponse'
+
+  # ==================== Admin - Users ====================
+  /admin/users:
+    get:
+      summary: List all users
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      summary: Create user (admin only)
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /admin/users/{id}:
+    get:
+      summary: Get user by ID
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+    put:
+      summary: Update user
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+    delete:
+      summary: Delete user (soft delete / archive)
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+
+  /admin/users/{id}/roles:
+    put:
+      summary: Assign roles to user
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roles:
+                  type: array
+                  items: { type: string }
+
+  /admin/users/{id}/change-password:
+    post:
+      summary: Force password change for user
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newPassword: { type: string, minLength: 12 }
+
+  # ==================== Admin - Roles ====================
+  /admin/roles:
+    get:
+      summary: List all roles
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleResponse'
+    post:
+      summary: Create role
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+
+  /admin/roles/{id}:
+    put:
+      summary: Update role
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+    delete:
+      summary: Delete role
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+
+  # ==================== Admin - Groups ====================
+  /admin/groups:
+    get:
+      summary: List all groups
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupResponse'
+    post:
+      summary: Create group
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+
+  /admin/groups/{id}/users:
+    put:
+      summary: Assign users to group
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+
+  /admin/groups/{id}/roles:
+    put:
+      summary: Assign roles to group
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+
+  # ==================== Admin - OIDC Config ====================
+  /admin/oidc/config:
+    get:
+      summary: Get OIDC configuration (full)
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcConfigResponse'
+    put:
+      summary: Update OIDC configuration
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OidcConfigInput'
+
+  # ==================== Admin - Asset Types ====================
+  /admin/asset-types:
+    get:
+      summary: List asset types
+      tags: [Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssetTypeResponse'
+
+  # ==================== Assets ====================
+  /assets:
+    get:
+      summary: List assets (paginated, filterable)
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: assetTypeId
+          in: query
+          schema: { type: string }
+        - name: criticality
+          in: query
+          schema: { type: string, enum: [low, medium, high, critical] }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      summary: Create asset
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+
+  /assets/{id}:
+    get:
+      summary: Get asset by ID
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+
+  /assets/{id}/graph:
+    get:
+      summary: Get asset dependency graph (centered on this asset)
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: depth
+          in: query
+          schema: { type: integer, default: 3 }
+
+  /assets/graph:
+    get:
+      summary: Get full asset dependency graph
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+
+  /assets/{id}/impact-analysis:
+    get:
+      summary: Impact analysis for asset failure scenario
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+
+  # ==================== Risks ====================
+  /risks:
+    get:
+      summary: List risks (paginated, filterable)
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  # ==================== Controls ====================
+  /controls:
+    get:
+      summary: List controls
+      tags: [Controls]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  # ==================== Incidents ====================
+  /incidents:
+    get:
+      summary: List incidents
+      tags: [Incidents]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  # ==================== Audit Logs ====================
+  /audit-logs:
+    get:
+      summary: List audit log entries (read-only)
+      tags: [Audit]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: objectType
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+
+  # ==================== Contracts ====================
+  /contracts:
+    get:
+      summary: List contracts
+      tags: [Contracts]
+      security: [{ bearerAuth: [] }]
+
+  # ==================== Licenses ====================
+  /licenses:
+    get:
+      summary: List licenses
+      tags: [Licenses]
+      security: [{ bearerAuth: [] }]
+
+  # ==================== Business Processes ====================
+  /processes:
+    get:
+      summary: List business processes
+      tags: [Processes]
+      security: [{ bearerAuth: [] }]
+
+  # ==================== Risk Treatments ====================
+  /treatments:
+    get:
+      summary: List risk treatments
+      tags: [Treatments]
+      security: [{ bearerAuth: [] }]
+
+  # ==================== Risk Methods ====================
+  /methods:
+    get:
+      summary: List risk methods
+      tags: [Methods]
+      security: [{ bearerAuth: [] }]
+
+  # ==================== Integrations ====================
+  /intune/credentials:
+    get:
+      summary: Get Intune credentials (masked)
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+
+  /admin/vmware/credentials:
+    get:
+      summary: List VMware credentials
+      tags: [VMware]
+      security: [{ bearerAuth: [] }]
+
+  /admin/vmware/vcenters:
+    get:
+      summary: List vCenter servers
+      tags: [VMware]
+      security: [{ bearerAuth: [] }]
+
+  /admin/proxmox/credentials:
+    get:
+      summary: List Proxmox credentials
+      tags: [Proxmox]
+      security: [{ bearerAuth: [] }]
+
+  /admin/proxmox/servers:
+    get:
+      summary: List Proxmox servers
+      tags: [Proxmox]
+      security: [{ bearerAuth: [] }]
+
+# ==================== Components ====================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+schemas:
+  LoginInput:
+    type: object
+    required: [email, password]
+    properties:
+      email: { type: string, format: email }
+      password: { type: string, minLength: 1 }
+
+  RegisterInput:
+    type: object
+    required: [email, password, firstName, lastName]
+    properties:
+      email: { type: string, format: email }
+      password: { type: string, minLength: 12 }
+      firstName: { type: string }
+      lastName: { type: string }
+      phoneNumber: { type: string }
+      organizationUnitId: { type: string }
+
+  UpdateUserInput:
+    type: object
+    properties:
+      firstName: { type: string }
+      lastName: { type: string }
+      phoneNumber: { type: string }
+      organizationUnitId: { type: string }
+      isActive: { type: boolean }
+
+  AuthResponse:
+    type: object
+    properties:
+      user:
+        $ref: '#/components/schemas/UserResponse'
+      token: { type: string, description: JWT Bearer Token }
+
+  UserResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      displayId: { type: string }
+      email: { type: string, format: email }
+      firstName: { type: string }
+      lastName: { type: string }
+      phoneNumber: { type: string, nullable: true }
+      isActive: { type: boolean }
+      roles:
+        type: array
+        items: { type: string }
+      language: { type: string, nullable: true }
+      darkMode: { type: boolean, nullable: true }
+      createdAt: { type: string, format: date-time }
+
+  RoleResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      name: { type: string }
+      description: { type: string, nullable: true }
+      isBuiltIn: { type: boolean }
+      permissions: { type: object }
+      canAccessAdmin: { type: boolean }
+      entityPermissions:
+        type: object
+        properties:
+          assets: { type: string, enum: [none, readonly, readwrite] }
+          risks: { type: string, enum: [none, readonly, readwrite] }
+          controls: { type: string, enum: [none, readonly, readwrite] }
+          incidents: { type: string, enum: [none, readonly, readwrite] }
+
+  CreateRoleInput:
+    type: object
+    required: [name, permissions]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      permissions: { type: array, items: { type: object } }
+      canAccessAdmin: { type: boolean, default: false }
+      entityPermissions:
+        $ref: '#/components/schemas/EntityPermissions'
+
+  EntityPermissions:
+    type: object
+    properties:
+      assets: { type: string, enum: [none, readonly, readwrite] }
+      risks: { type: string, enum: [none, readonly, readwrite] }
+      controls: { type: string, enum: [none, readonly, readwrite] }
+      incidents: { type: string, enum: [none, readonly, readwrite] }
+
+  GroupResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      name: { type: string }
+      description: { type: string, nullable: true }
+
+  OidcConfigResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      enabled: { type: boolean }
+      providerName: { type: string }
+      alloweEmailDomains:
+        type: array
+        items: { type: string }
+      autoProvisioning: { type: boolean }
+      defaultRoleForNewUsers: { type: string }
+      enableLocalLogin: { type: boolean }
+
+  OidcConfigInput:
+    type: object
+    properties:
+      enabled: { type: boolean }
+      providerName: { type: string }
+      tenantId: { type: string }
+      clientId: { type: string }
+      clientSecret: { type: string }
+      redirectUri: { type: string }
+      allowedEmailDomains:
+        type: array
+        items: { type: string }
+      autoProvisioning: { type: boolean }
+      defaultRoleForNewUsers: { type: string }
+      enableLocalLogin: { type: boolean }
+
+  AssetTypeResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      name: { type: string }
+      description: { type: string, nullable: true }
+      category: { type: string }
+      isArchived: { type: boolean }
+
+  AssetResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      displayId: { type: string }
+      name: { type: string }
+      description: { type: string, nullable: true }
+      assetTypeId: { type: string }
+      criticality: { type: string }
+      lifecycleStatus: { type: string }
+      confidentialityNeed: { type: string }
+      integrityNeed: { type: string }
+      availabilityNeed: { type: string }
+
+  PaginatedResponse:
+    type: object
+    properties:
+      data: { type: array, items: {} }
+      total: { type: integer }
+      page: { type: integer }
+      limit: { type: integer }
+      totalPages: { type: integer }

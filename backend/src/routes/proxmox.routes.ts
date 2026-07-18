@@ -7,6 +7,7 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { proxmoxCredentialService } from '../services/proxmox.credential';
 import { proxmoxService } from '../services/proxmox.service';
 
@@ -17,7 +18,7 @@ export const proxmoxRouter = Router();
 // ==========================================
 
 /** GET /admin/proxmox/credentials - List all Proxmox credentials */
-proxmoxRouter.get('/credentials', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.get('/credentials', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const credentials = await proxmoxCredentialService.listCredentials();
     res.json(credentials);
@@ -27,7 +28,7 @@ proxmoxRouter.get('/credentials', authenticate, async (_req: AuthRequest, res: R
 });
 
 /** POST /admin/proxmox/credentials - Create a new Proxmox credential */
-proxmoxRouter.post('/credentials', authenticate, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+proxmoxRouter.post('/credentials', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { name, username, password, apiToken } = req.body;
     if (!name || !username) {
@@ -46,7 +47,7 @@ proxmoxRouter.post('/credentials', authenticate, async (req: AuthRequest, res: R
 });
 
 /** PUT /admin/proxmox/credentials/:id - Update a Proxmox credential */
-proxmoxRouter.put('/credentials/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.put('/credentials/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { name, username, password, apiToken, isDefault } = req.body;
     const credential = await proxmoxCredentialService.updateCredential(req.params.id, {
@@ -63,7 +64,7 @@ proxmoxRouter.put('/credentials/:id', authenticate, async (req: AuthRequest, res
 });
 
 /** DELETE /admin/proxmox/credentials/:id - Delete a Proxmox credential */
-proxmoxRouter.delete('/credentials/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.delete('/credentials/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await proxmoxCredentialService.deleteCredential(req.params.id);
     res.json(result);
@@ -77,7 +78,7 @@ proxmoxRouter.delete('/credentials/:id', authenticate, async (req: AuthRequest, 
 // ==========================================
 
 /** GET /admin/proxmox/servers - List all Proxmox servers */
-proxmoxRouter.get('/servers', authenticate, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.get('/servers', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const servers = await proxmoxService.listServers();
     res.json(servers);
@@ -87,7 +88,7 @@ proxmoxRouter.get('/servers', authenticate, async (_req: AuthRequest, res: Respo
 });
 
 /** POST /admin/proxmox/servers - Create a new Proxmox server config */
-proxmoxRouter.post('/servers', authenticate, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+proxmoxRouter.post('/servers', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { name, host, port, nodeId, credentialId } = req.body;
     if (!name || !host || !credentialId) {
@@ -102,7 +103,7 @@ proxmoxRouter.post('/servers', authenticate, async (req: AuthRequest, res: Respo
 });
 
 /** PUT /admin/proxmox/servers/:id - Update a Proxmox server config */
-proxmoxRouter.put('/servers/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.put('/servers/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { name, host, port, nodeId, credentialId, enabled } = req.body;
     const server = await proxmoxService.updateServer(req.params.id, {
@@ -120,7 +121,7 @@ proxmoxRouter.put('/servers/:id', authenticate, async (req: AuthRequest, res: Re
 });
 
 /** DELETE /admin/proxmox/servers/:id - Delete a Proxmox server config */
-proxmoxRouter.delete('/servers/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.delete('/servers/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await proxmoxService.deleteServer(req.params.id);
     res.json(result);
@@ -130,7 +131,7 @@ proxmoxRouter.delete('/servers/:id', authenticate, async (req: AuthRequest, res:
 });
 
 /** POST /admin/proxmox/servers/:id/import - Import VMs/containers from Proxmox */
-proxmoxRouter.post('/servers/:id/import', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.post('/servers/:id/import', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const dryRun = req.body.dryRun === true;
     const result = await proxmoxService.importVMs(req.params.id, { dryRun });
@@ -141,7 +142,7 @@ proxmoxRouter.post('/servers/:id/import', authenticate, async (req: AuthRequest,
 });
 
 /** POST /admin/proxmox/servers/:id/test-connection - Test Proxmox connection */
-proxmoxRouter.post('/servers/:id/test-connection', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+proxmoxRouter.post('/servers/:id/test-connection', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await proxmoxService.testConnection(req.params.id);
     res.json(result);

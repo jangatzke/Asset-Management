@@ -62,8 +62,8 @@ authRouter.get('/oidc/authorize', async (_req, res, next) => {
 
 authRouter.post('/oidc/callback', async (req, res, next) => {
   try {
-    const { code, state } = req.body;
-    const result = await oidcService.handleCallback(code, state);
+    const { code, state, code_verifier } = req.body;
+    const result = await oidcService.handleCallback(code, state, code_verifier);
     res.json(result);
   } catch (error) {
     next(error);
@@ -104,6 +104,15 @@ authRouter.patch('/me/preferences', authenticate, async (req: AuthRequest, res, 
     const { language, darkMode } = req.body;
     const user = await authService.updatePreferences(req.userId!, { language, darkMode });
     res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/logout', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    await authService.logout(req.userId!);
+    res.json({ message: 'Logged out successfully' });
   } catch (error) {
     next(error);
   }

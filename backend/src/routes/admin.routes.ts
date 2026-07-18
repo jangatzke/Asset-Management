@@ -1,20 +1,9 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { adminService } from '../services/admin.service';
 
 export const adminRouter = Router();
-
-// Helper: check if user has admin access (any role with canAccessAdmin = true)
-const requireAdminAccess = (req: AuthRequest, _res: any, next: any): void => {
-  // Check if user has system_admin role (legacy) or any role with canAccessAdmin
-  if (req.userRoles?.includes('system_admin')) {
-    next();
-    return;
-  }
-  // For now, only system_admin can access admin routes.
-  // In the future, this will check role.canAccessAdmin dynamically.
-  next();
-};
 
 // ---- User Management ----
 

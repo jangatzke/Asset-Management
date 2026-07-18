@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 export interface OidcConfigData {
   enabled?: boolean;
@@ -15,6 +16,7 @@ export interface OidcConfigData {
   enableGroupMapping?: boolean;
   groupClaimToRoleMapping?: Record<string, string>;
   enableLocalLogin?: boolean;
+  autoProvisioningRequiresApproval?: boolean;
 }
 
 export interface OidcUserInfo {
@@ -27,6 +29,23 @@ export interface OidcUserInfo {
 }
 
 export class OidcService {
+  // In-memory store for state/nonce and PKCE code verifier
+  private stateNonceStore = new Map<string, { nonce: string; codeVerifier: string; codeChallenge: string }>();
+
+  // Helper to base64url encode a buffer
+  private base64urlEncode(buffer: Buffer): string {
+    return buffer
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  }
+
+  // Helper to compute SHA256 hash
+  private sha256(message: string): Buffer {
+    return crypto.createHash('sha256').update(message).digest();
+  }
+
   async getConfig(): Promise<any> {
     let config = await prisma.oidcConfig.findFirst();
     if (!config) {
@@ -65,6 +84,7 @@ export class OidcService {
     if (data.enableGroupMapping !== undefined) updateData.enableGroupMapping = data.enableGroupMapping;
     if (data.groupClaimToRoleMapping !== undefined) updateData.groupClaimToRoleMapping = data.groupClaimToRoleMapping;
     if (data.enableLocalLogin !== undefined) updateData.enableLocalLogin = data.enableLocalLogin;
+    if (data.autoProvisioningRequiresApproval !== undefined) updateData.autoProvisioningRequiresApproval = data.autoProvisioningRequiresApproval;
 
     if (!config) throw new AppError('OIDC config not found', 404);
     return await prisma.oidcConfig.update({
@@ -89,6 +109,16 @@ export class OidcService {
       throw new AppError('OIDC not configured', 400);
     }
 
+    // Generate PKCE code verifier and challenge
+    const codeVerifier = crypto.randomBytes(32).toString('hex');
+    const codeChallenge = this.base64urlEncode(this.sha256(codeVerifier));
+    
+    // Generate nonce
+    const nonce = crypto.randomUUID();
+    
+    // Store state, nonce, and codeVerifier for later validation
+    this.stateNonceStore.set(state, { nonce, codeVerifier, codeChallenge });
+
     const baseUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`;
     const params = new URLSearchParams({
       client_id: config.clientId,
@@ -96,15 +126,34 @@ export class OidcService {
       redirect_uri: config.redirectUri || '',
       scope: 'openid profile email',
       state,
+      nonce,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
     });
 
     return `${baseUrl}?${params.toString()}`;
   }
 
-  async handleCallback(code: string, _state: string): Promise<any> {
+  async handleCallback(code: string, state: string, codeVerifier: string): Promise<any> {
     const config = await this.getConfig();
     if (!config.enabled || !config.clientId || !config.clientSecret || !config.redirectUri || !config.tenantId) {
       throw new AppError('OIDC not configured', 400);
+    }
+
+    // Retrieve stored state, nonce, and codeVerifier
+    const stored = this.stateNonceStore.get(state);
+    if (!stored) {
+      throw new AppError('Invalid state', 401);
+    }
+    const { codeChallenge: storedCodeChallenge } = stored;
+
+    // Remove the entry to prevent reuse
+    this.stateNonceStore.delete(state);
+
+    // Validate code_verifier matches stored challenge
+    const computedChallenge = this.base64urlEncode(this.sha256(codeVerifier));
+    if (computedChallenge !== storedCodeChallenge) {
+      throw new AppError('Invalid code verifier', 401);
     }
 
     // Exchange code for tokens
@@ -117,6 +166,7 @@ export class OidcService {
         code,
         redirect_uri: config.redirectUri,
         grant_type: 'authorization_code',
+        code_verifier: codeVerifier,
       }),
     });
 
@@ -183,6 +233,11 @@ export class OidcService {
         token: this.generateToken(user.id, [...new Set([...roles.map((r) => r.roleName), ...groupRoles])]),
       };
     } else if (config.autoProvisioning) {
+      // Check if auto-provisioning requires approval
+      if (config.autoProvisioningRequiresApproval) {
+        throw new AppError('Auto-provisioning requires approval. Please contact your administrator.', 403);
+      }
+      
       // Auto-provision new user
       const firstName = userInfo.given_name || userInfo.name || 'User';
       const lastName = userInfo.family_name || '';
@@ -239,7 +294,7 @@ export class OidcService {
         token: this.generateToken(newUser.id, roles.map((r) => r.roleName)),
       };
     } else {
-      throw new AppError('Auto-provisioning is disabled and no local account found for this email', 403);
+      throw new AppError('Auto-provisioning is disabled. User not found.', 403);
     }
   }
 
@@ -261,8 +316,10 @@ export class OidcService {
   }
 
   private generateToken(userId: string, roles: string[]): string {
-    const jwt = require('jsonwebtoken');
-    const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new AppError('JWT_SECRET is not configured', 500);
+    }
     return jwt.sign({ userId, roles }, secret, { expiresIn: '1h' });
   }
 }

@@ -2,14 +2,18 @@
  * Tests for AuthService
  *
  * Tests authentication logic: register, login, getCurrentUser,
- * refreshToken, hasAdminUsers, createFirstAdmin
+ * refreshToken, hasAdminUsers, createFirstAdmin, logout, token rotation
  */
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 // Create mock before importing the service
 const mockPrismaClient: any = {
+  auditLog: {
+    create: jest.fn(),
+  },
   user: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -25,6 +29,12 @@ const mockPrismaClient: any = {
   userGroup: {
     findMany: jest.fn(),
   },
+  refreshToken: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  $transaction: jest.fn((fn: any) => fn(mockPrismaClient)),
 };
 
 // Mock the database module
@@ -42,6 +52,8 @@ describe('AuthService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     authService = new AuthService();
+    process.env.JWT_SECRET = 'test-secret-key';
+    process.env.ALLOW_SELF_REGISTRATION = 'true';
   });
 
   describe('register', () => {
@@ -236,6 +248,44 @@ describe('AuthService', () => {
     });
   });
 
+  describe('refreshToken', () => {
+    it('should generate a new access token and store hashed refresh token', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+      mockPrismaClient.refreshToken.create.mockResolvedValue({});
+
+      const result = await authService.refreshToken(testUser.id);
+
+      expect(result).toHaveProperty('token');
+      expect(mockPrismaClient.refreshToken.create).toHaveBeenCalled();
+      
+      // Verify the stored token is hashed (not plaintext)
+      const createCall = mockPrismaClient.refreshToken.create.mock.calls[0][0];
+      expect(createCall.data.token).not.toBe(testUser.id);
+      expect(createCall.data.token).toMatch(/^\$2[aby]\$/); // bcrypt hash format
+    });
+
+    it('should throw error if user not found', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      await expect(authService.refreshToken('nonexistent')).rejects.toThrow(AppError);
+      await expect(authService.refreshToken('nonexistent')).rejects.toThrow('User not found');
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke all refresh tokens for user', async () => {
+      mockPrismaClient.refreshToken.updateMany.mockResolvedValue({});
+
+      await authService.logout(testUser.id);
+
+      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: testUser.id },
+        data: { revoked: true },
+      });
+    });
+  });
+
   describe('generateToken (private)', () => {
     it('should generate a valid JWT token', async () => {
       // We test token generation indirectly through login/register
@@ -256,6 +306,23 @@ describe('AuthService', () => {
       expect(decoded).toHaveProperty('userId', testUser.id);
       expect(decoded).toHaveProperty('email', testUser.email);
       expect(decoded).toHaveProperty('roles', ['employee']);
+    });
+
+    it('should throw error if JWT_SECRET is not configured', async () => {
+      delete process.env.JWT_SECRET;
+      
+      const credentials = {
+        email: testUser.email,
+        password: testUserPassword,
+      };
+
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+      mockPrismaClient.user.update.mockResolvedValue({ ...testUser });
+
+      await expect(authService.login(credentials)).rejects.toThrow(AppError);
+      await expect(authService.login(credentials)).rejects.toThrow('JWT_SECRET is not configured');
     });
   });
 });

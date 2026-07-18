@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditService } from './audit.service';
 
 export interface CreateRiskData {
   title: string;
@@ -127,6 +128,17 @@ export class RiskService {
       },
     });
 
+    // Audit log for risk creation
+    if (createdBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: createdBy,
+        action: 'RISK_CREATE',
+        entityType: 'Risk',
+        entityId: risk.id,
+        details: `Created risk: ${data.title}`,
+      });
+    }
+
     return risk;
   }
 
@@ -134,6 +146,19 @@ export class RiskService {
     const existing = await prisma.risk.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Risk not found', 404);
+    }
+
+    // Audit log for risk update (if status or risk level changed)
+    if (updatedBy && (data.status !== undefined || data.likelihood !== undefined || data.impact !== undefined)) {
+      await auditService.logEventStandalone(prisma, {
+        userId: updatedBy,
+        action: 'RISK_UPDATE',
+        entityType: 'Risk',
+        entityId: id,
+        details: `Updated risk: ${existing.title}`,
+        oldValue: { status: existing.status, likelihood: existing.likelihood, impact: existing.impact },
+        newValue: { status: data.status ?? existing.status, likelihood: data.likelihood ?? existing.likelihood, impact: data.impact ?? existing.impact },
+      });
     }
 
     const risk = await prisma.risk.update({
@@ -150,10 +175,21 @@ export class RiskService {
     return risk;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.risk.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Risk not found', 404);
+    }
+
+    // Audit log for risk deletion (archiving)
+    if (deletedBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: deletedBy,
+        action: 'RISK_DELETE',
+        entityType: 'Risk',
+        entityId: id,
+        details: `Archived risk: ${existing.title}`,
+      });
     }
 
     await prisma.risk.update({
@@ -192,6 +228,17 @@ export class RiskService {
     if (!risk) {
       throw new AppError('Risk not found', 404);
     }
+
+    // Audit log for risk acceptance (security-relevant action)
+    await auditService.logEventStandalone(prisma, {
+      userId,
+      action: 'RISK_ACCEPT',
+      entityType: 'Risk',
+      entityId: riskId,
+      details: `Accepted risk: ${risk.title}`,
+      oldValue: { status: risk.status },
+      newValue: { status: 'accepted' },
+    });
 
     const updated = await prisma.risk.update({
       where: { id: riskId },

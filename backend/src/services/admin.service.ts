@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import bcrypt from 'bcryptjs';
 import { oidcService } from './oidc.service';
+import { auditService } from './audit.service';
 
 // --- Types ---
 
@@ -257,6 +258,9 @@ export class AdminService {
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
+    // Get admin user name for audit log
+    const adminUser = await prisma.user.findUnique({ where: { id: createdBy }, select: { firstName: true, lastName: true } });
+
     const user = await prisma.user.create({
       data: {
         email: data.email,
@@ -271,6 +275,16 @@ export class AdminService {
         userRoles: true,
         userGroups: { include: { group: true } },
       },
+    });
+
+    // Audit log for user creation
+    await auditService.logEventStandalone(prisma, {
+      userId: createdBy,
+      userName: adminUser ? `${adminUser.firstName} ${adminUser.lastName}` : undefined,
+      action: 'USER_CREATE',
+      entityType: 'User',
+      entityId: user.id,
+      details: `Admin created user: ${data.email}`,
     });
 
     // Assign default role or provided roles
@@ -322,8 +336,25 @@ export class AdminService {
       throw new AppError('User not found', 404);
     }
 
+    // Get admin user name for audit log
+    const adminUser = await prisma.user.findUnique({ where: { id: updatedBy }, select: { firstName: true, lastName: true } });
+
     const updateData: any = { ...data };
     updateData.updatedBy = updatedBy;
+
+    // Audit log for user update (if isActive changed)
+    if (data.isActive !== undefined && data.isActive !== existing.isActive) {
+      await auditService.logEventStandalone(prisma, {
+        userId: updatedBy,
+        userName: adminUser ? `${adminUser.firstName} ${adminUser.lastName}` : undefined,
+        action: 'USER_UPDATE',
+        entityType: 'User',
+        entityId: id,
+        details: `Admin changed user status to ${data.isActive ? 'active' : 'inactive'}: ${existing.email}`,
+        oldValue: { isActive: existing.isActive },
+        newValue: { isActive: data.isActive },
+      });
+    }
 
     const user = await prisma.user.update({
       where: { id },
@@ -359,6 +390,16 @@ export class AdminService {
       throw new AppError('User not found', 404);
     }
 
+    // Audit log for user deletion (before deleting)
+    await auditService.logEventStandalone(prisma, {
+      userId: existing.id,
+      userName: `${existing.firstName} ${existing.lastName}`,
+      action: 'USER_DELETE',
+      entityType: 'User',
+      entityId: id,
+      details: `Admin deleted user: ${existing.email}`,
+    });
+
     await prisma.userRole.deleteMany({ where: { userId: id } });
     await prisma.userGroup.deleteMany({ where: { userId: id } });
     await prisma.user.delete({ where: { id } });
@@ -374,7 +415,20 @@ export class AdminService {
       throw new AppError('User not found', 404);
     }
 
+    // Get admin user name for audit log
+    const adminUser = await prisma.user.findUnique({ where: { id: changedBy }, select: { firstName: true, lastName: true } });
+
     const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Audit log for password change
+    await auditService.logEventStandalone(prisma, {
+      userId: changedBy,
+      userName: adminUser ? `${adminUser.firstName} ${adminUser.lastName}` : undefined,
+      action: 'PASSWORD_CHANGE',
+      entityType: 'User',
+      entityId: userId,
+      details: `Admin reset password for: ${existing.email}`,
+    });
 
     await prisma.user.update({
       where: { id: userId },
@@ -397,6 +451,9 @@ export class AdminService {
       throw new AppError('User not found', 404);
     }
 
+    // Get current roles for audit log
+    const currentRoles = await prisma.userRole.findMany({ where: { userId } });
+
     // Remove all existing roles
     await prisma.userRole.deleteMany({ where: { userId } });
 
@@ -409,6 +466,18 @@ export class AdminService {
         },
       });
     }
+
+    // Audit log for role assignment
+    await auditService.logEventStandalone(prisma, {
+      userId: existing.id,
+      userName: `${existing.firstName} ${existing.lastName}`,
+      action: 'PERMISSION_CHANGE',
+      entityType: 'User',
+      entityId: userId,
+      details: `Roles changed from [${currentRoles.map(r => r.roleName).join(', ')}] to [${data.roles.join(', ')}]`,
+      oldValue: { roles: currentRoles.map(r => r.roleName) },
+      newValue: { roles: data.roles },
+    });
 
     const updated = await prisma.user.findUnique({
       where: { id: userId },
@@ -465,7 +534,7 @@ export class AdminService {
     return roles;
   }
 
-  async createRole(data: CreateRoleDto): Promise<any> {
+  async createRole(data: CreateRoleDto, createdBy?: string): Promise<any> {
     const existing = await prisma.role.findUnique({
       where: { name: data.name },
     });
@@ -473,7 +542,7 @@ export class AdminService {
       throw new AppError('Role with this name already exists', 409);
     }
 
-    return await prisma.role.create({
+    const role = await prisma.role.create({
       data: {
         name: data.name,
         description: data.description ?? null,
@@ -483,67 +552,106 @@ export class AdminService {
         entityPermissions: (data.entityPermissions as any) ?? null,
       },
     });
-  }
 
-  async updateRole(id: string, data: UpdateRoleDto): Promise<any> {
-    const existing = await prisma.role.findUnique({
-      where: { id },
-    });
-    if (!existing) {
-      throw new AppError('Role not found', 404);
-    }
-    if (existing.isBuiltIn) {
-      throw new AppError('Built-in roles cannot be modified', 400);
-    }
-
-    if (data.name && data.name !== existing.name) {
-      const duplicate = await prisma.role.findUnique({
-        where: { name: data.name },
+    // Audit log for role creation
+    if (createdBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: createdBy,
+        action: 'ROLE_CREATE',
+        entityType: 'Role',
+        entityId: role.id,
+        details: `Admin created role: ${data.name}`,
       });
-      if (duplicate) {
-        throw new AppError('Role with this name already exists', 409);
-      }
     }
 
-    const updateData: any = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.description !== undefined) updateData.description = data.description ?? null;
-    if (data.permissions !== undefined) updateData.permissions = data.permissions as any;
-    if (data.canAccessAdmin !== undefined) updateData.canAccessAdmin = data.canAccessAdmin;
-    if (data.entityPermissions !== undefined) updateData.entityPermissions = data.entityPermissions;
+    return role;
+  }
+async updateRole(id: string, data: UpdateRoleDto, updatedBy?: string): Promise<any> {
+  const existing = await prisma.role.findUnique({
+    where: { id },
+  });
+  if (!existing) {
+    throw new AppError('Role not found', 404);
+  }
+  if (existing.isBuiltIn) {
+    throw new AppError('Built-in roles cannot be modified', 400);
+  }
 
-    return await prisma.role.update({
-      where: { id },
-      data: updateData,
+  if (data.name && data.name !== existing.name) {
+    const duplicate = await prisma.role.findUnique({
+      where: { name: data.name },
+    });
+    if (duplicate) {
+      throw new AppError('Role with this name already exists', 409);
+    }
+  }
+
+  const updateData: any = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description ?? null;
+  if (data.permissions !== undefined) updateData.permissions = data.permissions as any;
+  if (data.canAccessAdmin !== undefined) updateData.canAccessAdmin = data.canAccessAdmin;
+  if (data.entityPermissions !== undefined) updateData.entityPermissions = data.entityPermissions;
+
+  const role = await prisma.role.update({
+    where: { id },
+    data: updateData,
+  });
+
+  // Audit log for role update
+  if (updatedBy) {
+    await auditService.logEventStandalone(prisma, {
+      userId: updatedBy,
+      action: 'ROLE_UPDATE',
+      entityType: 'Role',
+      entityId: role.id,
+      details: `Admin updated role: ${existing.name}`,
+      oldValue: { name: existing.name },
+      newValue: { name: role.name },
     });
   }
 
-  async deleteRole(id: string): Promise<{ message: string }> {
-    const existing = await prisma.role.findUnique({
-      where: { id },
-    });
-    if (!existing) {
-      throw new AppError('Role not found', 404);
-    }
-    if (existing.isBuiltIn) {
-      throw new AppError('Built-in roles cannot be deleted', 400);
-    }
+  return role;
+}
 
-    // Check if role is assigned to any users or groups
-    const userRoleCount = await prisma.userRole.count({
-      where: { roleId: id },
-    });
-    const groupRoleCount = await prisma.groupRole.count({
-      where: { roleId: id },
-    });
-
-    if (userRoleCount > 0 || groupRoleCount > 0) {
-      throw new AppError('Cannot delete role that is assigned to users or groups', 400);
-    }
-
-    await prisma.role.delete({ where: { id } });
-    return { message: 'Role deleted successfully' };
+async deleteRole(id: string, deletedBy?: string): Promise<{ message: string }> {
+  const existing = await prisma.role.findUnique({
+    where: { id },
+  });
+  if (!existing) {
+    throw new AppError('Role not found', 404);
   }
+  if (existing.isBuiltIn) {
+    throw new AppError('Built-in roles cannot be deleted', 400);
+  }
+
+  // Check if role is assigned to any users or groups
+  const userRoleCount = await prisma.userRole.count({
+    where: { roleId: id },
+  });
+  const groupRoleCount = await prisma.groupRole.count({
+    where: { roleId: id },
+  });
+
+  if (userRoleCount > 0 || groupRoleCount > 0) {
+    throw new AppError('Cannot delete role that is assigned to users or groups', 400);
+  }
+
+  // Audit log for role deletion
+  if (deletedBy) {
+    await auditService.logEventStandalone(prisma, {
+      userId: deletedBy,
+      action: 'ROLE_DELETE',
+      entityType: 'Role',
+      entityId: id,
+      details: `Admin deleted role: ${existing.name}`,
+    });
+  }
+
+  await prisma.role.delete({ where: { id } });
+  return { message: 'Role deleted successfully' };
+}
+
 
   async initializeBuiltInRoles(): Promise<void> {
     for (const role of BUILTIN_ROLES) {
@@ -576,60 +684,99 @@ export class AdminService {
       orderBy: { name: 'asc' },
     });
   }
+async createGroup(data: CreateGroupDto, createdBy?: string): Promise<any> {
+  const existing = await prisma.group.findUnique({
+    where: { name: data.name },
+  });
+  if (existing) {
+    throw new AppError('Group with this name already exists', 409);
+  }
 
-  async createGroup(data: CreateGroupDto): Promise<any> {
-    const existing = await prisma.group.findUnique({
+  const group = await prisma.group.create({
+    data: {
+      name: data.name,
+      description: data.description,
+    },
+  });
+
+  // Audit log for group creation
+  if (createdBy) {
+    await auditService.logEventStandalone(prisma, {
+      userId: createdBy,
+      action: 'GROUP_CREATE',
+      entityType: 'Group',
+      entityId: group.id,
+      details: `Admin created group: ${data.name}`,
+    });
+  }
+
+  return group;
+}
+
+async updateGroup(id: string, data: UpdateGroupDto, updatedBy?: string): Promise<any> {
+  const existing = await prisma.group.findUnique({
+    where: { id },
+  });
+  if (!existing) {
+    throw new AppError('Group not found', 404);
+  }
+
+  if (data.name && data.name !== existing.name) {
+    const duplicate = await prisma.group.findUnique({
       where: { name: data.name },
     });
-    if (existing) {
+    if (duplicate) {
       throw new AppError('Group with this name already exists', 409);
     }
+  }
 
-    return await prisma.group.create({
-      data: {
-        name: data.name,
-        description: data.description,
-      },
+  const group = await prisma.group.update({
+    where: { id },
+    data,
+  });
+
+  // Audit log for group update
+  if (updatedBy) {
+    await auditService.logEventStandalone(prisma, {
+      userId: updatedBy,
+      action: 'GROUP_UPDATE',
+      entityType: 'Group',
+      entityId: group.id,
+      details: `Admin updated group: ${existing.name}`,
+      oldValue: { name: existing.name },
+      newValue: { name: group.name },
     });
   }
 
-  async updateGroup(id: string, data: UpdateGroupDto): Promise<any> {
-    const existing = await prisma.group.findUnique({
-      where: { id },
-    });
-    if (!existing) {
-      throw new AppError('Group not found', 404);
-    }
+  return group;
+}
 
-    if (data.name && data.name !== existing.name) {
-      const duplicate = await prisma.group.findUnique({
-        where: { name: data.name },
-      });
-      if (duplicate) {
-        throw new AppError('Group with this name already exists', 409);
-      }
-    }
+async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> {
+  const existing = await prisma.group.findUnique({
+    where: { id },
+  });
+  if (!existing) {
+    throw new AppError('Group not found', 404);
+  }
 
-    return await prisma.group.update({
-      where: { id },
-      data,
+  // Audit log for group deletion
+  if (deletedBy) {
+    await auditService.logEventStandalone(prisma, {
+      userId: deletedBy,
+      action: 'GROUP_DELETE',
+      entityType: 'Group',
+      entityId: id,
+      details: `Admin deleted group: ${existing.name}`,
     });
   }
 
-  async deleteGroup(id: string): Promise<{ message: string }> {
-    const existing = await prisma.group.findUnique({
-      where: { id },
-    });
-    if (!existing) {
-      throw new AppError('Group not found', 404);
-    }
+  await prisma.userGroup.deleteMany({ where: { groupId: id } });
+  await prisma.groupRole.deleteMany({ where: { groupId: id } });
+  await prisma.group.delete({ where: { id } });
 
-    await prisma.userGroup.deleteMany({ where: { groupId: id } });
-    await prisma.groupRole.deleteMany({ where: { groupId: id } });
-    await prisma.group.delete({ where: { id } });
+  return { message: 'Group deleted successfully' };
+}
 
-    return { message: 'Group deleted successfully' };
-  }
 
   async assignUsersToGroup(groupId: string, data: AssignUsersToGroupDto): Promise<void> {
     const group = await prisma.group.findUnique({ where: { id: groupId } });

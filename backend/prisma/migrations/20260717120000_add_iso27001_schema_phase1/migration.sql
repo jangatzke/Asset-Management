@@ -8,9 +8,9 @@
 DO $$ BEGIN ALTER TABLE "assets" DROP COLUMN "personnelSafetyRating"; EXCEPTION WHEN undefined_column THEN NULL; END $$;
 ALTER TABLE "assets" ADD COLUMN "personnelSafetyRelevance" TEXT NOT NULL DEFAULT 'low';
 
-UPDATE "assets" SET "regulatoryRelevance" = 'low' WHERE "regulatoryRelevance" IS NULL;
-ALTER TABLE "assets" ALTER COLUMN "regulatoryRelevance" SET NOT NULL;
-ALTER TABLE "assets" ALTER COLUMN "regulatoryRelevance" SET DEFAULT 'low';
+DO $$ BEGIN UPDATE "assets" SET "regulatoryRelevance" = 'low' WHERE "regulatoryRelevance" IS NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "assets" ALTER COLUMN "regulatoryRelevance" SET NOT NULL; EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "assets" ALTER COLUMN "regulatoryRelevance" SET DEFAULT 'low'; EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
 DO $$ BEGIN ALTER TABLE "assets" DROP COLUMN "financialDamageRating"; EXCEPTION WHEN undefined_column THEN NULL; END $$;
 ALTER TABLE "assets" ADD COLUMN "financialDamagePotential" TEXT NOT NULL DEFAULT 'low';
