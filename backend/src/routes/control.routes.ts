@@ -39,8 +39,40 @@ controlRouter.get('/soa', authenticate, async (req, res, next) => {
 
 controlRouter.post('/soa', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
   try {
-    const soa = await controlService.createSOA(req.body);
+    const soa = await controlService.createSOA(req.body, req.userId);
     res.status(201).json(soa);
+  } catch (error) {
+    next(error);
+  }
+});
+
+controlRouter.patch('/soa/items/:itemId', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await controlService.updateSOAItem(req.params.itemId, req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+controlRouter.post('/soa/:id/submit', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await controlService.submitSOA(req.params.id, req.userId!));
+  } catch (error) {
+    next(error);
+  }
+});
+
+controlRouter.post('/soa/:id/approve', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await controlService.approveSOA(req.params.id, req.userId!, req.body.decision ?? 'approved', req.body.comment));
+  } catch (error) {
+    next(error);
+  }
+});
+
+controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json(await controlService.createImplementation(req.body, req.userId));
   } catch (error) {
     next(error);
   }

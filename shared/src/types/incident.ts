@@ -25,6 +25,8 @@ export enum NotificationStatus {
   FINAL_REPORT_SENT = 'final_report_sent'
 }
 
+export type IncidentReportType = 'early_warning_24h' | 'incident_notification_72h' | 'interim_report' | 'monthly_final_report';
+
 export interface Incident extends BaseEntity {
   title: string;
   description: string;
@@ -53,6 +55,15 @@ export interface Incident extends BaseEntity {
   status: IncidentStatus;
   severity: IncidentSeverity;
   notificationStatus: NotificationStatus;
+  significanceRuleVersionId?: string;
+  isSignificant?: boolean;
+  significanceReasons?: string[];
+  rootCause?: string;
+  lessonsLearned?: string;
+  measuresEvaluation?: string;
+  closureSummary?: string;
+  closedAt?: Date;
+  closedBy?: string;
 }
 
 export interface IncidentAssessment extends BaseEntity {
@@ -62,12 +73,15 @@ export interface IncidentAssessment extends BaseEntity {
   reportingJustification?: string;
   decisionNotToReport?: string;
   decisionApprovedBy?: string;
+  decisionApprovedAt?: Date;
+  significanceRuleVersionId?: string;
+  evaluatedRules?: Record<string, unknown>;
   assessmentDate: Date;
 }
 
 export interface NotificationDeadline extends BaseEntity {
   incidentId: string;
-  notificationType: 'early_warning' | 'detailed_report' | 'interim_report' | 'final_report';
+  notificationType: IncidentReportType;
   deadlineDate: Date;
   knowledgeTimeReference: Date;
   status: 'pending' | 'sent' | 'overdue';
@@ -78,10 +92,49 @@ export interface NotificationDeadline extends BaseEntity {
 
 export interface IncidentReport extends BaseEntity {
   incidentId: string;
-  reportType: 'early_warning' | 'detailed_report' | 'interim_report' | 'final_report';
-  content: string;
-  authorId: string;
+  reportType: IncidentReportType;
+  title: string;
+  content: Record<string, unknown>;
+  status: 'draft' | 'submitted';
+  dueAt?: Date;
+  createdBy?: string;
   submittedAt?: Date;
+  submittedBy?: string;
   recipient?: string;
-  submissionMethod: 'manual' | 'api' | 'portal';
+  submissionMethod?: 'manual' | 'api' | 'portal';
+  submissionProof?: string;
+  exportPayload?: Record<string, unknown>;
+}
+
+export interface IncidentCommunication extends BaseEntity {
+  incidentId: string;
+  channel: string;
+  direction: 'inbound' | 'outbound';
+  recipient: string;
+  sender?: string;
+  message: string;
+  status: 'planned' | 'sent';
+  scheduledAt?: Date;
+  sentAt?: Date;
+  responseReceivedAt?: Date;
+}
+
+export interface IncidentEscalation extends BaseEntity {
+  incidentId: string;
+  escalationType: string;
+  level: number;
+  reason: string;
+  dueAt?: Date;
+  escalatedTo?: string;
+  status: 'open' | 'resolved';
+  resolvedAt?: Date;
+}
+
+export interface IncidentKnowledgeTimeChange extends BaseEntity {
+  incidentId: string;
+  oldKnowledgeTime: Date;
+  newKnowledgeTime: Date;
+  reason: string;
+  changedBy: string;
+  changedAt: Date;
 }

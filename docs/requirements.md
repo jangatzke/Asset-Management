@@ -4,6 +4,66 @@
 **Datum:** 2026-07-17  
 **Status:** Entwurf – Phase 0 Prüfbasis
 
+## Phase 6 – Weitere ISMS-Module
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| SUP-601 | P1 | CTL | Lieferantenmanagement muss Supplier, Assessments sowie Contract-/Risk-Relationen abbilden. | Kritikalität, Datenschutz-/NIS2-Relevanz, Bewertung, Reviewdatum, Maßnahmen und JSON/CSV-Export sind verfügbar. |
+| BCP-601 | P1 | OPS | BIA und Business Continuity müssen Prozesse, Services und Assets mit MTPD/RTO/RPO verbinden. | BIA speichert Impact-Kategorien; BCP speichert Version, Recovery Strategies, Übungen, Findings und Due-Date-Reminder. |
+| AUD-601 | P1 | AUD | Auditmanagement benötigt Programme, Pläne, Findings und Evidence-Relationen. | Auditstatus, Scope, Auditor/Auditee, Findings, Maßnahmen und Exporte sind persistiert. |
+| CAPA-601 | P1 | AUD | Corrective Actions müssen aus Audit, Incident, Risk, Control und Supplier entstehen können. | CAPA speichert Quelle, Owner, DueDate, Statusworkflow, Root Cause und Wirksamkeitsprüfung. |
+| TRN-601 | P1 | CTL | Schulungsmanagement benötigt Kurse, Zuweisungen, Abschlüsse, Kenntnisnahmen und Eskalationen. | Trainingszuweisungen sind fälligkeitsbasiert erinnerbar; Completion und Acknowledgement sind nachvollziehbar. |
+| MREV-601 | P1 | CTL | Management Reviews müssen Agenda, Inputs, Decisions, Actions, Approval und Minutes speichern. | Review-Actions haben Owner/DueDate; Reviews sind freigabefähig und exportierbar. |
+| MET-601 | P1 | CTL | Sicherheitsziele, KPI und KRI benötigen Metrikdefinitionen, Werte, Schwellen und Breach-Erkennung. | MetricValue erkennt warning/critical Breaches und Trend gegen vorherigen Wert. |
+| WFL-601 | P1 | OPS | Eine generische Workflowengine muss Definitionen, Instanzen, Tasks, Transitions und Approvals unterstützen. | Workflow kann definiert, instanziiert und über validierte Transitionen fortgeschrieben werden. |
+| RPT-601 | P1 | AUD | Reporting und Exporte müssen persistiert, filterbar und auditierbar sein. | ReportRuns und ExportJobs speichern Filter, Format, Payload, RowCount und Auditlog. |
+
+## Phase 7 – Intune-/Microsoft-Graph-Anbindung
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| INT-701 | P0 | SEC | Intune-Authentifizierung muss MSAL Node mit Zertifikat aus SecretStore-Abstraktion verwenden; Tokens/Secrets dürfen nicht geloggt werden. | `@azure/msal-node` nutzt `.default` Application Permissions; SecretStore unterstützt `env:` und `file:` ohne Default-Secrets. |
+| INT-702 | P0 | SEC | Graph-Zugriff muss Least-Privilege Application Permissions prüfen. | Health Check meldet fehlendes `DeviceManagementManagedDevices.Read.All` verständlich. |
+| INT-703 | P1 | AST | Managed-Device-Sync muss nur unterstützte Graph-Felder selektieren, Pagination und HTTP 429 `Retry-After` respektieren. | Mehrseitige Antworten werden vollständig verarbeitet und 429 verzögert den Retry nach Header. |
+| INT-704 | P1 | AST | Sync muss Assets idempotent matchen/anlegen, FieldLock beachten und FieldProvenance schreiben. | Neues Gerät erzeugt genau ein Asset; Wiederholung erzeugt keine Dublette; gesperrte Felder bleiben unverändert. |
+| INT-705 | P1 | AST | Entfernte Intune-Geräte dürfen nicht automatisch archivieren. | Vollständiger Sync markiert betroffene Assets `stale`/prüfbedürftig nach Grace Period. |
+| INT-706 | P1 | AUD | Sync, Resync, Health Check und Konfigurationsänderungen müssen auditiert und historisiert werden. | `ImportRun` plus AuditLog enthalten Status, Fehlerzähler und `partial_success` bei Teilfehlern. |
+
+## Phase 4 – Controls, SoA, Evidence und Dokumente
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| CTL-401 | P1 | CTL | Frameworkversionen, Requirements und Control-Mappings müssen versioniert importierbar sein. Lizenzhinweise sind Pflicht. | Import erzeugt unveränderliche FrameworkVersion mit Requirements; Versionsvergleich liefert added/removed/changed; Control kann mehreren Requirements zugeordnet werden. |
+| CTL-402 | P1 | CTL | Control Implementations bilden Umsetzung pro Scope, Organisation oder Standort ab. | Implementation speichert Responsible, Maturity, Testmethode/-frequenz, nächste Prüfung, Findings und Maßnahmen und kann mehrere Requirements erfüllen. |
+| CTL-403 | P1 | CTL | Statement of Applicability besteht aus einzelnen SoAItems statt JSON-Gesamtobjekt. | SoAItems enthalten Anwendbarkeit, Begründung, Status, Controls, Risiken, Evidence und werden bei Freigabe unveränderlich. |
+| EVD-401 | P1 | AUD | Evidence benötigt sicheres Metadatenmodell mit Hash, Klassifizierung, Retention und Relationen. | Evidence erzwingt SHA-256-Hash, Classification, Retention/Expiry, Relations zu Control/Risk/Asset/SoAItem/Document, Löschschutz und Auditpaketexport. |
+| DOC-401 | P1 | AUD | Dokumentenlenkung benötigt Workflow, Versionierung, Kenntnisnahme und Reviews. | Dokumente durchlaufen Entwurf/Prüfung/Freigabe/Veröffentlichung/Rücknahme; freigegebene Versionen sind unveränderlich; Reviews können eskaliert werden. |
+
+## Phase 5 – NIS-2 und Incident-Management
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| NIS2-501 | P1 | CTL | NIS-2-Betroffenheit muss über versionierten Fragebogen, Vorbewertung und fachliche Freigabe abbildbar sein. | Assessment speichert Questionnaire-Version, Antworten, Preliminary Result, Freigabestatus, Freigeber und Auditlog. |
+| NIS2-502 | P1 | CTL | NIS-2-Registrierung benötigt Frist, Kontakt-/Übermittlungsdaten, Nachweis und Änderungsmeldungen. | Registrierung setzt freigegebene Betroffenheit voraus; Übermittlungsnachweis und Änderungsmeldungen werden persistiert und auditiert. |
+| NIS2-503 | P1 | CTL | Die zehn NIS-2-Themenbereiche müssen als Requirements und Controls in die Phase-4-Struktur integriert werden. | Endpoint erzeugt FrameworkVersion `NIS2/2024-phase5`, zehn Requirements, zehn Controls und Mappings inklusive Angemessenheitsbegründung. |
+| INC-501 | P1 | INC | Signifikanzregeln für NIS-2-Incidents müssen versioniert sein und Fristen automatisch erzeugen. | Meldepflichtige Incidents erzeugen 24h-, 72h-, Zwischen- und Monatsabschluss-Fristen auf Basis des Kenntniszeitpunkts. |
+| INC-502 | P1 | INC | Kenntniszeitpunkt ist geschützt und nur mit Begründung änderbar. | Direkte Updates werden abgewiesen; dedizierter Endpoint speichert Änderungsgrund, Historie, Auditlog und berechnet offene Fristen neu. |
+| INC-503 | P1 | INC | Nichtmeldung benötigt Begründung und Freigabe. | Assessment lehnt nicht-meldepflichtige Entscheidung ohne Begründung oder Freigeber ab. |
+| INC-504 | P1 | INC | Meldepakete müssen persistiert und exportierbar sein. | Reports für 24h, 72h, Zwischenbericht und Monatsabschluss werden gespeichert; Export liefert strukturiertes Paket. |
+| INC-505 | P1 | INC | Incident-Abschluss benötigt Root Cause, Lessons Learned beziehungsweise Maßnahmenbewertung und Abschlussbedingungen. | Abschluss wird ohne Root Cause und Maßnahmenbewertung abgewiesen; signifikante Incidents benötigen eingereichten Monatsabschlussbericht. |
+
+## RSK-AGG-3.4: Reproduzierbare Risiko-Aggregationen
+
+| Feld | Wert |
+|------|------|
+| **ID** | RSK-AGG-3.4 |
+| **Priorität** | P1 |
+| **Kategorie** | RSK |
+| **Beschreibung** | Risiko-Aggregationen müssen ausschließlich normalisierte Relationen verwenden. Asset-, Prozess- und Service-Bezüge laufen über `RiskAsset`, `RiskProcess` und `RiskService`; entfernte ID-Arrays dürfen nicht mehr verwendet werden. |
+| **Zählregeln** | Ein Risiko wird innerhalb einer Gruppe genau einmal gezählt (`DISTINCT risk.id`). Hat ein Risiko mehrere Assets/Prozesse/Services, erscheint es in jeder betroffenen Gruppe, wird aber in derselben Gruppe dedupliziert. Ein Risiko mit zwei Assets desselben Asset-Typs zählt in dieser Asset-Typ-Gruppe genau einmal; ein Risiko mit Assets in zwei Standorten zählt einmal pro Standort. |
+| **Filterregeln** | `from` und `to` beziehen sich auf `RiskAssessment.assessedAt`. Aktuelle Kennzahlen verwenden standardmäßig `isCurrent=true`; historische Kennzahlen sind über `methodVersionId`, `assessmentType` und Zeitraum reproduzierbar. Weitere Filter: `scope`, `organizationUnitId`, `status`, `riskClass`. |
+| **Akzeptanzkriterium** | 1. Aggregationen nach Asset/AssetType, Prozess, Service, Organisation, Scope, Risikoklasse, Status und AssessmentType sind verfügbar. 2. Junction Tables werden verwendet. 3. Pro Gruppe wird dedupliziert. 4. SQL/Prisma-Aggregationen und Batch-Lookups vermeiden N+1. 5. Tests decken Mehrfachzuordnungen und Filter ab. |
+
 ---
 
 ## Legende
@@ -150,6 +210,24 @@
 | **Beschreibung** | API-Endpunkte für aggregierte Risikoansichten nach Location, Organisationseinheit, Prozess, Asset-Typ und ISMS-Umfang. |
 | **Akzeptanzkriterium** | 1. `GET /risks/aggregation?by=orgUnit` returns gruppierte Statistiken. 2. Supported dimensions: orgUnit, site, process, assetType, ismsScope. |
 
+### RSK-003: Risiko-Behandlung und Risiko-Akzeptanz
+| Feld | Wert |
+|------|------|
+| **ID** | RSK-003 |
+| **Priorität** | P1 |
+| **Kategorie** | RSK |
+| **Beschreibung** | Risikoakzeptanz darf nicht als direkter Statuswechsel erfolgen, sondern muss über einen formalen RiskTreatment/RiskAcceptance-Workflow mit Referenz auf eine konkrete RiskAssessment-Version, Pflichtfeldern, rollenabhängiger Genehmigung und Auditierung laufen. Mitigation-Behandlungen benötigen vor Abschluss eine Wirksamkeitsprüfung und ein neues oder bestätigtes Ziel-/Restrisiko-Assessment. |
+| **Akzeptanzkriterium** | 1. Kein direkter `/risks/:id/accept`-Bypass existiert. 2. Acceptance verlangt Assessment-Version, Begründung, Ablaufdatum und Genehmiger. 3. Low/medium kann Risk Owner genehmigen; high/critical benötigt unabhängige Management-Freigabe. 4. Approver darf bei high/critical nicht identisch mit Assessor sein. 5. Mitigation kann ohne Effectiveness Review nicht abgeschlossen werden. 6. Abschluss erzeugt oder referenziert ein neues Ziel-/Restrisiko-Assessment ohne historische Assessments zu überschreiben. 7. Alle Aktionen werden auditiert und durch Entity-/Admin-Berechtigungen geschützt. |
+
+### RSK-005: Relationale Risikobewertung und Bewertungshistorie
+| Feld | Wert |
+|------|------|
+| **ID** | RSK-005 |
+| **Priorität** | P1 |
+| **Kategorie** | RSK |
+| **Beschreibung** | Risikobewertungen müssen relational und versioniert abgebildet werden. Szenario, Bedrohung, Schwachstelle, Ursache und Auswirkung dürfen nicht als fachliche JSON-/Stringlisten modelliert werden, wenn Relationen möglich sind. |
+| **Akzeptanzkriterium** | 1. Risiko kann mit Scenario, Threat, Vulnerability, Cause und Impact relational erstellt werden. 2. Asset-/Process-/Service-Bezüge werden über Junction Tables gespeichert. 3. Inhärentes, aktuelles und Zielrisiko werden über `RiskAssessment.assessmentType` unterstützt und historisiert. 4. Jede Bewertung erfordert eine Begründung. 5. Neue Bewertung überschreibt historische Bewertungen nicht. 6. Außerplanmäßiges Ereignis erzeugt konkrete ReviewTask. |
+
 ### CTL-001: Statement of Applicability
 | Feld | Wert |
 |------|------|
@@ -277,13 +355,22 @@
 
 ---
 
+### RSK-004: Versionierte Risikomethoden und Assessment-Historisierung (Paket 3.1)
+| Feld | Wert |
+|------|------|
+| **ID** | RSK-004 |
+| **Priorität** | P1 |
+| **Kategorie** | RSK |
+| **Beschreibung** | Risikomethoden müssen unveränderlich versioniert werden. Jede Risikobewertung (RiskAssessment) muss an eine konkrete Methodenversion (RiskMethodVersion) gebunden sein. Änderungen an einer Methode erzeugen eine neue Version, bestehende Bewertungen bleiben unverändert. Neuberechnungen erzeugen neue Assessment-Versionen statt historische Daten zu überschreiben. |
+| **Akzeptanzkriterium** | 1. RiskMethodVersion-Modell mit immutablen Snapshots. 2. RiskAssessment referenziert riskMethodVersionId. 3. Berechnungstypen (product, sum, max, matrix) ohne eval/Function. 4. RecalculatePreview persistiert keine Daten. 5. ConfirmedRecalculation erzeugt neue Assessment-Version. 6. Historische Assessments bleiben nach Methodenversion-Wechsel unverändert. |
+
 ## Zusammenfassung
 
 | Priorität | Anzahl | IDs |
 |-----------|--------|-----|
 | P0 | 6 | IAM-001, IAM-002, IAM-003, SEC-001, SEC-002, SEC-003, SEC-004, SEC-005, SEC-006 |
-| P1 | 7 | IAM-004, AST-001, AST-002, RSK-001, RSK-002, CTL-001, INC-001 |
+| P1 | 8 | IAM-004, AST-001, AST-002, RSK-001, RSK-002, RSK-004, CTL-001, INC-001 |
 | P2 | 6 | AST-003, AST-004, AST-005, AST-006, RSK-003, UX-001, UX-002 |
 | P3 | 4 | OPS-001, OPS-002, OPS-003, OPS-004 |
 
-**Gesamt:** 23 Anforderungen
+**Gesamt:** 24 Anforderungen

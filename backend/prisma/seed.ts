@@ -178,10 +178,6 @@ async function seedAssetTypes(): Promise<void> {
 async function seedOrganizationUnits(): Promise<void> {
   console.log('\n🏢 Seeding organization units…');
 
-  const root = await prisma.organizationUnit.upsert({
-    where: { id: 'seed-root' }, // will fail on UUID – use name-based approach instead
-  });
-
   // Use findFirst + create pattern since there's no unique name constraint
   const units = [
     { name: 'IT Department', type: 'department', parentId: null },

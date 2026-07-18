@@ -65,10 +65,26 @@ export enum AssetRelationshipType {
 
 export type RatingLevel = 'low' | 'medium' | 'high';
 
+export enum NetworkAddressType {
+  IPV4 = 'ipv4',
+  IPV6 = 'ipv6',
+  CIDR = 'cidr',
+  HOSTNAME = 'hostname',
+}
+
+export interface NetworkAddressEntry {
+  id: string;
+  assetId: string;
+  address: string; // IP, CIDR, or hostname
+  type: NetworkAddressType;
+  primary: boolean;
+  createdAt: Date;
+}
+
 export interface Asset extends BaseEntity {
   name: string;
   description?: string;
-  assetType: AssetType;
+  assetTypeId: string;
   subType?: string;
   manufacturer?: string;
   model?: string;
@@ -79,12 +95,14 @@ export interface Asset extends BaseEntity {
   technicalOperatorId?: string;
   businessOwnerId?: string;
   informationSecurityResponsibleId?: string;
-  businessProcessId?: string;
-  serviceId?: string;
 
-  // Contract/License info (AST-002)
-  contractId?: string;
-  licenseId?: string;
+  // Junction table relations (M:N) — replaces single FK fields
+  processIds?: string[];      // via AssetProcess
+  serviceIds?: string[];      // via AssetService
+  contractIds?: string[];     // via AssetContract
+  licenseIds?: string[];      // via AssetLicense
+
+  // Contract/License info (AST-002) — legacy convenience fields
   licenseInfo?: string;
   contractEndsAt?: Date;
   licenseExpiresAt?: Date;
@@ -106,10 +124,19 @@ export interface Asset extends BaseEntity {
   availabilityNeed: 'low' | 'medium' | 'high';
   dataProtectionRelevance: boolean;
   criticality: 'low' | 'medium' | 'high' | 'critical';
-  networkAddresses?: string;
-  dnsNames?: string;
+  complianceRelevance: boolean; // AST-004: compliance-relevant asset
+
+  // Network addresses (normalized) — replaces comma-separated string
+  networkAddresses?: NetworkAddressEntry[];
+
   dataSource?: string;
   lastDetectedAt?: Date;
+
+  // Soft-delete / archival (AST-031)
+  archivedAt?: Date;          // null = active, set = archived
+  disposalDate?: Date;        // AST-031: date of physical/logical disposal
+  disposalMethod?: string;    // AST-031: method of data destruction
+  disposalResponsible?: string; // AST-031: person responsible for disposal
 
   // Relations
   documents?: AssetDocument[];

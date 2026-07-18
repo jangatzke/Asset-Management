@@ -8,8 +8,9 @@ export interface IntuneConfig {
   enabled: boolean;
   tenantId: string;
   appId: string;
-  certPath: string;
-  certThumbprint: string;
+  certificatePrivateKeySecretRef: string;
+  certificateX5cSecretRef?: string;
+  certificateThumbprint: string;
   appName: string;
   fullSyncIntervalHours: number;
   incrementalSyncIntervalMinutes: number;
@@ -59,8 +60,9 @@ export class IntuneConfigManager {
       enabled,
       tenantId: process.env.INTUNE_TENANT_ID || '',
       appId: process.env.INTUNE_APP_ID || '',
-      certPath: process.env.INTUNE_CERT_PATH || '',
-      certThumbprint: process.env.INTUNE_CERT_THUMPRINT || '',
+      certificatePrivateKeySecretRef: process.env.INTUNE_CERT_PRIVATE_KEY_SECRET_REF || process.env.INTUNE_CERT_PATH || '',
+      certificateX5cSecretRef: process.env.INTUNE_CERT_X5C_SECRET_REF || undefined,
+      certificateThumbprint: process.env.INTUNE_CERT_THUMBPRINT || process.env.INTUNE_CERT_THUMPRINT || '',
       appName: process.env.INTUNE_APP_NAME || DEFAULTS.appName,
       fullSyncIntervalHours: parseInt(process.env.INTUNE_FULL_SYNC_INTERVAL || '') || DEFAULTS.fullSyncIntervalHours,
       incrementalSyncIntervalMinutes: parseInt(process.env.INTUNE_INCREMENTAL_SYNC_INTERVAL || '') || DEFAULTS.incrementalSyncIntervalMinutes,
@@ -111,12 +113,12 @@ export class IntuneConfigManager {
       errors.push('INTUNE_APP_ID is required when INTUNE_ENABLED=true');
     }
 
-    if (!this.config.certPath) {
-      errors.push('INTUNE_CERT_PATH is required when INTUNE_ENABLED=true');
+    if (!this.config.certificatePrivateKeySecretRef) {
+      errors.push('INTUNE_CERT_PRIVATE_KEY_SECRET_REF is required when INTUNE_ENABLED=true');
     }
 
-    if (!this.config.certThumbprint) {
-      errors.push('INTUNE_CERT_THUMPRINT is required when INTUNE_ENABLED=true');
+    if (!this.config.certificateThumbprint) {
+      errors.push('INTUNE_CERT_THUMBPRINT is required when INTUNE_ENABLED=true');
     }
 
     if (this.config.fullSyncIntervalHours < 1 || this.config.fullSyncIntervalHours > 168) {
@@ -159,8 +161,9 @@ export class IntuneConfigManager {
     return {
       tenantId: this.config.tenantId,
       appId: this.config.appId,
-      certPath: this.config.certPath,
-      certThumbprint: this.config.certThumbprint,
+      certificatePrivateKeySecretRef: this.config.certificatePrivateKeySecretRef,
+      certificateX5cSecretRef: this.config.certificateX5cSecretRef,
+      certificateThumbprint: this.config.certificateThumbprint,
     };
   }
 

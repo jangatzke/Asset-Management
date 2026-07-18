@@ -55,8 +55,9 @@ export class IntuneSyncScheduler {
     const authService = initializeAuthService({
       tenantId: config.tenantId,
       appId: config.appId,
-      certPath: config.certPath,
-      certThumbprint: config.certThumbprint,
+      certificatePrivateKeySecretRef: config.certificatePrivateKeySecretRef,
+      certificateX5cSecretRef: config.certificateX5cSecretRef,
+      certificateThumbprint: config.certificateThumbprint,
     });
 
     await authService.initialize();

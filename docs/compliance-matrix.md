@@ -133,10 +133,43 @@
 - id: AST-002
   title: Vollständige Asset-Felder
   priority: P1
-  status: partial
+  status: compliant
   implementation:
     - backend/prisma/schema.prisma (Asset-Modell)
-  tests: []
+    - shared/src/types/asset.ts
+    - shared/src/dtos/index.ts
+    - backend/src/services/asset.service.ts
+    - backend/src/routes/asset.routes.ts
+  tests:
+    - backend/src/__tests__/asset.crud.test.ts
+  gaps: []
+
+- id: AST-CRUD-2.2
+  title: Asset-CRUD normalisiertes Schema, Bewertung, Lifecycle, Archivierung
+  priority: P1
+  status: compliant
+  implementation:
+    - shared/src/types/asset.ts (NetworkAddress[], M:N Junction-ID-Felder, CIA, Kritikalität, Compliance, Disposal)
+    - shared/src/dtos/index.ts (Zod-Schemata für Asset-CRUD, Lifecycle, Archive/Restore, DisposalProof)
+    - backend/prisma/schema.prisma (NetworkAddress, Junction Tables, archivedAt, Disposal-Felder, Compliance-Relevanz)
+    - backend/src/services/asset.service.ts (Display-ID ASSET-0001, CRUD-Audit, Junction-Sync, Archivierung/Restore, Lifecycle-Transaktionen, DisposalProof)
+    - backend/src/routes/asset.routes.ts (serverseitige Zod-Validierung, Admin-Archive/Restore, Lifecycle/Disposal Endpoints)
+  tests:
+    - backend/src/__tests__/asset.crud.test.ts
+  gaps: []
+
+- id: IMP-2.3
+  title: Generisches Importframework für externe Asset-Quellen
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma (IntegrationSource, ImportRun, ImportRecord, ImportConflict, FieldProvenance, FieldLock, SourcePriority)
+    - backend/prisma/migrations/20260718113000_import_framework/migration.sql
+    - backend/src/services/import.service.ts (Dry Run, Idempotenz, Business-Key-Dubletten, Konflikte, Feldsperren, Quellenpriorität, Stale-Markierung ohne Auto-Archivierung)
+    - backend/src/routes/import.routes.ts (Import-Management, Locks, Prioritäten, Konfliktlösung)
+    - backend/src/index.ts (/api/v1/imports)
+  tests:
+    - backend/src/__tests__/import.service.test.ts
   gaps: []
 
 - id: RSK-001
@@ -160,6 +193,22 @@
     - backend/src/__tests__/risk.aggregation.test.ts
   gaps:
     - Kein API-Endpoint für Aggregation
+
+- id: RSK-003
+  title: Risiko-Behandlung und Risiko-Akzeptanz
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma (RiskAcceptance, RiskTreatmentApproval, RiskTreatmentEffectivenessReview, Assessment-Referenzen)
+    - backend/prisma/migrations/20260718160000_risk_treatment_acceptance_workflow/migration.sql
+    - backend/src/services/risktreatment.service.ts (Pflichtfelder, Approval-Level, Vier-Augen-Prinzip, Wirksamkeitsprüfung, Abschluss-Assessment)
+    - backend/src/routes/risktreatment.routes.ts (Approval, Effectiveness Review, Complete Endpoints)
+    - backend/src/routes/risk.routes.ts (direkter /risks/:id/accept Bypass entfernt)
+    - shared/src/types/risk.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/risktreatment.service.test.ts
+  gaps: []
 
 - id: CTL-001
   title: Statement of Applicability
@@ -205,24 +254,36 @@
 - id: AST-005
   title: Graphvisualisierung (AST-011)
   priority: P2
-  status: partial
+  status: compliant
   implementation:
     - backend/src/services/asset.graph.ts
     - frontend/src/components/AssetGraph.tsx
+    - shared/src/types/graph.ts
   tests:
     - backend/src/__tests__/asset.graph.test.ts
-  gaps:
-    - Filterung nach Relationship-Typ und Criticality nicht implementiert
+  gaps: []
+  evidence:
+    - Paket 2.4 Graph-DTO unterstützt Asset, BusinessProcess, BusinessService, Risk, Control, Incident und Vulnerability Nodes.
+    - Gesamtgraph lädt Assets inklusive isolierter Assets und erzeugt ISOLATED_ASSET Warnungen.
+    - Relationstypabhängige Richtung umgesetzt (depends_on gerichtet, connected_to bidirektional, ownership Parent → Child).
+    - Batch-Laden der Graph-Daten mit Cache für Gesamtgraphen.
 
 - id: AST-006
   title: Impact Analysis (AST-012)
   priority: P2
-  status: partial
+  status: compliant
   implementation:
+    - backend/src/services/asset.graph.ts
     - frontend/src/components/AssetImpactAnalysis.tsx
-  tests: []
-  gaps:
-    - Konfigurierbare Traversiertiefe nicht implementiert
+  tests:
+    - backend/src/__tests__/asset.graph.test.ts
+  gaps: []
+  evidence:
+    - Paket 2.4 mehrstufige Impact-Analyse behandelt Zyklen mit visited Sets.
+    - Asset-Ausfall berechnet kaskadierende Auswirkungen auf Assets, Business Processes und Business Services.
+    - Artikulationspunkte und Connectivity-Komponenten werden berechnet.
+    - Redundante unabhängige Pfade und Redundanzgrad werden ausgewiesen.
+    - Performance-Test mit 10.000 Assets und 50.000 Relationen ergänzt.
 
 - id: RSK-003
   title: Risikobehandlungspläne

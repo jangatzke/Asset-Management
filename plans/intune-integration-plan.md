@@ -4,6 +4,16 @@
 
 This document specifies the architecture for a Microsoft Intune integration service that synchronizes managed devices as assets into the Asset Management system. The service uses Microsoft Graph API v1.0 with certificate-based authentication against Microsoft Entra ID.
 
+## Phase 7 Implementation Notes
+
+- Authentication is implemented with `@azure/msal-node` confidential client certificate credentials and `.default` Graph scope.
+- Certificate material is loaded via a testable SecretStore abstraction. Supported providers are `env:` and `file:`; no default secrets are provided.
+- The only required Graph application permission is `DeviceManagementManagedDevices.Read.All`; health checks validate it with a real `managedDevices` probe.
+- Managed device `$select` is limited to supported fields from `deviceManagement/managedDevices`, including `operatingSystem`, `managementAgent`, `complianceState`, `managementState`, `emailAddress`, `userDisplayName`, `userPrincipalName`, `azureADDeviceId`, `wiFiMacAddress` and `ethernetMacAddress`.
+- Full sync uses the already fetched ID list for stale detection and never automatically archives linked assets.
+- Asset matching/creation is idempotent and integrates `FieldLock` plus `FieldProvenance` through the Phase-2 import framework tables.
+- Synchronization runs are historized through `ImportRun`; partial record failures produce `partial_success` in `IntuneSyncStatus`.
+
 ## Architecture Diagram
 
 ```mermaid

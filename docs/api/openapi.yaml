@@ -11,6 +11,283 @@ servers:
     description: Development
 
 paths:
+  /phase6/resources:
+    get:
+      summary: List available Phase 6 resources
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Resource keys for generic Phase 6 API }
+
+  /phase6/{resource}:
+    get:
+      summary: List Phase 6 records with filters
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: resource, in: path, required: true, schema: { type: string } }
+        - { name: search, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: overdue, in: query, required: false, schema: { type: boolean } }
+      responses:
+        '200': { description: Paginated Phase 6 records }
+    post:
+      summary: Create Phase 6 record
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: resource, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '201': { description: Created record }
+
+  /phase6/{resource}/{id}:
+    get:
+      summary: Get Phase 6 record
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: resource, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Phase 6 record }
+    patch:
+      summary: Update Phase 6 record
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: resource, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Updated record }
+
+  /phase6/{resource}/export:
+    get:
+      summary: Export Phase 6 records as JSON or CSV
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: resource, in: path, required: true, schema: { type: string } }
+        - { name: format, in: query, required: false, schema: { type: string, enum: [json, csv] } }
+      responses:
+        '200': { description: Persisted ExportJob }
+
+  /phase6/corrective-actions/from-source:
+    post:
+      summary: Create CAPA from Audit, Incident, Risk, Control or Supplier
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Corrective action }
+
+  /phase6/workflows/start:
+    post:
+      summary: Start a generic workflow instance
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Workflow instance }
+
+  /phase6/workflows/{id}/transition:
+    post:
+      summary: Transition a generic workflow instance
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Updated workflow instance }
+
+  /phase6/reports/run:
+    post:
+      summary: Run and persist a Phase 6 report
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: ReportRun }
+
+  /frameworks:
+    get:
+      summary: List frameworks with recent versions
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Framework list }
+
+  /frameworks/import:
+    post:
+      summary: Import framework version, requirements and license notices
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FrameworkImport' }
+      responses:
+        '201': { description: Imported immutable framework version }
+
+  /frameworks/versions/compare:
+    post:
+      summary: Compare two framework versions
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fromVersionId, toVersionId]
+              properties:
+                fromVersionId: { type: string, format: uuid }
+                toVersionId: { type: string, format: uuid }
+      responses:
+        '200': { description: Added, removed, changed and unchanged requirements }
+
+  /controls/implementations:
+    post:
+      summary: Create scoped control implementation fulfilling multiple requirements
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ControlImplementationInput' }
+      responses:
+        '201': { description: Control implementation with findings and actions }
+
+  /controls/soa:
+    get:
+      summary: List Statement of Applicability versions with SoAItems
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: SoA list }
+    post:
+      summary: Create Statement of Applicability from individual SoAItems
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SoAInput' }
+      responses:
+        '201': { description: Draft SoA }
+
+  /controls/soa/{id}/submit:
+    post:
+      summary: Submit SoA for formal approval
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: SoA under review }
+
+  /controls/soa/{id}/approve:
+    post:
+      summary: Approve or reject SoA; approved versions become immutable
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: { type: string, enum: [approved, rejected], default: approved }
+                comment: { type: string }
+      responses:
+        '200': { description: Approval decision recorded }
+
+  /evidence:
+    get:
+      summary: List evidence metadata and relations
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Evidence list }
+    post:
+      summary: Create secure evidence metadata with SHA-256 hash and retention
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EvidenceInput' }
+      responses:
+        '201': { description: Evidence metadata }
+
+  /evidence/audit-package:
+    post:
+      summary: Export evidence audit package manifest
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Audit package manifest }
+
+  /evidence/{id}:
+    delete:
+      summary: Archive evidence unless delete-protected or retained
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Evidence archived }
+        '409': { description: Evidence protected from deletion }
+
+  /documents:
+    post:
+      summary: Create controlled policy document with draft version
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PolicyDocumentInput' }
+      responses:
+        '201': { description: Controlled document }
+
+  /documents/{id}/transition:
+    post:
+      summary: Transition document workflow draft-review-approved-published-withdrawn
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Workflow transition recorded }
+
+  /documents/{id}/acknowledge:
+    post:
+      summary: Acknowledge approved or published document
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '201': { description: Acknowledgement recorded }
+
+  /documents/reviews/escalate-overdue:
+    post:
+      summary: Escalate overdue document reviews
+      tags: [Phase4]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Escalation result }
+
   # ==================== Health ====================
   /health:
     get:
@@ -598,6 +875,113 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      summary: Create incident with NIS-2 significance evaluation and automatic deadlines
+      tags: [Incidents]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IncidentInput' }
+      responses:
+        '201': { description: Created }
+  /incidents/{id}/knowledge-time:
+    post:
+      summary: Change protected incident knowledge time with mandatory reason and audit log
+      tags: [Incidents]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgeTimeChangeInput' }
+      responses:
+        '200': { description: Updated }
+  /incidents/{id}/reports:
+    post:
+      summary: Persist NIS-2 incident report package (24h, 72h, interim, monthly final)
+      tags: [Incidents]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IncidentReportInput' }
+      responses:
+        '201': { description: Created }
+  /incidents/reports/{reportId}/export:
+    get:
+      summary: Export persisted incident report package
+      tags: [Incidents]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: reportId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Export package }
+  /incidents/{id}/close:
+    post:
+      summary: Close incident after root cause and measures evaluation
+      tags: [Incidents]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IncidentClosureInput' }
+      responses:
+        '200': { description: Closed }
+
+  # ==================== NIS-2 ====================
+  /nis2/assessments:
+    post:
+      summary: Create versioned NIS-2 applicability assessment with preliminary evaluation
+      tags: [NIS2]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Nis2AssessmentInput' }
+      responses:
+        '201': { description: Created }
+  /nis2/assessments/{id}/approve:
+    post:
+      summary: Professionally approve NIS-2 applicability assessment
+      tags: [NIS2]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Approved }
+  /nis2/registrations:
+    post:
+      summary: Create NIS-2 registration with deadline and submission proof
+      tags: [NIS2]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Nis2RegistrationInput' }
+      responses:
+        '201': { description: Created }
+  /nis2/registrations/{id}/changes:
+    post:
+      summary: Record NIS-2 registration change notification
+      tags: [NIS2]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '201': { description: Created }
+  /nis2/measures-catalogue/ensure:
+    post:
+      summary: Ensure ten NIS-2 topic areas as requirements and controls
+      tags: [NIS2]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Ensured }
 
   # ==================== Audit Logs ====================
   /audit-logs:
@@ -652,6 +1036,65 @@ paths:
       security: [{ bearerAuth: [] }]
 
   # ==================== Integrations ====================
+  /intune/status:
+    get:
+      summary: Get Intune sync status including partial_success and stale counters
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+  /intune/health:
+    get:
+      summary: Validate Intune Graph connectivity and required application permissions
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+  /intune/config:
+    get:
+      summary: Get Intune sync configuration
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+    put:
+      summary: Update Intune sync configuration with audit logging
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntuneConfigUpdate'
+  /intune/sync/full:
+    post:
+      summary: Run full Intune sync with stale detection
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+  /intune/sync/incremental:
+    post:
+      summary: Run incremental Intune sync
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+  /intune/devices:
+    get:
+      summary: List synchronized Intune devices
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+  /intune/devices/{id}:
+    get:
+      summary: Get synchronized Intune device details
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+  /intune/devices/{id}/resync:
+    post:
+      summary: Fetch one device from Microsoft Graph and resync it
+      tags: [Intune]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
   /intune/credentials:
     get:
       summary: Get Intune credentials (masked)
@@ -690,158 +1133,322 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
-schemas:
-  LoginInput:
-    type: object
-    required: [email, password]
-    properties:
-      email: { type: string, format: email }
-      password: { type: string, minLength: 1 }
+  schemas:
+    FrameworkImport:
+      type: object
+      required: [framework, version, licenseInfo, requirements]
+      properties:
+        framework:
+          type: object
+          required: [name, code]
+          properties:
+            name: { type: string }
+            code: { type: string }
+            description: { type: string }
+            publisher: { type: string }
+        version: { type: string }
+        publicationDate: { type: string, format: date-time }
+        licenseInfo: { type: string }
+        requirements:
+          type: array
+          items:
+            type: object
+            required: [key, title, text]
+            properties:
+              key: { type: string }
+              title: { type: string }
+              text: { type: string }
+              section: { type: string }
+              clauseNumber: { type: string }
+              licenseNotice: { type: string }
+    ControlImplementationInput:
+      type: object
+      required: [controlId, responsibleUserId]
+      properties:
+        controlId: { type: string, format: uuid }
+        scopeId: { type: string, format: uuid }
+        organizationUnitId: { type: string, format: uuid }
+        siteId: { type: string, format: uuid }
+        responsibleUserId: { type: string }
+        maturityLevel: { type: integer, minimum: 0, maximum: 5 }
+        testMethod: { type: string }
+        testFrequency: { type: string }
+        nextTestDate: { type: string, format: date-time }
+        requirementIds: { type: array, items: { type: string, format: uuid } }
+    SoAInput:
+      type: object
+      required: [frameworkId, frameworkVersion, scopeId]
+      properties:
+        frameworkId: { type: string, format: uuid }
+        frameworkVersion: { type: string }
+        scopeId: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [justification]
+            properties:
+              requirementId: { type: string, format: uuid }
+              controlId: { type: string, format: uuid }
+              applicability: { type: string, enum: [applicable, not_applicable, under_review] }
+              justification: { type: string }
+              implementationStatus: { type: string }
+              riskIds: { type: array, items: { type: string } }
+              evidenceIds: { type: array, items: { type: string, format: uuid } }
+    EvidenceInput:
+      type: object
+      required: [title, evidenceType, classification, responsibleId, fileHash]
+      properties:
+        title: { type: string }
+        evidenceType: { type: string }
+        classification: { type: string }
+    IncidentInput:
+      type: object
+      required: [title, description, detectionTime, knowledgeTime, incidentManagerId]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        detectionTime: { type: string, format: date-time }
+        knowledgeTime: { type: string, format: date-time }
+        severity: { type: string, enum: [low, medium, high, critical] }
+        availabilityImpact: { type: string, enum: [none, low, medium, high] }
+        personalDataImpact: { type: boolean }
+        hasCrossBorderImpact: { type: boolean }
+        incidentManagerId: { type: string }
+    KnowledgeTimeChangeInput:
+      type: object
+      required: [knowledgeTime, reason]
+      properties:
+        knowledgeTime: { type: string, format: date-time }
+        reason: { type: string }
+    IncidentReportInput:
+      type: object
+      required: [reportType, content, authorId]
+      properties:
+        reportType: { type: string, enum: [early_warning_24h, incident_notification_72h, interim_report, monthly_final_report] }
+        title: { type: string }
+        content: { type: object, additionalProperties: true }
+        authorId: { type: string }
+        recipient: { type: string }
+        submissionMethod: { type: string }
+        submissionProof: { type: string }
+    IncidentClosureInput:
+      type: object
+      properties:
+        rootCause: { type: string }
+        lessonsLearned: { type: string }
+        measuresEvaluation: { type: string }
+        closureSummary: { type: string }
+    Nis2AssessmentInput:
+      type: object
+      required: [answers]
+      properties:
+        organizationUnitId: { type: string, format: uuid }
+        questionnaireVersion: { type: string }
+        answers: { type: object, additionalProperties: true }
+        justification: { type: string }
+    Nis2RegistrationInput:
+      type: object
+      required: [entityType, deadline]
+      properties:
+        assessmentId: { type: string, format: uuid }
+        entityType: { type: string }
+        registrationDate: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        contactPerson: { type: string }
+        contactDetails: { type: string }
+        submittedData: { type: object, additionalProperties: true }
+        submissionProof: { type: string }
+        bsiConfirmation: { type: string }
+        responsibleId: { type: string }
+        fileHash: { type: string, minLength: 64, maxLength: 64 }
+        hashAlgorithm: { type: string, default: sha256 }
+        retentionUntil: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        deleteProtected: { type: boolean }
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              entityType: { type: string, enum: [Control, Risk, Asset, SoAItem, Document] }
+              entityId: { type: string }
+    PolicyDocumentInput:
+      type: object
+      required: [title, documentType, ownerId, content]
+      properties:
+        title: { type: string }
+        documentType: { type: string }
+        ownerId: { type: string }
+        reviewerId: { type: string }
+        approverId: { type: string }
+        nextReviewDate: { type: string, format: date-time }
+        reviewIntervalDays: { type: integer }
+        content: { type: string }
+        changeLog: { type: string }
 
-  RegisterInput:
-    type: object
-    required: [email, password, firstName, lastName]
-    properties:
-      email: { type: string, format: email }
-      password: { type: string, minLength: 12 }
-      firstName: { type: string }
-      lastName: { type: string }
-      phoneNumber: { type: string }
-      organizationUnitId: { type: string }
+    IntuneConfigUpdate:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        fullSyncIntervalHours: { type: integer, minimum: 1, maximum: 168 }
+        incrementalSyncIntervalMinutes: { type: integer, minimum: 10, maximum: 1440 }
+        gracePeriodHours: { type: integer, minimum: 1 }
+        maxRetryAttempts: { type: integer, minimum: 1, maximum: 10 }
+        retryDelayMs: { type: integer, minimum: 0 }
+        batchSize: { type: integer, minimum: 1 }
 
-  UpdateUserInput:
-    type: object
-    properties:
-      firstName: { type: string }
-      lastName: { type: string }
-      phoneNumber: { type: string }
-      organizationUnitId: { type: string }
-      isActive: { type: boolean }
-
-  AuthResponse:
-    type: object
-    properties:
-      user:
-        $ref: '#/components/schemas/UserResponse'
-      token: { type: string, description: JWT Bearer Token }
-
-  UserResponse:
-    type: object
-    properties:
-      id: { type: string, format: uuid }
-      displayId: { type: string }
-      email: { type: string, format: email }
-      firstName: { type: string }
-      lastName: { type: string }
-      phoneNumber: { type: string, nullable: true }
-      isActive: { type: boolean }
-      roles:
-        type: array
-        items: { type: string }
-      language: { type: string, nullable: true }
-      darkMode: { type: boolean, nullable: true }
-      createdAt: { type: string, format: date-time }
-
-  RoleResponse:
-    type: object
-    properties:
-      id: { type: string, format: uuid }
-      name: { type: string }
-      description: { type: string, nullable: true }
-      isBuiltIn: { type: boolean }
-      permissions: { type: object }
-      canAccessAdmin: { type: boolean }
-      entityPermissions:
-        type: object
-        properties:
-          assets: { type: string, enum: [none, readonly, readwrite] }
-          risks: { type: string, enum: [none, readonly, readwrite] }
-          controls: { type: string, enum: [none, readonly, readwrite] }
-          incidents: { type: string, enum: [none, readonly, readwrite] }
-
-  CreateRoleInput:
-    type: object
-    required: [name, permissions]
-    properties:
-      name: { type: string }
-      description: { type: string }
-      permissions: { type: array, items: { type: object } }
-      canAccessAdmin: { type: boolean, default: false }
-      entityPermissions:
-        $ref: '#/components/schemas/EntityPermissions'
-
-  EntityPermissions:
-    type: object
-    properties:
-      assets: { type: string, enum: [none, readonly, readwrite] }
-      risks: { type: string, enum: [none, readonly, readwrite] }
-      controls: { type: string, enum: [none, readonly, readwrite] }
-      incidents: { type: string, enum: [none, readonly, readwrite] }
-
-  GroupResponse:
-    type: object
-    properties:
-      id: { type: string, format: uuid }
-      name: { type: string }
-      description: { type: string, nullable: true }
-
-  OidcConfigResponse:
-    type: object
-    properties:
-      id: { type: string, format: uuid }
-      enabled: { type: boolean }
-      providerName: { type: string }
-      alloweEmailDomains:
-        type: array
-        items: { type: string }
-      autoProvisioning: { type: boolean }
-      defaultRoleForNewUsers: { type: string }
-      enableLocalLogin: { type: boolean }
-
-  OidcConfigInput:
-    type: object
-    properties:
-      enabled: { type: boolean }
-      providerName: { type: string }
-      tenantId: { type: string }
-      clientId: { type: string }
-      clientSecret: { type: string }
-      redirectUri: { type: string }
-      allowedEmailDomains:
-        type: array
-        items: { type: string }
-      autoProvisioning: { type: boolean }
-      defaultRoleForNewUsers: { type: string }
-      enableLocalLogin: { type: boolean }
-
-  AssetTypeResponse:
-    type: object
-    properties:
-      id: { type: string, format: uuid }
-      name: { type: string }
-      description: { type: string, nullable: true }
-      category: { type: string }
-      isArchived: { type: boolean }
-
-  AssetResponse:
-    type: object
-    properties:
-      id: { type: string, format: uuid }
-      displayId: { type: string }
-      name: { type: string }
-      description: { type: string, nullable: true }
-      assetTypeId: { type: string }
-      criticality: { type: string }
-      lifecycleStatus: { type: string }
-      confidentialityNeed: { type: string }
-      integrityNeed: { type: string }
-      availabilityNeed: { type: string }
-
-  PaginatedResponse:
-    type: object
-    properties:
-      data: { type: array, items: {} }
-      total: { type: integer }
-      page: { type: integer }
-      limit: { type: integer }
-      totalPages: { type: integer }
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+  
+    RegisterInput:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 12 }
+        firstName: { type: string }
+        lastName: { type: string }
+        phoneNumber: { type: string }
+        organizationUnitId: { type: string }
+  
+    UpdateUserInput:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        phoneNumber: { type: string }
+        organizationUnitId: { type: string }
+        isActive: { type: boolean }
+  
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        token: { type: string, description: JWT Bearer Token }
+  
+    UserResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        displayId: { type: string }
+        email: { type: string, format: email }
+        firstName: { type: string }
+        lastName: { type: string }
+        phoneNumber: { type: string, nullable: true }
+        isActive: { type: boolean }
+        roles:
+          type: array
+          items: { type: string }
+        language: { type: string, nullable: true }
+        darkMode: { type: boolean, nullable: true }
+        createdAt: { type: string, format: date-time }
+  
+    RoleResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        isBuiltIn: { type: boolean }
+        permissions: { type: object }
+        canAccessAdmin: { type: boolean }
+        entityPermissions:
+          type: object
+          properties:
+            assets: { type: string, enum: [none, readonly, readwrite] }
+            risks: { type: string, enum: [none, readonly, readwrite] }
+            controls: { type: string, enum: [none, readonly, readwrite] }
+            incidents: { type: string, enum: [none, readonly, readwrite] }
+  
+    CreateRoleInput:
+      type: object
+      required: [name, permissions]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        permissions: { type: array, items: { type: object } }
+        canAccessAdmin: { type: boolean, default: false }
+        entityPermissions:
+          $ref: '#/components/schemas/EntityPermissions'
+  
+    EntityPermissions:
+      type: object
+      properties:
+        assets: { type: string, enum: [none, readonly, readwrite] }
+        risks: { type: string, enum: [none, readonly, readwrite] }
+        controls: { type: string, enum: [none, readonly, readwrite] }
+        incidents: { type: string, enum: [none, readonly, readwrite] }
+  
+    GroupResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+  
+    OidcConfigResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        enabled: { type: boolean }
+        providerName: { type: string }
+        alloweEmailDomains:
+          type: array
+          items: { type: string }
+        autoProvisioning: { type: boolean }
+        defaultRoleForNewUsers: { type: string }
+        enableLocalLogin: { type: boolean }
+  
+    OidcConfigInput:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        providerName: { type: string }
+        tenantId: { type: string }
+        clientId: { type: string }
+        clientSecret: { type: string }
+        redirectUri: { type: string }
+        allowedEmailDomains:
+          type: array
+          items: { type: string }
+        autoProvisioning: { type: boolean }
+        defaultRoleForNewUsers: { type: string }
+        enableLocalLogin: { type: boolean }
+  
+    AssetTypeResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        category: { type: string }
+        isArchived: { type: boolean }
+  
+    AssetResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        displayId: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        assetTypeId: { type: string }
+        criticality: { type: string }
+        lifecycleStatus: { type: string }
+        confidentialityNeed: { type: string }
+        integrityNeed: { type: string }
+        availabilityNeed: { type: string }
+  
+    PaginatedResponse:
+      type: object
+      properties:
+        data: { type: array, items: {} }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        totalPages: { type: integer }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { controlApi } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
 
@@ -49,6 +49,9 @@ const Controls = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<CreateControlForm>(initialForm);
+  const [frameworkCount, setFrameworkCount] = useState(0);
+  const [soaCount, setSoaCount] = useState(0);
+  const [evidenceCount, setEvidenceCount] = useState(0);
 
   useEffect(() => {
     loadControls();
@@ -59,6 +62,14 @@ const Controls = () => {
       setLoading(true);
       const response = await controlApi.list({ page: 1, limit: 50 });
       setControls(response.data.data || []);
+      const [frameworks, soa, evidence] = await Promise.allSettled([
+        frameworkApi.list(),
+        controlApi.listSoA(),
+        evidenceApi.list(),
+      ]);
+      if (frameworks.status === 'fulfilled') setFrameworkCount(frameworks.value.data?.length ?? 0);
+      if (soa.status === 'fulfilled') setSoaCount(soa.value.data?.length ?? 0);
+      if (evidence.status === 'fulfilled') setEvidenceCount(soa.status === 'fulfilled' ? (evidence.value.data?.length ?? 0) : 0);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('common.saveError'));
     } finally {
@@ -138,6 +149,21 @@ const Controls = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Framework versions</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{frameworkCount}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Statements of Applicability</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{soaCount}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Evidence items</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{evidenceCount}</div>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">

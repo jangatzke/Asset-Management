@@ -60,7 +60,6 @@ export const riskApi = {
   update: (id: string, data: any) => api.put(`/risks/${id}`, data),
   delete: (id: string) => api.delete(`/risks/${id}`),
   createTreatmentPlan: (riskId: string, data: any) => api.post(`/risks/${riskId}/treatment`, data),
-  acceptRisk: (id: string) => api.post(`/risks/${id}/accept`),
 };
 
 export const controlApi = {
@@ -69,6 +68,36 @@ export const controlApi = {
   create: (data: any) => api.post('/controls', data),
   update: (id: string, data: any) => api.put(`/controls/${id}`, data),
   delete: (id: string) => api.delete(`/controls/${id}`),
+  createImplementation: (data: any) => api.post('/controls/implementations', data),
+  listSoA: (params?: any) => api.get('/controls/soa', { params }),
+  createSoA: (data: any) => api.post('/controls/soa', data),
+  submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
+  approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
+};
+
+export const frameworkApi = {
+  list: () => api.get('/frameworks'),
+  import: (data: any) => api.post('/frameworks/import', data),
+  getVersion: (id: string) => api.get(`/frameworks/versions/${id}`),
+  compareVersions: (data: any) => api.post('/frameworks/versions/compare', data),
+  mapControlRequirements: (controlId: string, data: any) => api.post(`/frameworks/controls/${controlId}/requirements`, data),
+};
+
+export const evidenceApi = {
+  list: () => api.get('/evidence'),
+  create: (data: any) => api.post('/evidence', data),
+  exportAuditPackage: (data: any) => api.post('/evidence/audit-package', data),
+  delete: (id: string) => api.delete(`/evidence/${id}`),
+};
+
+export const documentApi = {
+  create: (data: any) => api.post('/documents', data),
+  updateVersion: (versionId: string, data: any) => api.patch(`/documents/versions/${versionId}`, data),
+  transition: (id: string, data: any) => api.post(`/documents/${id}/transition`, data),
+  acknowledge: (id: string, data?: any) => api.post(`/documents/${id}/acknowledge`, data ?? {}),
+  scheduleReview: (id: string, data: any) => api.post(`/documents/${id}/reviews`, data),
+  completeReview: (reviewId: string, data: any) => api.post(`/documents/reviews/${reviewId}/complete`, data),
+  escalateOverdueReviews: () => api.post('/documents/reviews/escalate-overdue'),
 };
 
 export const incidentApi = {
@@ -77,6 +106,23 @@ export const incidentApi = {
   create: (data: any) => api.post('/incidents', data),
   update: (id: string, data: any) => api.put(`/incidents/${id}`, data),
   delete: (id: string) => api.delete(`/incidents/${id}`),
+  assess: (id: string, data: any) => api.post(`/incidents/${id}/assess`, data),
+  changeKnowledgeTime: (id: string, data: any) => api.post(`/incidents/${id}/knowledge-time`, data),
+  createReport: (id: string, data: any) => api.post(`/incidents/${id}/reports`, data),
+  exportReport: (reportId: string) => api.get(`/incidents/reports/${reportId}/export`),
+  createCommunication: (id: string, data: any) => api.post(`/incidents/${id}/communications`, data),
+  close: (id: string, data: any) => api.post(`/incidents/${id}/close`, data),
+};
+
+export const nis2Api = {
+  createQuestionnaire: (data: any) => api.post('/nis2/questionnaires', data),
+  ensureDefaultQuestionnaire: () => api.post('/nis2/questionnaires/default'),
+  createAssessment: (data: any) => api.post('/nis2/assessments', data),
+  submitAssessment: (id: string) => api.post(`/nis2/assessments/${id}/submit`),
+  approveAssessment: (id: string, data?: any) => api.post(`/nis2/assessments/${id}/approve`, data ?? {}),
+  createRegistration: (data: any) => api.post('/nis2/registrations', data),
+  recordRegistrationChange: (id: string, data: any) => api.post(`/nis2/registrations/${id}/changes`, data),
+  ensureMeasuresCatalogue: () => api.post('/nis2/measures-catalogue/ensure'),
 };
 
 export const adminApi = {
@@ -206,6 +252,23 @@ export const riskAggregationApi = {
   byProcess: () => api.get('/risks/aggregated/by-process'),
   byScope: () => api.get('/risks/aggregated/by-scope'),
   dashboardSummary: () => api.get('/risks/dashboard-summary'),
+};
+
+// Phase 6 ISMS API
+export const phase6Api = {
+  resources: () => api.get('/phase6/resources'),
+  list: (resource: string, params?: any) => api.get(`/phase6/${resource}`, { params }),
+  getById: (resource: string, id: string) => api.get(`/phase6/${resource}/${id}`),
+  create: (resource: string, data: any) => api.post(`/phase6/${resource}`, data),
+  update: (resource: string, id: string, data: any) => api.patch(`/phase6/${resource}/${id}`, data),
+  delete: (resource: string, id: string) => api.delete(`/phase6/${resource}/${id}`),
+  export: (resource: string, params?: any) => api.get(`/phase6/${resource}/export`, { params }),
+  runReminders: (resource: string) => api.post(`/phase6/${resource}/reminders/run`),
+  createCorrectiveActionFromSource: (data: any) => api.post('/phase6/corrective-actions/from-source', data),
+  completeTrainingAssignment: (id: string, data: any) => api.post(`/phase6/training-assignments/${id}/complete`, data),
+  startWorkflow: (data: any) => api.post('/phase6/workflows/start', data),
+  transitionWorkflow: (id: string, data: any) => api.post(`/phase6/workflows/${id}/transition`, data),
+  runReport: (data: any) => api.post('/phase6/reports/run', data),
 };
 
 // Organization API

@@ -50,7 +50,7 @@ intuneRouter.get('/config', authenticate, requireAdminAccess, async (_req: AuthR
 intuneRouter.put('/config', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
-    const config = await service.updateConfig(req.body);
+    const config = await service.updateConfig(req.body, req.userId);
     res.json(config);
   } catch (error) {
     next(error);
@@ -59,20 +59,20 @@ intuneRouter.put('/config', authenticate, requireAdminAccess, async (req: AuthRe
 
 // ---- Sync Triggers ----
 
-intuneRouter.post('/sync/full', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/sync/full', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
-    const result = await service.runFullSync();
+    const result = await service.runFullSync(req.userId);
     res.json({ message: 'Full sync triggered', status: result });
   } catch (error) {
     next(error);
   }
 });
 
-intuneRouter.post('/sync/incremental', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.post('/sync/incremental', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
-    const result = await service.runIncrementalSync();
+    const result = await service.runIncrementalSync(req.userId);
     res.json({ message: 'Incremental sync triggered', status: result });
   } catch (error) {
     next(error);
@@ -95,11 +95,10 @@ intuneRouter.get('/devices', authenticate, requireAdminAccess, async (req: AuthR
   }
 });
 
-intuneRouter.get('/devices/:id', authenticate, requireAdminAccess, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+intuneRouter.get('/devices/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    getSyncServiceInstance();
-    // Find specific device
-    res.json({ id: _req.params.id });
+    const service = getSyncServiceInstance();
+    res.json(await service.getSyncedDevice(req.params.id));
   } catch (error) {
     next(error);
   }
@@ -108,7 +107,7 @@ intuneRouter.get('/devices/:id', authenticate, requireAdminAccess, async (_req: 
 intuneRouter.post('/devices/:id/resync', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
-    await service.resyncDevice(req.params.id);
+    await service.resyncDevice(req.params.id, req.userId);
     res.json({ message: `Device ${req.params.id} resynced successfully` });
   } catch (error) {
     next(error);
@@ -130,7 +129,7 @@ intuneRouter.delete('/devices/:id/archive', authenticate, requireAdminAccess, as
 intuneRouter.get('/health', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = getSyncServiceInstance();
-    const health = await service.checkHealth();
+    const health = await service.checkHealth(req.userId);
     res.json({
       intune: health,
       auth: (req as any).authService?.getStatus?.() || null,

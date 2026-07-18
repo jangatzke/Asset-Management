@@ -1,3 +1,387 @@
+- id: INT-701
+  title: Intune MSAL-Zertifikatsauthentifizierung
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/services/intune.auth.ts
+    - backend/src/services/intune.config.ts
+    - backend/.env.example
+  tests:
+    - backend/src/__tests__/intune.phase7.test.ts
+  gaps:
+    - Produktiver Key-Vault-Provider ist noch nicht implementiert; Env/File-Provider sind abstrahiert.
+  evidence:
+    - MSAL Node nutzt Zertifikat und `.default` Scope
+    - SecretStore-Abstraktion lädt private Keys über `env:` oder `file:` ohne Default-Secrets
+    - Token und Secrets werden nicht geloggt
+
+- id: INT-702
+  title: Intune Least-Privilege Permission Validation
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/services/intune.client.ts
+    - backend/src/services/intune.service.ts
+    - backend/src/routes/intune.routes.ts
+  tests:
+    - backend/src/__tests__/intune.phase7.test.ts
+  gaps: []
+  evidence:
+    - Health Check prüft Zugriff auf `managedDevices`
+    - Fehlende `DeviceManagementManagedDevices.Read.All` Application Permission wird verständlich gemeldet
+
+- id: INT-703
+  title: Intune Graph Client Pagination und 429
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/intune.client.ts
+  tests:
+    - backend/src/__tests__/intune.phase7.test.ts
+  gaps: []
+  evidence:
+    - `$select` enthält nur unterstützte `managedDevice`-Felder
+    - `@odata.nextLink` wird vollständig verfolgt
+    - `Retry-After` wird bei HTTP 429 respektiert
+
+- id: INT-704
+  title: Intune Asset Matching Provenance FieldLock
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/intune.service.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/intune.phase7.test.ts
+  gaps: []
+  evidence:
+    - Matching per Intune-Sync-Link, Seriennummer, ExternalId und MAC-Adresse
+    - Neue Geräte erzeugen idempotent genau ein Asset
+    - FieldLock verhindert Überschreiben; FieldProvenance wird geschrieben
+
+- id: INT-705
+  title: Intune Stale statt Autoarchivierung
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/intune.service.ts
+    - frontend/src/pages/AdminIntune.tsx
+  tests:
+    - backend/src/__tests__/intune.phase7.test.ts
+  gaps: []
+  evidence:
+    - Full Sync verwendet die gelesene Geräte-ID-Liste für Stale-Erkennung
+    - Entfernte Geräte markieren Assets als `stale`, nicht `isArchived=true`
+
+- id: INT-706
+  title: Intune Sync Historisierung und Audit
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/intune.service.ts
+    - backend/src/services/audit.service.ts
+    - backend/prisma/migrations/20260719010000_phase7_intune_sync_history/migration.sql
+  tests:
+    - backend/src/__tests__/intune.phase7.test.ts
+  gaps: []
+  evidence:
+    - Syncs erzeugen `ImportRun`-Historie mit Statistiken
+    - Teilfehler führen zu `partial_success`
+    - Sync, Resync, Health Check und Config Change werden auditiert
+
+- id: SUP-601
+  title: Lieferantenmanagement
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/phase6.service.ts
+    - backend/src/routes/phase6.routes.ts
+    - frontend/src/pages/ISMSPhase6.tsx
+  tests:
+    - backend/src/__tests__/phase6.service.test.ts
+  gaps: []
+  evidence:
+    - Supplier, SupplierAssessment, SupplierContractRelation und SupplierRiskRelation sind modelliert
+    - Kritikalität, Datenschutz-/NIS2-Relevanz, Bewertung und Reviewdatum werden gespeichert
+    - Reminder und JSON/CSV-Export laufen über generische Phase-6-Mechanik
+
+- id: BCP-601
+  title: BIA und Business Continuity
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/phase6.service.ts
+    - backend/src/routes/phase6.routes.ts
+  tests:
+    - backend/src/__tests__/phase6.service.test.ts
+  gaps: []
+  evidence:
+    - BusinessImpactAnalysis enthält Prozess-/Service-Bezug, MTPD/RTO/RPO und Impact-Kategorien
+    - BIAAssetRelation verbindet BIAs mit Assets
+    - BusinessContinuityPlan und BCPExercise speichern Strategien, Tests und Findings
+
+- id: AUD-601
+  title: Auditmanagement und CAPA
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/phase6.service.ts
+    - backend/src/routes/phase6.routes.ts
+  tests:
+    - backend/src/__tests__/phase6.service.test.ts
+    - backend/src/__tests__/phase6.routes.test.ts
+  gaps: []
+  evidence:
+    - AuditProgram, AuditPlan, AuditFinding und AuditEvidenceRelation sind normalisiert
+    - CorrectiveAction unterstützt Quellen Audit, Incident, Risk, Control und Supplier
+    - CAPA speichert Owner, DueDate, Status, Root Cause und Wirksamkeitsprüfung
+
+- id: TRN-MREV-601
+  title: Schulungen und Management Reviews
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/phase6.service.ts
+    - frontend/src/pages/ISMSPhase6.tsx
+  tests:
+    - backend/src/__tests__/phase6.service.test.ts
+  gaps: []
+  evidence:
+    - TrainingCourse, TrainingAssignment, TrainingCompletion und TrainingAcknowledgement sind modelliert
+    - ManagementReview und ManagementReviewAction speichern Agenda, Inputs, Decisions, Minutes, Approval und Actions
+    - Due-Date-Reminder und Export sind generisch verfügbar
+
+- id: MET-WFL-RPT-601
+  title: KPI/KRI, Workflowengine und Reporting
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/phase6.service.ts
+    - backend/src/routes/phase6.routes.ts
+    - shared/src/types/isms.ts
+  tests:
+    - backend/src/__tests__/phase6.service.test.ts
+  gaps: []
+  evidence:
+    - SecurityObjective, MetricDefinition und MetricValue erkennen Schwellenverletzungen und Trends
+    - WorkflowDefinition, WorkflowInstance, WorkflowTask und WorkflowTransitionLog bilden generische Workflows ab
+    - ReportDefinition, ReportRun und ExportJob persistieren Reports und JSON/CSV-Exporte
+
+- id: CTL-401
+  title: Frameworkversionen, Requirements und Mappings
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/framework.service.ts
+    - backend/src/routes/framework.routes.ts
+    - shared/src/types/control.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+  gaps: []
+  evidence:
+    - Importformat mit Lizenzhinweisen erzwingt licenseInfo
+    - FrameworkVersion und Requirement sind versioniert modelliert
+    - Versionsvergleich liefert added/removed/changed/unchanged
+    - ControlRequirementMapping erlaubt fachliche Controls für mehrere Requirements
+
+- id: CTL-402
+  title: Control Implementations
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/control.service.ts
+    - backend/src/routes/control.routes.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+  gaps: []
+  evidence:
+    - ScopeId, organizationUnitId oder siteId ist Pflicht
+    - Responsible, maturity, test method, frequency und next test date vorhanden
+    - Findings und Maßnahmen relational modelliert
+
+- id: CTL-403
+  title: Statement of Applicability mit SoAItems
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/control.service.ts
+    - backend/src/routes/control.routes.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+  gaps: []
+  evidence:
+    - SoAItem ersetzt JSON-Gesamtobjekt für neue Versionen
+    - Submit- und Approval-Workflow implementiert
+    - Freigegebene SoA und Items werden isImmutable=true
+
+- id: EVD-401
+  title: Evidence Hash, Retention, Relationen und Auditpaket
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/evidence.service.ts
+    - backend/src/routes/evidence.routes.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+  gaps: []
+  evidence:
+    - SHA-256 Hashformat wird validiert
+    - Classification, Retention und Expiry werden erzwungen
+    - EvidenceLink unterstützt Control, Risk, Asset, SoAItem und Document
+    - DeleteProtected und Retention blockieren Löschung
+    - Auditpaketexport erzeugt Manifest
+
+- id: DOC-401
+  title: Dokumentenlenkung
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/document.service.ts
+    - backend/src/routes/document.routes.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+  gaps: []
+  evidence:
+    - Workflow Entwurf, Prüfung, Freigabe, Veröffentlichung, Rücknahme
+    - Freigegebene Versionen sind immutable
+    - Kenntnisnahme und Review-Eskalation vorhanden
+
+- id: NIS2-501
+  title: NIS-2-Betroffenheit versioniert bewerten und freigeben
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/nis2.service.ts
+    - backend/src/routes/nis2.routes.ts
+    - shared/src/types/nis2.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Questionnaire-Versionen werden separat gespeichert
+    - Assessment speichert Antworten, Vorbewertung und fachliche Freigabe
+    - Freigabe und Einreichung werden auditiert
+
+- id: NIS2-502
+  title: NIS-2-Registrierung und Änderungsmeldungen
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/nis2.service.ts
+    - backend/src/routes/nis2.routes.ts
+    - backend/prisma/migrations/20260718210000_phase5_nis2_incident_workflow/migration.sql
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Registrierung enthält Frist und Übermittlungsnachweis
+    - Registrierung kann an freigegebene Betroffenheit gekoppelt werden
+    - Änderungsmeldungen werden mit Frist, Nachweis und Audit gespeichert
+
+- id: NIS2-503
+  title: NIS-2-Maßnahmenkatalog mit zehn Themenbereichen
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/nis2.service.ts
+    - backend/src/services/framework.service.ts
+    - backend/src/services/control.service.ts
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Zehn NIS-2-Themen werden als Requirements erzeugt
+    - Für jedes Requirement wird ein Control mit Angemessenheitsbegründung erzeugt
+    - ControlRequirementMapping verbindet Controls mit Requirements
+
+- id: INC-501
+  title: NIS-2 Incident-Fristen und Signifikanzregeln
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/incident.service.ts
+    - backend/src/routes/incident.routes.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Signifikanzregeln sind versioniert
+    - 24h-, 72h-, Zwischen- und Monatsabschluss-Fristen werden automatisch erzeugt
+    - Eskalationen für überfällige Fristen werden persistiert
+
+- id: INC-502
+  title: Geschützter Kenntniszeitpunkt
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/incident.service.ts
+    - backend/src/routes/incident.routes.ts
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Direkte Änderung im Incident-Update wird blockiert
+    - Dedizierter Endpoint erzwingt Grund, Historie und Auditlog
+    - Offene Fristen werden nach Änderung neu berechnet
+
+- id: INC-503
+  title: Nichtmeldung mit Begründung und Freigabe
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/incident.service.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Nichtmeldung ohne Begründung wird abgewiesen
+    - Nichtmeldung ohne Freigeber wird abgewiesen
+
+- id: INC-504
+  title: Persistierte und exportierbare Meldepakete
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/incident.service.ts
+    - backend/src/routes/incident.routes.ts
+    - docs/api/openapi.yaml
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Reports enthalten Typ, Inhalt, Nachweis und Exportpayload
+    - Exportendpoint liefert strukturiertes Meldepaket
+
+- id: INC-505
+  title: Incident-Abschlussbedingungen
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/incident.service.ts
+    - frontend/src/pages/Incidents.tsx
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - Abschluss ohne Root Cause wird verhindert
+    - Abschluss ohne Maßnahmenbewertung wird verhindert
+    - Signifikante Incidents benötigen eingereichten Monatsabschlussbericht
+
 - id: IAM-001
   title: Administrationsschutz
   priority: P0
@@ -192,20 +576,119 @@
     - backend/src/routes/businessprocess.routes.ts
   tests:
     - backend/src/__tests__/businessprocess.service.test.ts
-  gaps:
-    - affectedProcessIds im Risk-Modell ist noch String[] (denormalisiert)
-  evidence: []
+  gaps: []
+  evidence:
+    - affectedProcessIds durch RiskProcess Junction Table ersetzt (Paket 2.1)
+    - affectedServiceIds durch RiskService Junction Table ersetzt (Paket 2.1)
+
+- id: IMP-2.3
+  title: Generisches Importframework für externe Asset-Quellen
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260718113000_import_framework/migration.sql
+    - backend/src/services/import.service.ts
+    - backend/src/routes/import.routes.ts
+    - backend/src/index.ts
+  tests:
+    - backend/src/__tests__/import.service.test.ts
+  gaps: []
+  evidence:
+    - IntegrationSource, ImportRun, ImportRecord, ImportConflict, FieldProvenance, FieldLock und SourcePriority ergänzt
+    - Dry Run schreibt ImportRun/ImportRecord-Auswertung ohne Asset-Mutation
+    - Idempotenz über Business-Key-Matching und unveränderte Feldwerte
+    - Dublettenerkennung über Seriennummer, externe ID und MAC-Adresse
+    - Konfliktanzeige und manuelle Konfliktlösung per API
+    - Manuelle Feldsperren verhindern Import-Überschreibung
+    - Quellenprioritäten entscheiden widersprüchliche Werte
+    - Stale-Markierung setzt status=stale ohne automatische Archivierung
+
+- id: D-001
+  title: Schema-Normalisierung — Redundante ID-Arrays entfernt
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps: []
+  evidence:
+    - Risk.affectedAssetIds String[] entfernt, ausschließlich über RiskAsset Junction Table (Paket 2.1)
+    - Risk.affectedProcessIds String[] durch RiskProcess Junction Table ersetzt (Paket 2.1)
+    - Risk.affectedServiceIds String[] durch RiskService Junction Table ersetzt (Paket 2.1)
+    - Control.affectedAssetIds/affectedProcessIds/affectedSiteIds durch ControlAsset/ControlProcess/ControlSite Junction Tables ersetzt (Paket 2.1)
+    - Incident.affectedServiceIds/affectedProcessIds durch IncidentService/IncidentProcess Junction Tables ersetzt (Paket 2.1)
+
+- id: D-002
+  title: Schema-Normalisierung — Netzadressen als eigenes Modell
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps: []
+  evidence:
+    - Asset.networkAddresses (komma-separierter String) durch NetworkAddress-Modell mit Relation zu Asset ersetzt (Paket 2.1)
+    - Asset.dnsNames entfernt — DNS-Namen können als type=hostname in NetworkAddress gespeichert werden (Paket 2.1)
+
+- id: D-003
+  title: Schema-Normalisierung — Many-to-Many über Junction Tables
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps: []
+  evidence:
+    - Asset-BusinessProcess über AssetProcess Junction Table (Paket 2.1)
+    - Asset-BusinessService über AssetService Junction Table (Paket 2.1)
+    - Asset-Contract über AssetContract Junction Table (Paket 2.1)
+    - Asset-License über AssetLicense Junction Table (Paket 2.1)
+    - Contract-License über ContractLicense Junction Table (Paket 2.1)
+
+- id: D-004
+  title: Schema-Normalisierung — Vollständige Foreign Keys mit Delete-Regeln
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+  tests: []
+  gaps: []
+  evidence:
+    - Alle Relationen mit expliziten onDelete Regeln (Cascade oder SetNull) (Paket 2.1)
+    - Parent-Löschung → Child-Cascade bei Junction Tables und abhängigen Daten
+    - SetNull bei optionale FKs wo Daten erhalten bleiben müssen
+
+- id: D-005
+  title: Schema-Normalisierung — Konsolidierte Migration
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260718000000_consolidated_init/
+  tests: []
+  gaps: []
+  evidence:
+    - Alle vorherigen Migrationen durch eine konsolidierte Initialmigration ersetzt (Paket 2.1)
+    - Datenbank kann aus leerem Zustand aufgebaut werden
 
 - id: RSK-002
   title: Aggregierte Risikoverteilungen
   priority: P1
-  status: missing
-  implementation: []
+  status: compliant
+  implementation:
+    - backend/src/services/risk.aggregation.ts
+    - backend/src/routes/risk.routes.ts
+    - shared/src/types/risk.ts
+    - shared/src/dtos/index.ts
   tests:
     - backend/src/__tests__/risk.aggregation.test.ts
-  gaps:
-    - Kein API-Endpoint für Aggregation
-  evidence: []
+  gaps: []
+  evidence:
+    - Paket 3.4 implementiert aggregierte Risikoverteilungen nach Asset, Prozess, Service, Organisation, Risikoklasse, Status und AssessmentType
+    - Aggregationen verwenden normalisierte Junction Tables RiskAsset, RiskProcess und RiskService statt entfernten ID-Arrays
+    - Filter nach Zeitraum, Scope, Status, RiskClass, AssessmentType und MethodVersionId sind als DTO/Route-Parameter abgebildet
+    - Zählregeln deduplizieren Risiko-IDs pro Gruppe und dokumentieren bewusstes mehrfaches Zählen über verschiedene Gruppen hinweg
 
 - id: CTL-001
   title: Statement of Applicability
@@ -255,40 +738,111 @@
 - id: AST-005
   title: Graphvisualisierung (AST-011)
   priority: P2
-  status: partial
+  status: compliant
   implementation:
     - backend/src/services/asset.graph.ts
     - frontend/src/components/AssetGraph.tsx
     - shared/src/types/graph.ts
   tests:
     - backend/src/__tests__/asset.graph.test.ts
-  gaps:
-    - Filterung nach Relationship-Typ und Criticality nicht implementiert
-  evidence: []
+  gaps: []
+  evidence:
+    - Paket 2.4 Graph-DTO unterstützt Asset, BusinessProcess, BusinessService, Risk, Control, Incident und Vulnerability Nodes.
+    - Gesamtgraph lädt Assets inklusive isolierter Assets und erzeugt ISOLATED_ASSET Warnungen.
+    - Relationstypabhängige Richtung umgesetzt (depends_on gerichtet, connected_to bidirektional, ownership Parent → Child).
+    - Batch-Laden der Graph-Daten mit Cache für Gesamtgraphen.
 
 - id: AST-006
   title: Impact Analysis (AST-012)
   priority: P2
-  status: partial
+  status: compliant
   implementation:
+    - backend/src/services/asset.graph.ts
     - frontend/src/components/AssetImpactAnalysis.tsx
-  tests: []
-  gaps:
-    - Konfigurierbare Traversiertiefe nicht implementiert
-  evidence: []
+  tests:
+    - backend/src/__tests__/asset.graph.test.ts
+  gaps: []
+  evidence:
+    - Paket 2.4 mehrstufige Impact-Analyse behandelt Zyklen mit visited Sets.
+    - Asset-Ausfall berechnet kaskadierende Auswirkungen auf Assets, Business Processes und Business Services.
+    - Artikulationspunkte und Connectivity-Komponenten werden berechnet.
+    - Redundante unabhängige Pfade und Redundanzgrad werden ausgewiesen.
+    - Performance-Test mit 10.000 Assets und 50.000 Relationen ergänzt.
+
+- id: RSK-004
+  title: Versionierte Risikomethoden und Assessment-Historisierung
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260718130000_risk_method_versioning/migration.sql
+    - backend/src/services/riskmethod.service.ts
+    - backend/src/routes/riskmethod.routes.ts
+    - shared/src/types/risk.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/riskmethod.service.test.ts
+  gaps: []
+  evidence:
+    - RiskMethodVersion-Modell speichert unveraenderliche Snapshots der Methodendefinition (Paket 3.1)
+    - RiskAssessment-Modell bindet jede Bewertung an eine konkrete Methodenversion (Paket 3.1)
+    - Berechnungstypen explizit definiert: product, sum, max, matrix — kein eval/Function (Paket 3.1)
+    - Eingaben werden gegen Skalenbereiche validiert (SafeCalculationEngine.validateInputs) (Paket 3.1)
+    - RecalculatePreview ist rein lesend und persistiert keine Daten (Paket 3.1)
+    - ConfirmedRecalculation erzeugt neue RiskAssessment-Version ohne historische Daten zu beschreiben (Paket 3.1)
+    - Methodenversion wird automatisch als immutable markiert, sobald erste Assessment referenziert (Paket 3.1)
+    - Loeschen von RiskMethod mit referenzierten Versionen wird blockiert (409 Conflict) (Paket 3.1)
+    - Audit-Log-Eintraege bei Methodenerstellung, -aenderung und Neuberechnung (Paket 3.1)
+    - DTO-Schemata mit Zod fuer CreateRiskMethod, ConfirmRecalculation, BulkConfirmRecalculation, CalculateRiskScore (Paket 3.1)
+
+- id: RSK-005
+  title: Relationale Risikobewertung (Paket 3.2)
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/src/services/risk.service.ts
+    - backend/src/routes/risk.routes.ts
+    - shared/src/types/risk.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/risk.assessment.test.ts
+  gaps: []
+  evidence:
+    - RiskScenario-Modell verbindet Threat + Vulnerability relational
+    - RiskCause und RiskImpact als eigenständige Modelle mit M:N Junction Tables
+    - ReviewTask-Modell für geplante und außerplanmäßige Reviews
+    - Assessment.justification ist NOT NULL (Begründungspflicht)
+    - assessmentType unterscheidet inherent, current, target
+    - Historisierung: neue Bewertung erzeugt neuen RiskAssessment-Eintrag, alter bleibt unverändert
+    - checkUnplannedReviewTrigger erzeugt konkrete ReviewTask-Instanzen
 
 - id: RSK-003
-  title: Risikobehandlungspläne
-  priority: P2
-  status: partial
+  title: Risiko-Behandlung und Risiko-Akzeptanz
+  priority: P1
+  status: compliant
   implementation:
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260718160000_risk_treatment_acceptance_workflow/migration.sql
     - backend/src/routes/risktreatment.routes.ts
     - backend/src/services/risktreatment.service.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/services/risk.service.ts
+    - shared/src/types/risk.ts
+    - shared/src/dtos/index.ts
   tests:
     - backend/src/__tests__/risktreatment.service.test.ts
-  gaps:
-    - Validierung für accept-Option nicht implementiert
-  evidence: []
+  gaps: []
+  evidence:
+    - Direkter /risks/:id/accept-Bypass entfernt; keine acceptRisk-Servicefunktion mehr
+    - Acceptance läuft über RiskTreatment/RiskAcceptance mit konkreter RiskAssessment-Version
+    - Begründung, Ablaufdatum und Genehmiger sind verpflichtend
+    - Low/medium Acceptance erfordert Risk-Owner-Freigabe
+    - High/critical Acceptance erfordert unabhängige Management/Admin-Freigabe
+    - Vier-Augen-Prinzip verhindert, dass Assessor eigene Hochrisikoakzeptanz genehmigt
+    - Mitigation-Abschluss ohne Effectiveness Review wird blockiert
+    - Abschluss erzeugt oder bestätigt Ziel-/Restrisiko-Assessment ohne historische Assessments zu überschreiben
+    - Auditlog-Aktionen für Treatment, Acceptance, Approval, Effectiveness Review und Completion ergänzt
 
 - id: UX-001
   title: Internationalisierung (i18n)

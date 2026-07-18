@@ -1,0 +1,2 @@
+ALTER TABLE "intune_sync_status" ADD COLUMN IF NOT EXISTS "staleCount" INTEGER NOT NULL DEFAULT 0;
+

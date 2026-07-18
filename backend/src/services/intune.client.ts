@@ -1,283 +1,228 @@
-/**
- * Intune HTTP Client
- * 
- * Axios-based HTTP client for Microsoft Graph API with:
- * - Automatic token injection
- * - Odata pagination following
- * - Rate limiting (HTTP 429) with Retry-After handling
- * - Retry logic with exponential backoff
- */
-
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { getAuthService } from './intune.auth';
 import { AppError } from '../middleware/errorHandler';
 
-export interface GraphApiError {
-  error: {
-    code: string;
-    message: string;
-    details?: Array<{ code: string; message: string }>;
-  };
+const GRAPH_ROOT = 'https://graph.microsoft.com/v1.0';
+
+export const MANAGED_DEVICE_SELECT_FIELDS = [
+  'id',
+  'deviceName',
+  'serialNumber',
+  'manufacturer',
+  'model',
+  'operatingSystem',
+  'osVersion',
+  'deviceEnrollmentType',
+  'managementAgent',
+  'complianceState',
+  'managementState',
+  'enrolledDateTime',
+  'lastSyncDateTime',
+  'emailAddress',
+  'userDisplayName',
+  'userPrincipalName',
+  'azureADDeviceId',
+  'wiFiMacAddress',
+  'ethernetMacAddress',
+] as const;
+
+export const DETECTED_APP_SELECT_FIELDS = ['id', 'displayName', 'version', 'publisher', 'sizeInByte'] as const;
+
+export const REQUIRED_GRAPH_APP_ROLES = ['DeviceManagementManagedDevices.Read.All'] as const;
+
+export interface ManagedDevice {
+  id: string;
+  deviceName?: string;
+  serialNumber?: string;
+  manufacturer?: string;
+  model?: string;
+  operatingSystem?: string;
+  osVersion?: string;
+  deviceEnrollmentType?: string;
+  managementAgent?: string;
+  complianceState?: string;
+  managementState?: string;
+  enrolledDateTime?: string;
+  lastSyncDateTime?: string;
+  emailAddress?: string;
+  userDisplayName?: string;
+  userPrincipalName?: string;
+  azureADDeviceId?: string;
+  wiFiMacAddress?: string;
+  ethernetMacAddress?: string;
 }
 
-export interface GraphApiResponse<T> {
-  data: T[];
-  nextLink?: string;
+export interface PermissionValidationResult {
+  valid: boolean;
+  requiredPermissions: string[];
+  verifiedPermissions: string[];
+  missingPermissions: string[];
+  message: string;
+}
+
+interface GraphPage<T> {
   value?: T[];
   '@odata.nextLink'?: string;
   '@odata.nextlink'?: string;
 }
 
-export class IntuneHttpClient {
-  private client: AxiosInstance;
-  private maxRetries: number;
-  private baseDelayMs: number;
+function encodeSelect(fields: readonly string[]): string {
+  return encodeURIComponent(fields.join(','));
+}
 
-  constructor(maxRetries: number = 3, baseDelayMs: number = 5000) {
+function parseRetryAfter(value: unknown, fallbackMs: number): number {
+  if (typeof value !== 'string') return fallbackMs;
+  const seconds = Number.parseInt(value, 10);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  return fallbackMs;
+}
+
+export class IntuneHttpClient {
+  private readonly client: AxiosInstance;
+  private readonly maxRetries: number;
+  private readonly baseDelayMs: number;
+  private readonly sleepFn: (ms: number) => Promise<void>;
+
+  constructor(maxRetries = 3, baseDelayMs = 5000, client?: AxiosInstance, sleepFn?: (ms: number) => Promise<void>) {
     this.maxRetries = maxRetries;
     this.baseDelayMs = baseDelayMs;
-    this.client = axios.create({
-      timeout: 60000,
-    });
+    this.client = client ?? axios.create({ timeout: 60_000 });
+    this.sleepFn = sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
-  /**
-   * Get a valid access token from the auth service
-   */
   private async getAuthToken(): Promise<string> {
     const authService = getAuthService();
-    if (!authService) {
-      throw new AppError('Intune auth service not initialized', 500);
-    }
+    if (!authService) throw new AppError('Intune auth service not initialized', 500);
     return authService.getAccessToken();
   }
 
-  /**
-   * Sleep for specified milliseconds
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Make a single API request with retry logic
-   */
-  private async requestWithRetry<T>(
-    method: 'get' | 'post' | 'put' | 'delete',
-    url: string,
-    options?: AxiosRequestConfig
-  ): Promise<AxiosResponse<T>> {
+  private async requestWithRetry<T>(method: 'get' | 'post', url: string, options?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        // Get fresh token for each attempt
         const token = await this.getAuthToken();
-
-        const response = await this.client[method](url, options?.data, {
+        const requestOptions: AxiosRequestConfig = {
           ...options,
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
             'Content-Type': 'application/json',
-            ...(options?.headers || {}),
+            ...(options?.headers ?? {}),
           },
-          timeout: 60000,
-        });
-
-        return response;
+        };
+        return method === 'get'
+          ? await this.client.get<T>(url, requestOptions)
+          : await this.client.post<T>(url, options?.data, requestOptions);
       } catch (error) {
         lastError = error as Error;
-
-        // Check for rate limiting (HTTP 429)
-        if (axios.isAxiosError(error) && error.response?.status === 429) {
-          const retryAfter = error.response.headers['retry-after'];
-          const delayMs = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : this.baseDelayMs * Math.pow(2, attempt);
-
-          console.warn(`[IntuneClient] Rate limited (429). Retrying after ${delayMs}ms (attempt ${attempt + 1}/${this.maxRetries})`);
-          await this.sleep(delayMs);
+        if (axios.isAxiosError(error) && error.response?.status === 429 && attempt < this.maxRetries) {
+          const delayMs = parseRetryAfter(error.response.headers?.['retry-after'], this.baseDelayMs * Math.pow(2, attempt));
+          await this.sleepFn(delayMs);
           continue;
         }
-
-        // Check for auth failure (HTTP 401)
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          console.error('[IntuneClient] Authentication failed. Token may be invalid.');
-          // Force token refresh and retry once
-          const authService = getAuthService();
-          if (authService) {
-            await authService.refreshAccessToken();
-          }
-          if (attempt < this.maxRetries) continue;
-          break;
-        }
-
-        // Network errors - retry with backoff
-        if (axios.isAxiosError(error) && !error.response) {
-          const delayMs = this.baseDelayMs * Math.pow(2, attempt);
-          console.warn(`[IntuneClient] Network error: ${error.message}. Retrying after ${delayMs}ms (attempt ${attempt + 1}/${this.maxRetries})`);
-          await this.sleep(delayMs);
+        if (axios.isAxiosError(error) && error.response?.status === 401 && attempt < this.maxRetries) {
+          await getAuthService()?.refreshAccessToken();
           continue;
         }
-
-        // Non-retryable errors - throw immediately
-        if (axios.isAxiosError(error) && error.response && error.response.status >= 400 && error.response.status < 500) {
+        if (axios.isAxiosError(error) && (!error.response || error.response.status >= 500) && attempt < this.maxRetries) {
+          await this.sleepFn(this.baseDelayMs * Math.pow(2, attempt));
+          continue;
+        }
+        if (axios.isAxiosError(error) && error.response) {
           const status = error.response.status;
-          const message = error.response.data?.error?.message || error.response.data?.error?.code || error.message;
-          throw new AppError(`Intune API error (${status}): ${message}`, status);
+          const graphMessage = (error.response.data as any)?.error?.message || (error.response.data as any)?.error?.code;
+          throw new AppError(`Microsoft Graph error (${status}): ${graphMessage || error.message}`, status);
         }
-
-        // Server errors - retry
-        if (axios.isAxiosError(error) && error.response && error.response.status >= 500) {
-          const delayMs = this.baseDelayMs * Math.pow(2, attempt);
-          console.warn(`[IntuneClient] Server error (${error.response?.status}). Retrying after ${delayMs}ms (attempt ${attempt + 1}/${this.maxRetries})`);
-          await this.sleep(delayMs);
-          continue;
-        }
-
-        // Other errors - throw
-        throw lastError;
+        throw error;
       }
     }
 
-    throw new AppError(`Intune API request failed after ${this.maxRetries} retries: ${lastError?.message}`, 500);
+    throw new AppError(`Microsoft Graph request failed after ${this.maxRetries} retries: ${lastError?.message}`, 500);
   }
 
-  /**
-   * GET request with retry logic
-   */
   async get<T>(url: string, options?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     return this.requestWithRetry<T>('get', url, options);
   }
 
-  /**
-   * POST request with retry logic
-   */
-  async post<T>(url: string, data?: any, options?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
-    return this.requestWithRetry<T>('post', url, { ...options, data });
-  }
-
-  /**
-   * Follow odata pagination and return all results
-   */
   async getAll<T>(url: string): Promise<T[]> {
     const allResults: T[] = [];
-    let currentUrl = url;
-    let pageCount = 0;
-
+    let currentUrl: string | undefined = url;
     while (currentUrl) {
-      pageCount++;
-      console.log(`[IntuneClient] Fetching page ${pageCount}: ${currentUrl.substring(0, 100)}...`);
-
-      const response = await this.get<GraphApiResponse<T>>(currentUrl);
-      const data = response.data as any;
-
-      // Add current page results
-      if (data.value && Array.isArray(data.value)) {
-        allResults.push(...data.value);
-      } else if (Array.isArray(data)) {
-        allResults.push(...data);
-      }
-
-      // Check for next page
-      currentUrl = data['@odata.nextLink'] || data['@odata.nextlink'] || null;
+      const pageUrl = currentUrl;
+      const response: AxiosResponse<GraphPage<T>> = await this.get<GraphPage<T>>(pageUrl);
+      allResults.push(...(response.data.value ?? []));
+      currentUrl = response.data['@odata.nextLink'] ?? response.data['@odata.nextlink'];
     }
-
-    console.log(`[IntuneClient] Fetched ${allResults.length} items across ${pageCount} pages`);
     return allResults;
   }
 
-  /**
-   * Get a single page of results
-   */
-  async getPage<T>(url: string): Promise<GraphApiResponse<T>> {
-    const response = await this.get<GraphApiResponse<T>>(url);
-    const data = response.data;
-
-    return {
-      data: data.value || [],
-      nextLink: data['@odata.nextLink'] || data['@odata.nextlink'] || undefined,
-    };
+  async getAllDevices(): Promise<ManagedDevice[]> {
+    const url = `${GRAPH_ROOT}/deviceManagement/managedDevices?$select=${encodeSelect(MANAGED_DEVICE_SELECT_FIELDS)}`;
+    return this.getAll<ManagedDevice>(url);
   }
 
-  /**
-   * Get all devices from Intune
-   */
-  async getAllDevices(): Promise<any[]> {
-    const url = 'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices';
-    const select = [
-      'id',
-      'deviceName',
-      'serialNumber',
-      'manufacturer',
-      'model',
-      'osName',
-      'osVersion',
-      'deviceEnrollmentType',
-      'managementType',
-      'complianceStatus',
-      'deviceState',
-      'enrollmentDateTime',
-      'lastSyncDateTime',
-      'primaryUserEmailaddress',
-      'primaryUserDisplayName',
-      'compliancePolicyName',
-      'configurationPolicyName',
-      'intuneLicenseState',
-      'deviceWpdsStatus',
-    ].join(',');
-
-    return this.getAll(`${url}?$select=${select}`);
-  }
-
-  /**
-   * Get detected apps for a specific device
-   */
-  async getDetectedApps(deviceId: string): Promise<any[]> {
-    const url = `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${deviceId}/detectedApps`;
-    const select = [
-      'name',
-      'version',
-      'publisher',
-      'platform',
-      'appIdentity',
-      'isManaged',
-    ].join(',');
-
-    return this.getAll(`${url}?$select=${select}`);
-  }
-
-  /**
-   * Get device details by Intune ID
-   */
-  async getDeviceDetails(intuneId: string): Promise<any> {
-    const url = `https://graph.microsoft.com/v1.0/devices?$filter=deviceId eq '${intuneId}'&$select=id,deviceId,deviceName,serialNumber,manufacturer,model,osName,osVersion,deviceEnrollmentType,managementType,complianceStatus,deviceState,enrollmentDateTime,lastSyncDateTime,primaryUserEmailaddress,primaryUserDisplayName,compliancePolicyName,configurationPolicyName,intuneLicenseState,deviceWpdsStatus`;
-
-    const response = await this.get<any>(url);
-    return response.data?.value?.[0] || null;
-  }
-
-  /**
-   * Check health of the Intune API connection
-   */
-  async checkHealth(): Promise<{ healthy: boolean; error?: string }> {
+  async getDeviceDetails(intuneId: string): Promise<ManagedDevice | null> {
+    const url = `${GRAPH_ROOT}/deviceManagement/managedDevices/${encodeURIComponent(intuneId)}?$select=${encodeSelect(MANAGED_DEVICE_SELECT_FIELDS)}`;
     try {
-      const response = await this.get<any>('https://graph.microsoft.com/v1.0/$metadata');
-      return { healthy: response.status === 200 };
+      const response = await this.get<ManagedDevice>(url);
+      return response.data;
     } catch (error) {
-      return { healthy: false, error: (error as Error).message };
+      if (error instanceof AppError && error.statusCode === 404) return null;
+      throw error;
     }
+  }
+
+  async getDetectedApps(deviceId: string): Promise<any[]> {
+    const url = `${GRAPH_ROOT}/deviceManagement/managedDevices/${encodeURIComponent(deviceId)}/detectedApps?$select=${encodeSelect(DETECTED_APP_SELECT_FIELDS)}`;
+    return this.getAll<any>(url);
+  }
+
+  async validateApplicationPermissions(): Promise<PermissionValidationResult> {
+    try {
+      await this.get(`${GRAPH_ROOT}/deviceManagement/managedDevices?$top=1&$select=id`);
+      return {
+        valid: true,
+        requiredPermissions: [...REQUIRED_GRAPH_APP_ROLES],
+        verifiedPermissions: [...REQUIRED_GRAPH_APP_ROLES],
+        missingPermissions: [],
+        message: 'Required Microsoft Graph application permissions are available.',
+      };
+    } catch (error) {
+      const message = (error as Error).message;
+      const permissionDenied = message.includes('403') || message.toLowerCase().includes('privilege') || message.toLowerCase().includes('permission');
+      return {
+        valid: false,
+        requiredPermissions: [...REQUIRED_GRAPH_APP_ROLES],
+        verifiedPermissions: [],
+        missingPermissions: permissionDenied ? [...REQUIRED_GRAPH_APP_ROLES] : [],
+        message: permissionDenied
+          ? `Missing Microsoft Graph application permission: ${REQUIRED_GRAPH_APP_ROLES.join(', ')}. Grant admin consent for Application permissions only.`
+          : message,
+      };
+    }
+  }
+
+  async checkHealth(): Promise<{ healthy: boolean; error?: string; permissions: PermissionValidationResult }> {
+    const permissions = await this.validateApplicationPermissions();
+    return { healthy: permissions.valid, error: permissions.valid ? undefined : permissions.message, permissions };
   }
 }
 
-// Singleton instance (initialized via config)
 let httpClient: IntuneHttpClient | null = null;
 
 export function getHttpClient(): IntuneHttpClient | null {
   return httpClient;
 }
 
-export function initializeHttpClient(maxRetries: number = 3, baseDelayMs: number = 5000): IntuneHttpClient {
+export function initializeHttpClient(maxRetries = 3, baseDelayMs = 5000): IntuneHttpClient {
   httpClient = new IntuneHttpClient(maxRetries, baseDelayMs);
   return httpClient;
 }
+
+export function setHttpClientForTests(client: IntuneHttpClient | null): void {
+  httpClient = client;
+}
+

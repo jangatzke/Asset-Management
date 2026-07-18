@@ -8,12 +8,19 @@ const mockPrismaClient: any = {
   risk: {
     findMany: jest.fn(),
     count: jest.fn(),
+    groupBy: jest.fn(),
   },
   asset: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },
   ismsScope: {
+    findMany: jest.fn(),
+  },
+  businessProcess: {
+    findMany: jest.fn(),
+  },
+  businessService: {
     findMany: jest.fn(),
   },
 };
@@ -36,8 +43,9 @@ const createRisk = (overrides = {}) => ({
   residualLikelihood: 2,
   residualImpact: 3,
   status: 'open',
-  affectedAssetIds: ['asset-1'],
-  affectedProcessIds: [],
+  riskAssets: [{ assetId: 'asset-1' }],
+  processLinks: [],
+  serviceLinks: [],
   organizationUnitId: 'ou-1',
   isArchived: false,
   ...overrides,
@@ -85,10 +93,11 @@ describe('RiskAggregationService', () => {
 
   describe('aggregateByLocation', () => {
     it('should group risks by location via affected assets', async () => {
-      const risk = createRisk({ affectedAssetIds: ['asset-1'] });
+      const risk = createRisk({ riskAssets: [{ assetId: 'asset-1' }] });
       mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
       mockPrismaClient.asset.findMany.mockResolvedValue([{
         id: 'asset-1',
+        locationId: 'loc-1',
         location: { id: 'loc-1', name: 'Main Office', city: 'Berlin', country: 'DE' },
       }]);
 
@@ -99,7 +108,7 @@ describe('RiskAggregationService', () => {
     });
 
     it('should handle risks with no affected assets', async () => {
-      const risk = createRisk({ affectedAssetIds: [] });
+      const risk = createRisk({ riskAssets: [] });
       mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
 
       const result = await riskAggregationService.aggregateByLocation();
@@ -109,7 +118,7 @@ describe('RiskAggregationService', () => {
     });
 
     it('should handle assets without location', async () => {
-      const risk = createRisk({ affectedAssetIds: ['asset-1'] });
+      const risk = createRisk({ riskAssets: [{ assetId: 'asset-1' }] });
       mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
       mockPrismaClient.asset.findMany.mockResolvedValue([{ id: 'asset-1', location: null }]);
 
@@ -122,7 +131,7 @@ describe('RiskAggregationService', () => {
 
   describe('aggregateByAssetType', () => {
     it('should group risks by asset type via affected assets', async () => {
-      const risk = createRisk({ affectedAssetIds: ['asset-1'] });
+      const risk = createRisk({ riskAssets: [{ assetId: 'asset-1' }] });
       mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
       mockPrismaClient.asset.findMany.mockResolvedValue([{
         id: 'asset-1',
@@ -136,8 +145,39 @@ describe('RiskAggregationService', () => {
       expect(result[0].key).toBe('type-server');
     });
 
+    it('deduplicates one risk per asset-type group when multiple assets share the same type', async () => {
+      const risk = createRisk({ riskAssets: [{ assetId: 'asset-1' }, { assetId: 'asset-2' }] });
+      mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
+      mockPrismaClient.asset.findMany.mockResolvedValue([
+        { id: 'asset-1', assetTypeId: 'type-server', assetType: { name: 'Server' } },
+        { id: 'asset-2', assetTypeId: 'type-server', assetType: { name: 'Server' } },
+      ]);
+
+      const result = await riskAggregationService.aggregateByAssetType();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].totalRisks).toBe(1);
+    });
+
+    it('passes methodVersion, assessmentType and assessedAt filters through RiskAssessment relation', async () => {
+      mockPrismaClient.risk.findMany.mockResolvedValue([]);
+
+      await riskAggregationService.aggregateByAssetType({
+        methodVersionId: 'method-v1',
+        assessmentType: 'current',
+        from: new Date('2026-01-01T00:00:00.000Z'),
+        to: new Date('2026-01-31T23:59:59.999Z'),
+      });
+
+      const where = mockPrismaClient.risk.findMany.mock.calls[0][0].where;
+      expect(JSON.stringify(where)).toContain('RiskAssessment');
+      expect(JSON.stringify(where)).toContain('method-v1');
+      expect(JSON.stringify(where)).toContain('current');
+      expect(JSON.stringify(where)).toContain('assessedAt');
+    });
+
     it('should handle risks with no affected assets', async () => {
-      const risk = createRisk({ affectedAssetIds: [] });
+      const risk = createRisk({ riskAssets: [] });
       mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
 
       const result = await riskAggregationService.aggregateByAssetType();
@@ -149,11 +189,11 @@ describe('RiskAggregationService', () => {
 
   describe('aggregateByBusinessProcess', () => {
     it('should group risks by business process', async () => {
-      const risk = createRisk();
+      const risk = createRisk({ processLinks: [{ processId: 'bp-1' }] });
       mockPrismaClient.risk.findMany.mockResolvedValue([{
         ...risk,
-        businessProcess: { id: 'bp-1', name: 'Order Processing' },
       }]);
+      mockPrismaClient.businessProcess.findMany.mockResolvedValue([{ id: 'bp-1', name: 'Order Processing' }]);
 
       const result = await riskAggregationService.aggregateByBusinessProcess();
 
@@ -221,7 +261,12 @@ describe('RiskAggregationService', () => {
   describe('getDashboardSummary', () => {
     it('should return dashboard summary with all counts', async () => {
       const risk = createRisk();
-      mockPrismaClient.risk.findMany.mockResolvedValue([risk]);
+      mockPrismaClient.risk.count.mockResolvedValue(1);
+      mockPrismaClient.risk.groupBy
+        .mockResolvedValueOnce([{ status: 'open', _count: { status: 1 } }])
+        .mockResolvedValueOnce([{ likelihood: 4, _count: { likelihood: 1 } }])
+        .mockResolvedValueOnce([{ impact: 4, _count: { impact: 1 } }]);
+      mockPrismaClient.risk.findMany.mockResolvedValue([{ ...risk, riskAssets: [] }]);
 
       const result = await riskAggregationService.getDashboardSummary();
 
@@ -232,6 +277,8 @@ describe('RiskAggregationService', () => {
     });
 
     it('should return empty summary when no risks exist', async () => {
+      mockPrismaClient.risk.count.mockResolvedValue(0);
+      mockPrismaClient.risk.groupBy.mockResolvedValue([]);
       mockPrismaClient.risk.findMany.mockResolvedValue([]);
 
       const result = await riskAggregationService.getDashboardSummary();
@@ -241,8 +288,13 @@ describe('RiskAggregationService', () => {
     });
 
     it('should identify high-risk assets', async () => {
-      mockPrismaClient.risk.findMany.mockResolvedValue([createRisk()]);
-      mockPrismaClient.asset.findUnique.mockResolvedValue({ id: 'asset-1', name: 'Web Server' });
+      mockPrismaClient.risk.count.mockResolvedValue(1);
+      mockPrismaClient.risk.groupBy
+        .mockResolvedValueOnce([{ status: 'open', _count: { status: 1 } }])
+        .mockResolvedValueOnce([{ likelihood: 4, _count: { likelihood: 1 } }])
+        .mockResolvedValueOnce([{ impact: 4, _count: { impact: 1 } }]);
+      mockPrismaClient.risk.findMany.mockResolvedValue([{ ...createRisk(), riskAssets: [{ assetId: 'asset-1' }] }]);
+      mockPrismaClient.asset.findMany.mockResolvedValue([{ id: 'asset-1', name: 'Web Server' }]);
 
       const result = await riskAggregationService.getDashboardSummary();
 

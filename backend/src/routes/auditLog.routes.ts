@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Response, Router } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { auditService } from '../services/audit.service';
 import { prisma } from '../config/database';
@@ -13,7 +13,7 @@ const adminGuard = [authenticate, authorize('system_admin')];
  * List audit log entries with filtering and pagination.
  * Query params: userId, entityType, action, from, to, page, pageSize
  */
-auditLogRouter.get('/', adminGuard, async (req: AuthRequest, res, next) => {
+auditLogRouter.get('/', adminGuard, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { userId, entityType, action, from, to, page = '1', pageSize = '50' } = req.query;
 
@@ -38,14 +38,15 @@ auditLogRouter.get('/', adminGuard, async (req: AuthRequest, res, next) => {
  * GET /audit-log/:id
  * Get a single audit log entry by ID.
  */
-auditLogRouter.get('/:id', adminGuard, async (_req: AuthRequest, res, next) => {
+auditLogRouter.get('/:id', adminGuard, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const entry = await prisma.auditLog.findUnique({
       where: { id: _req.params.id },
     });
 
     if (!entry) {
-      return res.status(404).json({ error: 'Audit log entry not found' });
+      res.status(404).json({ error: 'Audit log entry not found' });
+      return;
     }
 
     res.json(entry);
@@ -58,7 +59,7 @@ auditLogRouter.get('/:id', adminGuard, async (_req: AuthRequest, res, next) => {
  * GET /audit-log/export?format=json|csv
  * Export audit log entries as JSON or CSV.
  */
-auditLogRouter.get('/export', adminGuard, async (req: AuthRequest, res, next) => {
+auditLogRouter.get('/export', adminGuard, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { userId, entityType, action, from, to } = req.query;
     const format = (req.query.format as string) ?? 'json';
@@ -74,7 +75,8 @@ auditLogRouter.get('/export', adminGuard, async (req: AuthRequest, res, next) =>
       const csvContent = await auditService.exportAuditLogAsCSV(prisma, filters);
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename=audit-log.csv');
-      return res.send(csvContent);
+      res.send(csvContent);
+      return;
     }
 
     // Default: JSON export

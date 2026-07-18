@@ -89,7 +89,7 @@ export class ContractService {
   async findById(id: string) {
     const contract = await prisma.contract.findUnique({
       where: { id },
-      include: { assets: { include: { assetType: true } } },
+      include: { assetLinks: { include: { asset: { include: { assetType: true } } } } },
     });
 
     if (!contract) {
@@ -148,7 +148,7 @@ export class ContractService {
     }
 
     return prisma.asset.findMany({
-      where: { contractId },
+      where: { contractLinks: { some: { contractId } } },
       include: { assetType: true },
     });
   }

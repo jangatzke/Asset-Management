@@ -8,6 +8,18 @@ const requireAdminAccess = authorize('system_admin');
 
 export const riskRouter = Router();
 
+const parseAggregationFilters = (query: any) => ({
+  from: query.from ? new Date(String(query.from)) : undefined,
+  to: query.to ? new Date(String(query.to)) : undefined,
+  scope: query.scope ? String(query.scope).split(',').filter(Boolean) : undefined,
+  organizationUnitId: query.organizationUnitId ? String(query.organizationUnitId) : undefined,
+  status: query.status ? String(query.status) : undefined,
+  riskClass: query.riskClass ? String(query.riskClass) : undefined,
+  assessmentType: query.assessmentType ? String(query.assessmentType) as any : undefined,
+  methodVersionId: query.methodVersionId ? String(query.methodVersionId) : undefined,
+  isCurrent: query.isCurrent === undefined ? undefined : String(query.isCurrent) !== 'false',
+});
+
 // ==========================================
 // Static routes MUST come BEFORE parametric routes (/id)
 // ==========================================
@@ -17,7 +29,7 @@ riskRouter.get('/', authenticate, async (req, res, next) => {
     const result = await riskService.list(req.query);
     res.json(result);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -26,64 +38,134 @@ riskRouter.post('/', authenticate, authorizeEntityWrite('risks'), async (req: Au
     const risk = await riskService.create(req.body, req.userId);
     res.status(201).json(risk);
   } catch (error) {
+    return next(error);
+  }
+});
+
+// ==========================================
+// Assessment Routes (Paket 3.2)
+// ==========================================
+
+riskRouter.post('/assessments', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const assessments = await riskService.createAssessment({ ...req.body, assessorId: req.userId! });
+    res.status(201).json(assessments);
+  } catch (error) {
     next(error);
   }
 });
 
-// RSK-011: Aggregated views - by organization unit
-riskRouter.get('/aggregated/by-org-unit', authenticate, requireAdminAccess, async (_req, res, next) => {
+// ==========================================
+// Review Task Routes (Paket 3.2)
+// ==========================================
+
+riskRouter.get('/review-tasks', authenticate, async (req, res, next) => {
   try {
-    const result = await riskAggregationService.aggregateByOrganizationUnit();
+    const tasks = await riskService.listReviewTasks(req.query as any);
+    res.json(tasks);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/review-tasks', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const task = await riskService.createReviewTask(req.body);
+    res.status(201).json(task);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==========================================
+// Aggregation Routes (existing)
+// ==========================================
+
+riskRouter.get('/aggregated/by-org-unit', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const result = await riskAggregationService.aggregateByOrganizationUnit(parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// RSK-011: Aggregated views - by location/site
-riskRouter.get('/aggregated/by-location', authenticate, requireAdminAccess, async (_req, res, next) => {
+riskRouter.get('/aggregated/by-location', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
-    const result = await riskAggregationService.aggregateByLocation();
+    const result = await riskAggregationService.aggregateByLocation(parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// RSK-011: Aggregated views - by asset type
-riskRouter.get('/aggregated/by-asset-type', authenticate, requireAdminAccess, async (_req, res, next) => {
+riskRouter.get('/aggregated/by-asset-type', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
-    const result = await riskAggregationService.aggregateByAssetType();
+    const result = await riskAggregationService.aggregateByAssetType(parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// RSK-010/RSK-011: Aggregated views - by business process
-riskRouter.get('/aggregated/by-process', authenticate, requireAdminAccess, async (_req, res, next) => {
+riskRouter.get('/aggregated/by-process', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
-    const result = await riskAggregationService.aggregateByBusinessProcess();
+    const result = await riskAggregationService.aggregateByBusinessProcess(parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// RSK-011: Aggregated views - by ISMS scope
-riskRouter.get('/aggregated/by-scope', authenticate, requireAdminAccess, async (_req, res, next) => {
+riskRouter.get('/aggregated/by-scope', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
-    const result = await riskAggregationService.aggregateByScope();
+    const result = await riskAggregationService.aggregateByScope(parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// RSK-011: Risk dashboard summary
-riskRouter.get('/dashboard-summary', authenticate, requireAdminAccess, async (_req, res, next) => {
+riskRouter.get('/aggregated', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
-    const result = await riskAggregationService.getDashboardSummary();
+    const groupBy = String(req.query.groupBy || 'orgUnit') as any;
+    const result = await riskAggregationService.getUnifiedAggregation(groupBy, parseAggregationFilters(req.query));
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/aggregated/by-service', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const result = await riskAggregationService.aggregateByService(parseAggregationFilters(req.query));
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/aggregated/by-risk-class', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const result = await riskAggregationService.aggregateByRiskClass(parseAggregationFilters(req.query));
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/aggregated/by-status', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const result = await riskAggregationService.aggregateByStatus(parseAggregationFilters(req.query));
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/dashboard-summary', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const result = await riskAggregationService.getDashboardSummary(parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
     next(error);
@@ -152,8 +234,51 @@ riskRouter.put('/:id', authenticate, authorizeEntityWrite('risks'), async (req: 
 
 riskRouter.delete('/:id', authenticate, authorizeEntityDelete('risks'), async (req: AuthRequest, res, next) => {
   try {
-    const result = await riskService.delete(req.params.id);
+    const result = await riskService.delete(req.params.id, req.userId);
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Assessment history for a specific risk
+riskRouter.get('/:id/assessments', authenticate, async (req, res, next) => {
+  try {
+    const assessments = await riskService.getAssessments(req.params.id);
+    res.json(assessments);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Current assessment for a specific risk
+riskRouter.get('/:id/assessments/current', authenticate, async (req, res, next) => {
+  try {
+    const assessment = await riskService.getCurrentAssessment(req.params.id, req.query.type as any);
+    if (!assessment) {
+      return res.status(404).json({ error: 'No current assessment found' });
+    }
+    return res.json(assessment);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Review tasks for a specific risk
+riskRouter.get('/:id/review-tasks', authenticate, async (req, res, next) => {
+  try {
+    const tasks = await riskService.getReviewTasks(req.params.id);
+    res.json(tasks);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update a specific review task
+riskRouter.put('/review-tasks/:taskId', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const task = await riskService.updateReviewTask(req.params.taskId, req.body, req.userId);
+    res.json(task);
   } catch (error) {
     next(error);
   }
@@ -168,11 +293,3 @@ riskRouter.post('/:id/treatment', authenticate, authorizeEntityWrite('risks'), a
   }
 });
 
-riskRouter.post('/:id/accept', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
-  try {
-    const risk = await riskService.acceptRisk(req.params.id, req.userId!);
-    res.json(risk);
-  } catch (error) {
-    next(error);
-  }
-});

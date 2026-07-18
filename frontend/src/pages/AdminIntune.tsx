@@ -62,6 +62,7 @@ interface SyncStatus {
   appCount: number;
   appSynced: number;
   appErrors: number;
+  staleCount: number;
   lastSyncStartedAt: string | null;
   lastSyncCompletedAt: string | null;
   lastSyncDurationMs: number | null;
@@ -82,6 +83,7 @@ interface DeviceSync {
   osName: string | null;
   osVersion: string | null;
   syncStatus: string;
+  syncErrorMessage?: string | null;
   lastSyncAt: string | null;
   isArchived: boolean;
 }
@@ -106,6 +108,7 @@ export default function IntuneAdmin() {
   const [devices, setDevices] = useState<DeviceSync[]>([]);
   const [loading, setLoading] = useState(false);
   const [healthStatus, setHealthStatus] = useState<'healthy' | 'degraded' | 'unhealthy' | null>(null);
+  const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const [showDevices, setShowDevices] = useState(false);
   const [devicePage, setDevicePage] = useState(1);
   const [deviceTotalPages, setDeviceTotalPages] = useState(1);
@@ -150,8 +153,10 @@ export default function IntuneAdmin() {
     try {
       const res = await api.get('/intune/health');
       setHealthStatus(res.data?.intune?.healthy ? 'healthy' : 'unhealthy');
+      setHealthMessage(res.data?.intune?.error || res.data?.intune?.permissions?.message || null);
     } catch (e) {
       setHealthStatus('unhealthy');
+      setHealthMessage('Health check failed. Verify certificate secret references and Microsoft Graph application permissions.');
     }
   };
 
@@ -316,7 +321,7 @@ export default function IntuneAdmin() {
             />
             <Typography variant="body2">
               {healthStatus === 'healthy' && 'All systems operational'}
-              {healthStatus === 'unhealthy' && 'Connection issues detected'}
+              {healthStatus === 'unhealthy' && (healthMessage || 'Connection issues detected')}
               {healthStatus === null && 'Checking...'}
             </Typography>
           </Stack>
@@ -430,7 +435,21 @@ export default function IntuneAdmin() {
                   {formatDuration(syncStatus.lastSyncDurationMs)}
                 </Typography>
               </Grid>
+              <Grid item={{ xs: 12, sm: 3 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Stale / Review
+                </Typography>
+                <Typography variant="h5" color={(syncStatus.staleCount || 0) > 0 ? 'warning.main' : 'success.main'}>
+                  {syncStatus.staleCount || 0}
+                </Typography>
+              </Grid>
             </Grid>
+
+            {syncStatus.status === 'partial_success' && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                Sync completed with partial errors. Review device/app error counters and individual device messages.
+              </Alert>
+            )}
 
             {syncStatus.lastSyncCompletedAt && (
               <Typography variant="body2" color="text.secondary">
@@ -579,6 +598,7 @@ export default function IntuneAdmin() {
                   <TableCell>OS</TableCell>
                   <TableCell>Manufacturer</TableCell>
                   <TableCell>Sync Status</TableCell>
+                  <TableCell>Error / Review Note</TableCell>
                   <TableCell>Last Sync</TableCell>
                 </TableRow>
               </TableHead>
@@ -597,10 +617,13 @@ export default function IntuneAdmin() {
                             ? 'success'
                             : device.syncStatus === 'error'
                             ? 'error'
+                            : device.syncStatus === 'stale' || device.syncStatus === 'missing'
+                            ? 'warning'
                             : 'default'
                         }
                       />
                     </TableCell>
+                    <TableCell>{device.syncErrorMessage || '—'}</TableCell>
                     <TableCell>{formatDateTime(device.lastSyncAt)}</TableCell>
                   </TableRow>
                 ))}

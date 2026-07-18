@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { incidentApi } from '../services/api';
+import { incidentApi, nis2Api } from '../services/api';
 
 interface Incident {
   id: string;
@@ -8,6 +8,11 @@ interface Incident {
   status: string;
   severity: string;
   detectionTime: string;
+  knowledgeTime: string;
+  isSignificant?: boolean;
+  significanceReasons?: string[];
+  reports?: Array<{ id: string; reportType: string; status: string; dueAt?: string }>;
+  escalations?: Array<{ id: string; reason: string; status: string }>;
 }
 
 const Incidents = () => {
@@ -15,6 +20,7 @@ const Incidents = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadIncidents();
@@ -30,6 +36,29 @@ const Incidents = () => {
       setError(err.response?.data?.message || 'Failed to load incidents');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const ensureNis2Catalogue = async () => {
+    try {
+      await nis2Api.ensureMeasuresCatalogue();
+      setActionMessage('NIS-2 measures catalogue ensured.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to ensure NIS-2 catalogue');
+    }
+  };
+
+  const createEarlyWarning = async (incident: Incident) => {
+    try {
+      await incidentApi.createReport(incident.id, {
+        reportType: 'early_warning_24h',
+        content: { summary: incident.title, reasons: incident.significanceReasons ?? [] },
+        authorId: 'frontend-user',
+      });
+      setActionMessage(`Draft early warning created for ${incident.title}.`);
+      loadIncidents();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create early warning');
     }
   };
 
@@ -85,7 +114,16 @@ const Incidents = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Incident Management</h1>
+        <button onClick={ensureNis2Catalogue} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          Ensure NIS-2 Catalogue
+        </button>
       </div>
+
+      {actionMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {actionMessage}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -120,14 +158,17 @@ const Incidents = () => {
                 Detection Time
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Description
+                NIS-2
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredIncidents.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                   No incidents found
                 </td>
               </tr>
@@ -151,7 +192,14 @@ const Incidents = () => {
                     {new Date(incident.detectionTime).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {incident.description}
+                    <div>{incident.isSignificant ? 'Significant / reportable candidate' : 'Not significant'}</div>
+                    <div className="text-xs text-gray-400">Knowledge: {incident.knowledgeTime ? new Date(incident.knowledgeTime).toLocaleString() : '-'}</div>
+                    {incident.significanceReasons?.length ? <div className="text-xs text-red-600">{incident.significanceReasons.join(', ')}</div> : null}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    <button onClick={() => createEarlyWarning(incident)} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                      24h warning draft
+                    </button>
                   </td>
                 </tr>
               ))

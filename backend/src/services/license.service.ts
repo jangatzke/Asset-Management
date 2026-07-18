@@ -87,7 +87,7 @@ export class LicenseService {
   async findById(id: string) {
     const license = await prisma.license.findUnique({
       where: { id },
-      include: { assets: { include: { assetType: true } } },
+      include: { assetLinks: { include: { asset: { include: { assetType: true } } } } },
     });
 
     if (!license) {
@@ -146,7 +146,7 @@ export class LicenseService {
     }
 
     return prisma.asset.findMany({
-      where: { licenseId },
+      where: { licenseLinks: { some: { licenseId } } },
       include: { assetType: true },
     });
   }

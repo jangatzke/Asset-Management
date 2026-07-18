@@ -19,6 +19,7 @@ import Contracts from './pages/Contracts';
 import Licenses from './pages/Licenses';
 import Processes from './pages/Processes';
 import RiskAggregation from './pages/RiskAggregation';
+import ISMSPhase6 from './pages/ISMSPhase6';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
         <Route path="licenses" element={<Licenses />} />
         <Route path="processes" element={<Processes />} />
         <Route path="risk-aggregation" element={<RiskAggregation />} />
+        <Route path="isms-phase6" element={<ISMSPhase6 />} />
         <Route path="settings" element={<Settings />} />
         <Route path="admin/users" element={<AdminUsers />} />
         <Route path="admin/roles" element={<AdminRoles />} />

@@ -93,14 +93,14 @@ describe('ContractService', () => {
 
   describe('findById', () => {
     it('should return contract by id with assets', async () => {
-      mockPrismaClient.contract.findUnique.mockResolvedValue({ ...mockContract, assets: [] });
+      mockPrismaClient.contract.findUnique.mockResolvedValue({ ...mockContract, assetLinks: [] });
 
       const result = await contractService.findById('ctr-1');
 
       expect(result.id).toBe('ctr-1');
       expect(mockPrismaClient.contract.findUnique).toHaveBeenCalledWith({
         where: { id: 'ctr-1' },
-        include: { assets: { include: { assetType: true } } },
+        include: { assetLinks: { include: { asset: { include: { assetType: true } } } } },
       });
     });
 
@@ -176,7 +176,7 @@ describe('ContractService', () => {
       await contractService.getAssets('ctr-1');
 
       expect(mockPrismaClient.asset.findMany).toHaveBeenCalledWith({
-        where: { contractId: 'ctr-1' },
+        where: { contractLinks: { some: { contractId: 'ctr-1' } } },
         include: { assetType: true },
       });
     });

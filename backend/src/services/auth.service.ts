@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import { auditService, AuditEventParams } from './audit.service';
+import { auditService } from './audit.service';
 
 export interface LoginCredentials {
   email: string;

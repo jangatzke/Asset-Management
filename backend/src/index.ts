@@ -27,6 +27,12 @@ import { licenseRouter } from './routes/license.routes';
 import { businessProcessRouter } from './routes/businessprocess.routes';
 import { riskTreatmentRouter } from './routes/risktreatment.routes';
 import { riskMethodRouter } from './routes/riskmethod.routes';
+import { importRouter } from './routes/import.routes';
+import { frameworkRouter } from './routes/framework.routes';
+import { evidenceRouter } from './routes/evidence.routes';
+import { documentRouter } from './routes/document.routes';
+import { nis2Router } from './routes/nis2.routes';
+import { phase6Router } from './routes/phase6.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -71,6 +77,12 @@ app.use('/api/v1/licenses', licenseRouter);
 app.use('/api/v1/processes', businessProcessRouter);
 app.use('/api/v1/treatments', riskTreatmentRouter);
 app.use('/api/v1/methods', riskMethodRouter);
+app.use('/api/v1/imports', importRouter);
+app.use('/api/v1/frameworks', frameworkRouter);
+app.use('/api/v1/evidence', evidenceRouter);
+app.use('/api/v1/documents', documentRouter);
+app.use('/api/v1/nis2', nis2Router);
+app.use('/api/v1/phase6', phase6Router);
 
 // Error handling middleware
 app.use(errorHandler);

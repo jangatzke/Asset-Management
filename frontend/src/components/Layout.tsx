@@ -56,6 +56,7 @@ const Layout = () => {
     { name: 'Contracts', href: '/contracts', icon: DocumentTextIcon },
     { name: 'Licenses', href: '/licenses', icon: ClipboardDocumentListIcon },
     { name: 'Processes', href: '/processes', icon: ServerIcon },
+    { name: 'ISMS Phase 6', href: '/isms-phase6', icon: ChartBarIcon },
     ...(isAdmin ? [
       { name: 'Risk Aggregation', href: '/risk-aggregation', icon: ChartBarIcon },
       { name: t('navigation.admin'), href: '/admin/users', icon: Cog6ToothIcon },

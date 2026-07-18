@@ -52,36 +52,75 @@ export type CreateFirstAdminDTO = z.infer<typeof CreateFirstAdminSchema>;
 // Asset DTOs
 // ==========================================
 
+const RatingLevelSchema = z.enum(['low', 'medium', 'high']);
+const CriticalitySchema = z.enum(['low', 'medium', 'high', 'critical']);
+const CIANeedSchema = z.enum(['low', 'medium', 'high']);
+
+export const NetworkAddressTypeSchema = z.enum(['ipv4', 'ipv6', 'cidr', 'hostname']);
+
+export const NetworkAddressCreateSchema = z.object({
+  address: z.string().min(1, 'Network address is required'),
+  type: NetworkAddressTypeSchema.default('ipv4'),
+  primary: z.boolean().default(false),
+});
+
+export type NetworkAddressCreateDTO = z.infer<typeof NetworkAddressCreateSchema>;
+
 export const CreateAssetSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  assetType: z.string().min(1, 'Asset type is required'),
-  subType: z.string().optional(),
-  manufacturer: z.string().optional(),
-  model: z.string().optional(),
-  serialNumber: z.string().optional(),
-  externalId: z.string().optional(),
-  organizationUnitId: z.string().optional(),
-  locationId: z.string().optional(),
-  technicalOperatorId: z.string().optional(),
-  businessOwnerId: z.string().optional(),
-  informationSecurityResponsibleId: z.string().optional(),
-  businessProcessId: z.string().optional(),
-  serviceId: z.string().optional(),
-  contractId: z.string().optional(),
-  licenseId: z.string().optional(),
-  personnelSafetyRelevance: z.enum(['low', 'medium', 'high']).default('low'),
-  regulatoryRelevance: z.enum(['low', 'medium', 'high']).default('low'),
-  financialDamagePotential: z.enum(['low', 'medium', 'high']).default('low'),
-  productionDowntimeImpact: z.enum(['low', 'medium', 'high']).default('low'),
-  lifecycleStatus: z.string().default('planned'),
-  confidentialityNeed: z.enum(['low', 'medium', 'high']).default('low'),
-  integrityNeed: z.enum(['low', 'medium', 'high']).default('low'),
-  availabilityNeed: z.enum(['low', 'medium', 'high']).default('low'),
+  name: z.string().min(1, 'Name is required').max(255),
+  description: z.string().max(2000).optional(),
+  assetTypeId: z.string().uuid('Invalid asset type ID'),
+  subType: z.string().max(100).optional(),
+  manufacturer: z.string().max(200).optional(),
+  model: z.string().max(200).optional(),
+  serialNumber: z.string().max(100).optional(),
+  externalId: z.string().max(100).optional(),
+  organizationUnitId: z.string().uuid('Invalid organization unit ID').optional(),
+  locationId: z.string().uuid('Invalid location ID').optional(),
+  technicalOperatorId: z.string().uuid('Invalid operator ID').optional(),
+  businessOwnerId: z.string().uuid('Invalid owner ID').optional(),
+  informationSecurityResponsibleId: z.string().uuid('Invalid security responsible ID').optional(),
+
+  // Junction table relations (M:N) — arrays of IDs
+  processIds: z.array(z.string().uuid()).optional(),
+  serviceIds: z.array(z.string().uuid()).optional(),
+  contractIds: z.array(z.string().uuid()).optional(),
+  licenseIds: z.array(z.string().uuid()).optional(),
+
+  // Contract/License info (AST-002) — legacy convenience fields
+  licenseInfo: z.string().max(500).optional(),
+  contractEndsAt: z.coerce.date().optional(),
+  licenseExpiresAt: z.coerce.date().optional(),
+
+  // Extended rating dimensions (AST-004)
+  personnelSafetyRelevance: RatingLevelSchema.default('low'),
+  regulatoryRelevance: RatingLevelSchema.default('low'),
+  financialDamagePotential: RatingLevelSchema.default('low'),
+  productionDowntimeImpact: RatingLevelSchema.default('low'),
+
+  lifecycleStatus: z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']).default('planned'),
+
+  // Dates
+  purchaseDate: z.coerce.date().optional(),
+  commissioningDate: z.coerce.date().optional(),
+  endOfSaleDate: z.coerce.date().optional(),
+  endOfLifeDate: z.coerce.date().optional(),
+  endOfSupportDate: z.coerce.date().optional(),
+
+  // CIA triad needs
+  confidentialityNeed: CIANeedSchema.default('low'),
+  integrityNeed: CIANeedSchema.default('low'),
+  availabilityNeed: CIANeedSchema.default('low'),
+
   dataProtectionRelevance: z.boolean().default(false),
-  criticality: z.enum(['low', 'medium', 'high', 'critical']).default('low'),
-  networkAddresses: z.string().optional(),
-  dnsNames: z.string().optional(),
+  criticality: CriticalitySchema.default('low'),
+  complianceRelevance: z.boolean().default(false), // AST-004
+
+  // Network addresses (normalized) — replaces comma-separated string
+  networkAddresses: z.array(NetworkAddressCreateSchema).optional(),
+
+  dataSource: z.string().max(100).optional(),
+  lastDetectedAt: z.coerce.date().optional(),
 });
 
 export type CreateAssetDTO = z.infer<typeof CreateAssetSchema>;
@@ -89,6 +128,103 @@ export type CreateAssetDTO = z.infer<typeof CreateAssetSchema>;
 export const UpdateAssetSchema = CreateAssetSchema.partial();
 
 export type UpdateAssetDTO = z.infer<typeof UpdateAssetSchema>;
+
+// Lifecycle transition DTO — validates allowed transitions
+export const LifecycleTransitionSchema = z.object({
+  newStatus: z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']),
+  reason: z.string().max(500).optional(),
+});
+
+export type LifecycleTransitionDTO = z.infer<typeof LifecycleTransitionSchema>;
+
+// Archive/Restore DTOs
+export const ArchiveAssetSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export type ArchiveAssetDTO = z.infer<typeof ArchiveAssetSchema>;
+
+// Disposal proof DTO (AST-031)
+export const DisposalProofSchema = z.object({
+  disposalDate: z.coerce.date(),
+  disposalMethod: z.string().min(1, 'Disposal method is required').max(200),
+  disposalResponsible: z.string().min(1, 'Disposal responsible person is required').max(200),
+});
+
+export type DisposalProofDTO = z.infer<typeof DisposalProofSchema>;
+
+// Asset query filters
+export const AssetQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  assetTypeId: z.string().uuid().optional(),
+  lifecycleStatus: z.string().optional(),
+  criticality: CriticalitySchema.optional(),
+  organizationUnitId: z.string().uuid().optional(),
+  archived: z.boolean().default(false), // include archived assets?
+});
+
+export type AssetQueryDTO = z.infer<typeof AssetQuerySchema>;
+
+// ==========================================
+// Phase 6 ISMS DTOs
+// ==========================================
+
+export const Phase6ResourceSchema = z.enum([
+  'suppliers', 'supplierAssessments', 'bias', 'bcps', 'bcpExercises', 'auditPrograms', 'auditPlans', 'auditFindings',
+  'correctiveActions', 'trainingCourses', 'trainingAssignments', 'trainingCompletions', 'trainingAcknowledgements',
+  'managementReviews', 'managementReviewActions', 'securityObjectives', 'metricDefinitions', 'metricValues',
+  'workflowDefinitions', 'workflowInstances', 'workflowTasks', 'reportDefinitions', 'reportRuns', 'exportJobs',
+]);
+export type Phase6ResourceDTO = z.infer<typeof Phase6ResourceSchema>;
+
+export const Phase6ListQuerySchema = PaginationQuerySchema.extend({
+  search: z.string().optional(),
+  status: z.string().optional(),
+  ownerId: z.string().optional(),
+  dueBefore: z.coerce.date().optional(),
+  overdue: z.coerce.boolean().optional(),
+});
+
+export const SupplierCreateSchema = z.object({
+  legalName: z.string().min(1),
+  description: z.string().optional(),
+  contactPerson: z.string().optional(),
+  contactEmail: z.string().email().optional(),
+  servicesProvided: z.string().optional(),
+  criticality: z.enum(['low', 'medium', 'high', 'critical']).default('low'),
+  dataProtectionRelevant: z.boolean().default(false),
+  nis2Relevant: z.boolean().default(false),
+  nextReviewDate: z.coerce.date().optional(),
+});
+export type SupplierCreateDTO = z.infer<typeof SupplierCreateSchema>;
+
+export const CorrectiveActionCreateSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  sourceType: z.enum(['audit', 'incident', 'risk', 'control', 'supplier']),
+  sourceId: z.string().optional(),
+  ownerId: z.string().min(1),
+  dueDate: z.coerce.date(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  rootCause: z.string().optional(),
+});
+export type CorrectiveActionCreateDTO = z.infer<typeof CorrectiveActionCreateSchema>;
+
+export const WorkflowDefinitionCreateSchema = z.object({
+  name: z.string().min(1),
+  version: z.string().default('1.0.0'),
+  entityType: z.string().min(1),
+  states: z.array(z.record(z.any())).min(1),
+  transitions: z.array(z.record(z.any())).min(1),
+  approvalRules: z.record(z.any()).default({}),
+  dueDateRules: z.record(z.any()).default({}),
+});
+export type WorkflowDefinitionCreateDTO = z.infer<typeof WorkflowDefinitionCreateSchema>;
+
+export const ExportQuerySchema = z.object({ format: z.enum(['json', 'csv']).default('json') });
+export type ExportQueryDTO = z.infer<typeof ExportQuerySchema>;
 
 // ==========================================
 // Risk DTOs
@@ -122,18 +258,251 @@ export const CreateControlSchema = z.object({
 
 export type CreateControlDTO = z.infer<typeof CreateControlSchema>;
 
+export const FrameworkRequirementImportSchema = z.object({
+  key: z.string().min(1),
+  title: z.string().min(1),
+  text: z.string().min(1),
+  section: z.string().optional(),
+  clauseNumber: z.string().optional(),
+  parentKey: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+  licenseNotice: z.string().optional(),
+});
+
+export const ImportFrameworkSchema = z.object({
+  framework: z.object({ name: z.string().min(1), code: z.string().min(1), description: z.string().optional(), publisher: z.string().optional() }),
+  version: z.string().min(1),
+  publicationDate: z.coerce.date().optional(),
+  source: z.string().optional(),
+  licenseInfo: z.string().min(1, 'License information is required'),
+  changelog: z.string().optional(),
+  requirements: z.array(FrameworkRequirementImportSchema).min(1),
+});
+export type ImportFrameworkDTO = z.infer<typeof ImportFrameworkSchema>;
+
+export const CompareFrameworkVersionsSchema = z.object({ fromVersionId: z.string().uuid(), toVersionId: z.string().uuid() });
+export type CompareFrameworkVersionsDTO = z.infer<typeof CompareFrameworkVersionsSchema>;
+
+export const ControlImplementationSchema = z.object({
+  controlId: z.string().uuid(),
+  scopeId: z.string().uuid().optional(),
+  organizationUnitId: z.string().uuid().optional(),
+  siteId: z.string().uuid().optional(),
+  responsibleUserId: z.string().min(1),
+  implementationStatus: z.string().default('planned'),
+  maturityLevel: z.number().int().min(0).max(5).default(0),
+  implementationDescription: z.string().optional(),
+  testMethod: z.string().optional(),
+  testFrequency: z.string().optional(),
+  lastTestDate: z.coerce.date().optional(),
+  nextTestDate: z.coerce.date().optional(),
+  requirementIds: z.array(z.string().uuid()).default([]),
+  findings: z.array(z.object({ title: z.string().min(1), description: z.string().optional(), severity: z.string().optional(), dueDate: z.coerce.date().optional() })).optional(),
+  actions: z.array(z.object({ title: z.string().min(1), description: z.string().optional(), responsibleUserId: z.string().optional(), dueDate: z.coerce.date().optional() })).optional(),
+}).refine((data) => Boolean(data.scopeId || data.organizationUnitId || data.siteId), { message: 'Scope, organization unit, or site is required' });
+export type ControlImplementationDTO = z.infer<typeof ControlImplementationSchema>;
+
+export const CreateSoAItemSchema = z.object({
+  requirementId: z.string().uuid().optional(),
+  controlId: z.string().uuid().optional(),
+  applicability: z.enum(['applicable', 'not_applicable', 'under_review']).default('under_review'),
+  justification: z.string().min(1),
+  implementationStatus: z.string().default('planned'),
+  controlImplementationIds: z.array(z.string().uuid()).default([]),
+  riskIds: z.array(z.string()).default([]),
+  evidenceIds: z.array(z.string().uuid()).default([]),
+});
+
+export const CreateSoASchema = z.object({
+  frameworkId: z.string().uuid(),
+  frameworkVersion: z.string().min(1),
+  scopeId: z.string().min(1),
+  items: z.array(CreateSoAItemSchema).default([]),
+});
+export type CreateSoADTO = z.infer<typeof CreateSoASchema>;
+
+export const CreateEvidenceSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  evidenceType: z.string().min(1),
+  source: z.string().optional(),
+  classification: z.string().min(1),
+  responsibleId: z.string().min(1),
+  fileHash: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  hashAlgorithm: z.string().default('sha256'),
+  fileName: z.string().optional(),
+  mimeType: z.string().optional(),
+  fileSize: z.number().int().positive().optional(),
+  retentionPeriod: z.string().optional(),
+  retentionUntil: z.coerce.date().optional(),
+  expiresAt: z.coerce.date().optional(),
+  deleteProtected: z.boolean().default(false),
+  links: z.array(z.object({ entityType: z.enum(['Control', 'Risk', 'Asset', 'SoAItem', 'Document']), entityId: z.string().min(1), relationType: z.string().optional() })).default([]),
+});
+export type CreateEvidenceDTO = z.infer<typeof CreateEvidenceSchema>;
+
+export const CreatePolicyDocumentSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  documentType: z.string().min(1),
+  ownerId: z.string().min(1),
+  reviewerId: z.string().optional(),
+  approverId: z.string().optional(),
+  validFrom: z.coerce.date().optional(),
+  validUntil: z.coerce.date().optional(),
+  nextReviewDate: z.coerce.date().optional(),
+  reviewIntervalDays: z.number().int().positive().optional(),
+  content: z.string().min(1),
+  changeLog: z.string().optional(),
+});
+export type CreatePolicyDocumentDTO = z.infer<typeof CreatePolicyDocumentSchema>;
+
 // ==========================================
 // Incident DTOs
 // ==========================================
 
 export const CreateIncidentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  description: z.string().optional(),
+  description: z.string().min(1, 'Description is required'),
+  detectionTime: z.coerce.date(),
+  knowledgeTime: z.coerce.date(),
+  reporterId: z.string().optional(),
+  reporterSource: z.string().optional(),
+  affectedAssetIds: z.array(z.string().uuid()).default([]),
+  affectedServiceIds: z.array(z.string().uuid()).default([]),
+  affectedProcessIds: z.array(z.string().uuid()).default([]),
+  confidentialityImpact: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  integrityImpact: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  availabilityImpact: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  operationalImpact: z.string().optional(),
+  financialImpact: z.number().optional(),
+  legalImpact: z.string().optional(),
+  personalDataImpact: z.boolean().default(false),
+  affectedCustomers: z.array(z.string()).default([]),
+  affectedThirdParties: z.array(z.string()).default([]),
+  suspectedCause: z.string().optional(),
+  isIntentional: z.boolean().optional(),
+  hasCrossBorderImpact: z.boolean().optional(),
+  indicatorsOfCompromise: z.array(z.string()).default([]),
+  immediateActions: z.array(z.string()).default([]),
+  incidentManagerId: z.string().min(1),
   severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
-  status: z.string().default('reported'),
 });
 
 export type CreateIncidentDTO = z.infer<typeof CreateIncidentSchema>;
+
+export const UpdateIncidentSchema = CreateIncidentSchema.partial().extend({
+  status: z.string().optional(),
+  notificationStatus: z.string().optional(),
+});
+export type UpdateIncidentDTO = z.infer<typeof UpdateIncidentSchema>;
+
+export const AssessIncidentSchema = z.object({
+  assessorId: z.string().min(1),
+  isReportable: z.boolean(),
+  reportingJustification: z.string().optional(),
+  decisionNotToReport: z.string().optional(),
+  decisionApprovedBy: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (!data.isReportable && !data.decisionNotToReport) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['decisionNotToReport'], message: 'Decision not to report requires justification' });
+  if (!data.isReportable && !data.decisionApprovedBy) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['decisionApprovedBy'], message: 'Decision not to report requires approval' });
+});
+export type AssessIncidentDTO = z.infer<typeof AssessIncidentSchema>;
+
+export const ChangeKnowledgeTimeSchema = z.object({
+  knowledgeTime: z.coerce.date(),
+  reason: z.string().min(1, 'Changing knowledge time requires a reason'),
+});
+export type ChangeKnowledgeTimeDTO = z.infer<typeof ChangeKnowledgeTimeSchema>;
+
+export const IncidentReportTypeSchema = z.enum(['early_warning_24h', 'incident_notification_72h', 'interim_report', 'monthly_final_report']);
+
+export const CreateIncidentReportSchema = z.object({
+  reportType: IncidentReportTypeSchema,
+  title: z.string().optional(),
+  content: z.record(z.any()),
+  authorId: z.string().min(1),
+  recipient: z.string().optional(),
+  submissionMethod: z.string().optional(),
+  submissionProof: z.string().optional(),
+});
+export type CreateIncidentReportDTO = z.infer<typeof CreateIncidentReportSchema>;
+
+export const CreateIncidentCommunicationSchema = z.object({
+  channel: z.string().min(1),
+  direction: z.enum(['inbound', 'outbound']),
+  recipient: z.string().min(1),
+  sender: z.string().optional(),
+  message: z.string().min(1),
+  scheduledAt: z.coerce.date().optional(),
+  sentAt: z.coerce.date().optional(),
+});
+export type CreateIncidentCommunicationDTO = z.infer<typeof CreateIncidentCommunicationSchema>;
+
+export const CloseIncidentSchema = z.object({
+  rootCause: z.string().min(1).optional(),
+  lessonsLearned: z.string().optional(),
+  measuresEvaluation: z.string().min(1).optional(),
+  closureSummary: z.string().optional(),
+});
+export type CloseIncidentDTO = z.infer<typeof CloseIncidentSchema>;
+
+export const CreateSignificanceRuleVersionSchema = z.object({
+  version: z.string().min(1),
+  rules: z.array(z.record(z.any())).min(1),
+  effectiveFrom: z.coerce.date().optional(),
+});
+export type CreateSignificanceRuleVersionDTO = z.infer<typeof CreateSignificanceRuleVersionSchema>;
+
+// ==========================================
+// NIS-2 DTOs
+// ==========================================
+
+export const CreateNis2QuestionnaireVersionSchema = z.object({
+  version: z.string().min(1),
+  title: z.string().min(1),
+  questions: z.array(z.record(z.any())).min(1),
+  scoringRules: z.record(z.any()),
+  effectiveFrom: z.coerce.date().optional(),
+});
+export type CreateNis2QuestionnaireVersionDTO = z.infer<typeof CreateNis2QuestionnaireVersionSchema>;
+
+export const CreateNis2AssessmentSchema = z.object({
+  organizationUnitId: z.string().uuid().optional(),
+  questionnaireVersion: z.string().optional(),
+  answers: z.record(z.any()),
+  justification: z.string().optional(),
+});
+export type CreateNis2AssessmentDTO = z.infer<typeof CreateNis2AssessmentSchema>;
+
+export const ApproveNis2AssessmentSchema = z.object({
+  result: z.enum(['essential_entity', 'important_entity', 'not_in_scope']).optional(),
+  justification: z.string().optional(),
+});
+export type ApproveNis2AssessmentDTO = z.infer<typeof ApproveNis2AssessmentSchema>;
+
+export const CreateNis2RegistrationSchema = z.object({
+  assessmentId: z.string().uuid().optional(),
+  entityType: z.string().min(1),
+  registrationDate: z.coerce.date().optional(),
+  deadline: z.coerce.date(),
+  contactPerson: z.string().optional(),
+  contactDetails: z.string().optional(),
+  submittedData: z.record(z.any()).optional(),
+  submissionProof: z.string().optional(),
+  bsiConfirmation: z.string().optional(),
+});
+export type CreateNis2RegistrationDTO = z.infer<typeof CreateNis2RegistrationSchema>;
+
+export const CreateNis2RegistrationChangeSchema = z.object({
+  changeType: z.string().min(1),
+  description: z.string().min(1),
+  changedData: z.record(z.any()),
+  notificationDeadline: z.coerce.date().optional(),
+  submittedAt: z.coerce.date().optional(),
+  submissionProof: z.string().optional(),
+});
+export type CreateNis2RegistrationChangeDTO = z.infer<typeof CreateNis2RegistrationChangeSchema>;
 
 // ==========================================
 // Contract DTOs
@@ -198,28 +567,135 @@ export type CreateBusinessProcessDTO = z.infer<typeof CreateBusinessProcessSchem
 
 export const CreateRiskTreatmentSchema = z.object({
   riskId: z.string().uuid(),
-  treatmentType: z.enum(['mitigate', 'transfer', 'accept', 'avoid']),
-  description: z.string().min(1, 'Description is required'),
-  responsibleUserId: z.string().uuid(),
-  plannedCompletionDate: z.coerce.date().optional(),
+  assessmentId: z.string().uuid('Invalid assessment ID').optional(),
+  treatmentOption: z.enum(['reduce', 'mitigate', 'transfer', 'accept', 'avoid']),
+  plannedActions: z.string().max(2000).optional(),
+  responsibleUserId: z.string().uuid().optional(),
+  targetDate: z.coerce.date().optional(),
   budget: z.number().positive().optional(),
+  expectedReduction: z.string().max(1000).optional(),
+  dependencies: z.string().max(2000).optional(),
+  implementationStatus: z.string().optional(),
+  justification: z.string().max(2000).optional(),
+  expiryDate: z.coerce.date().optional(),
+  approverId: z.string().uuid('Invalid approver ID').optional(),
+}).superRefine((data, ctx) => {
+  if (data.treatmentOption === 'accept') {
+    if (!data.assessmentId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['assessmentId'], message: 'Acceptance requires a concrete risk assessment version' });
+    if (!data.justification || data.justification.trim().length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['justification'], message: 'Acceptance requires justification' });
+    if (!data.expiryDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expiryDate'], message: 'Acceptance requires expiry date' });
+    if (!data.approverId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['approverId'], message: 'Acceptance requires approver' });
+  }
 });
 
 export type CreateRiskTreatmentDTO = z.infer<typeof CreateRiskTreatmentSchema>;
 
+export const UpdateRiskTreatmentSchema = CreateRiskTreatmentSchema.partial();
+export type UpdateRiskTreatmentDTO = z.infer<typeof UpdateRiskTreatmentSchema>;
+
+export const ApproveRiskTreatmentSchema = z.object({
+  decision: z.enum(['approved', 'rejected']).default('approved'),
+  comment: z.string().max(2000).optional(),
+});
+
+export type ApproveRiskTreatmentDTO = z.infer<typeof ApproveRiskTreatmentSchema>;
+
+export const EffectivenessReviewSchema = z.object({
+  result: z.string().min(1, 'Effectiveness review result is required').max(2000),
+  reviewDate: z.coerce.date(),
+  reviewerId: z.string().uuid('Invalid reviewer ID').optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export type EffectivenessReviewDTO = z.infer<typeof EffectivenessReviewSchema>;
+
+export const CompleteRiskTreatmentSchema = z.object({
+  residualAssessmentId: z.string().uuid('Invalid residual assessment ID').optional(),
+  targetAssessment: z.object({
+    riskMethodVersionId: z.string().uuid('Invalid method version ID').optional(),
+    likelihood: z.number().int().positive('Likelihood must be a positive integer'),
+    impact: z.number().int().positive('Impact must be a positive integer'),
+    inherentRisk: z.string().min(1).optional(),
+    residualRisk: z.string().min(1).optional(),
+    targetRisk: z.string().min(1).optional(),
+    score: z.number().int().optional(),
+    assessorId: z.string().uuid('Invalid assessor ID').optional(),
+    nextReviewDate: z.coerce.date(),
+    justification: z.string().min(1, 'Target assessment justification is mandatory').max(2000),
+  }).optional(),
+}).refine((data) => Boolean(data.residualAssessmentId || data.targetAssessment), {
+  message: 'Treatment completion requires residual/target assessment confirmation or creation',
+});
+
+export type CompleteRiskTreatmentDTO = z.infer<typeof CompleteRiskTreatmentSchema>;
+
 // ==========================================
-// Risk Method DTOs
+// Risk Method DTOs (Paket 3.1 — versionierte Risikomethoden)
 // ==========================================
+
+const CalculationTypeSchema = z.enum(['product', 'sum', 'max', 'matrix']);
 
 export const CreateRiskMethodSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  matrixRows: z.number().int().positive(),
-  matrixColumns: z.number().int().positive(),
-  scores: z.array(z.number()),
+  version: z.string().min(1, 'Version is required'),
+  likelihoodScale: z.record(z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Likelihood scale is required' }),
+  impactScale: z.record(z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Impact scale is required' }),
+  ratingDimensions: z.record(z.any()),
+  calculationType: CalculationTypeSchema.default('product'),
+  formulaExpression: z.string().optional(),
+  riskClasses: z.record(z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Risk classes are required' }),
+  acceptanceThresholds: z.record(z.any()).optional(),
+  escalationThresholds: z.record(z.any()).optional(),
+  approvalRules: z.record(z.any()).optional(),
+  reviewInterval: z.number().int().positive().optional(),
+  isActive: z.boolean().default(false),
 });
 
 export type CreateRiskMethodDTO = z.infer<typeof CreateRiskMethodSchema>;
+
+export const UpdateRiskMethodSchema = CreateRiskMethodSchema.partial();
+
+export type UpdateRiskMethodDTO = z.infer<typeof UpdateRiskMethodSchema>;
+
+// Recalculation Preview DTO
+export const RecalculatePreviewSchema = z.object({
+  riskIds: z.array(z.string().uuid()).optional(),
+  likelihoodOverrides: z.record(z.string(), z.number().int().positive()).optional(),
+  impactOverrides: z.record(z.string(), z.number().int().positive()).optional(),
+});
+
+export type RecalculatePreviewDTO = z.infer<typeof RecalculatePreviewSchema>;
+
+// Confirm Recalculation DTO
+export const ConfirmRecalculationSchema = z.object({
+  riskId: z.string().uuid('Invalid risk ID'),
+  riskMethodVersionId: z.string().uuid('Invalid method version ID'),
+  assessorId: z.string().min(1, 'Assessor ID is required'),
+  justification: z.string().max(2000).optional(),
+  nextReviewDate: z.coerce.date().optional(),
+});
+
+export type ConfirmRecalculationDTO = z.infer<typeof ConfirmRecalculationSchema>;
+
+// Bulk Confirm Recalculation DTO
+export const BulkConfirmRecalculationSchema = z.object({
+  riskIds: z.array(z.string().uuid()).min(1, 'At least one risk ID is required'),
+  riskMethodVersionId: z.string().uuid('Invalid method version ID'),
+  assessorId: z.string().min(1, 'Assessor ID is required'),
+  justification: z.string().max(2000).optional(),
+  nextReviewDate: z.coerce.date().optional(),
+});
+
+export type BulkConfirmRecalculationDTO = z.infer<typeof BulkConfirmRecalculationSchema>;
+
+// Calculate Risk Score DTO
+export const CalculateRiskScoreSchema = z.object({
+  likelihood: z.number().int().positive('Likelihood must be a positive integer'),
+  impact: z.number().int().positive('Impact must be a positive integer'),
+});
+
+export type CalculateRiskScoreDTO = z.infer<typeof CalculateRiskScoreSchema>;
 
 // ==========================================
 // User Preferences DTOs
@@ -231,3 +707,170 @@ export const UpdatePreferencesSchema = z.object({
 });
 
 export type UpdatePreferencesDTO = z.infer<typeof UpdatePreferencesSchema>;
+
+// ==========================================
+// Paket 3.2 — Risikobewertung DTOs
+// ==========================================
+
+const AssessmentTypeSchema = z.enum(['inherent', 'current', 'target']);
+const ReviewTaskStatusSchema = z.enum(['pending', 'in_progress', 'completed', 'overdue', 'cancelled']);
+const ReviewTaskPrioritySchema = z.enum(['low', 'medium', 'high', 'critical']);
+const ReviewTaskTriggerTypeSchema = z.enum(['scheduled', 'unplanned_event', 'ad_hoc']);
+
+// --- RiskScenario DTOs ---
+export const CreateRiskScenarioSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().max(2000).optional(),
+  threatId: z.string().uuid('Invalid threat ID'),
+  vulnerabilityId: z.string().uuid('Invalid vulnerability ID').optional(),
+});
+
+export type CreateRiskScenarioDTO = z.infer<typeof CreateRiskScenarioSchema>;
+
+export const UpdateRiskScenarioSchema = CreateRiskScenarioSchema.partial();
+
+export type UpdateRiskScenarioDTO = z.infer<typeof UpdateRiskScenarioSchema>;
+
+// --- RiskCause DTOs ---
+export const CreateRiskCauseSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().max(2000).optional(),
+  category: z.string().max(100).optional(),
+});
+
+export type CreateRiskCauseDTO = z.infer<typeof CreateRiskCauseSchema>;
+
+export const UpdateRiskCauseSchema = CreateRiskCauseSchema.partial();
+
+export type UpdateRiskCauseDTO = z.infer<typeof UpdateRiskCauseSchema>;
+
+// --- RiskImpact DTOs ---
+export const CreateRiskImpactSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().max(2000).optional(),
+  category: z.string().max(100).optional(),
+  severity: z.enum(['low', 'medium', 'high', 'very_high']).default('low'),
+});
+
+export type CreateRiskImpactDTO = z.infer<typeof CreateRiskImpactSchema>;
+
+export const UpdateRiskImpactSchema = CreateRiskImpactSchema.partial();
+
+export type UpdateRiskImpactDTO = z.infer<typeof UpdateRiskImpactSchema>;
+
+// --- RiskAssessment DTOs (Paket 3.2) ---
+export const CreateRiskAssessmentSchema = z.object({
+  riskId: z.string().uuid('Invalid risk ID'),
+  riskMethodVersionId: z.string().uuid('Invalid method version ID'),
+  assessmentType: AssessmentTypeSchema.default('current'),
+  likelihood: z.number().int().positive('Likelihood must be a positive integer'),
+  impact: z.number().int().positive('Impact must be a positive integer'),
+  inherentRisk: z.string().min(1, 'Inherent risk level is required'),
+  residualRisk: z.string().min(1, 'Residual risk level is required'),
+  targetRisk: z.string().min(1, 'Target risk level is required'),
+  score: z.number().int().optional(),
+  assessorId: z.string().min(1, 'Assessor ID is required'),
+  nextReviewDate: z.coerce.date(),
+  justification: z.string().min(1, 'Justification is mandatory for every assessment').max(2000),
+});
+
+export type CreateRiskAssessmentDTO = z.infer<typeof CreateRiskAssessmentSchema>;
+
+export const UpdateRiskAssessmentSchema = CreateRiskAssessmentSchema.partial();
+
+export type UpdateRiskAssessmentDTO = z.infer<typeof UpdateRiskAssessmentSchema>;
+
+// --- ReviewTask DTOs ---
+export const CreateReviewTaskSchema = z.object({
+  riskId: z.string().uuid('Invalid risk ID'),
+  scheduledDate: z.coerce.date(),
+  dueDate: z.coerce.date(),
+  priority: ReviewTaskPrioritySchema.default('medium'),
+  assignedTo: z.string().uuid('Invalid assignee ID').optional(),
+  triggerType: ReviewTaskTriggerTypeSchema.default('scheduled'),
+  triggerEventId: z.string().optional(),
+  triggerSource: z.string().max(500).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export type CreateReviewTaskDTO = z.infer<typeof CreateReviewTaskSchema>;
+
+export const UpdateReviewTaskSchema = z.object({
+  status: ReviewTaskStatusSchema.optional(),
+  priority: ReviewTaskPrioritySchema.optional(),
+  assignedTo: z.string().uuid('Invalid assignee ID').optional().nullable(),
+  notes: z.string().max(2000).optional(),
+  dueDate: z.coerce.date().optional(),
+});
+
+export type UpdateReviewTaskDTO = z.infer<typeof UpdateReviewTaskSchema>;
+
+// --- Unplanned Review Event DTO ---
+const UnplannedEventTypeSchema = z.enum([
+  'security_incident',
+  'technical_change',
+  'new_critical_supplier',
+  'new_vulnerability',
+  'regulatory_change',
+  'criticality_change',
+  'kpi_threshold_exceeded',
+  'risk_approval_expiring'
+]);
+
+const SeveritySchema = z.enum(['low', 'medium', 'high', 'very_high']);
+
+export const UnplannedReviewEventSchema = z.object({
+  type: UnplannedEventTypeSchema,
+  severity: SeveritySchema.optional(),
+  assetId: z.string().uuid().optional(),
+  riskId: z.string().uuid().optional(),
+  details: z.string().max(2000).optional(),
+});
+
+export type UnplannedReviewEventDTO = z.infer<typeof UnplannedReviewEventSchema>;
+
+// --- Risk Aggregation DTOs (Paket 3.4) ---
+export const RiskAggregationGroupBySchema = z.enum(['orgUnit', 'location', 'assetType', 'process', 'service', 'scope', 'riskClass', 'status', 'assessmentType']);
+
+export const RiskAggregationQuerySchema = z.object({
+  groupBy: RiskAggregationGroupBySchema.default('orgUnit'),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  scope: z.string().optional().transform((v) => v ? v.split(',').filter(Boolean) : undefined),
+  organizationUnitId: z.string().uuid().optional(),
+  status: z.string().optional(),
+  riskClass: z.string().optional(),
+  assessmentType: AssessmentTypeSchema.optional(),
+  methodVersionId: z.string().uuid().optional(),
+  isCurrent: z.coerce.boolean().optional(),
+});
+
+export type RiskAggregationQueryDTO = z.infer<typeof RiskAggregationQuerySchema>;
+
+// --- Enhanced CreateRisk DTO with relational building blocks ---
+export const CreateRiskEnhancedSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().min(1, 'Description is required'),
+  organizationUnitId: z.string().uuid().optional(),
+  // Relational building blocks
+  scenarioId: z.string().uuid('Invalid scenario ID').optional(),
+  threatId: z.string().uuid('Invalid threat ID').optional(),
+  vulnerabilityId: z.string().uuid('Invalid vulnerability ID').optional(),
+  causeIds: z.array(z.string().uuid()).optional(),
+  impactIds: z.array(z.string().uuid()).optional(),
+  // Asset/Process/Service junction relations
+  assetIds: z.array(z.string().uuid()).optional(),
+  processIds: z.array(z.string().uuid()).optional(),
+  serviceIds: z.array(z.string().uuid()).optional(),
+  // Assessment data
+  riskMethodVersionId: z.string().uuid('Invalid method version ID').optional(),
+  likelihood: z.number().int().positive('Likelihood must be a positive integer'),
+  impact: z.number().int().positive('Impact must be a positive integer'),
+  assessorId: z.string().min(1, 'Assessor ID is required'),
+  riskOwnerId: z.string().min(1, 'Risk owner ID is required'),
+  nextReviewDate: z.coerce.date(),
+  // Assessment justification (mandatory)
+  justification: z.string().min(1, 'Justification is mandatory').max(2000),
+});
+
+export type CreateRiskEnhancedDTO = z.infer<typeof CreateRiskEnhancedSchema>;

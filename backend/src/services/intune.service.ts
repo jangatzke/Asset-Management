@@ -1,37 +1,35 @@
-/**
- * Intune Sync Service
- * 
- * Orchestrates full and incremental sync of Intune managed devices
- * and detected apps into the local Asset Management database.
- */
-
 import { prisma } from '../config/database';
-import { IntuneHttpClient, getHttpClient } from './intune.client';
+import { getHttpClient, IntuneHttpClient, ManagedDevice } from './intune.client';
 import { IntuneConfigManager } from './intune.config';
 import { AppError } from '../middleware/errorHandler';
+import { nextDisplayId } from './displayId.service';
+import { auditService } from './audit.service';
 
-// Device state to lifecycle status mapping
+const db = prisma as any;
+const INTUNE_SOURCE_NAME = 'intune';
+const SYSTEM_USER = 'intune-sync';
+
 const DEVICE_STATE_MAP: Record<string, string> = {
-  active: 'active',
-  enrolled: 'active',
-  retired: 'archived',
-  disabled: 'planned',
-  cleanupPending: 'planned',
-  registrationRequired: 'planned',
+  managed: 'active',
+  retirePending: 'planned',
+  retireFailed: 'planned',
+  wipePending: 'planned',
+  wipeFailed: 'planned',
+  unhealthy: 'active',
+  deletePending: 'planned',
+  retired: 'retired',
 };
 
-// Compliance status to asset status mapping (used for reference)
-// Individual mappings are done inline in syncDevice
-
 export interface SyncProgress {
-  status: 'idle' | 'running' | 'success' | 'error';
-  syncType: 'full' | 'incremental';
+  status: 'idle' | 'running' | 'success' | 'partial_success' | 'error';
+  syncType: 'full' | 'incremental' | 'resync';
   deviceCount: number;
   deviceSynced: number;
   deviceErrors: number;
   appCount: number;
   appSynced: number;
   appErrors: number;
+  staleCount: number;
   lastSyncStartedAt: Date | null;
   lastSyncCompletedAt: Date | null;
   lastSyncDurationMs: number | null;
@@ -42,684 +40,382 @@ export interface SyncProgress {
   healthStatus: 'healthy' | 'degraded' | 'unhealthy';
 }
 
+interface DeviceSyncResult {
+  assetId?: string;
+  created: boolean;
+  updated: boolean;
+}
+
+type AssetUpdate = Record<string, string | Date | null | boolean | undefined>;
+
 export class IntuneSyncService {
-  private configManager: IntuneConfigManager;
+  private readonly configManager: IntuneConfigManager;
   private httpClient: IntuneHttpClient | null;
 
-  constructor() {
+  constructor(httpClient?: IntuneHttpClient) {
     this.configManager = new IntuneConfigManager();
-    this.httpClient = null;
+    this.httpClient = httpClient ?? null;
   }
 
-  /**
-   * Initialize the sync service
-   */
   async initialize(): Promise<SyncProgress> {
-    // Load config from environment
     this.configManager.initialize();
-    
-    // Initialize HTTP client with retry settings from config
-    const config = this.configManager.getConfigForAuth();
-    if (config) {
-      this.httpClient = getHttpClient();
-      if (!this.httpClient) {
-        // Create a new client with config-based settings
-        this.httpClient = new IntuneHttpClient(
-          config.maxRetryAttempts ?? 3,
-          config.retryDelayMs ?? 5000
-        );
-      }
-    }
-
-    // Get or create initial sync status
+    if (!this.httpClient) this.httpClient = getHttpClient();
     let status = await this.getSyncStatus();
-    if (!status) {
-      status = await this.initializeSyncStatus();
-    }
-
+    if (!status) status = await this.initializeSyncStatus();
+    await this.ensureIntuneSource();
     return status;
   }
 
-  /**
-   * Get or create sync status record
-   */
+  private async ensureIntuneSource() {
+    return db.integrationSource.upsert({
+      where: { name: INTUNE_SOURCE_NAME },
+      update: { type: 'intune', isActive: true, updatedBy: SYSTEM_USER },
+      create: { name: INTUNE_SOURCE_NAME, type: 'intune', config: { graph: 'deviceManagement/managedDevices' }, isActive: true, createdBy: SYSTEM_USER, updatedBy: SYSTEM_USER },
+    });
+  }
+
   private async getSyncStatus(): Promise<SyncProgress | null> {
-    const status = await prisma.intuneSyncStatus.findFirst({
-      orderBy: { createdAt: 'desc' },
-    });
-    return status as unknown as SyncProgress | null;
+    const status = await db.intuneSyncStatus.findFirst({ orderBy: { createdAt: 'desc' } });
+    if (!status) return null;
+    return { staleCount: 0, ...status } as SyncProgress;
   }
 
-  /**
-   * Initialize default sync status
-   */
   private async initializeSyncStatus(): Promise<SyncProgress> {
-    const status = await prisma.intuneSyncStatus.create({
-      data: {
-        syncType: 'full',
-        status: 'idle',
-        deviceCount: 0,
-        deviceSynced: 0,
-        deviceErrors: 0,
-        appCount: 0,
-        appSynced: 0,
-        appErrors: 0,
-        healthStatus: 'healthy',
-      },
+    const status = await db.intuneSyncStatus.create({
+      data: { syncType: 'full', status: 'idle', healthStatus: 'healthy' },
     });
-
-    // Create default sync config
-    await prisma.intuneSyncConfig.create({
-      data: {
-        enabled: false,
-        fullSyncIntervalHours: 24,
-        incrementalSyncIntervalMinutes: 120,
-        gracePeriodHours: 168,
-        maxRetryAttempts: 3,
-        retryDelayMs: 5000,
-        batchSize: 100,
-      },
+    await db.intuneSyncConfig.upsert({
+      where: { id: 'default' },
+      update: {},
+      create: { id: 'default', enabled: false, fullSyncIntervalHours: 24, incrementalSyncIntervalMinutes: 120, gracePeriodHours: 168, maxRetryAttempts: 3, retryDelayMs: 5000, batchSize: 100 },
+    }).catch(async () => {
+      if (!(await db.intuneSyncConfig.findFirst())) {
+        await db.intuneSyncConfig.create({ data: { enabled: false, fullSyncIntervalHours: 24, incrementalSyncIntervalMinutes: 120, gracePeriodHours: 168, maxRetryAttempts: 3, retryDelayMs: 5000, batchSize: 100 } });
+      }
     });
-
-    return status as unknown as SyncProgress;
+    return { staleCount: 0, ...status } as SyncProgress;
   }
 
-  /**
-   * Update sync status in database
-   */
   private async updateSyncStatus(updates: Partial<SyncProgress>): Promise<void> {
-    const existing = await prisma.intuneSyncStatus.findFirst({
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (existing) {
-      await prisma.intuneSyncStatus.update({
-        where: { id: existing.id },
-        data: updates,
-      });
-    }
+    const existing = await db.intuneSyncStatus.findFirst({ orderBy: { createdAt: 'desc' } });
+    if (existing) await db.intuneSyncStatus.update({ where: { id: existing.id }, data: updates });
   }
 
-  /**
-   * Get current sync status (formatted for API response)
-   */
   async getStatus(): Promise<SyncProgress> {
     const status = await this.getSyncStatus();
-    if (!status) {
-      return {
-        status: 'idle',
-        syncType: 'full',
-        deviceCount: 0,
-        deviceSynced: 0,
-        deviceErrors: 0,
-        appCount: 0,
-        appSynced: 0,
-        appErrors: 0,
-        lastSyncStartedAt: null,
-        lastSyncCompletedAt: null,
-        lastSyncDurationMs: null,
-        lastError: null,
-        totalSyncs: 0,
-        totalDevicesSynced: 0,
-        totalDevicesErrors: 0,
-        healthStatus: 'healthy',
-      };
-    }
-
-    // Determine health status based on recent sync errors
-    const healthStatus = this.calculateHealthStatus(status);
-
-    return {
-      ...status,
-      healthStatus,
-    } as unknown as SyncProgress;
+    return status ?? {
+      status: 'idle', syncType: 'full', deviceCount: 0, deviceSynced: 0, deviceErrors: 0, appCount: 0, appSynced: 0, appErrors: 0, staleCount: 0,
+      lastSyncStartedAt: null, lastSyncCompletedAt: null, lastSyncDurationMs: null, lastError: null, totalSyncs: 0, totalDevicesSynced: 0, totalDevicesErrors: 0, healthStatus: 'healthy',
+    };
   }
 
-  /**
-   * Calculate health status based on recent sync results
-   */
-  private calculateHealthStatus(status: SyncProgress): 'healthy' | 'degraded' | 'unhealthy' {
-    const lastError = status.lastError;
-    if (lastError && lastError.toLowerCase().includes('auth')) {
-      return 'unhealthy';
-    }
-    if (status.deviceErrors > 10 || status.appErrors > 50) {
-      return 'degraded';
-    }
-    return 'healthy';
+  async runFullSync(userId = SYSTEM_USER): Promise<SyncProgress> {
+    return this.runDeviceSync('full', userId);
   }
 
-  /**
-   * Run a full sync of all Intune devices
-   */
-  async runFullSync(): Promise<SyncProgress> {
+  async runIncrementalSync(userId = SYSTEM_USER): Promise<SyncProgress> {
+    return this.runDeviceSync('incremental', userId);
+  }
+
+  private async runDeviceSync(syncType: 'full' | 'incremental', userId: string): Promise<SyncProgress> {
     const startTime = Date.now();
-    const config = this.configManager.getConfigForAuth();
-    
-    if (!config?.enabled) {
-      throw new AppError('Intune sync is not enabled. Set INTUNE_ENABLED=true in environment variables.', 400);
-    }
+    const config = await this.getEffectiveConfig();
+    if (!config.enabled) throw new AppError('Intune sync is disabled.', 400);
 
-    // Update status to running
-    await this.updateSyncStatus({
-      status: 'running',
-      syncType: 'full' as const,
-      deviceCount: 0,
-      deviceSynced: 0,
-      deviceErrors: 0,
-      appCount: 0,
-      appSynced: 0,
-      appErrors: 0,
-      lastSyncStartedAt: new Date(),
-      lastSyncCompletedAt: null,
-      lastSyncDurationMs: null,
-      lastError: null,
-    });
+    const source = await this.ensureIntuneSource();
+    const importRun = await db.importRun.create({ data: { integrationSourceId: source.id, status: 'running', dryRun: false, statistics: {}, createdBy: userId } });
+    await this.audit(userId, 'INTUNE_SYNC_RUN', 'IntuneSync', importRun.id, { syncType, phase: 'start' });
+    await this.audit(userId, 'IMPORT_RUN_START', 'ImportRun', importRun.id, { syncType });
+    await this.updateSyncStatus({ status: 'running', syncType, deviceCount: 0, deviceSynced: 0, deviceErrors: 0, appCount: 0, appSynced: 0, appErrors: 0, lastSyncStartedAt: new Date(), lastSyncCompletedAt: null, lastError: null });
 
     try {
-      // Get all devices from Intune
-      const devices = await this.getAllDevices();
-      
-      await this.updateSyncStatus({
-        deviceCount: devices.length,
-      });
-
-      let totalApps = 0;
-      let totalAppSynced = 0;
-      let totalAppErrors = 0;
-
-      // Process each device
-      for (let i = 0; i < devices.length; i++) {
-        const device = devices[i];
-        try {
-          await this.syncDevice(device);
-          totalApps += await this.syncDeviceApps(device.id);
-          totalAppSynced++;
-        } catch (error) {
-          totalAppErrors++;
-          console.error(`[IntuneSync] Error syncing device ${device.deviceName || device.id}:`, error);
-        }
-
-        // Update progress
-        await this.updateSyncStatus({
-          deviceSynced: i + 1,
-          appCount: totalApps,
-          appSynced: totalAppSynced,
-          appErrors: totalAppErrors,
-        });
-      }
-
-      // Mark deleted devices
-      await this.markDeletedDevices();
-
-      const duration = Date.now() - startTime;
-      const totalSyncs = (await this.getSyncStatus())?.totalSyncs ?? 0;
-      const totalDevicesSynced = (await this.getSyncStatus())?.totalDevicesSynced ?? 0;
-      const totalDevicesErrors = (await this.getSyncStatus())?.totalDevicesErrors ?? 0;
-
-      await this.updateSyncStatus({
-        status: 'success',
-        deviceSynced: devices.length,
-        deviceErrors: 0,
-        appCount: totalApps,
-        appSynced: totalAppSynced,
-        appErrors: totalAppErrors,
-        lastSyncCompletedAt: new Date(),
-        lastSyncDurationMs: duration,
-        lastError: null,
-        totalSyncs: totalSyncs + 1,
-        totalDevicesSynced: totalDevicesSynced + devices.length,
-        totalDevicesErrors: totalDevicesErrors + totalAppErrors,
-      });
-
-      // Update config with last sync time
-      await this.updateConfigLastSync('lastFullSyncAt', new Date());
-
-      return this.getStatus();
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      await this.updateSyncStatus({
-        status: 'error',
-        deviceSynced: 0,
-        deviceErrors: 0,
-        appCount: 0,
-        appSynced: 0,
-        appErrors: 0,
-        lastSyncCompletedAt: new Date(),
-        lastSyncDurationMs: duration,
-        lastError: (error as Error).message,
-      });
-
-      throw new AppError(`Full sync failed: ${(error as Error).message}`, 500);
-    }
-  }
-
-  /**
-   * Run an incremental sync of changed Intune devices
-   */
-  async runIncrementalSync(): Promise<SyncProgress> {
-    const startTime = Date.now();
-    const config = this.configManager.getConfigForAuth();
-
-    if (!config?.enabled) {
-      throw new AppError('Intune sync is not enabled. Set INTUNE_ENABLED=true in environment variables.', 400);
-    }
-
-    await this.updateSyncStatus({
-      status: 'running',
-      syncType: 'incremental' as const,
-      lastSyncStartedAt: new Date(),
-      lastSyncCompletedAt: null,
-      lastSyncDurationMs: null,
-      lastError: null,
-    });
-
-    try {
-      // Get last incremental sync time
-      const configData = await prisma.intuneSyncConfig.findFirst();
-      const lastSyncTime = configData?.lastIncrementalSyncAt ?? new Date(0);
-
-      // Get all devices from Intune
-      const devices = await this.getAllDevices();
-
-      // Filter to only changed devices
-      const changedDevices = devices.filter(
-        (d: any) => d.lastSyncDateTime && new Date(d.lastSyncDateTime) > lastSyncTime
-      );
-
+      const devices = syncType === 'incremental' ? await this.getIncrementalDevices() : await this.getClient().getAllDevices();
+      const seenIntuneIds = new Set(devices.map((device) => device.id));
+      let deviceSynced = 0;
       let deviceErrors = 0;
+      let appCount = 0;
+      let appSynced = 0;
+      let appErrors = 0;
 
-      for (const device of changedDevices) {
+      for (const device of devices) {
         try {
-          await this.syncDevice(device);
+          await this.syncDevice(device, source.id, importRun.id, userId);
+          deviceSynced += 1;
         } catch (error) {
-          deviceErrors++;
-          console.error(`[IntuneSync] Error in incremental sync for device ${device.deviceName || device.id}:`, error);
+          deviceErrors += 1;
+          await this.recordDeviceError(device.id, error as Error);
         }
+
+        try {
+          appCount += await this.syncDeviceApps(device.id);
+          appSynced += 1;
+        } catch {
+          appErrors += 1;
+        }
+
+        await this.updateSyncStatus({ deviceCount: devices.length, deviceSynced, deviceErrors, appCount, appSynced, appErrors });
       }
 
-      const duration = Date.now() - startTime;
-      const totalSyncs = (await this.getSyncStatus())?.totalSyncs ?? 0;
-      const totalDevicesSynced = (await this.getSyncStatus())?.totalDevicesSynced ?? 0;
-      const totalDevicesErrors = (await this.getSyncStatus())?.totalDevicesErrors ?? 0;
+      const staleCount = syncType === 'full' ? await this.markStaleDevices(seenIntuneIds, config.gracePeriodHours, userId) : 0;
+      const finalStatus: SyncProgress['status'] = deviceErrors > 0 || appErrors > 0 ? 'partial_success' : 'success';
+      const previous = await this.getStatus();
+      const statistics = { total: devices.length, created: 0, updated: deviceSynced, unchanged: 0, conflicts: 0, skipped: 0, stale: staleCount, errors: deviceErrors + appErrors };
 
+      await db.importRun.update({ where: { id: importRun.id }, data: { status: finalStatus === 'partial_success' ? 'completed_with_errors' : 'completed', endedAt: new Date(), statistics } });
+      await this.audit(userId, 'INTUNE_SYNC_RUN', 'IntuneSync', importRun.id, { syncType, phase: 'complete', status: finalStatus, statistics });
+      await this.audit(userId, 'IMPORT_RUN_COMPLETE', 'ImportRun', importRun.id, { syncType, status: finalStatus, statistics });
       await this.updateSyncStatus({
-        status: 'success',
-        deviceCount: changedDevices.length,
-        deviceSynced: changedDevices.length - deviceErrors,
-        deviceErrors,
-        lastSyncCompletedAt: new Date(),
-        lastSyncDurationMs: duration,
-        lastError: null,
-        totalSyncs: totalSyncs + 1,
-        totalDevicesSynced,
-        totalDevicesErrors: totalDevicesErrors + deviceErrors,
+        status: finalStatus, deviceCount: devices.length, deviceSynced, deviceErrors, appCount, appSynced, appErrors, staleCount, lastSyncCompletedAt: new Date(), lastSyncDurationMs: Date.now() - startTime,
+        lastError: finalStatus === 'partial_success' ? 'One or more Intune records failed to sync.' : null,
+        totalSyncs: previous.totalSyncs + 1, totalDevicesSynced: previous.totalDevicesSynced + deviceSynced, totalDevicesErrors: previous.totalDevicesErrors + deviceErrors,
       });
-
-      // Update config with last sync time
-      await this.updateConfigLastSync('lastIncrementalSyncAt', new Date());
-
+      await this.updateConfigLastSync(syncType === 'full' ? 'lastFullSyncAt' : 'lastIncrementalSyncAt', new Date());
       return this.getStatus();
     } catch (error) {
-      const duration = Date.now() - startTime;
-      await this.updateSyncStatus({
-        status: 'error',
-        deviceCount: 0,
-        deviceSynced: 0,
-        deviceErrors: 0,
-        lastSyncCompletedAt: new Date(),
-        lastSyncDurationMs: duration,
-        lastError: (error as Error).message,
-      });
-
-      throw new AppError(`Incremental sync failed: ${(error as Error).message}`, 500);
+      await db.importRun.update({ where: { id: importRun.id }, data: { status: 'failed', endedAt: new Date(), errorMessage: (error as Error).message } });
+      await this.updateSyncStatus({ status: 'error', lastSyncCompletedAt: new Date(), lastSyncDurationMs: Date.now() - startTime, lastError: (error as Error).message });
+      throw new AppError(`Intune ${syncType} sync failed: ${(error as Error).message}`, 500);
     }
   }
 
-  /**
-   * Get all devices from Intune API
-   */
-  private async getAllDevices(): Promise<any[]> {
-    const httpClient = getHttpClient();
-    if (!httpClient) {
-      throw new AppError('Intune HTTP client not initialized', 500);
-    }
-    return httpClient.getAllDevices();
+  private async getIncrementalDevices() {
+    const config = await db.intuneSyncConfig.findFirst();
+    const lastSyncTime = config?.lastIncrementalSyncAt ?? new Date(0);
+    return (await this.getClient().getAllDevices()).filter((device) => device.lastSyncDateTime && new Date(device.lastSyncDateTime) > lastSyncTime);
   }
 
-  /**
-   * Sync a single device to the database
-   */
-  private async syncDevice(device: any): Promise<void> {
-    const intuneId = device.id;
-    if (!intuneId) return;
+  private async syncDevice(device: ManagedDevice, integrationSourceId: string, importRunId: string, userId: string): Promise<DeviceSyncResult> {
+    if (!device.id) throw new Error('Intune managedDevice id is missing');
+    const normalized = this.normalizeDevice(device);
+    const existingSync = await db.intuneDeviceSync.findUnique({ where: { intuneId: device.id } });
+    const matchedAsset = existingSync?.assetId ? await db.asset.findUnique({ where: { id: existingSync.assetId } }) : await this.findMatchingAsset(normalized);
 
-    const deviceData = {
-      intuneId,
-      name: device.deviceName || device.deviceName || null,
+    const result = matchedAsset
+      ? await this.updateAssetFromDevice(matchedAsset, normalized, integrationSourceId, importRunId, userId)
+      : await this.createAssetFromDevice(normalized, integrationSourceId, importRunId, userId);
+
+    await db.intuneDeviceSync.upsert({
+      where: { intuneId: device.id },
+      update: { ...normalized.syncData, assetId: result.assetId, syncStatus: 'synced', syncErrorMessage: null, syncAttempts: (existingSync?.syncAttempts ?? 0) + 1, lastSyncAt: new Date(), isArchived: false },
+      create: { ...normalized.syncData, assetId: result.assetId, syncStatus: 'synced', syncAttempts: 1, lastSyncAt: new Date(), isArchived: false },
+    });
+
+    await db.importRecord.create({ data: { importRunId, sourceRecordId: device.id, sourceHash: device.lastSyncDateTime ?? new Date().toISOString(), sourceData: device as any, targetAssetId: result.assetId, status: result.created ? 'created' : result.updated ? 'updated' : 'unchanged', action: result.created ? 'create' : result.updated ? 'update' : 'none' } });
+    return result;
+  }
+
+  private normalizeDevice(device: ManagedDevice) {
+    const lastSyncDateTime = device.lastSyncDateTime ? new Date(device.lastSyncDateTime) : null;
+    const enrolledDateTime = device.enrolledDateTime ? new Date(device.enrolledDateTime) : null;
+    const networkAddresses = [device.wiFiMacAddress, device.ethernetMacAddress].filter(Boolean).map((address, index) => ({ address: address as string, type: 'mac', primary: index === 0 }));
+    const assetData = {
+      name: device.deviceName || device.serialNumber || `Intune ${device.id}`,
       serialNumber: device.serialNumber || null,
       manufacturer: device.manufacturer || null,
       model: device.model || null,
-      osName: device.osName || null,
+      externalId: device.azureADDeviceId || device.id,
+      lifecycleStatus: DEVICE_STATE_MAP[device.managementState ?? ''] || 'active',
+      status: device.complianceState === 'noncompliant' ? 'warning' : 'active',
+      dataSource: INTUNE_SOURCE_NAME,
+      lastDetectedAt: lastSyncDateTime ?? new Date(),
+      networkAddresses,
+    };
+    const syncData = {
+      intuneId: device.id,
+      name: assetData.name,
+      serialNumber: assetData.serialNumber,
+      manufacturer: assetData.manufacturer,
+      model: assetData.model,
+      osName: device.operatingSystem || null,
       osVersion: device.osVersion || null,
       deviceEnrollmentType: device.deviceEnrollmentType || null,
-      managementType: device.managementType || null,
-      complianceStatus: device.complianceStatus || null,
-      deviceState: device.deviceState || null,
-      enrollmentDateTime: device.enrollmentDateTime ? new Date(device.enrollmentDateTime) : null,
-      lastSyncDateTime: device.lastSyncDateTime ? new Date(device.lastSyncDateTime) : null,
-      primaryUserEmail: device.primaryUserEmailaddress || null,
-      primaryUserDisplayName: device.primaryUserDisplayName || null,
-      compliancePolicyName: device.compliancePolicyName || null,
-      configurationPolicyName: device.configurationPolicyName || null,
-      autopilotStatus: null,
-      autopilotProfileName: null,
-      lastSeenDateTime: device.lastSyncDateTime ? new Date(device.lastSyncDateTime) : null,
-      intuneLicenseState: device.intuneLicenseState || null,
-      deviceWpdsStatus: device.deviceWpdsStatus || null,
-      syncStatus: 'synced',
-      syncErrorMessage: null,
-      syncAttempts: 1,
-      lastSyncAt: new Date(),
-      sourceUpdatedAt: new Date(),
+      managementType: device.managementAgent || null,
+      complianceStatus: device.complianceState || null,
+      deviceState: device.managementState || null,
+      enrollmentDateTime: enrolledDateTime,
+      lastSyncDateTime,
+      primaryUserEmail: device.emailAddress || device.userPrincipalName || null,
+      primaryUserDisplayName: device.userDisplayName || null,
+      lastSeenDateTime: lastSyncDateTime ?? new Date(),
+      sourceIntuneId: device.id,
+      sourceUpdatedAt: lastSyncDateTime ?? new Date(),
     };
+    return { assetData, syncData };
+  }
 
-    // Upsert by intuneId
-    await prisma.intuneDeviceSync.upsert({
-      where: { intuneId },
-      update: deviceData,
-      create: deviceData,
-    });
+  private async findMatchingAsset(normalized: ReturnType<IntuneSyncService['normalizeDevice']>) {
+    const { assetData } = normalized;
+    if (assetData.serialNumber) {
+      const bySerial = await db.asset.findFirst({ where: { serialNumber: assetData.serialNumber, isArchived: false } });
+      if (bySerial) return bySerial;
+    }
+    if (assetData.externalId) {
+      const byExternal = await db.asset.findFirst({ where: { externalId: assetData.externalId, isArchived: false } });
+      if (byExternal) return byExternal;
+    }
+    const mac = assetData.networkAddresses[0]?.address;
+    if (mac) return (await db.networkAddress.findFirst({ where: { address: mac }, include: { asset: true } }))?.asset ?? null;
+    return null;
+  }
 
-    // Update linked asset if exists
-    const existingSync = await prisma.intuneDeviceSync.findUnique({
-      where: { intuneId },
-    });
+  private async createAssetFromDevice(normalized: ReturnType<IntuneSyncService['normalizeDevice']>, integrationSourceId: string, importRunId: string, userId: string): Promise<DeviceSyncResult> {
+    const assetTypeId = await this.getDefaultAssetTypeId();
+    const displayId = await nextDisplayId(db, 'Asset');
+    const asset = await db.asset.create({ data: { ...this.assetFields(normalized.assetData), assetTypeId, displayId, createdBy: userId, updatedBy: userId, isArchived: false, archivedAt: null } });
+    await this.syncNetworkAddresses(asset.id, normalized.assetData.networkAddresses);
+    await this.writeProvenance(asset.id, integrationSourceId, importRunId, normalized.syncData.intuneId, this.assetFields(normalized.assetData), userId);
+    return { assetId: asset.id, created: true, updated: false };
+  }
 
-    if (existingSync?.assetId) {
-      // Update the asset with new data
-      const assetStatus = deviceData.complianceStatus === 'compliant'
-        ? 'active' 
-        : deviceData.complianceStatus === 'nonCompliant' 
-          ? 'warning' 
-          : 'active';
+  private async updateAssetFromDevice(asset: any, normalized: ReturnType<IntuneSyncService['normalizeDevice']>, integrationSourceId: string, importRunId: string, userId: string): Promise<DeviceSyncResult> {
+    const locks = new Set((await db.fieldLock.findMany({ where: { assetId: asset.id, isActive: true } })).map((lock: any) => lock.fieldName));
+    const updates: AssetUpdate = {};
+    for (const [fieldName, value] of Object.entries(this.assetFields(normalized.assetData))) {
+      if (locks.has(fieldName)) continue;
+      if (JSON.stringify(asset[fieldName] ?? null) !== JSON.stringify(value ?? null)) updates[fieldName] = value as any;
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.asset.update({ where: { id: asset.id }, data: { ...updates, updatedBy: userId } });
+      await this.writeProvenance(asset.id, integrationSourceId, importRunId, normalized.syncData.intuneId, updates, userId);
+    }
+    await this.syncNetworkAddresses(asset.id, normalized.assetData.networkAddresses);
+    return { assetId: asset.id, created: false, updated: Object.keys(updates).length > 0 };
+  }
 
-      await prisma.asset.updateMany({
-        where: { id: existingSync.assetId },
-        data: {
-          manufacturer: deviceData.manufacturer || undefined,
-          model: deviceData.model || undefined,
-          serialNumber: deviceData.serialNumber || undefined,
-          lifecycleStatus: DEVICE_STATE_MAP[deviceData.deviceState || ''] || 'active',
-          status: assetStatus,
-          lastDetectedAt: deviceData.lastSyncDateTime || undefined,
-          dataSource: 'intune',
-          updatedBy: 'intune-sync',
-        },
-      });
+  private assetFields(assetData: any) {
+    const { networkAddresses: _networkAddresses, ...fields } = assetData;
+    return fields;
+  }
+
+  private async writeProvenance(assetId: string, integrationSourceId: string, importRunId: string, sourceRecordId: string, updates: AssetUpdate, setBy: string) {
+    for (const [fieldName, value] of Object.entries(updates)) {
+      await db.fieldProvenance.upsert({ where: { assetId_fieldName: { assetId, fieldName } }, update: { integrationSourceId, importRunId, sourceRecordId, value: value as any, setAt: new Date(), setBy }, create: { assetId, fieldName, integrationSourceId, importRunId, sourceRecordId, value: value as any, setBy } });
     }
   }
 
-  /**
-   * Sync detected apps for a device
-   */
+  private async syncNetworkAddresses(assetId: string, addresses: Array<{ address: string; type: string; primary: boolean }>) {
+    await db.networkAddress.deleteMany({ where: { assetId, type: 'mac' } });
+    if (addresses.length > 0) await db.networkAddress.createMany({ data: addresses.map((entry) => ({ ...entry, assetId })) });
+  }
+
+  private async getDefaultAssetTypeId(): Promise<string> {
+    const existing = await db.assetType.findFirst({ where: { name: 'Endpoint' } });
+    if (existing) return existing.id;
+    return (await db.assetType.create({ data: { name: 'Endpoint', category: 'hardware', description: 'Managed endpoint device' } })).id;
+  }
+
   private async syncDeviceApps(deviceId: string): Promise<number> {
-    const httpClient = getHttpClient();
-    if (!httpClient) return 0;
-
-    try {
-      const apps = await httpClient.getDetectedApps(deviceId);
-      let count = 0;
-
-      for (const app of apps) {
-        // Use app.id as the unique identifier for the app
-        const appIdentity = app.appIdentity || app.id || app.appName || app.packageName;
-        if (!appIdentity) continue;
-
-        // Use composite unique key [intuneAppId, deviceId] for upsert
-        await prisma.intuneDetectedApp.upsert({
-          where: { intuneAppId_deviceId: { intuneAppId: appIdentity, deviceId } },
-          update: {
-            name: app.name || undefined,
-            version: app.version || undefined,
-            publisher: app.publisher || undefined,
-            platform: app.platform || undefined,
-            appCategory: (app.appCategory || app.appType || null) as string | undefined,
-            isManaged: app.isManaged ?? false,
-            syncStatus: 'synced',
-            syncErrorMessage: null,
-            syncAttempts: 1,
-            lastSyncAt: new Date(),
-            sourceUpdatedAt: new Date(),
-          },
-          create: {
-            intuneAppId: appIdentity,
-            deviceId,
-            name: app.name || null,
-            version: app.version || null,
-            publisher: app.publisher || null,
-            platform: app.platform || null,
-            appCategory: (app.appCategory || app.appType || null) as string | null,
-            isManaged: app.isManaged ?? false,
-            syncStatus: 'synced',
-            syncErrorMessage: null,
-            syncAttempts: 1,
-            lastSyncAt: new Date(),
-            sourceUpdatedAt: new Date(),
-          },
-        });
-
-        count++;
-      }
-
-      return count;
-    } catch (error) {
-      console.error(`[IntuneSync] Error fetching apps for device ${deviceId}:`, error);
-      return 0;
-    }
-  }
-
-  /**
-   * Mark devices as deleted if they no longer exist in Intune
-   */
-  private async markDeletedDevices(): Promise<void> {
-    const syncedDevices = await prisma.intuneDeviceSync.findMany({
-      where: {
-        isArchived: false,
-        syncStatus: { not: 'deleted' },
-      },
-    });
-
-    // Get current device IDs from Intune
-    const currentDevices = await this.getAllDevices();
-    const currentIds = new Set(currentDevices.map((d: any) => d.id));
-
-    // Find devices that are no longer in Intune
-    const deletedDevices = syncedDevices.filter(
-      (d) => !currentIds.has(d.intuneId)
-    );
-
-    const gracePeriodHours = 168; // 7 days default
-
-    for (const device of deletedDevices) {
-      const lastSeen = device.lastSyncDateTime ? new Date(device.lastSyncDateTime) : new Date(0);
-      const graceExpiry = new Date(lastSeen.getTime() + gracePeriodHours * 60 * 60 * 1000);
-
-      if (new Date() > graceExpiry) {
-        // Grace period expired, archive the device
-        await prisma.intuneDeviceSync.update({
-          where: { intuneId: device.intuneId },
-          data: {
-            syncStatus: 'deleted',
-            isArchived: true,
-            lastSyncAt: new Date(),
-          },
-        });
-
-        // Also archive linked asset
-        if (device.assetId) {
-          await prisma.asset.updateMany({
-            where: { id: device.assetId },
-            data: { isArchived: true, updatedBy: 'intune-sync' },
-          });
-        }
-      } else {
-        // Still within grace period, mark as deleted but not archived
-        await prisma.intuneDeviceSync.update({
-          where: { intuneId: device.intuneId },
-          data: {
-            syncStatus: 'deleted',
-            lastSyncAt: new Date(),
-          },
-        });
-      }
-    }
-  }
-
-  /**
-   * Update config last sync time
-   */
-  private async updateConfigLastSync(field: string, date: Date): Promise<void> {
-    await prisma.intuneSyncConfig.updateMany({
-      where: {},
-      data: { [field]: date } as any,
-    });
-  }
-
-  /**
-   * Get synced devices list (with pagination)
-   */
-  async getSyncedDevices(page: number = 1, limit: number = 20, search?: string): Promise<{
-    data: any[];
-    pagination: { page: number; limit: number; total: number; totalPages: number };
-  }> {
-    const where: any = { isArchived: false };
-
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { serialNumber: { contains: search, mode: 'insensitive' } },
-        { primaryUserEmail: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [devices, total] = await Promise.all([
-      prisma.intuneDeviceSync.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { lastSyncDateTime: 'desc' },
-      }),
-      prisma.intuneDeviceSync.count({ where }),
-    ]);
-
-    return {
-      data: devices,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
-  /**
-   * Resync a specific device
-   */
-  async resyncDevice(intuneId: string): Promise<boolean> {
-    const device = await prisma.intuneDeviceSync.findUnique({
-      where: { intuneId },
-    });
-
-    if (!device) {
-      throw new AppError('Device not found in sync records', 404);
-    }
-
-    await this.syncDevice(device);
-    await this.syncDeviceApps(device.intuneId);
-
-    await this.updateSyncStatus({
-      deviceSynced: (await this.getSyncStatus())?.deviceSynced ?? 0,
-    });
-
-    return true;
-  }
-
-  /**
-   * Archive a synced device
-   */
-  async archiveDevice(intuneId: string): Promise<boolean> {
-    await prisma.intuneDeviceSync.update({
-      where: { intuneId },
-      data: { isArchived: true },
-    });
-
-    return true;
-  }
-
-  /**
-   * Update sync configuration
-   */
-  async updateConfig(updates: Partial<{
-    enabled: boolean;
-    fullSyncIntervalHours: number;
-    incrementalSyncIntervalMinutes: number;
-    gracePeriodHours: number;
-    maxRetryAttempts: number;
-    retryDelayMs: number;
-    batchSize: number;
-  }>): Promise<any> {
-    const config = await prisma.intuneSyncConfig.findFirst();
-    
-    if (!config) {
-      return prisma.intuneSyncConfig.create({
-        data: {
-          enabled: updates.enabled ?? false,
-          fullSyncIntervalHours: updates.fullSyncIntervalHours ?? 24,
-          incrementalSyncIntervalMinutes: updates.incrementalSyncIntervalMinutes ?? 120,
-          gracePeriodHours: updates.gracePeriodHours ?? 168,
-          maxRetryAttempts: updates.maxRetryAttempts ?? 3,
-          retryDelayMs: updates.retryDelayMs ?? 5000,
-          batchSize: updates.batchSize ?? 100,
-        },
+    const apps = await this.getClient().getDetectedApps(deviceId);
+    for (const app of apps) {
+      const appId = app.id || app.appIdentity || app.displayName;
+      if (!appId) continue;
+      await db.intuneDetectedApp.upsert({
+        where: { intuneAppId_deviceId: { intuneAppId: appId, deviceId } },
+        update: { name: app.displayName || app.name || null, version: app.version || null, publisher: app.publisher || null, syncStatus: 'synced', syncErrorMessage: null, syncAttempts: 1, lastSyncAt: new Date(), sourceUpdatedAt: new Date() },
+        create: { intuneAppId: appId, deviceId, name: app.displayName || app.name || null, version: app.version || null, publisher: app.publisher || null, syncStatus: 'synced', syncAttempts: 1, lastSyncAt: new Date(), sourceUpdatedAt: new Date() },
       });
     }
-
-    return prisma.intuneSyncConfig.update({
-      where: { id: config.id },
-      data: updates,
-    });
+    return apps.length;
   }
 
-  /**
-   * Get sync configuration
-   */
-  async getConfig(): Promise<any> {
-    const config = await prisma.intuneSyncConfig.findFirst();
+  private async markStaleDevices(currentIds: Set<string>, gracePeriodHours: number, userId: string): Promise<number> {
+    const knownDevices = await db.intuneDeviceSync.findMany({ where: { isArchived: false } });
+    let stale = 0;
+    const now = Date.now();
+    for (const device of knownDevices) {
+      if (currentIds.has(device.intuneId)) continue;
+      const staleSince = device.lastSeenDateTime ?? device.lastSyncDateTime ?? new Date(0);
+      const graceExpired = now > new Date(staleSince).getTime() + gracePeriodHours * 3600_000;
+      await db.intuneDeviceSync.update({ where: { intuneId: device.intuneId }, data: { syncStatus: graceExpired ? 'stale' : 'missing', lastSyncAt: new Date(), syncErrorMessage: 'Device no longer returned by Microsoft Graph managedDevices.' } });
+      if (device.assetId) await db.asset.updateMany({ where: { id: device.assetId, isArchived: false }, data: { status: 'stale', updatedBy: userId } });
+      stale += 1;
+    }
+    return stale;
+  }
+
+  private async recordDeviceError(intuneId: string, error: Error) {
+    await db.intuneDeviceSync.upsert({ where: { intuneId }, update: { syncStatus: 'error', syncErrorMessage: error.message, syncAttempts: { increment: 1 }, lastSyncAt: new Date() }, create: { intuneId, syncStatus: 'error', syncErrorMessage: error.message, syncAttempts: 1, lastSyncAt: new Date() } });
+  }
+
+  private async updateConfigLastSync(field: string, date: Date): Promise<void> {
+    await db.intuneSyncConfig.updateMany({ where: {}, data: { [field]: date } });
+  }
+
+  async getSyncedDevices(page = 1, limit = 20, search?: string) {
+    const where: any = { isArchived: false };
+    if (search) where.OR = [{ name: { contains: search, mode: 'insensitive' } }, { serialNumber: { contains: search, mode: 'insensitive' } }, { primaryUserEmail: { contains: search, mode: 'insensitive' } }];
+    const [devices, total] = await Promise.all([db.intuneDeviceSync.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { lastSyncDateTime: 'desc' } }), db.intuneDeviceSync.count({ where })]);
+    return { data: devices, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async getSyncedDevice(intuneId: string) {
+    const device = await db.intuneDeviceSync.findUnique({ where: { intuneId } });
+    if (!device) throw new AppError('Device not found in sync records', 404);
+    return device;
+  }
+
+  async resyncDevice(intuneId: string, userId = SYSTEM_USER): Promise<boolean> {
+    const details = await this.getClient().getDeviceDetails(intuneId);
+    if (!details) throw new AppError('Device no longer exists in Microsoft Graph managedDevices', 404);
+    const source = await this.ensureIntuneSource();
+    const importRun = await db.importRun.create({ data: { integrationSourceId: source.id, status: 'running', dryRun: false, statistics: { total: 1 }, createdBy: userId } });
+    await this.syncDevice(details, source.id, importRun.id, userId);
+    await this.syncDeviceApps(intuneId);
+    await db.importRun.update({ where: { id: importRun.id }, data: { status: 'completed', endedAt: new Date(), statistics: { total: 1, updated: 1, errors: 0 } } });
+    await this.audit(userId, 'INTUNE_RESYNC', 'IntuneDeviceSync', intuneId, { graphFetched: true });
+    await this.audit(userId, 'IMPORT_RUN_COMPLETE', 'ImportRun', importRun.id, { syncType: 'resync', intuneId });
+    return true;
+  }
+
+  async archiveDevice(intuneId: string): Promise<boolean> {
+    await db.intuneDeviceSync.update({ where: { intuneId }, data: { isArchived: true } });
+    return true;
+  }
+
+  async updateConfig(updates: Partial<{ enabled: boolean; fullSyncIntervalHours: number; incrementalSyncIntervalMinutes: number; gracePeriodHours: number; maxRetryAttempts: number; retryDelayMs: number; batchSize: number }>, userId = SYSTEM_USER) {
+    const existing = await db.intuneSyncConfig.findFirst();
+    const config = existing ? await db.intuneSyncConfig.update({ where: { id: existing.id }, data: updates }) : await db.intuneSyncConfig.create({ data: { enabled: updates.enabled ?? false, fullSyncIntervalHours: updates.fullSyncIntervalHours ?? 24, incrementalSyncIntervalMinutes: updates.incrementalSyncIntervalMinutes ?? 120, gracePeriodHours: updates.gracePeriodHours ?? 168, maxRetryAttempts: updates.maxRetryAttempts ?? 3, retryDelayMs: updates.retryDelayMs ?? 5000, batchSize: updates.batchSize ?? 100 } });
+    await this.audit(userId, 'CONFIG_CHANGE', 'IntuneSyncConfig', config.id, updates);
     return config;
   }
 
-  /**
-   * Check Intune API health
-   */
-  async checkHealth(): Promise<{ healthy: boolean; error?: string }> {
-    const httpClient = getHttpClient();
-    if (!httpClient) {
-      return { healthy: false, error: 'Intune HTTP client not initialized' };
-    }
-    return httpClient.checkHealth();
+  async getConfig() {
+    return db.intuneSyncConfig.findFirst();
+  }
+
+  async checkHealth(userId = SYSTEM_USER) {
+    const health = await this.getClient().checkHealth();
+    await this.audit(userId, 'INTUNE_HEALTH_CHECK', 'IntuneHealth', 'health-check', { healthy: health.healthy, permissions: health.permissions });
+    await this.audit(userId, 'READ_SENSITIVE', 'IntuneHealth', 'health-check', { healthy: health.healthy, permissions: health.permissions });
+    return health;
+  }
+
+  private async getEffectiveConfig() {
+    const dbConfig = await db.intuneSyncConfig.findFirst();
+    this.configManager.initialize();
+    const env = this.configManager.getConfigForAuth();
+    return { enabled: dbConfig?.enabled ?? env?.enabled ?? false, gracePeriodHours: dbConfig?.gracePeriodHours ?? env?.gracePeriodHours ?? 168 };
+  }
+
+  private getClient(): IntuneHttpClient {
+    const client = this.httpClient ?? getHttpClient();
+    if (!client) throw new AppError('Intune HTTP client not initialized', 500);
+    return client;
+  }
+
+  private async audit(userId: string, action: any, entityType: string, entityId: string, newValue: any) {
+    await auditService.logEventStandalone(prisma as any, { userId, action, entityType, entityId, newValue });
   }
 }
 
-// Singleton instance
 let syncService: IntuneSyncService | null = null;
 
 export function getSyncService(): IntuneSyncService | null {
   return syncService;
 }
 
-export function initializeSyncService(): IntuneSyncService {
-  syncService = new IntuneSyncService();
+export function initializeSyncService(httpClient?: IntuneHttpClient): IntuneSyncService {
+  syncService = new IntuneSyncService(httpClient);
   return syncService;
 }
+

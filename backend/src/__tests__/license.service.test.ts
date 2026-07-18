@@ -92,7 +92,7 @@ describe('LicenseService', () => {
 
   describe('findById', () => {
     it('should return license by id with assets', async () => {
-      mockPrismaClient.license.findUnique.mockResolvedValue({ ...mockLicense, assets: [] });
+      mockPrismaClient.license.findUnique.mockResolvedValue({ ...mockLicense, assetLinks: [] });
 
       const result = await licenseService.findById('lic-1');
 
@@ -167,7 +167,7 @@ describe('LicenseService', () => {
       await licenseService.getAssets('lic-1');
 
       expect(mockPrismaClient.asset.findMany).toHaveBeenCalledWith({
-        where: { licenseId: 'lic-1' },
+        where: { licenseLinks: { some: { licenseId: 'lic-1' } } },
         include: { assetType: true },
       });
     });

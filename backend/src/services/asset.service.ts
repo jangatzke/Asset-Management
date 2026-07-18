@@ -2,6 +2,22 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
+import { nextDisplayId } from './displayId.service';
+
+// Lifecycle status transitions allowed (AST-030)
+const LIFECYCLE_TRANSITIONS: Record<string, string[]> = {
+  planned: ['ordered', 'in_stock'],
+  ordered: ['planned', 'in_stock'],
+  in_stock: ['ordered', 'active', 'maintenance'],
+  active: ['maintenance', 'isolated'],
+  maintenance: ['active', 'decommissioned'],
+  isolated: ['active', 'decommissioned'],
+  decommissioned: ['disposed', 'destroyed'],
+  disposed: [],
+  destroyed: [],
+  lost: [],
+  unknown: ['planned', 'ordered', 'in_stock', 'active'],
+};
 
 export interface CreateAssetData {
   name: string;
@@ -17,21 +33,45 @@ export interface CreateAssetData {
   technicalOperatorId?: string;
   businessOwnerId?: string;
   informationSecurityResponsibleId?: string;
-  businessProcessId?: string;
-  serviceId?: string;
+
+  // Junction table relations (M:N) — arrays of IDs
+  processIds?: string[];
+  serviceIds?: string[];
+  contractIds?: string[];
+  licenseIds?: string[];
+
+  // Contract/License info (AST-002) — legacy convenience fields
+  licenseInfo?: string;
+  contractEndsAt?: Date;
+  licenseExpiresAt?: Date;
+
+  // Extended rating dimensions (AST-004)
+  personnelSafetyRelevance?: string;
+  regulatoryRelevance?: string;
+  financialDamagePotential?: string;
+  productionDowntimeImpact?: string;
+
   lifecycleStatus?: string;
+
+  // Dates
   purchaseDate?: Date;
   commissioningDate?: Date;
   endOfSaleDate?: Date;
   endOfLifeDate?: Date;
   endOfSupportDate?: Date;
+
+  // CIA triad needs
   confidentialityNeed?: string;
   integrityNeed?: string;
   availabilityNeed?: string;
+
   dataProtectionRelevance?: boolean;
   criticality?: string;
-  networkAddresses?: string;
-  dnsNames?: string;
+  complianceRelevance?: boolean;
+
+  // Network addresses (normalized) — replaces comma-separated string
+  networkAddresses?: Array<{ address: string; type: string; primary?: boolean }>;
+
   dataSource?: string;
   lastDetectedAt?: Date;
 }
@@ -46,9 +86,14 @@ export interface ListAssetsQuery {
   lifecycleStatus?: string;
   criticality?: string;
   organizationUnitId?: string;
+  archived?: string | boolean; // true/"true" = include archived, default exclude
 }
 
 export class AssetService {
+  // ==========================================
+  // List / Read
+  // ==========================================
+
   async list(query: ListAssetsQuery) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
@@ -56,11 +101,19 @@ export class AssetService {
 
     const where: Prisma.AssetWhereInput = {};
 
+    // Exclude archived assets by default unless explicitly requested.
+    // Use isArchived for compatibility with the generated Prisma client;
+    // archivedAt is written on archive/restore and becomes queryable after client regeneration.
+    if (query.archived !== true && query.archived !== 'true') {
+      where.isArchived = false;
+    }
+
     if (query.search) {
       where.OR = [
         { name: { contains: query.search, mode: 'insensitive' } },
         { description: { contains: query.search, mode: 'insensitive' } },
         { serialNumber: { contains: query.search, mode: 'insensitive' } },
+        { displayId: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
@@ -90,6 +143,11 @@ export class AssetService {
           assetType: true,
           organizationUnit: true,
           location: true,
+          networkAddresses: true,
+          processLinks: { include: { process: true } },
+          serviceLinks: { include: { service: true } },
+          contractLinks: { include: { contract: true } },
+          licenseLinks: { include: { license: true } },
         },
       }),
       prisma.asset.count({ where }),
@@ -113,12 +171,17 @@ export class AssetService {
         assetType: true,
         organizationUnit: true,
         location: true,
+        networkAddresses: true,
         sourceRelations: {
           include: { targetAsset: true },
         },
         targetRelations: {
           include: { sourceAsset: true },
         },
+        processLinks: { include: { process: true } },
+        serviceLinks: { include: { service: true } },
+        contractLinks: { include: { contract: true } },
+        licenseLinks: { include: { license: true } },
       },
     });
 
@@ -129,47 +192,114 @@ export class AssetService {
     return asset;
   }
 
-  async create(data: CreateAssetData, createdBy?: string) {
-    const displayId = `AST-${Date.now()}`;
+  // ==========================================
+  // Create (with DisplayId, junction tables, network addresses)
+  // ==========================================
 
-    const asset = await prisma.asset.create({
-      data: {
+  async create(data: CreateAssetData, createdBy?: string) {
+    const asset = await prisma.$transaction(async (tx) => {
+      // Generate sequential display ID (ASSET-0001, ASSET-0002, ...)
+      const displayId = await nextDisplayId(tx, 'Asset');
+
+      const assetData: any = {
         ...data,
         displayId,
         createdBy,
-      },
-      include: {
-        assetType: true,
-        organizationUnit: true,
-        location: true,
-      },
+        // Ensure new assets are active. archivedAt is included for the normalized schema;
+        // any is used because local Prisma client generation can be stale on Windows file locks.
+        isArchived: false,
+        archivedAt: null,
+      };
+
+      const createdAsset = await tx.asset.create({
+        data: assetData,
+        include: {
+          assetType: true,
+          organizationUnit: true,
+          location: true,
+        },
+      });
+
+      // Create network addresses if provided
+      if (data.networkAddresses && data.networkAddresses.length > 0) {
+        await tx.networkAddress.createMany({
+          data: data.networkAddresses.map((na) => ({
+            assetId: createdAsset.id,
+            address: na.address,
+            type: na.type,
+            primary: na.primary ?? false,
+          })),
+        });
+      }
+
+      // Create junction table entries for M:N relations
+      if (data.processIds && data.processIds.length > 0) {
+        await tx.assetProcess.createMany({
+          data: data.processIds.map((processId) => ({
+            assetId: createdAsset.id,
+            processId,
+          })),
+        });
+      }
+
+      if (data.serviceIds && data.serviceIds.length > 0) {
+        await tx.assetService.createMany({
+          data: data.serviceIds.map((serviceId) => ({
+            assetId: createdAsset.id,
+            serviceId,
+          })),
+        });
+      }
+
+      if (data.contractIds && data.contractIds.length > 0) {
+        await tx.assetContract.createMany({
+          data: data.contractIds.map((contractId) => ({
+            assetId: createdAsset.id,
+            contractId,
+          })),
+        });
+      }
+
+      if (data.licenseIds && data.licenseIds.length > 0) {
+        await tx.assetLicense.createMany({
+          data: data.licenseIds.map((licenseId) => ({
+            assetId: createdAsset.id,
+            licenseId,
+          })),
+        });
+      }
+
+      // AST-030: Log initial lifecycle status in transaction
+      const lifecycleStatus = data.lifecycleStatus ?? 'planned';
+      await tx.assetLifecycleLog.create({
+        data: {
+          assetId: createdAsset.id,
+          newStatus: lifecycleStatus,
+          changedByUserId: createdBy,
+          reason: 'Asset created',
+        },
+      });
+
+      return createdAsset;
     });
 
-    // Audit log for asset creation
+    // Audit log for asset creation (outside transaction to avoid lock issues)
     if (createdBy) {
       await auditService.logEventStandalone(prisma, {
         userId: createdBy,
         action: 'ASSET_CREATE',
         entityType: 'Asset',
         entityId: asset.id,
-        details: `Created asset: ${data.name}`,
+        details: `Created asset: ${data.name} (${asset.displayId})`,
       });
     }
 
-    // AST-030: Log initial lifecycle status
-    if (data.lifecycleStatus) {
-      await prisma.assetLifecycleLog.create({
-        data: {
-          assetId: asset.id,
-          newStatus: data.lifecycleStatus,
-          changedByUserId: createdBy,
-          reason: 'Asset created',
-        },
-      });
-    }
-
-    return asset;
+    return this.getById(asset.id);
   }
+
+  // ==========================================
+  // Update (with junction table sync, lifecycle logging)
+  // ==========================================
 
   async update(id: string, data: UpdateAssetData, updatedBy?: string) {
     const existing = await prisma.asset.findUnique({ where: { id } });
@@ -177,73 +307,381 @@ export class AssetService {
       throw new AppError('Asset not found', 404);
     }
 
-    // Audit log for asset update (if critical fields changed)
-    if (updatedBy && (data.criticality !== undefined || data.lifecycleStatus !== undefined)) {
-      await auditService.logEventStandalone(prisma, {
-        userId: updatedBy,
-        action: 'ASSET_UPDATE',
-        entityType: 'Asset',
-        entityId: id,
-        details: `Updated asset: ${existing.name}`,
-        oldValue: { criticality: existing.criticality, lifecycleStatus: existing.lifecycleStatus },
-        newValue: { criticality: data.criticality ?? existing.criticality, lifecycleStatus: data.lifecycleStatus ?? existing.lifecycleStatus },
-      });
+    // Cannot update archived assets (except unarchive — use restore method)
+    if ((existing as any).archivedAt || existing.isArchived) {
+      throw new AppError('Cannot modify archived asset. Restore it first.', 409);
     }
 
-    // AST-030: Log lifecycle status changes
-    const statusChanged = data.lifecycleStatus && data.lifecycleStatus !== existing.lifecycleStatus;
+    const result = await prisma.$transaction(async (tx) => {
+      // Audit log for critical field changes
+      if (updatedBy && (data.criticality !== undefined || data.lifecycleStatus !== undefined)) {
+        await auditService.logEventStandalone(prisma, {
+          userId: updatedBy,
+          action: 'ASSET_UPDATE',
+          entityType: 'Asset',
+          entityId: id,
+          details: `Updated asset: ${existing.name}`,
+          oldValue: { criticality: existing.criticality, lifecycleStatus: existing.lifecycleStatus },
+          newValue: {
+            criticality: data.criticality ?? existing.criticality,
+            lifecycleStatus: data.lifecycleStatus ?? existing.lifecycleStatus,
+          },
+        });
+      }
 
-    const asset = await prisma.asset.update({
-      where: { id },
-      data: {
-        ...data,
+      // AST-030: Log lifecycle status changes in transaction
+      const statusChanged = data.lifecycleStatus && data.lifecycleStatus !== existing.lifecycleStatus;
+
+      // Build update data without networkAddresses (handled separately)
+      const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, ...updateFields } = data;
+      const updateData: Prisma.AssetUpdateInput = {
+        ...updateFields,
         updatedBy,
-      },
-      include: {
-        assetType: true,
-        organizationUnit: true,
-        location: true,
-      },
-    });
+      };
 
-    if (statusChanged) {
-      await prisma.assetLifecycleLog.create({
-        data: {
-          assetId: id,
-          previousStatus: existing.lifecycleStatus,
-          newStatus: data.lifecycleStatus!,
-          changedByUserId: updatedBy,
+      const updatedAsset = await tx.asset.update({
+        where: { id },
+        data: updateData,
+        include: {
+          assetType: true,
+          organizationUnit: true,
+          location: true,
         },
       });
-    }
 
-    return asset;
+      // Sync network addresses if provided (delete old, create new)
+      if (networkAddresses !== undefined) {
+        await tx.networkAddress.deleteMany({ where: { assetId: id } });
+        if (networkAddresses.length > 0) {
+          await tx.networkAddress.createMany({
+            data: networkAddresses.map((na: any) => ({
+              assetId: id,
+              address: na.address,
+              type: na.type,
+              primary: na.primary ?? false,
+            })),
+          });
+        }
+      }
+
+      // Sync junction table entries if provided (delete old, create new)
+      if (processIds !== undefined) {
+        await tx.assetProcess.deleteMany({ where: { assetId: id } });
+        if (processIds.length > 0) {
+          await tx.assetProcess.createMany({
+            data: processIds.map((processId: string) => ({
+              assetId: id,
+              processId,
+            })),
+          });
+        }
+      }
+
+      if (serviceIds !== undefined) {
+        await tx.assetService.deleteMany({ where: { assetId: id } });
+        if (serviceIds.length > 0) {
+          await tx.assetService.createMany({
+            data: serviceIds.map((serviceId: string) => ({
+              assetId: id,
+              serviceId,
+            })),
+          });
+        }
+      }
+
+      if (contractIds !== undefined) {
+        await tx.assetContract.deleteMany({ where: { assetId: id } });
+        if (contractIds.length > 0) {
+          await tx.assetContract.createMany({
+            data: contractIds.map((contractId: string) => ({
+              assetId: id,
+              contractId,
+            })),
+          });
+        }
+      }
+
+      if (licenseIds !== undefined) {
+        await tx.assetLicense.deleteMany({ where: { assetId: id } });
+        if (licenseIds.length > 0) {
+          await tx.assetLicense.createMany({
+            data: licenseIds.map((licenseId: string) => ({
+              assetId: id,
+              licenseId,
+            })),
+          });
+        }
+      }
+
+      // Log lifecycle status change in transaction
+      if (statusChanged) {
+        await tx.assetLifecycleLog.create({
+          data: {
+            assetId: id,
+            previousStatus: existing.lifecycleStatus,
+            newStatus: data.lifecycleStatus!,
+            changedByUserId: updatedBy,
+          },
+        });
+      }
+
+      return updatedAsset;
+    });
+
+    return this.getById(result.id);
   }
 
-  async delete(id: string, deletedBy?: string) {
+  // ==========================================
+  // Archive (soft-delete) — Admin only
+  // ==========================================
+
+  async archive(id: string, archivedBy?: string, reason?: string) {
     const existing = await prisma.asset.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Asset not found', 404);
     }
 
-    // Audit log for asset deletion (archiving)
-    if (deletedBy) {
+    if ((existing as any).archivedAt || existing.isArchived) {
+      throw new AppError('Asset is already archived', 409);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.asset.update({
+        where: { id },
+        data: {
+          isArchived: true,
+          archivedAt: new Date(),
+          lifecycleStatus: 'decommissioned', // Force lifecycle to decommissioned on archive
+        } as any,
+      });
+
+      // Log lifecycle change in transaction
+      if (existing.lifecycleStatus !== 'decommissioned') {
+        await tx.assetLifecycleLog.create({
+          data: {
+            assetId: id,
+            previousStatus: existing.lifecycleStatus,
+            newStatus: 'decommissioned',
+            changedByUserId: archivedBy,
+            reason: `Archived${reason ? ': ' + reason : ''}`,
+          },
+        });
+      }
+    });
+
+    // Audit log for archiving
+    if (archivedBy) {
       await auditService.logEventStandalone(prisma, {
-        userId: deletedBy,
-        action: 'ASSET_DELETE',
+        userId: archivedBy,
+        action: 'ASSET_ARCHIVE',
         entityType: 'Asset',
         entityId: id,
-        details: `Archived asset: ${existing.name}`,
+        details: `Archived asset: ${existing.name} (${existing.displayId})${reason ? ': ' + reason : ''}`,
       });
     }
 
-    await prisma.asset.update({
-      where: { id },
-      data: { isArchived: true },
+    return { success: true, archivedAt: new Date() };
+  }
+
+  // ==========================================
+  // Restore (un-archive) — Admin only
+  // ==========================================
+
+  async restore(id: string, restoredBy?: string, reason?: string) {
+    const existing = await prisma.asset.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError('Asset not found', 404);
+    }
+
+    if (!(existing as any).archivedAt && !existing.isArchived) {
+      throw new AppError('Asset is not archived', 409);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.asset.update({
+        where: { id },
+        data: {
+          isArchived: false,
+          archivedAt: null,
+          lifecycleStatus: 'planned', // Reset to planned on restore
+        } as any,
+      });
+
+      // Log lifecycle change in transaction
+      await tx.assetLifecycleLog.create({
+        data: {
+          assetId: id,
+          previousStatus: existing.lifecycleStatus,
+          newStatus: 'planned',
+          changedByUserId: restoredBy,
+          reason: `Restored${reason ? ': ' + reason : ''}`,
+        },
+      });
     });
+
+    // Audit log for restore
+    if (restoredBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: restoredBy,
+        action: 'ASSET_RESTORE',
+        entityType: 'Asset',
+        entityId: id,
+        details: `Restored asset: ${existing.name} (${existing.displayId})${reason ? ': ' + reason : ''}`,
+      });
+    }
 
     return { success: true };
   }
+
+  // ==========================================
+  // Delete (legacy — delegates to archive)
+  // ==========================================
+
+  async delete(id: string, deletedBy?: string) {
+    return this.archive(id, deletedBy);
+  }
+
+  // ==========================================
+  // Lifecycle Transition (AST-030) — validates transitions in transaction
+  // ==========================================
+
+  async transitionLifecycle(
+    id: string,
+    newStatus: string,
+    userId?: string,
+    reason?: string,
+  ) {
+    const existing = await prisma.asset.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError('Asset not found', 404);
+    }
+
+    // Validate transition is allowed
+    const allowedTransitions = LIFECYCLE_TRANSITIONS[existing.lifecycleStatus];
+    if (!allowedTransitions || !allowedTransitions.includes(newStatus)) {
+      throw new AppError(
+        `Invalid lifecycle transition from '${existing.lifecycleStatus}' to '${newStatus}'. Allowed: ${allowedTransitions.join(', ')}`,
+        409,
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Update asset status in transaction
+      const updateData: any = {
+        lifecycleStatus: newStatus,
+        updatedBy: userId,
+      };
+
+      // If transitioning to disposed/destroyed, set disposal fields if provided
+      if ((newStatus === 'disposed' || newStatus === 'destroyed') && reason) {
+        updateData.disposalDate = new Date();
+        updateData.disposalMethod = reason;
+        updateData.disposalResponsible = userId ?? null;
+      }
+
+      await tx.asset.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // Log lifecycle change in transaction
+      await tx.assetLifecycleLog.create({
+        data: {
+          assetId: id,
+          previousStatus: existing.lifecycleStatus,
+          newStatus,
+          changedByUserId: userId,
+          reason,
+        },
+      });
+    });
+
+    // Audit log for lifecycle transition
+    if (userId) {
+      await auditService.logEventStandalone(prisma, {
+        userId,
+        action: 'ASSET_LIFECYCLE_TRANSITION',
+        entityType: 'Asset',
+        entityId: id,
+        details: `Lifecycle transition: ${existing.lifecycleStatus} → ${newStatus}${reason ? ': ' + reason : ''}`,
+        oldValue: { lifecycleStatus: existing.lifecycleStatus },
+        newValue: { lifecycleStatus: newStatus },
+      });
+    }
+
+    return this.getById(id);
+  }
+
+  // ==========================================
+  // Disposal Proof (AST-031) — record disposal evidence
+  // ==========================================
+
+  async setDisposalProof(
+    id: string,
+    disposalDate: Date,
+    disposalMethod: string,
+    disposalResponsible: string,
+    userId?: string,
+  ) {
+    const existing = await prisma.asset.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError('Asset not found', 404);
+    }
+
+    // Only allow disposal proof on decommissioned/disposed/destroyed assets
+    const allowedStatuses = ['decommissioned', 'disposed', 'destroyed'];
+    if (!allowedStatuses.includes(existing.lifecycleStatus)) {
+      throw new AppError(
+        `Cannot set disposal proof for asset in status '${existing.lifecycleStatus}'. Must be decommissioned, disposed, or destroyed.`,
+        409,
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.asset.update({
+        where: { id },
+        data: {
+          disposalDate,
+          disposalMethod,
+          disposalResponsible,
+          updatedBy: userId,
+        },
+      });
+
+      // Log in lifecycle log with disposal evidence
+      await tx.assetLifecycleLog.create({
+        data: {
+          assetId: id,
+          previousStatus: existing.lifecycleStatus,
+          newStatus: 'disposed',
+          changedByUserId: userId,
+          reason: `Disposal proof recorded: ${disposalMethod}`,
+          disposalEvidence: JSON.stringify({
+            disposalDate,
+            disposalMethod,
+            disposalResponsible,
+          }),
+        },
+      });
+    });
+
+    // Audit log for disposal proof
+    if (userId) {
+      await auditService.logEventStandalone(prisma, {
+        userId,
+        action: 'ASSET_DISPOSAL_PROOF',
+        entityType: 'Asset',
+        entityId: id,
+        details: `Disposal proof recorded for ${existing.name}: method=${disposalMethod}, responsible=${disposalResponsible}`,
+      });
+    }
+
+    return this.getById(id);
+  }
+
+  // ==========================================
+  // Relations
+  // ==========================================
 
   async getRelations(assetId: string) {
     const asset = await prisma.asset.findUnique({
@@ -293,6 +731,10 @@ export class AssetService {
     return relation;
   }
 
+  // ==========================================
+  // Asset Types
+  // ==========================================
+
   async getAssetTypes() {
     return prisma.assetType.findMany({
       where: { isArchived: false },
@@ -300,7 +742,10 @@ export class AssetService {
     });
   }
 
-  // AST-030: List lifecycle logs for an asset
+  // ==========================================
+  // Lifecycle Logs (AST-030)
+  // ==========================================
+
   async getLifecycleLogs(assetId: string) {
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) {
@@ -313,12 +758,14 @@ export class AssetService {
     });
   }
 
-  // AST-032 + AST-034: Find assets without owner, without criticality rating, without audit status, or past end-of-life/support/sale dates
+  // ==========================================
+  // Incomplete Assets (AST-032 + AST-034)
+  // ==========================================
+
   async findIncompleteAssets() {
     const now = new Date();
 
     const [withoutOwner, withoutCriticality, withoutAuditStatus, endOfSupportPassed, endOfLifePassed, endOfSalePassed] = await Promise.all([
-      // Assets missing business owner OR technical operator
       prisma.asset.findMany({
         where: {
           isArchived: false,
@@ -332,17 +779,15 @@ export class AssetService {
           businessOwnerId: true, technicalOperatorId: true, criticality: true,
         },
       }),
-      // Assets without criticality rating (still at default 'low' but never explicitly rated)
       prisma.asset.findMany({
         where: {
           isArchived: false,
-          criticality: 'low', // In practice, you'd track whether it was explicitly set
+          criticality: 'low',
         },
         select: {
           id: true, name: true, displayId: true, assetTypeId: true, criticality: true,
         },
       }),
-      // Assets without current audit status (no recent audit)
       prisma.asset.findMany({
         where: {
           isArchived: false,
@@ -352,7 +797,6 @@ export class AssetService {
           id: true, name: true, displayId: true, assetTypeId: true, dataSource: true,
         },
       }),
-      // AST-034: Assets past end of support date (no longer supported by vendor)
       prisma.asset.findMany({
         where: {
           isArchived: false,
@@ -363,7 +807,6 @@ export class AssetService {
           endOfSupportDate: true, criticality: true,
         },
       }),
-      // AST-034: Assets past end of life date (should be decommissioned)
       prisma.asset.findMany({
         where: {
           isArchived: false,
@@ -374,7 +817,6 @@ export class AssetService {
           endOfLifeDate: true, criticality: true, lifecycleStatus: true,
         },
       }),
-      // AST-034: Assets past end of sale date (no longer available for purchase)
       prisma.asset.findMany({
         where: {
           isArchived: false,
@@ -391,14 +833,16 @@ export class AssetService {
       withoutOwner: withoutOwner.map(a => ({ ...a, issue: 'missing_owner' as const })),
       withoutCriticality: withoutCriticality.map(a => ({ ...a, issue: 'unrated_criticality' as const })),
       withoutAuditStatus: withoutAuditStatus.map(a => ({ ...a, issue: 'no_audit_status' as const })),
-      // AST-034: Unmanaged asset reports for end-of-life/support/sale
       endOfSupportPassed: endOfSupportPassed.map(a => ({ ...a, issue: 'end_of_support_passed' as const })),
       endOfLifePassed: endOfLifePassed.map(a => ({ ...a, issue: 'end_of_life_passed' as const })),
       endOfSalePassed: endOfSalePassed.map(a => ({ ...a, issue: 'end_of_sale_passed' as const })),
     };
   }
 
-  // AST-033: Responsibility confirmation workflow
+  // ==========================================
+  // Responsibility Confirmation (AST-033)
+  // ==========================================
+
   async confirmResponsibility(assetId: string, userId: string, role: 'owner' | 'operator' | 'security_responsible') {
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) {
