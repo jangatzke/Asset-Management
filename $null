@@ -1,2 +1,4 @@
-Der Befehl "start-sleep" ist entweder falsch geschrieben oder
-konnte nicht gefunden werden.
+Ein Unterverzeichnis oder eine Datei mit dem Namen ".github" existiert bereits.
+Folgender Fehler trat auf: .github.
+Ein Unterverzeichnis oder eine Datei mit dem Namen ".github\workflows" existiert bereits.
+Folgender Fehler trat auf: .github\workflows.

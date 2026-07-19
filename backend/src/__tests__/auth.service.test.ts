@@ -57,6 +57,18 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
+    it('should reject self-registration by default', async () => {
+      delete process.env.ALLOW_SELF_REGISTRATION;
+
+      await expect(authService.register({
+        email: 'blocked@example.com',
+        password: 'password123',
+        firstName: 'Blocked',
+        lastName: 'User',
+      })).rejects.toThrow('Self-registration is disabled. Contact your administrator.');
+      expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
+    });
+
     it('should register a new user successfully', async () => {
       const registerData = {
         email: 'newuser@example.com',

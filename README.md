@@ -16,8 +16,11 @@ A comprehensive, full-stack IT asset management and Information Security Managem
 - [API Overview](#api-overview)
 - [Data Models](#data-models)
 - [Integrations](#integrations)
+- [Phase 8 Features](#phase-8-features)
 - [Testing](#testing)
 - [Multi-language Support](#multi-language-support)
+- [Documentation](#documentation)
+- [Scripts Reference](#scripts-reference)
 
 ---
 
@@ -97,7 +100,7 @@ A comprehensive, full-stack IT asset management and Information Security Managem
 | **HTTP Client** | Axios |
 | **Authentication** | JWT, OpenID Connect (openid-client) |
 | **Validation** | Zod |
-| **Testing** | Jest (backend), Vitest (frontend), Supertest |
+| **Testing** | Jest, ts-jest (backend), Vitest (frontend), Supertest |
 
 ---
 
@@ -147,10 +150,8 @@ asset-management-isms/
 │   │       ├── asset.ts       # Asset, Contract, License types
 │   │       ├── common.ts      # Base entity types
 │   │       ├── control.ts     # Control and compliance types
-│   │       ├── incident.ts    # Incident management types
-│   │       ├── organization.ts # Org unit and site types
-│   │       ├── risk.ts        # Risk and treatment types
-│   │       └── user.ts        # User, role, and auth types
+│   │       ├── graph.ts       # Graph API types
+│   │       └── index.ts       # Type exports
 │   └── package.json
 ├── plan.md                     # ISO 27001 gap analysis document
 ├── package.json                # Root workspace configuration
@@ -172,7 +173,7 @@ This installs dependencies for `backend`, `frontend`, and `shared` workspaces si
 
 ### 2. Database Setup
 
-Ensure PostgreSQL is running, then create the database:
+Ensure PostgreSQL >= 16 is running, then create the database:
 
 ```bash
 # Create database (adjust credentials as needed)
@@ -205,33 +206,56 @@ Configure the following variables in `backend/.env`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NODE_ENV` | Environment mode | `development` |
-| `PORT` | Server port | `3000` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:password@localhost:5432/asset_management` |
+| `PORT` | Backend API server port | `3001` |
+| `HOST` | Bind address | `0.0.0.0` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:password@localhost:5432/asset_management?schema=public` |
 | `JWT_SECRET` | Secret for JWT token signing | *(required, change in production)* |
 | `JWT_ACCESS_TOKEN_EXPIRES_IN` | Access token TTL | `1h` |
 | `JWT_REFRESH_TOKEN_EXPIRES_IN` | Refresh token TTL | `7d` |
-| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:5173` |
+| `CORS_ORIGINS` | Comma-separated allowed CORS origins | `http://localhost:3000` |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window (ms) | `900000` |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | `100` |
 | `SESSION_TIMEOUT_MINUTES` | Session timeout | `30` |
+| `MAX_FILE_SIZE` | Max upload size in bytes | `10485760` |
+| `UPLOAD_DIR` | Upload directory path | `./uploads` |
 
 ### Intune Integration (Optional)
 
-| Variable | Description |
-|----------|-------------|
-| `INTUNE_ENABLED` | Enable Intune sync (`true`/`false`) |
-| `INTUNE_TENANT_ID` | Microsoft Entra ID tenant ID |
-| `INTUNE_APP_ID` | Registered app (client) ID |
-| `INTUNE_CERT_PATH` | Path to PEM certificate file |
-| `INTUNE_CERT_THUMPRINT` | Certificate thumbprint |
-| `INTUNE_FULL_SYNC_INTERVAL` | Full sync interval in hours |
-| `INTUNE_INCREMENTAL_SYNC_INTERVAL` | Incremental sync interval in minutes |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `INTUNE_ENABLED` | Enable Intune sync (`true`/`false`) | `false` |
+| `INTUNE_TENANT_ID` | Microsoft Entra ID tenant ID | — |
+| `INTUNE_APP_ID` | Registered app (client) ID | — |
+| `INTUNE_CERT_PRIVATE_KEY_SECRET_REF` | SecretStore reference for PEM private key | — |
+| `INTUNE_CERT_X5C_SECRET_REF` | SecretStore reference for x5c public cert chain | — |
+| `INTUNE_CERT_THUMBPRINT` | Certificate thumbprint | — |
+| `INTUNE_APP_NAME` | Display name for synced devices | `Asset-Management` |
+| `INTUNE_FULL_SYNC_INTERVAL` | Full sync interval in hours | `24` |
+| `INTUNE_INCREMENTAL_SYNC_INTERVAL` | Incremental sync interval in minutes | `120` |
+| `INTUNE_GRACE_PERIOD_HOURS` | Grace period before stale/review marking (hours) | `168` |
+| `INTUNE_MAX_RETRY_ATTEMPTS` | Max retry attempts for API requests | `3` |
+| `INTUNE_RETRY_DELAY_MS` | Base retry delay in milliseconds | `5000` |
+| `INTUNE_BATCH_SIZE` | Batch size for sync operations | `100` |
 
 ### VMware Integration (Optional)
 
 | Variable | Description |
 |----------|-------------|
 | `VMWARE_ENCRYPTION_KEY` | AES-256-CBC key (exactly 32 bytes) for encrypting vCenter credentials |
+
+### Webhook Integration (Optional)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `WEBHOOK_TIMEOUT_MS` | Outbound webhook timeout in milliseconds | `10000` |
+| `WEBHOOK_MAX_RETRIES` | Max retry attempts for failed webhooks | `3` |
+| `WEBHOOK_RETRY_DELAY_MS` | Delay between webhook retry attempts (ms) | `5000` |
+
+### Service Account (Optional)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SERVICE_ACCOUNT_PREFIX` | Prefix for generated service account tokens | `svc` |
 
 ---
 
@@ -256,9 +280,13 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-- **Backend**: `http://localhost:3000`
-- **Frontend**: `http://localhost:5173`
-- **Health Check**: `http://localhost:3000/health`
+- **Frontend**: `http://localhost:3000`
+- **Backend**: `http://localhost:3001`
+- **Frontend API proxy**: `http://localhost:3000/api` → `http://localhost:3001/api`
+- **Health Check (Liveness)**: `http://localhost:3001/health/live`
+- **Readiness Probe**: `http://localhost:3001/health/ready`
+- **Metrics (Prometheus)**: `http://localhost:3001/metrics`
+- **API Feature Flags**: `http://localhost:3001/api-info`
 
 ### Production Build
 
@@ -295,6 +323,14 @@ All API endpoints are prefixed with `/api/v1/`.
 | `/api/v1/intune` | Intune Integration | Device/app sync status and triggers |
 | `/api/v1/admin/vmware` | VMware Integration | vCenter server and credential management |
 | `/api/v1/admin/proxmox` | Proxmox Integration | Proxmox server and credential management |
+| `/api/v1/document` | Document Control | Policy document lifecycle and versioning |
+| `/api/v1/evidence` | Evidence Management | Evidence CRUD and audit package export |
+| `/api/v1/framework` | Framework Management | Framework import, versioning, control mapping |
+| `/api/v1/import` | Import Integration | Integration sources, import runs, field locks |
+| `/api/v1/nis2` | NIS-2 Compliance | Questionnaires, applicability assessments, registrations |
+| `/api/v1/phase6` | ISMS Phase 6 | Generic resource CRUD, workflows, CAPA, training |
+| `/api/v1/service-accounts` | Service Accounts | Token-based service account management |
+| `/api/v1/webhooks` | Webhook Management | Outbound webhook configuration and delivery |
 
 ---
 
@@ -364,6 +400,12 @@ The database schema is defined in [`backend/prisma/schema.prisma`](backend/prism
 | `IntuneSyncConfig` | Intune sync scheduling configuration |
 | `VCenterServer` | VMware vCenter connection configuration |
 | `ProxmoxServer` | Proxmox VE connection configuration |
+| `ServiceAccount` | Token-based service account credentials |
+| `IntegrationSource` | Generic import integration source config |
+| `ImportRun` | Import execution tracking |
+| `LockField` | Asset field-level import locks |
+| `Webhook` | Outbound webhook configuration |
+| `WebhookDelivery` | Webhook delivery history |
 
 ---
 
@@ -402,6 +444,31 @@ Integrates with Proxmox Virtual Environment for VM discovery.
 
 ---
 
+## Phase 8 Features
+
+### Correlation IDs
+Every request is assigned a unique correlation ID (X-Correlation-ID header) for distributed tracing across the system.
+
+### ETag & Conditional Requests
+All resource endpoints support ETag headers with `If-None-Match` / `If-Match` headers for cache-efficient CRUD operations.
+
+### Idempotency
+Write endpoints support `Idempotency-Key` header to safely retry requests without side effects.
+
+### Health Checks
+Three health endpoints for Kubernetes-compatible orchestration:
+- `/health/live` — Liveness probe (process alive)
+- `/health/ready` — Readiness probe (DB, dependencies healthy)
+- `/metrics` — Prometheus-compatible metrics endpoint
+
+### Structured JSON Logging
+All requests and application events are logged as structured JSON via the [`jsonLogger`](backend/src/middleware/jsonLogger.ts) middleware.
+
+### Graceful Shutdown
+The server handles `SIGTERM`/`SIGINT` signals, drains active connections, and flushes logs before exit via [`gracefulShutdown`](backend/src/middleware/gracefulShutdown.ts).
+
+---
+
 ## Testing
 
 ### Backend Tests
@@ -419,6 +486,12 @@ Test files are located in `backend/src/__tests__/` and cover:
 - Risk aggregation and treatment
 - Contract, license, and business process services
 - Admin role and user management
+- Authorization and authorization middleware
+- OIDC security
+- Phase 4/5/6 service tests
+- Phase 8 features: correlation-id, ETag, idempotency, health checks, webhook delivery
+- Validation middleware
+- Route ordering
 
 ### Frontend Tests
 
@@ -454,6 +527,26 @@ The application supports English and German translations via `react-i18next`.
 | `npm run format` | Format all files with Prettier |
 | `npm run db:migrate` | Run Prisma migrations (backend) |
 | `npm run db:generate` | Generate Prisma client (backend) |
+| `npm run db:seed` | Seed database (backend) |
+| `npm run db:deploy` | Deploy Prisma migrations (backend) |
+
+---
+
+## Documentation
+
+Additional documentation is available in the [`docs/`](docs/) directory:
+
+| File | Description |
+|------|-------------|
+| [`docs/architecture.md`](docs/architecture.md) | System architecture overview with mermaid diagrams |
+| [`docs/operations.md`](docs/operations.md) | Operations manual: health checks, logging, backup, DR |
+| [`docs/security-model.md`](docs/security-model.md) | Security model, threat analysis, and controls |
+| [`docs/compliance-matrix.md`](docs/compliance-matrix.md) | ISO 27001 / NIS-2 compliance mapping |
+| [`docs/compliance-matrix.yml`](docs/compliance-matrix.yml) | Machine-readable compliance matrix |
+| [`docs/requirements.md`](docs/requirements.md) | Functional and non-functional requirements |
+| [`docs/implementation-log.md`](docs/implementation-log.md) | Development and deployment history |
+| [`docs/final-verification-report.md`](docs/final-verification-report.md) | Final verification and validation report |
+| [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | OpenAPI 3.1.0 specification |
 
 ---
 

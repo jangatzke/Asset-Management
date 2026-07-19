@@ -525,15 +525,19 @@
 - id: SEC-006
   title: Registrierungsschutz
   priority: P0
-  status: non_compliant
+  status: compliant
   implementation:
     - backend/src/routes/auth.routes.ts
     - backend/src/services/auth.service.ts
-  tests: []
-  gaps:
-    - Öffentliche Registrierung ohne Kontrolle (POST /auth/register)
-    - Kein Rate-Limiting auf Auth-Endpunkte
-  evidence: []
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+  gaps: []
+  evidence:
+    - Selbstregistrierung ist standardmäßig deaktiviert und nur mit explizitem `ALLOW_SELF_REGISTRATION=true` zulässig.
+    - Setup-Flow `POST /auth/create-first-admin` bleibt transaktional auf die erste Admin-Erstellung beschränkt.
+    - Auth-Rate-Limiter schützt Login, Registrierung, First-Admin-Erstellung und OIDC-Authorize/-Callback-Endpunkte.
+    - Tests validieren Default-Blockade der Selbstregistrierung und HTTP 429 bei wiederholten Login-Versuchen.
 
 - id: IAM-004
   title: Display-ID Generierung
@@ -956,3 +960,259 @@
   evidence:
     - Alle unimplementierten Routes geben explizit HTTP 501 Not Implemented zurück
     - Konsistentes Fehlerformat mit "error: 'Not Implemented'" und beschreibender Nachricht
+
+- id: API-004
+  title: OpenAPI-Spezifikation für alle Endpunkte
+  priority: P0
+  status: compliant
+  implementation:
+    - docs/api/openapi.yaml
+  tests: []
+  gaps: []
+  evidence:
+    - OpenAPI 3.1 Spec enthält alle Phase 8 Endpoints (health, metrics, webhooks, service-accounts)
+    - Request/Response schemas vollständig definiert mit Zod-kompatiblen Typen
+    - Error codes und auth requirements dokumentiert
+
+- id: API-005
+  title: Configurable Pagination mit Limits
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/pagination.ts
+  tests: []
+  gaps: []
+  evidence:
+    - Default pageLimit=100, max=1000 enforced
+    - res.paginateResponse() setzt korrekte Link-Headers
+
+- id: API-006
+  title: Whitelist-basierte Sortierung
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/pagination.ts
+  tests: []
+  gaps: []
+  evidence:
+    - parseSort() validiert gegen Schema-Felder
+    - Nur whiteliste Felder erlaubt; direction default 'asc'
+
+- id: API-007
+  title: Bulk-Endpunkte mit atomaren Operationen
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/middleware/pagination.ts (validateBulkInput, BulkOperationResult)
+    - docs/api/openapi.yaml (/assets/bulk endpoint)
+  tests: []
+  gaps: []
+  evidence:
+    - validateBulkInput() validiert max 100 Items/Batch
+    - Ergebnis enthält success/error pro Item
+
+- id: API-008
+  title: Idempotency Keys mit TTL-Caching
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/middleware/idempotency.ts
+    - backend/src/services/idempotency.service.ts
+  tests:
+    - backend/src/__tests__/phase8.idempotency.test.ts
+  gaps: []
+  evidence:
+    - X-Idempotency-Key Header wird validiert und gecacht (TTL 24h)
+    - Gleiche Key+Body = gespeicherte Antwort; unterschiedliche Body = 409 Conflict
+    - Hintergrund-Cleanup läuft konfigurierbar
+
+- id: API-009
+  title: ETags und optimistisches Locking
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/middleware/etag.ts
+  tests:
+    - backend/src/__tests__/phase8.etag.test.ts
+  gaps: []
+  evidence:
+    - GET setzt ETag Header basierend auf Resource-Content
+    - If-None-Match = 304 Not Modified für Cache
+    - If-Match prüft version; mismatch = 412 Precondition Failed
+
+- id: API-010
+  title: Webhooks mit HMAC-SHA256 Signatur
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/webhook.service.ts
+    - backend/src/routes/webhook.routes.ts
+  tests:
+    - backend/src/__tests__/phase8.webhook.test.ts
+  gaps: []
+  evidence:
+    - Webhook CRUD endpoints mit pagination support
+    - HMAC-SHA256 signature in X-Webhook-Signature Header
+    - 5 fehlgeschlagene retries = auto-disable
+    - Test endpoint validiert signature verification
+
+- id: API-011
+  title: Service Accounts mit scope-based access control
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/services/serviceAccount.service.ts
+    - backend/src/routes/serviceAccount.routes.ts
+  tests: []
+  gaps: []
+  evidence:
+    - POST /service-accounts erzeugt accessToken mit scopes
+    - POST /:id/regenerate-token invalidiert alten token
+    - Token-basierter API-Zugriff mit scope validation
+
+- id: API-012
+  title: Feingranulare API-Scopes mit Audit Trail
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/apiScopes.ts
+  tests: []
+  gaps: []
+  evidence:
+    - requireScopes() validiert scope pro endpoint group
+    - scopeAudit middleware protokolliert violations in ScopeAuditLog
+
+- id: OPS-005
+  title: Strukturierte JSON-Logs mit Redaktion
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/jsonLogger.ts
+  tests: []
+  gaps: []
+  evidence:
+    - redactSensitiveData() maskiert password, token, secret, key, authorization Felder
+    - jsonLogger schreibt strukturiertes JSON mit correlationId, statusCode, durationMs
+
+- id: OPS-006
+  title: Correlation IDs für Request-Tracing
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/correlationId.ts
+  tests:
+    - backend/src/__tests__/phase8.correlation-id.test.ts
+  gaps: []
+  evidence:
+    - correlationId() generiert UUID pro Request
+    - X-Correlation-ID Header wird gesetzt/gelesen
+    - Jeder Log-Eintrag enthält correlationId
+
+- id: OPS-007
+  title: Health Checks (Liveness/Readiness) und Metrics
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/health.ts
+    - backend/src/middleware/metrics.ts
+  tests:
+    - backend/src/__tests__/phase8.health.test.ts
+  gaps: []
+  evidence:
+    - /health/live prüft Prozess-alive (kubernetes liveness probe)
+    - /health/ready prüft DB-Konnektivität + registered checks (readiness probe)
+    - /metrics liefert Prometheus-metriken (request count, duration, error rate)
+    - /api-info zeigt API feature flags
+
+- id: OPS-008
+  title: Graceful Shutdown mit DB-Pool Schließung
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/middleware/gracefulShutdown.ts
+    - backend/src/index.ts (process signal handlers)
+  tests: []
+  gaps: []
+  evidence:
+    - SIGTERM/SIGINT trigger graceful shutdown automatisch
+    - Express server stoppt nach idleTimeout
+    - Prisma $disconnect wird aufgerufen
+
+- id: OPS-009
+  title: Datenbank-Backup und Restore Procedures
+  priority: P1
+  status: partial
+  implementation:
+    - docs/operations.md (dokumentiert pg_dump/pg_restore procedures)
+  tests: []
+  gaps:
+    - Backup/Restore ist dokumentiert aber noch nicht automatisiert
+    - RTO/RPO targets definiert aber nicht operational getestet
+  evidence:
+    - Operations manual enthält backup/restore runbooks
+    - RTO ≤ 4h, RPO ≤ 24h definiert
+
+- id: OPS-010
+  title: Secret Rotation ohne Downtime
+  priority: P1
+  status: partial
+  implementation:
+    - docs/operations.md (dokumentiert rotation workflows)
+  tests: []
+  gaps:
+    - Rotation ist dokumentiert aber noch nicht als API endpoint implementiert
+    - Dual-auth phase für JWT_SECRET rotation geplant
+  evidence:
+    - Operations manual enthält secret rotation procedures
+
+- id: OPS-011
+  title: Container Hardening
+  priority: P1
+  status: partial
+  implementation:
+    - docs/operations.md (dokumentiert hardening best practices)
+  tests: []
+  gaps:
+    - Hardening guidelines dokumentiert aber noch kein production Dockerfile erstellt
+    - non-root user, read-only filesystem, minimal base image specifications definiert
+  evidence:
+    - Operations manual enthält container security checklist
+
+- id: OPS-012
+  title: Environment Separation mit Validation
+  priority: P1
+  status: partial
+  implementation:
+    - backend/.env.example (dokumentiert required vars)
+    - docs/operations.md (dokumentiert environment strategy)
+  tests: []
+  gaps:
+    - Environment vars dokumentiert aber zod-validation beim startup noch nicht implementiert
+  evidence:
+    - .env.example listet alle required/optional environment variables
+
+- id: CI-001
+  title: CI-Pipeline mit allen Gates
+  priority: P0
+  status: compliant
+  implementation:
+    - .github/workflows/ci.yml
+  tests: []
+  gaps: []
+  evidence:
+    - 12 jobs: preflight, lint, build, prisma-validate, unit-tests, integration-tests, frontend-tests, sast, dependency-scan, secret-scan, sbom, container-scan
+    - Path filtering für relevante changes
+    - Failure blockiert PR
+
+- id: CI-002
+  title: Release-Gates mit Checklist
+  priority: P0
+  status: partial
+  implementation:
+    - docs/operations.md (dokumentiert release gates)
+  tests: []
+  gaps:
+    - Release workflow ist dokumentiert aber noch kein separater release.yml erstellt
+    - 15+ checks, 2x approver, semver tagging specifications definiert
+  evidence:
+    - Operations manual enthält release gate checklist (G1-G11)

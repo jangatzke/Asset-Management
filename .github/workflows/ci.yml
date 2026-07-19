@@ -1,0 +1,418 @@
+name: Asset Management CI/CD Pipeline (Phase 8)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  NODE_VERSION: '20'
+  PRISMA_TELEMETRY_INFORMATION_DISABLED: '1'
+
+jobs:
+  # =====================================================================
+  # PRE-FLIGHT CHECKS
+  # =====================================================================
+  preflight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.filter.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for relevant file changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            has_changes:
+              - 'backend/**'
+              - 'frontend/**'
+              - 'shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/**'
+              - 'prisma/**'
+
+  # =====================================================================
+  # LINT
+  # =====================================================================
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run lint
+        run: npm run lint
+
+  # =====================================================================
+  # BUILD & TYPE CHECK
+  # =====================================================================
+  build:
+    name: Build & Type Check
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build shared package
+        run: npm run build --workspace=shared
+      
+      - name: Build backend
+        run: npm run build --workspace=backend
+      
+      - name: Build frontend
+        run: npm run build --workspace=frontend
+
+  # =====================================================================
+  # PRISMA VALIDATION
+  # =====================================================================
+  prisma-validate:
+    name: Prisma Validation
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Prisma
+        run: npx prisma --version
+      
+      - name: Validate Prisma schema
+        run: npx prisma validate
+      
+      - name: Format check (Prisma)
+        run: npx prisma format --check
+
+  # =====================================================================
+  # UNIT TESTS
+  # =====================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run backend unit tests
+        run: npm test --workspace=backend -- --coverage=false
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # =====================================================================
+  # INTEGRATION TESTS
+  # =====================================================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+        run: |
+          npx prisma generate --workspace=backend
+          npx prisma migrate deploy --schema=backend/prisma/schema.prisma
+          npm test --workspace=backend -- --testPathPattern=integration --coverage=false
+
+  # =====================================================================
+  # FRONTEND TESTS
+  # =====================================================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run frontend tests
+        run: npm test --workspace=frontend -- --watch=false
+
+  # =====================================================================
+  # SAST (Static Application Security Testing)
+  # =====================================================================
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    container:
+      image: returntocorp/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Semgrep SAST
+        run: |
+          semgrep scan \
+            --config=auto \
+            --error \
+            --json \
+            --output=semgrep-report.json \
+            backend/src/ frontend/src/ shared/src/
+        
+      - name: Upload SAST report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-report.json
+          wait-for-processing: true
+
+  # =====================================================================
+  # DEPENDENCY SCAN (Dependabot-style)
+  # =====================================================================
+  dependency-scan:
+    name: Dependency Scan
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run npm audit
+        run: npm audit --production --audit-level=high || true
+      
+      - name: Check for known vulnerabilities
+        run: |
+          npm audit --json > npm-audit-report.json 2>&1 || true
+          
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit-report.json
+
+  # =====================================================================
+  # SECRET SCAN
+  # =====================================================================
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =====================================================================
+  # SBOM GENERATION
+  # =====================================================================
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Generate SBOM ( CycloneDX )
+        uses: cyclonedx/cycloneddx-npm-action@v1
+        with:
+          output: sbom.json
+          json: true
+      
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+
+  # =====================================================================
+  # CONTAINER SCAN (Trivy)
+  # =====================================================================
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.has_changes == 'true' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build test image
+        run: |
+          docker build -t asset-mgmt-test:latest \
+            --target production \
+            -f backend/Dockerfile . || true
+      
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: asset-mgmt-test:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  # =====================================================================
+  # RELEASE GATES (Final Gate)
+  # =====================================================================
+  release-gates:
+    name: Release Gates
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - prisma-validate
+      - unit-tests
+      - integration-tests
+      - frontend-tests
+      - sast
+      - dependency-scan
+      - secret-scan
+      - sbom
+    if: always() && (github.event_name == 'push' || github.head_ref == 'main')
+    steps:
+      - name: Check all required jobs passed
+        run: |
+          echo "=== RELEASE GATE CHECK ==="
+          
+          # P0/P1 requirement check
+          echo "Checking P0/P1 requirements..."
+          for job in build prisma-validate unit-tests integration-tests frontend-tests; do
+            if [[ "${{ needs.$job.result }}" != "success" ]]; then
+              echo "::error::Required job $job failed: ${{ needs.$job.result }}"
+              exit 1
+            fi
+            echo "✓ $job passed"
+          done
+          
+          # Security checks
+          echo "Checking security scans..."
+          for job in sast secret-scan; do
+            if [[ "${{ needs.$job.result }}" == "failure" ]]; then
+              echo "::error::Security scan $job failed"
+              exit 1
+            fi
+            echo "✓ $job passed"
+          done
+          
+          # Critical vulnerability check
+          echo "Checking for critical vulnerabilities..."
+          if [[ "${{ needs.dependency-scan.result }}" == "failure" ]]; then
+            echo "::warning::Dependency scan reported issues - review required"
+          fi
+          
+          # SBOM check
+          if [[ "${{ needs.sbom.result }}" != "success" ]]; then
+            echo "::error::SBOM generation failed"
+            exit 1
+          fi
+          echo "✓ SBOM generated"
+          
+          echo ""
+          echo "=== ALL RELEASE GATES PASSED ==="

@@ -1125,6 +1125,332 @@ paths:
       tags: [Proxmox]
       security: [{ bearerAuth: [] }]
 
+# ==================== Phase 8 Endpoints ====================
+
+/health/live:
+  get:
+    summary: Liveness probe - returns 200 if server process is alive
+    tags: [Health]
+    responses:
+      '200':
+        description: Server is alive
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveHealthResponse'
+      '503':
+        description: Server is not ready to serve traffic
+
+/health/ready:
+  get:
+    summary: Readiness probe - returns all health check statuses including database connectivity
+    tags: [Health]
+    responses:
+      '200':
+        description: All readiness checks passed
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadyHealthResponse'
+      '503':
+        description: One or more readiness checks failed
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadyHealthResponse'
+
+/metrics:
+  get:
+    summary: Prometheus-compatible metrics endpoint
+    tags: [Metrics]
+    responses:
+      '200':
+        description: Prometheus metrics in text/plain format
+        content:
+          text/plain:
+            schema:
+              type: string
+
+/api-info:
+  get:
+    summary: API feature flags and version information
+    tags: [API Info]
+    responses:
+      '200':
+        description: API information
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiInfoResponse'
+
+/webhooks:
+  get:
+    summary: List all webhooks (paginated)
+    tags: [Webhooks]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema: { type: integer, default: 1 }
+      - name: limit
+        in: query
+        required: false
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      - name: event
+        in: query
+        required: false
+        schema: { type: string }
+      - name: isActive
+        in: query
+        required: false
+        schema: { type: boolean }
+    responses:
+      '200':
+        description: Paginated webhook list
+        headers:
+          X-Total-Count: { schema: { type: integer } }
+          X-Page: { schema: { type: integer } }
+          X-Limit: { schema: { type: integer } }
+          X-Total-Pages: { schema: { type: integer } }
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookListResponse'
+  post:
+    summary: Create a new webhook endpoint
+    tags: [Webhooks]
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WebhookCreateRequest'
+    responses:
+      '201':
+        description: Webhook created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookResponse'
+      '400':
+        $ref: '#/components/schemas/ApiErrorResponse'
+      '401':
+        $ref: '#/components/schemas/ApiUnauthorizedResponse'
+
+/webhooks/{id}:
+  get:
+    summary: Get webhook by ID (excludes secret)
+    tags: [Webhooks]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Webhook details (secret excluded)
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookResponse'
+  patch:
+    summary: Update webhook configuration
+    tags: [Webhooks]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WebhookUpdateRequest'
+    responses:
+      '200':
+        description: Webhook updated successfully
+  delete:
+    summary: Archive a webhook (soft delete)
+    tags: [Webhooks]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: Webhook archived
+
+/webhooks/{id}/test:
+  post:
+    summary: Send test webhook delivery
+    tags: [Webhooks]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Test delivery result
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookDeliveryResult'
+
+/service-accounts:
+  get:
+    summary: List all service accounts (paginated)
+    tags: [Service Accounts]
+    security: [{ bearerAuth: [], scope: ['serviceaccounts:read'] }]
+    parameters:
+      - name: page
+        in: query
+        required: false
+        schema: { type: integer, default: 1 }
+      - name: limit
+        in: query
+        required: false
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    responses:
+      '200':
+        description: Paginated service account list
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccountListResponse'
+  post:
+    summary: Create a new service account with API scopes
+    tags: [Service Accounts]
+    security: [{ bearerAuth: [], scope: ['serviceaccounts:write'] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ServiceAccountCreateRequest'
+    responses:
+      '201':
+        description: Service account created with token
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccountResponse'
+
+/service-accounts/{id}:
+  get:
+    summary: Get service account details
+    tags: [Service Accounts]
+    security: [{ bearerAuth: [], scope: ['serviceaccounts:read'] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Service account details (token excluded)
+
+  patch:
+    summary: Update service account
+    tags: [Service Accounts]
+    security: [{ bearerAuth: [], scope: ['serviceaccounts:write'] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ServiceAccountUpdateRequest'
+    responses:
+      '200':
+        description: Service account updated
+
+  delete:
+    summary: Deactivate a service account
+    tags: [Service Accounts]
+    security: [{ bearerAuth: [], scope: ['serviceaccounts:write'] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: Service account deactivated
+
+/service-accounts/{id}/regenerate-token:
+  post:
+    summary: Regenerate service account token (invalidates old token)
+    tags: [Service Accounts]
+    security: [{ bearerAuth: [], scope: ['serviceaccounts:write'] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: New token generated
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccountTokenResponse'
+
+/assets/bulk:
+  post:
+    summary: Bulk create/update assets
+    tags: [Assets]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: X-Idempotency-Key
+        in: header
+        required: false
+        schema: { type: string, format: uuid }
+        description: Idempotency key to prevent duplicate bulk operations
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BulkAssetRequest'
+    responses:
+      '200':
+        description: Bulk operation result
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkOperationResponse'
+
+/assets/{id}/versions:
+  get:
+    summary: Get resource version history for optimistic locking
+    tags: [Assets]
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Version history
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionHistoryResponse'
+
 # ==================== Components ====================
 components:
   securitySchemes:
@@ -1452,3 +1778,744 @@ components:
         page: { type: integer }
         limit: { type: integer }
         totalPages: { type: integer }
+
+# ==================== Phase 8: API, Betrieb und Nachweise ====================
+
+  # ==================== Health & System (Phase 8) ====================
+  /health/live:
+    get:
+      summary: Liveness probe — server is running
+      tags: [System-Phase8]
+      responses:
+        '200':
+          description: Server is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  uptime: { type: integer, description: Uptime in seconds }
+                  timestamp: { type: string, format: date-time }
+
+  /health/ready:
+    get:
+      summary: Readiness probe — server is ready to serve requests
+      tags: [System-Phase8]
+      responses:
+        '200':
+          description: Server is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ready, not_ready] }
+                  ready: { type: boolean }
+                  uptime: { type: integer }
+                  timestamp: { type: string, format: date-time }
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        status: { type: string, enum: [healthy, unhealthy] }
+                        duration: { type: integer }
+
+  /metrics:
+    get:
+      summary: Prometheus-compatible metrics endpoint
+      tags: [System-Phase8]
+      responses:
+        '200':
+          description: Metrics in text/plain format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ==================== Webhooks (Phase 8) ====================
+  /webhooks:
+    get:
+      summary: List webhooks
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Webhook list }
+    post:
+      summary: Create webhook
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                url: { type: string, format: uri }
+                events:
+                  type: array
+                  items: { type: string }
+                maxRetries: { type: integer, default: 3 }
+                timeoutMs: { type: integer, default: 10000 }
+      responses:
+        '201': { description: Webhook created (secret returned once) }
+
+  /webhooks/{id}:
+    get:
+      summary: Get webhook by ID
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Webhook details (secret excluded) }
+    patch:
+      summary: Update webhook
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                url: { type: string, format: uri }
+                events:
+                  type: array
+                  items: { type: string }
+                maxRetries: { type: integer }
+                timeoutMs: { type: integer }
+      responses:
+        '200': { description: Updated webhook }
+    delete:
+      summary: Soft-delete webhook
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Webhook archived }
+
+  /webhooks/{id}/test:
+    post:
+      summary: Test webhook delivery with sample payload
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Delivery result }
+
+  /webhooks/broadcast:
+    post:
+      summary: Broadcast event to all matching webhooks
+      tags: [Webhooks-Phase8]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventType, data]
+              properties:
+                eventType: { type: string }
+                data: { type: object }
+      responses:
+        '200': { description: Delivery results per webhook }
+
+  # ==================== Service Accounts (Phase 8) ====================
+  /service-accounts:
+    get:
+      summary: List service accounts
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Service account list }
+    post:
+      summary: Create service account with access token
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                userId: { type: string, format: uuid }
+                scopes:
+                  type: array
+                  items: { type: string }
+                expiresAt: { type: string, format: date-time }
+      responses:
+        '201': { description: Service account created (token returned once) }
+
+  /service-accounts/{id}:
+    get:
+      summary: Get service account by ID
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Service account details }
+    patch:
+      summary: Update service account
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                scopes:
+                  type: array
+                  items: { type: string }
+                expiresAt: { type: string, format: date-time }
+                isActive: { type: boolean }
+      responses:
+        '200': { description: Updated service account }
+    delete:
+      summary: Soft-delete service account
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Service account archived }
+
+  /service-accounts/{id}/regenerate-token:
+    post:
+      summary: Regenerate access token for service account
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: New token returned (once) }
+
+  /service-accounts/{id}/tokens:
+    get:
+      summary: Get service account tokens (masked)
+      tags: [ServiceAccounts-Phase8]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Token metadata (no secrets) }
+
+  /service-accounts/auth:
+    post:
+      summary: Authenticate service account with access token
+      tags: [ServiceAccounts-Phase8]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accessToken]
+              properties:
+                accessToken: { type: string }
+      responses:
+        '200': { description: Authentication successful }
+        '401': { description: Invalid access token }
+
+  # ==================== API Headers (Phase 8) ====================
+  /api-info:
+    get:
+      summary: API information including supported headers and features
+      tags: [System-Phase8]
+      responses:
+        '200':
+          description: API feature flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  features:
+                    type: object
+                    properties:
+                      correlationId: { type: boolean }
+                      etag: { type: boolean }
+                      idempotencyKeys: { type: boolean }
+                      webhooks: { type: boolean }
+                      serviceAccounts: { type: boolean }
+                      structuredLogging: { type: boolean }
+                      metrics: { type: boolean }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ==================== Phase 8 Schemas ====================
+  WebhookInput:
+    type: object
+    required: [name, url]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      url: { type: string, format: uri }
+      events:
+        type: array
+        items:
+          type: string
+          enum:
+            - asset.created
+            - asset.updated
+            - asset.deleted
+            - risk.created
+            - risk.updated
+            - risk.assessed
+            - control.created
+            - control.updated
+            - control.verified
+            - incident.created
+            - incident.updated
+            - incident.closed
+            - user.created
+            - user.updated
+            - user.deleted
+            - system.health.check
+      maxRetries: { type: integer, default: 3 }
+      timeoutMs: { type: integer, default: 10000 }
+
+  WebhookResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      displayId: { type: string }
+      name: { type: string }
+      description: { type: string }
+      url: { type: string, format: uri }
+      events:
+        type: array
+        items: { type: string }
+      isActive: { type: boolean }
+      isArchived: { type: boolean }
+      lastDeliveryStatus: { type: string, enum: [success, failed, pending] }
+      lastDeliveredAt: { type: string, format: date-time }
+      failureCount: { type: integer }
+      maxRetries: { type: integer }
+      timeoutMs: { type: integer }
+      createdAt: { type: string, format: date-time }
+      updatedAt: { type: string, format: date-time }
+
+  ServiceAccountInput:
+    type: object
+    required: [name]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      userId: { type: string, format: uuid }
+      scopes:
+        type: array
+        items: { type: string }
+      expiresAt: { type: string, format: date-time }
+
+  ServiceAccountResponse:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      displayId: { type: string }
+      name: { type: string }
+      description: { type: string }
+      userId: { type: string, format: uuid }
+      scopes:
+        type: array
+        items: { type: string }
+      isActive: { type: boolean }
+      isArchived: { type: boolean }
+      lastUsedAt: { type: string, format: date-time }
+      expiresAt: { type: string, format: date-time }
+      createdAt: { type: string, format: date-time }
+      updatedAt: { type: string, format: date-time }
+
+  IdempotencyErrorResponse:
+    type: object
+    properties:
+      error: { type: string }
+      message: { type: string }
+
+  OptimisticLockError:
+    type: object
+    properties:
+      error: { type: string, example: Precondition Failed }
+      message: { type: string }
+      currentVersion: { type: integer }
+      currentEtag: { type: string }
+
+  ApiScopesErrorResponse:
+    type: object
+    properties:
+      error: { type: string }
+      message: { type: string }
+      missingScopes:
+        type: array
+        items: { type: string }
+      grantedScopes:
+        type: array
+        items: { type: string }
+
+  WebhookDeliveryResult:
+    type: object
+    properties:
+      success: { type: boolean }
+      statusCode: { type: integer }
+      errorMessage: { type: string }
+      durationMs: { type: integer }
+      attemptNumber: { type: integer }
+
+  HealthStatus:
+    type: object
+    properties:
+      status: { type: string, enum: [ok, degraded] }
+      timestamp: { type: string, format: date-time }
+      uptime: { type: integer }
+
+  ReadinessStatus:
+    type: object
+    properties:
+      status: { type: string, enum: [ready, not_ready] }
+      ready: { type: boolean }
+      uptime: { type: integer }
+      timestamp: { type: string, format: date-time }
+      checks:
+        type: object
+        additionalProperties:
+          type: object
+          properties:
+            status: { type: string, enum: [healthy, unhealthy] }
+            duration: { type: integer }
+
+  LivenessStatus:
+    type: object
+    properties:
+      status: { type: string, example: ok }
+      uptime: { type: integer }
+      timestamp: { type: string, format: date-time }
+
+  ApiInfoResponse:
+    type: object
+    properties:
+      version: { type: string }
+      features:
+        type: object
+        properties:
+          correlationId: { type: boolean }
+          etag: { type: boolean }
+          idempotencyKeys: { type: boolean }
+          webhooks: { type: boolean }
+          serviceAccounts: { type: boolean }
+          structuredLogging: { type: boolean }
+          metrics: { type: boolean }
+
+  # ==================== Phase 8 Headers ====================
+  responseHeaders:
+    X-Correlation-Id:
+      schema: { type: string, format: uuid }
+      description: Correlation ID for request tracing
+    ETag:
+      schema: { type: string }
+      description: Entity tag for conditional requests
+    X-Resource-Version:
+      schema: { type: integer }
+      description: Resource version for optimistic locking
+    X-Total-Count:
+      schema: { type: integer }
+      description: Total number of items (pagination)
+    X-Page:
+      schema: { type: integer }
+      description: Current page number
+    X-Limit:
+      schema: { type: integer }
+      description: Items per page
+    X-Total-Pages:
+      schema: { type: integer }
+      description: Total number of pages
+    Link:
+      schema: { type: string }
+      description: Pagination links (rel="prev", rel="next")
+    X-Idempotency-Cache:
+      schema: { type: string, enum: [hit] }
+      description: Present when idempotency key was cached
+    X-RateLimit-Limit:
+      schema: { type: integer }
+      description: Rate limit bucket size
+    X-RateLimit-Remaining:
+      schema: { type: integer }
+      description: Remaining requests in current window
+    X-RateLimit-Reset:
+      schema: { type: integer }
+      description: Seconds until rate limit resets
+
+  schemas:
+    # ==================== Phase 8 Health/Metrics Schemas ====================
+    
+    LiveHealthResponse:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+        uptime: { type: integer, description: Server uptime in seconds }
+        timestamp: { type: string, format: date-time }
+
+    ReadyHealthCheck:
+      type: object
+      properties:
+        status: { type: string, enum: [healthy, unhealthy] }
+        duration: { type: integer, description: Check duration in ms }
+
+    ReadyHealthResponse:
+      type: object
+      properties:
+        status: { type: string, example: ready }
+        ready: { type: boolean }
+        uptime: { type: integer }
+        timestamp: { type: string, format: date-time }
+        checks:
+          type: object
+          properties:
+            database:
+              $ref: '#/components/schemas/ReadyHealthCheck'
+            webhookQueue:
+              $ref: '#/components/schemas/ReadyHealthCheck'
+
+    ApiInfoResponse:
+      type: object
+      properties:
+        version: { type: string }
+        apiVersion: { type: string }
+        features:
+          type: object
+          properties:
+            pagination: { type: boolean }
+            sorting: { type: boolean }
+            bulkOperations: { type: boolean }
+            idempotencyKeys: { type: boolean }
+            etags: { type: boolean }
+            webhooks: { type: boolean }
+            serviceAccounts: { type: boolean }
+            apiScopes: { type: boolean }
+
+    # ==================== Phase 8 Webhook Schemas ====================
+
+    WebhookCreateRequest:
+      type: object
+      required: [name, url, events]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string, enum: [asset.created, asset.updated, asset.deleted, risk.assessed, control.verified, incident.created] }
+        isActive: { type: boolean, default: true }
+        maxRetries: { type: integer, minimum: 0, maximum: 10, default: 3 }
+        timeoutMs: { type: integer, minimum: 1000, default: 10000 }
+
+    WebhookUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
+        maxRetries: { type: integer }
+        timeoutMs: { type: integer }
+
+    WebhookResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        displayId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        url: { type: string }
+        events:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
+        isArchived: { type: boolean }
+        lastDeliveryStatus: { type: string, nullable: true }
+        lastDeliveredAt: { type: string, format: date-time, nullable: true }
+        failureCount: { type: integer }
+        maxRetries: { type: integer }
+        timeoutMs: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    WebhookListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WebhookResponse' }
+        pagination:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            totalPages: { type: integer }
+
+    WebhookDeliveryResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        statusCode: { type: integer, nullable: true }
+        responseTimeMs: { type: integer }
+        error: { type: string, nullable: true }
+        signature: { type: string, description: HMAC-SHA256 signature }
+
+    # ==================== Phase 8 Service Account Schemas ====================
+
+    ServiceAccountCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        scopes:
+          type: array
+          items: { type: string, enum: [assets:read, assets:write, risks:read, risks:write, webhooks:read, webhooks:write, serviceaccounts:read, serviceaccounts:write, admin] }
+        expiresAt: { type: string, format: date-time, nullable: true }
+
+    ServiceAccountUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
+
+    ServiceAccountResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        displayId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
+        isArchived: { type: boolean }
+        lastUsedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ServiceAccountTokenResponse:
+      type: object
+      properties:
+        token: { type: string, description: New service account token - store securely }
+        id: { type: string, format: uuid }
+        name: { type: string }
+        expiresAt: { type: string, format: date-time, nullable: true }
+
+    ServiceAccountListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ServiceAccountResponse' }
+        pagination:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            totalPages: { type: integer }
+
+    # ==================== Phase 8 Bulk Operation Schemas ====================
+
+    BulkAssetRequest:
+      type: object
+      required: [operations]
+      properties:
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [action, data]
+            properties:
+              action: { type: string, enum: [create, update, delete] }
+              id: { type: string, format: uuid, description: Required for update/delete }
+              data:
+                type: object
+                description: Asset data for create/update operations
+
+    BulkOperationResponse:
+      type: object
+      properties:
+        succeeded:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              status: { type: integer }
+        failed:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, nullable: true }
+              error: { type: string }
+              status: { type: integer }
+        total: { type: integer }
+        succeededCount: { type: integer }
+        failedCount: { type: integer }
+
+    # ==================== Phase 8 Version Schemas ====================
+
+    VersionHistoryResponse:
+      type: object
+      properties:
+        versions:
+          type: array
+          items:
+            type: object
+            properties:
+              version: { type: integer }
+              etag: { type: string }
+              updatedAt: { type: string, format: date-time }
+
+    # ==================== Phase 8 Error Response Schemas ====================
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+        currentVersion: { type: integer, nullable: true }
+        currentEtag: { type: string, nullable: true }

@@ -21,6 +21,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User, token: string) => void;
+  updateUserPreferences: (preferences: Pick<User, 'language' | 'darkMode'>) => void;
   checkAuth: () => Promise<void>;
 }
 
@@ -47,6 +48,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   setUser: (user: User, token: string) => {
     set({ user, token, isAuthenticated: true });
+  },
+  updateUserPreferences: (preferences) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...preferences } : state.user,
+    }));
   },
   checkAuth: async () => {
     console.log('[AuthStore] checkAuth started');

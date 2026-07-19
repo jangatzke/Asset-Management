@@ -1,13 +1,29 @@
 import express, { Application } from 'express';
+import 'dotenv/config';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import dotenv from 'dotenv';
+import type { Server } from 'http';
+import type { AddressInfo } from 'net';
 
-dotenv.config();
+// Phase 8 imports
+import { correlationId } from './middleware/correlationId';
+import { jsonLogger } from './middleware/jsonLogger';
+import { metricsMiddleware, metricsEndpoint } from './middleware/metrics';
+import { idempotency } from './middleware/idempotency';
+import { etag } from './middleware/etag';
+import { scopeAudit } from './middleware/apiScopes';
+import { 
+  healthBasic, 
+  healthLive, 
+  healthReady, 
+  setReady, 
+} from './middleware/health';
+import { setupGracefulShutdown } from './middleware/gracefulShutdown';
+import { initializeIdempotency } from './middleware/idempotency';
 
+// Existing imports
 import { errorHandler } from './middleware/errorHandler';
-import { requestLogger } from './middleware/requestLogger';
 import { authRouter } from './routes/auth.routes';
 import { userRouter } from './routes/user.routes';
 import { assetRouter } from './routes/asset.routes';
@@ -33,40 +49,109 @@ import { evidenceRouter } from './routes/evidence.routes';
 import { documentRouter } from './routes/document.routes';
 import { nis2Router } from './routes/nis2.routes';
 import { phase6Router } from './routes/phase6.routes';
+// Phase 8 routes
+import { webhookRouter } from './routes/webhook.routes';
+import { serviceAccountRouter } from './routes/serviceAccount.routes';
 
 const app: Application = express();
-const PORT = process.env.PORT || 3000;
+const DEFAULT_BACKEND_PORT = 3001;
+const FRONTEND_DEV_PORT = 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-// Global middleware
+function resolveBackendPort(): number {
+  const configuredPort = Number(process.env.PORT || DEFAULT_BACKEND_PORT);
+
+  if (!Number.isInteger(configuredPort) || configuredPort <= 0 || configuredPort > 65535) {
+    console.error(
+      `Invalid backend PORT value "${process.env.PORT}". Use a TCP port between 1 and 65535; ` +
+      `the development default is ${DEFAULT_BACKEND_PORT}.`,
+    );
+    process.exit(1);
+  }
+
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    configuredPort === FRONTEND_DEV_PORT &&
+    process.env.ALLOW_BACKEND_FRONTEND_PORT_CONFLICT !== 'true'
+  ) {
+    console.warn(
+      `Backend PORT=${FRONTEND_DEV_PORT} conflicts with the Vite frontend dev port. ` +
+      `Using backend port ${DEFAULT_BACKEND_PORT} instead. ` +
+      'Update backend/.env to PORT=3001 or set ALLOW_BACKEND_FRONTEND_PORT_CONFLICT=true to override.',
+    );
+    return DEFAULT_BACKEND_PORT;
+  }
+
+  return configuredPort;
+}
+
+const PORT = resolveBackendPort();
+
+// ==================== Global Middleware (Phase 8) ====================
+
+// 1. Correlation-ID (must be first for tracing)
+app.use(correlationId);
+
+// 2. Security headers
 app.use(helmet());
+
+// 3. Compression
 app.use(compression());
-// CORS configuration - explicit origins only, no wildcard default (SEC-003)
+
+// 4. CORS configuration - explicit origins only, no wildcard default (SEC-003)
 const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').filter(Boolean);
 app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : ['http://localhost:3000'],
   credentials: true,
 }));
+
+// 5. Parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging
-app.use(requestLogger);
+// 6. Structured JSON logging (Phase 8)
+app.use(jsonLogger);
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// 7. Metrics collection (Phase 8)
+app.use(metricsMiddleware);
 
-// API Routes
+// 8. Scope audit for all authenticated requests
+app.use(scopeAudit);
+
+// ==================== Health & System Endpoints (Phase 8) ====================
+
+// Basic health check (legacy compatibility)
+app.get('/health', healthBasic);
+
+// Liveness probe - simple server alive check
+app.get('/health/live', healthLive);
+
+// Readiness probe - checks database and configured health checks
+app.get('/health/ready', healthReady);
+
+// Prometheus-compatible metrics endpoint
+app.get('/metrics', metricsEndpoint);
+
+// ==================== API Routes ====================
+
+// Auth & Users
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
-app.use('/api/v1/assets', assetRouter);
-app.use('/api/v1/risks', riskRouter);
-app.use('/api/v1/controls', controlRouter);
+
+// Core entities with ETag support (Phase 8)
+app.use('/api/v1/assets', etag(), assetRouter);
+app.use('/api/v1/risks', etag(), riskRouter);
+app.use('/api/v1/controls', etag(), controlRouter);
+app.use('/api/v1/incidents', etag(), incidentRouter);
+
+// Organization & Admin
 app.use('/api/v1/organization', orgRouter);
-app.use('/api/v1/incidents', incidentRouter);
-app.use('/api/v1/audit-logs', auditLogRouter);
 app.use('/api/v1/admin', adminRouter);
+
+// Audit & Monitoring
+app.use('/api/v1/audit-logs', auditLogRouter);
+
+// Integrations
 app.use('/api/v1/intune', intuneRouter);
 app.use('/api/v1/admin/vmware', vmwareRouter);
 app.use('/api/v1/admin/proxmox', proxmoxRouter);
@@ -84,22 +169,92 @@ app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/nis2', nis2Router);
 app.use('/api/v1/phase6', phase6Router);
 
-// Error handling middleware
+// Phase 8 Routes - Webhooks & Service Accounts (with idempotency)
+app.use('/api/v1/webhooks', idempotency(), webhookRouter);
+app.use('/api/v1/service-accounts', idempotency(), serviceAccountRouter);
+
+// ==================== Error Handling ====================
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
+// ==================== Server Startup ====================
 
-  // Start background services
-  try {
-    const scheduler = initializeScheduler();
-    await scheduler.start();
-    console.log('Background services initialized');
-  } catch (error) {
-    console.error('Failed to initialize background services:', error);
-  }
+let server: Server | undefined;
+
+async function startServer(): Promise<void> {
+  server = app.listen(PORT, HOST, async () => {
+    const address = server?.address();
+    const actualPort = typeof address === 'object' && address !== null
+      ? (address as AddressInfo).port
+      : PORT;
+    const actualHost = typeof address === 'object' && address !== null
+      ? (address as AddressInfo).address
+      : HOST;
+
+    console.log(`Server running on http://${actualHost}:${actualPort}`);
+    console.log(`Backend health endpoint: http://127.0.0.1:${actualPort}/health`);
+    console.log(`Expected Vite proxy target: http://127.0.0.1:${actualPort}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('Phase 8 features enabled: correlation-id, json-logging, metrics, health-checks');
+
+    // Initialize idempotency cleanup
+    initializeIdempotency();
+
+    // Start background services
+    try {
+      const scheduler = initializeScheduler();
+      await scheduler.start();
+      console.log('Background services initialized');
+    } catch (error) {
+      console.error('Failed to initialize background services:', error);
+    }
+
+    // Mark server as ready after a short delay
+    setTimeout(() => {
+      setReady(true);
+      console.log('Server is READY');
+    }, 2000);
+  });
+
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(
+        `Backend bind failed: ${HOST}:${PORT} is already in use. ` +
+        `Frontend dev uses ${FRONTEND_DEV_PORT}; backend dev should use ${DEFAULT_BACKEND_PORT}. ` +
+        'Set PORT=3001 in backend/.env or stop the process currently using that port before starting the backend.',
+      );
+      process.exit(1);
+    }
+
+    if (error.code === 'EACCES') {
+      console.error(
+        `Backend bind failed: insufficient permissions for ${HOST}:${PORT}. ` +
+        `Use PORT=${DEFAULT_BACKEND_PORT} for local development.`,
+      );
+      process.exit(1);
+    }
+
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  });
+
+  // Setup graceful shutdown
+  setupGracefulShutdown(server!);
+}
+
+// Handle uncaught errors gracefully
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+  process.exit(1);
+});
+
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });
 
 export { app };

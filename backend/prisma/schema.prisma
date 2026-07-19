@@ -41,6 +41,7 @@ model User {
   organizationUnit OrganizationUnit? @relation("UserOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
   userRoles        UserRole[]        @relation("UserRoles")
   userGroups       UserGroup[]       @relation("UserGroups")
+  ServiceAccount   ServiceAccount[]
 
   @@index([oidcId, oidcProvider])
   @@map("users")
@@ -1277,88 +1278,88 @@ model SoAApproval {
 // ==========================================
 
 model Incident {
-  id                     String   @id @default(uuid())
-  displayId              String   @unique
-  title                  String
-  description            String
-  detectionTime          DateTime
-  knowledgeTime          DateTime
-  reporterId             String?
-  reporterSource         String?
+  id                        String    @id @default(uuid())
+  displayId                 String    @unique
+  title                     String
+  description               String
+  detectionTime             DateTime
+  knowledgeTime             DateTime
+  reporterId                String?
+  reporterSource            String?
   // affectedAssetIds removed — use IncidentAsset junction table only
   // affectedServiceIds removed — use IncidentService junction table
   // affectedProcessIds removed — use IncidentProcess junction table
-  confidentialityImpact  String   @default("none")
-  integrityImpact        String   @default("none")
-  availabilityImpact     String   @default("none")
-  operationalImpact      String?
-  financialImpact        Decimal?
-  legalImpact            String?
-  personalDataImpact     Boolean  @default(false)
-  affectedCustomers      String[] @default([])
-  affectedThirdParties   String[] @default([])
-  suspectedCause         String?
-  isIntentional          Boolean?
-  hasCrossBorderImpact   Boolean?
-  indicatorsOfCompromise String[] @default([])
-  immediateActions       String[] @default([])
-  incidentManagerId      String
-  status                 String   @default("new")
-  severity               String   @default("low")
-  notificationStatus     String   @default("not_required")
+  confidentialityImpact     String    @default("none")
+  integrityImpact           String    @default("none")
+  availabilityImpact        String    @default("none")
+  operationalImpact         String?
+  financialImpact           Decimal?
+  legalImpact               String?
+  personalDataImpact        Boolean   @default(false)
+  affectedCustomers         String[]  @default([])
+  affectedThirdParties      String[]  @default([])
+  suspectedCause            String?
+  isIntentional             Boolean?
+  hasCrossBorderImpact      Boolean?
+  indicatorsOfCompromise    String[]  @default([])
+  immediateActions          String[]  @default([])
+  incidentManagerId         String
+  status                    String    @default("new")
+  severity                  String    @default("low")
+  notificationStatus        String    @default("not_required")
   significanceRuleVersionId String?
-  isSignificant          Boolean  @default(false)
-  significanceReasons    String[] @default([])
-  rootCause              String?
-  lessonsLearned         String?
-  measuresEvaluation     String?
-  closureSummary         String?
-  closedAt               DateTime?
-  closedBy               String?
-  version                String   @default("1.0.0")
-  isArchived             Boolean  @default(false)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-  createdBy              String?
-  updatedBy              String?
+  isSignificant             Boolean   @default(false)
+  significanceReasons       String[]  @default([])
+  rootCause                 String?
+  lessonsLearned            String?
+  measuresEvaluation        String?
+  closureSummary            String?
+  closedAt                  DateTime?
+  closedBy                  String?
+  version                   String    @default("1.0.0")
+  isArchived                Boolean   @default(false)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  createdBy                 String?
+  updatedBy                 String?
 
   incidentAssets IncidentAsset[]
 
   // Junction table links for M:N relationships (replaces ID arrays)
-  serviceLinks IncidentService[]
-  processLinks IncidentProcess[]
+  serviceLinks            IncidentService[]
+  processLinks            IncidentProcess[]
   significanceRuleVersion Nis2IncidentSignificanceRuleVersion? @relation(fields: [significanceRuleVersionId], references: [id], onDelete: SetNull)
-  knowledgeTimeChanges IncidentKnowledgeTimeChange[]
-  assessments IncidentAssessment[]
-  notificationDeadlines NotificationDeadline[]
-  reports IncidentReport[]
-  communications IncidentCommunication[]
-  escalations IncidentEscalation[]
+  knowledgeTimeChanges    IncidentKnowledgeTimeChange[]
+  assessments             IncidentAssessment[]
+  notificationDeadlines   NotificationDeadline[]
+  reports                 IncidentReport[]
+  communications          IncidentCommunication[]
+  escalations             IncidentEscalation[]
 
   @@index([significanceRuleVersionId])
   @@map("incidents")
 }
 
 model IncidentAssessment {
-  id                     String   @id @default(uuid())
-  incidentId             String   @unique
-  assessorId             String
-  isReportable           Boolean  @default(false)
-  reportingJustification String?
-  decisionNotToReport    String?
-  decisionApprovedBy     String?
-  decisionApprovedAt     DateTime?
+  id                        String    @id @default(uuid())
+  incidentId                String    @unique
+  assessorId                String
+  isReportable              Boolean   @default(false)
+  reportingJustification    String?
+  decisionNotToReport       String?
+  decisionApprovedBy        String?
+  decisionApprovedAt        DateTime?
   significanceRuleVersionId String?
-  evaluatedRules         Json?
-  assessmentDate         DateTime @default(now())
-  status                 String   @default("active")
-  isArchived             Boolean  @default(false)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-  createdBy              String?
-  updatedBy              String?
+  evaluatedRules            Json?
+  assessmentDate            DateTime  @default(now())
+  status                    String    @default("active")
+  isArchived                Boolean   @default(false)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  createdBy                 String?
+  updatedBy                 String?
 
-  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  incident                Incident                             @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   significanceRuleVersion Nis2IncidentSignificanceRuleVersion? @relation(fields: [significanceRuleVersionId], references: [id], onDelete: SetNull)
 
   @@index([significanceRuleVersionId])
@@ -1387,13 +1388,13 @@ model NotificationDeadline {
 }
 
 model IncidentKnowledgeTimeChange {
-  id                    String   @id @default(uuid())
-  incidentId            String
-  oldKnowledgeTime      DateTime
-  newKnowledgeTime      DateTime
-  reason                String
-  changedBy             String
-  changedAt             DateTime @default(now())
+  id               String   @id @default(uuid())
+  incidentId       String
+  oldKnowledgeTime DateTime
+  newKnowledgeTime DateTime
+  reason           String
+  changedBy        String
+  changedAt        DateTime @default(now())
 
   incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
@@ -1428,20 +1429,20 @@ model IncidentReport {
 }
 
 model IncidentCommunication {
-  id                String    @id @default(uuid())
-  incidentId        String
-  channel           String
-  direction         String
-  recipient         String
-  sender            String?
-  message           String
-  status            String    @default("planned")
-  scheduledAt       DateTime?
-  sentAt            DateTime?
+  id                 String    @id @default(uuid())
+  incidentId         String
+  channel            String
+  direction          String
+  recipient          String
+  sender             String?
+  message            String
+  status             String    @default("planned")
+  scheduledAt        DateTime?
+  sentAt             DateTime?
   responseReceivedAt DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  createdBy         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String?
 
   incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
@@ -1792,17 +1793,17 @@ model BusinessContinuityPlan {
 }
 
 model BCPExercise {
-  id          String    @id @default(uuid())
-  bcpId       String
-  exerciseType String   @default("tabletop")
-  plannedAt   DateTime
-  executedAt  DateTime?
-  participants Json     @default("[]")
-  results      Json     @default("{}")
-  findings     Json     @default("[]")
-  status       String   @default("planned")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id           String    @id @default(uuid())
+  bcpId        String
+  exerciseType String    @default("tabletop")
+  plannedAt    DateTime
+  executedAt   DateTime?
+  participants Json      @default("[]")
+  results      Json      @default("{}")
+  findings     Json      @default("[]")
+  status       String    @default("planned")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   createdBy    String?
 
   @@index([bcpId])
@@ -1811,44 +1812,44 @@ model BCPExercise {
 }
 
 model AuditProgram {
-  id          String   @id @default(uuid())
-  displayId   String   @unique
-  title       String
-  year        Int
-  scope       String
-  objectives  Json     @default("[]")
-  criteria    Json     @default("[]")
-  ownerId     String
-  status      String   @default("draft")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
+  id         String   @id @default(uuid())
+  displayId  String   @unique
+  title      String
+  year       Int
+  scope      String
+  objectives Json     @default("[]")
+  criteria   Json     @default("[]")
+  ownerId    String
+  status     String   @default("draft")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdBy  String?
+  updatedBy  String?
 
   @@index([year, status])
   @@map("audit_programs")
 }
 
 model AuditPlan {
-  id          String    @id @default(uuid())
-  displayId   String    @unique
-  programId   String?
-  auditType   String
-  title       String
-  scope       String
-  criteria    Json      @default("[]")
-  auditorIds  Json      @default("[]")
-  auditeeIds  Json      @default("[]")
+  id           String    @id @default(uuid())
+  displayId    String    @unique
+  programId    String?
+  auditType    String
+  title        String
+  scope        String
+  criteria     Json      @default("[]")
+  auditorIds   Json      @default("[]")
+  auditeeIds   Json      @default("[]")
   plannedStart DateTime
   plannedEnd   DateTime
-  status      String    @default("planned")
-  report      String?
-  approvedBy  String?
-  approvedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   String?
-  updatedBy   String?
+  status       String    @default("planned")
+  report       String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String?
+  updatedBy    String?
 
   @@index([programId])
   @@index([plannedStart, status])
@@ -1856,26 +1857,26 @@ model AuditPlan {
 }
 
 model AuditFinding {
-  id                    String    @id @default(uuid())
-  auditPlanId           String
-  displayId             String    @unique
-  findingType           String
-  severity              String    @default("medium")
-  title                 String
-  description           String
-  requirementIds        Json      @default("[]")
-  controlIds            Json      @default("[]")
-  assetIds              Json      @default("[]")
-  riskIds               Json      @default("[]")
-  correctiveActionId    String?
-  ownerId               String?
-  dueDate               DateTime?
-  status                String    @default("open")
-  isArchived            Boolean   @default(false)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  createdBy             String?
-  updatedBy             String?
+  id                 String    @id @default(uuid())
+  auditPlanId        String
+  displayId          String    @unique
+  findingType        String
+  severity           String    @default("medium")
+  title              String
+  description        String
+  requirementIds     Json      @default("[]")
+  controlIds         Json      @default("[]")
+  assetIds           Json      @default("[]")
+  riskIds            Json      @default("[]")
+  correctiveActionId String?
+  ownerId            String?
+  dueDate            DateTime?
+  status             String    @default("open")
+  isArchived         Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String?
+  updatedBy          String?
 
   @@index([auditPlanId])
   @@index([dueDate, status])
@@ -1883,12 +1884,12 @@ model AuditFinding {
 }
 
 model AuditEvidenceRelation {
-  id           String   @id @default(uuid())
+  id             String   @id @default(uuid())
   auditFindingId String
-  evidenceId   String
-  relationType String   @default("supports")
-  createdAt    DateTime @default(now())
-  createdBy    String?
+  evidenceId     String
+  relationType   String   @default("supports")
+  createdAt      DateTime @default(now())
+  createdBy      String?
 
   @@unique([auditFindingId, evidenceId])
   @@index([evidenceId])
@@ -1896,30 +1897,30 @@ model AuditEvidenceRelation {
 }
 
 model CorrectiveAction {
-  id                   String    @id @default(uuid())
-  displayId            String    @unique
-  title                String
-  description          String
-  sourceType           String
-  sourceId             String?
-  ownerId              String
-  dueDate              DateTime
-  priority             String    @default("medium")
-  status               String    @default("open")
-  rootCause            String?
-  containmentActions   Json      @default("[]")
-  correctiveActions    Json      @default("[]")
-  effectivenessCriteria String?
-  effectivenessReview  String?
-  effectivenessStatus  String?
+  id                      String    @id @default(uuid())
+  displayId               String    @unique
+  title                   String
+  description             String
+  sourceType              String
+  sourceId                String?
+  ownerId                 String
+  dueDate                 DateTime
+  priority                String    @default("medium")
+  status                  String    @default("open")
+  rootCause               String?
+  containmentActions      Json      @default("[]")
+  correctiveActions       Json      @default("[]")
+  effectivenessCriteria   String?
+  effectivenessReview     String?
+  effectivenessStatus     String?
   effectivenessReviewedAt DateTime?
-  closedAt             DateTime?
-  version              String    @default("1.0.0")
-  isArchived           Boolean   @default(false)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  createdBy            String?
-  updatedBy            String?
+  closedAt                DateTime?
+  version                 String    @default("1.0.0")
+  isArchived              Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  createdBy               String?
+  updatedBy               String?
 
   @@index([sourceType, sourceId])
   @@index([dueDate, status])
@@ -1927,21 +1928,21 @@ model CorrectiveAction {
 }
 
 model TrainingCourse {
-  id               String    @id @default(uuid())
-  displayId        String    @unique
-  title            String
-  description      String?
-  category         String    @default("security_awareness")
-  mandatory        Boolean   @default(false)
-  validityMonths   Int?
-  acknowledgementRequired Boolean @default(false)
-  ownerId          String
-  status           String    @default("active")
-  isArchived       Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  createdBy        String?
-  updatedBy        String?
+  id                      String   @id @default(uuid())
+  displayId               String   @unique
+  title                   String
+  description             String?
+  category                String   @default("security_awareness")
+  mandatory               Boolean  @default(false)
+  validityMonths          Int?
+  acknowledgementRequired Boolean  @default(false)
+  ownerId                 String
+  status                  String   @default("active")
+  isArchived              Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  createdBy               String?
+  updatedBy               String?
 
   @@index([category, status])
   @@map("training_courses")
@@ -2000,26 +2001,26 @@ model TrainingAcknowledgement {
 }
 
 model ManagementReview {
-  id            String    @id @default(uuid())
-  displayId     String    @unique
-  title         String
-  reviewDate    DateTime
-  chairId       String
-  participants  Json      @default("[]")
-  agenda        Json      @default("[]")
-  inputs        Json      @default("{}")
-  decisions     Json      @default("[]")
-  minutes       String?
-  approvalStatus String   @default("draft")
-  approvedBy    String?
-  approvedAt    DateTime?
+  id             String    @id @default(uuid())
+  displayId      String    @unique
+  title          String
+  reviewDate     DateTime
+  chairId        String
+  participants   Json      @default("[]")
+  agenda         Json      @default("[]")
+  inputs         Json      @default("{}")
+  decisions      Json      @default("[]")
+  minutes        String?
+  approvalStatus String    @default("draft")
+  approvedBy     String?
+  approvedAt     DateTime?
   nextReviewDate DateTime?
-  status        String    @default("planned")
-  isArchived    Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  createdBy     String?
-  updatedBy     String?
+  status         String    @default("planned")
+  isArchived     Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdBy      String?
+  updatedBy      String?
 
   @@index([reviewDate, status])
   @@index([nextReviewDate])
@@ -2085,17 +2086,17 @@ model MetricDefinition {
 }
 
 model MetricValue {
-  id           String   @id @default(uuid())
-  metricId     String
-  measuredAt   DateTime @default(now())
-  value        Decimal
-  source       String?
-  comment      String?
-  trend        String?
-  breachStatus String   @default("none")
-  breachDetails Json    @default("{}")
-  createdAt    DateTime @default(now())
-  createdBy    String?
+  id            String   @id @default(uuid())
+  metricId      String
+  measuredAt    DateTime @default(now())
+  value         Decimal
+  source        String?
+  comment       String?
+  trend         String?
+  breachStatus  String   @default("none")
+  breachDetails Json     @default("{}")
+  createdAt     DateTime @default(now())
+  createdBy     String?
 
   @@index([metricId, measuredAt])
   @@index([breachStatus])
@@ -2103,21 +2104,21 @@ model MetricValue {
 }
 
 model WorkflowDefinition {
-  id          String   @id @default(uuid())
-  displayId   String   @unique
-  name        String
-  version     String   @default("1.0.0")
-  entityType  String
-  states      Json     @default("[]")
-  transitions Json     @default("[]")
-  approvalRules Json   @default("{}")
-  dueDateRules Json    @default("{}")
-  status      String   @default("active")
-  isArchived  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
+  id            String   @id @default(uuid())
+  displayId     String   @unique
+  name          String
+  version       String   @default("1.0.0")
+  entityType    String
+  states        Json     @default("[]")
+  transitions   Json     @default("[]")
+  approvalRules Json     @default("{}")
+  dueDateRules  Json     @default("{}")
+  status        String   @default("active")
+  isArchived    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
 
   @@unique([name, version])
   @@index([entityType, status])
@@ -2238,26 +2239,26 @@ model ExportJob {
 }
 
 model Nis2Assessment {
-  id                 String    @id @default(uuid())
-  organizationUnitId String?
-  assessmentType     String    @default("applicability")
-  questionnaireVersion String   @default("1.0")
-  answers            Json      @default("{}")
-  preliminaryResult  String?
+  id                       String    @id @default(uuid())
+  organizationUnitId       String?
+  assessmentType           String    @default("applicability")
+  questionnaireVersion     String    @default("1.0")
+  answers                  Json      @default("{}")
+  preliminaryResult        String?
   preliminaryJustification String?
-  result             String?
-  justification      String?
-  submittedForApprovalAt DateTime?
-  submittedForApprovalBy String?
-  approvedBy         String?
-  approvedAt         DateTime?
-  version            String    @default("1.0.0")
-  status             String    @default("active")
-  isArchived         Boolean   @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  createdBy          String?
-  updatedBy          String?
+  result                   String?
+  justification            String?
+  submittedForApprovalAt   DateTime?
+  submittedForApprovalBy   String?
+  approvedBy               String?
+  approvedAt               DateTime?
+  version                  String    @default("1.0.0")
+  status                   String    @default("active")
+  isArchived               Boolean   @default(false)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  createdBy                String?
+  updatedBy                String?
 
   registrations Nis2Registration[]
 
@@ -2284,40 +2285,40 @@ model Nis2Registration {
   createdBy           String?
   updatedBy           String?
 
-  assessment Nis2Assessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
-  changes Nis2RegistrationChange[]
+  assessment Nis2Assessment?          @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+  changes    Nis2RegistrationChange[]
 
   @@index([assessmentId])
   @@map("nis2_registrations")
 }
 
 model Nis2QuestionnaireVersion {
-  id          String   @id @default(uuid())
-  version     String   @unique
-  title       String
-  questions   Json
-  scoringRules Json
-  effectiveFrom DateTime @default(now())
+  id             String    @id @default(uuid())
+  version        String    @unique
+  title          String
+  questions      Json
+  scoringRules   Json
+  effectiveFrom  DateTime  @default(now())
   effectiveUntil DateTime?
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
-  createdBy   String?
+  status         String    @default("active")
+  createdAt      DateTime  @default(now())
+  createdBy      String?
 
   @@map("nis2_questionnaire_versions")
 }
 
 model Nis2RegistrationChange {
-  id             String   @id @default(uuid())
-  registrationId String
-  changeType     String
-  description    String
-  changedData    Json
+  id                   String    @id @default(uuid())
+  registrationId       String
+  changeType           String
+  description          String
+  changedData          Json
   notificationDeadline DateTime?
-  submittedAt    DateTime?
-  submissionProof String?
-  status         String   @default("draft")
-  createdAt      DateTime @default(now())
-  createdBy      String?
+  submittedAt          DateTime?
+  submissionProof      String?
+  status               String    @default("draft")
+  createdAt            DateTime  @default(now())
+  createdBy            String?
 
   registration Nis2Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
@@ -2326,21 +2327,20 @@ model Nis2RegistrationChange {
 }
 
 model Nis2IncidentSignificanceRuleVersion {
-  id            String   @id @default(uuid())
-  version       String   @unique
-  rules         Json
-  effectiveFrom DateTime @default(now())
+  id             String    @id @default(uuid())
+  version        String    @unique
+  rules          Json
+  effectiveFrom  DateTime  @default(now())
   effectiveUntil DateTime?
-  status        String   @default("active")
-  createdAt     DateTime @default(now())
-  createdBy     String?
+  status         String    @default("active")
+  createdAt      DateTime  @default(now())
+  createdBy      String?
 
-  incidents Incident[]
+  incidents   Incident[]
   assessments IncidentAssessment[]
 
   @@map("nis2_incident_significance_rule_versions")
 }
-
 
 model Session {
   id           String   @id @default(uuid())
@@ -2905,149 +2905,151 @@ model ProxmoxServer {
 // ==========================================
 
 model ServiceAccount {
- id                 String   @id @default(uuid())
- displayId          String   @unique @default("")
- name               String
- description        String?
- userId             String?
- accessTokenHash    String
- accessTokenSalt    String
- scopes             Json     @default("[]")
- expiresAt          DateTime?
- isActive           Boolean  @default(true)
- isArchived         Boolean  @default(false)
- lastUsedAt         DateTime?
- createdAt          DateTime @default(now())
- updatedAt          DateTime @updatedAt
- createdBy          String?
- updatedBy          String?
+  id              String    @id @default(uuid())
+  displayId       String    @unique @default("")
+  name            String
+  description     String?
+  userId          String?
+  accessTokenHash String
+  accessTokenSalt String
+  scopes          Json      @default("[]")
+  expiresAt       DateTime?
+  isActive        Boolean   @default(true)
+  isArchived      Boolean   @default(false)
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
 
- user               User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
- apiAuditLogs       ApiAuditLog[]
- idempotencyKeys    IdempotencyKey[]
- webhookDeliveries  WebhookDelivery[]
+  user              User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiAuditLogs      ApiAuditLog[]
+  idempotencyKeys   IdempotencyKey[]
+  webhookDeliveries WebhookDelivery[]
 
- @@index([isActive])
- @@index([isArchived])
- @@map("service_accounts")
+  @@index([isActive])
+  @@index([isArchived])
+  @@map("service_accounts")
 }
 
 model ApiAuditLog {
- id                 String   @id @default(uuid())
- correlationId      String
- serviceAccountId   String?
- userId             String?
- method             String
- path               String
- statusCode         Int?
- requestSize        BigInt   @default(0)
- responseSize       BigInt   @default(0)
- durationMs         Int?
- ipAddress          String?
- userAgent          String?
- idempotencyKey     String?
- errorMessage       String?
- createdAt          DateTime @default(now())
+  id               String   @id @default(uuid())
+  correlationId    String
+  serviceAccountId String?
+  userId           String?
+  method           String
+  path             String
+  statusCode       Int?
+  requestSize      BigInt   @default(0)
+  responseSize     BigInt   @default(0)
+  durationMs       Int?
+  ipAddress        String?
+  userAgent        String?
+  idempotencyKey   String?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
 
- serviceAccount     ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onDelete: SetNull)
+  serviceAccount ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onDelete: SetNull)
 
- @@index([correlationId])
- @@index([serviceAccountId])
- @@index([createdAt])
- @@map("api_audit_logs")
+  @@index([correlationId])
+  @@index([serviceAccountId])
+  @@index([createdAt])
+  @@map("api_audit_logs")
 }
 
 model IdempotencyKey {
- key                String   @id @default(uuid())
- serviceAccountId   String
- userId             String?
- httpMethod         String
- routePattern       String
- requestBodyHash    String
- responseStatus     Int
- responseHeaders    Json     @default("{}")
- responseBodyPreview String?
- expiresAt          DateTime
- createdAt          DateTime @default(now())
+  key                 String   @id @default(uuid())
+  serviceAccountId    String
+  userId              String?
+  httpMethod          String
+  routePattern        String
+  requestBodyHash     String
+  responseStatus      Int
+  responseHeaders     Json     @default("{}")
+  responseBodyPreview String?
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
 
- serviceAccount     ServiceAccount @relation(fields: [serviceAccountId], references: [id], onDelete: Cascade)
+  serviceAccount ServiceAccount @relation(fields: [serviceAccountId], references: [id], onDelete: Cascade)
 
- @@index([expiresAt])
- @@index([serviceAccountId])
- @@map("idempotency_keys")
+  @@index([expiresAt])
+  @@index([serviceAccountId])
+  @@map("idempotency_keys")
 }
 
 model Webhook {
- id                   String   @id @default(uuid())
- displayId            String   @unique @default("")
- name                 String
- description          String?
- url                  String
- secret               String
- events               Json     @default("[]")
- isActive             Boolean  @default(true)
- isArchived           Boolean  @default(false)
- lastDeliveryStatus   String?
- lastDeliveredAt      DateTime?
- failureCount         Int      @default(0)
- maxRetries           Int      @default(3)
- timeoutMs            Int      @default(10000)
- createdAt            DateTime @default(now())
- updatedAt            DateTime @updatedAt
- createdBy            String?
- updatedBy            String?
+  id                 String    @id @default(uuid())
+  displayId          String    @unique @default("")
+  name               String
+  description        String?
+  url                String
+  secret             String
+  events             Json      @default("[]")
+  isActive           Boolean   @default(true)
+  isArchived         Boolean   @default(false)
+  lastDeliveryStatus String?
+  lastDeliveredAt    DateTime?
+  failureCount       Int       @default(0)
+  maxRetries         Int       @default(3)
+  timeoutMs          Int       @default(10000)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String?
+  updatedBy          String?
 
- webhookDeliveries    WebhookDelivery[]
+  webhookDeliveries WebhookDelivery[]
 
- @@index([isActive])
- @@index([events])
- @@map("webhooks")
+  @@index([isActive])
+  @@index([events])
+  @@map("webhooks")
 }
 
 model WebhookDelivery {
- id                 String   @id @default(uuid())
- webhookId          String
- eventId            String
- url                String
- httpMethod         String   @default("POST")
- requestHeaders     Json     @default("{}")
- requestBodyHash    String
- responseStatus     Int?
- responseHeaders    Json?
- errorMessage       String?
- durationMs         Int?
- attemptNumber      Int      @default(1)
- createdAt          DateTime @default(now())
+  id              String   @id @default(uuid())
+  webhookId       String
+  eventId         String
+  url             String
+  httpMethod      String   @default("POST")
+  requestHeaders  Json     @default("{}")
+  requestBodyHash String
+  responseStatus  Int?
+  responseHeaders Json?
+  errorMessage    String?
+  durationMs      Int?
+  attemptNumber   Int      @default(1)
+  createdAt       DateTime @default(now())
 
- webhook            Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  webhook          Webhook         @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  ServiceAccount   ServiceAccount? @relation(fields: [serviceAccountId], references: [id])
+  serviceAccountId String?
 
- @@index([webhookId])
- @@index([eventId])
- @@index([createdAt])
- @@map("webhook_deliveries")
+  @@index([webhookId])
+  @@index([eventId])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
 }
 
 model ApiRateLimit {
- id                 String   @id @default(uuid())
- serviceAccountId   String?
- userId             String?
- endpointPattern    String   @default("*")
- requestsPerMinute  Int      @default(60)
- requestsPerHour    Int      @default(1000)
- burstSize          Int      @default(10)
- createdAt          DateTime @default(now())
- updatedAt          DateTime @updatedAt
+  id                String   @id @default(uuid())
+  serviceAccountId  String?
+  userId            String?
+  endpointPattern   String   @default("*")
+  requestsPerMinute Int      @default(60)
+  requestsPerHour   Int      @default(1000)
+  burstSize         Int      @default(10)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
- @@index([serviceAccountId])
- @@index([userId])
- @@map("api_rate_limits")
+  @@index([serviceAccountId])
+  @@index([userId])
+  @@map("api_rate_limits")
 }
 
 model ApiScope {
- scope         String   @id
- description   String?
- category      String   @default("general")
- createdAt     DateTime @default(now())
+  scope       String   @id
+  description String?
+  category    String   @default("general")
+  createdAt   DateTime @default(now())
 
- @@map("api_scopes")
+  @@map("api_scopes")
 }

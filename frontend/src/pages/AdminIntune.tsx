@@ -14,7 +14,6 @@ import {
   Divider,
   Stack,
   Chip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -26,14 +25,10 @@ import {
   TableRow,
   TableContainer,
   CircularProgress,
-  Tooltip,
 } from '@mui/material';
+import type { ChipProps } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import WarningIcon from '@mui/icons-material/Warning';
 import HealthIcon from '@mui/icons-material/Favorite';
 import api from '../services/api';
 
@@ -88,17 +83,18 @@ interface DeviceSync {
   isArchived: boolean;
 }
 
-const healthStatusColors: Record<string, string> = {
-  healthy: '#4caf50',
-  degraded: '#ffb732',
-  unhealthy: '#f44336',
+const healthStatusColors: Record<string, ChipProps['color']> = {
+  healthy: 'success',
+  degraded: 'warning',
+  unhealthy: 'error',
 };
 
-const syncStatusColors: Record<string, string> = {
-  idle: '#9e9e9e',
-  running: '#2196ff',
-  success: '#4caf50',
-  error: '#f44336',
+const syncStatusColors: Record<string, ChipProps['color']> = {
+  idle: 'default',
+  running: 'info',
+  success: 'success',
+  error: 'error',
+  partial_success: 'warning',
 };
 
 export default function IntuneAdmin() {
@@ -109,7 +105,6 @@ export default function IntuneAdmin() {
   const [loading, setLoading] = useState(false);
   const [healthStatus, setHealthStatus] = useState<'healthy' | 'degraded' | 'unhealthy' | null>(null);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
-  const [showDevices, setShowDevices] = useState(false);
   const [devicePage, setDevicePage] = useState(1);
   const [deviceTotalPages, setDeviceTotalPages] = useState(1);
   const [deviceTotal, setDeviceTotal] = useState(0);
@@ -312,7 +307,7 @@ export default function IntuneAdmin() {
       {/* Health Status */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <Chip
               icon={<HealthIcon />}
               label={t('intune.healthStatus')}
@@ -335,7 +330,7 @@ export default function IntuneAdmin() {
         </Typography>
 
         <Stack spacing={2}>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Typography>Enable Intune Sync</Typography>
             <Switch
               checked={config?.enabled || false}
@@ -346,7 +341,7 @@ export default function IntuneAdmin() {
           <Divider />
 
           <Grid container spacing={2}>
-            <Grid item={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label="Full Sync Interval (hours)"
                 type="number"
@@ -356,7 +351,7 @@ export default function IntuneAdmin() {
                 size="small"
               />
             </Grid>
-            <Grid item={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label="Incremental Sync Interval (minutes)"
                 type="number"
@@ -366,7 +361,7 @@ export default function IntuneAdmin() {
                 size="small"
               />
             </Grid>
-            <Grid item={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label="Grace Period (hours)"
                 type="number"
@@ -388,7 +383,7 @@ export default function IntuneAdmin() {
 
         {syncStatus && (
           <Stack spacing={2}>
-            <Box display="flex" alignItems="center" gap={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Chip
                 icon={<SyncIcon />}
                 label={`Status: ${syncStatus.status}`}
@@ -403,7 +398,7 @@ export default function IntuneAdmin() {
             </Box>
 
             <Grid container spacing={2}>
-              <Grid item={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Devices
                 </Typography>
@@ -411,7 +406,7 @@ export default function IntuneAdmin() {
                   {syncStatus.deviceSynced}/{syncStatus.deviceCount}
                 </Typography>
               </Grid>
-              <Grid item={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Device Errors
                 </Typography>
@@ -419,7 +414,7 @@ export default function IntuneAdmin() {
                   {syncStatus.deviceErrors}
                 </Typography>
               </Grid>
-              <Grid item={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Apps Synced
                 </Typography>
@@ -427,7 +422,7 @@ export default function IntuneAdmin() {
                   {syncStatus.appSynced}/{syncStatus.appCount}
                 </Typography>
               </Grid>
-              <Grid item={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Last Sync Duration
                 </Typography>
@@ -435,7 +430,7 @@ export default function IntuneAdmin() {
                   {formatDuration(syncStatus.lastSyncDurationMs)}
                 </Typography>
               </Grid>
-              <Grid item={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Stale / Review
                 </Typography>
@@ -555,7 +550,7 @@ export default function IntuneAdmin() {
             <TextField label={t('intune.clientSecret')} type="password" value={credClientSecret} onChange={(e) => setCredClientSecret(e.target.value)} fullWidth size="small" />
             <TextField label={t('intune.clientSecretExpiresAt')} type="datetime-local" value={credClientSecretExpiresAt} onChange={(e) => setCredClientSecretExpiresAt(e.target.value)} fullWidth size="small" />
             <TextField label={t('intune.certificateThumbprint')} value={credCertificateThumbprint} onChange={(e) => setCredCertificateThumbprint(e.target.value)} fullWidth size="small" />
-            <Box display="flex" alignItems="center" gap={1}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Switch checked={credIsConfigured} onChange={(e) => setCredIsConfigured(e.target.checked)} />
               <Typography>{t('intune.isConfigured')}</Typography>
             </Box>
@@ -569,7 +564,7 @@ export default function IntuneAdmin() {
 
       {/* Devices */}
       <Paper sx={{ p: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
             Synced Devices ({deviceTotal})
           </Typography>
@@ -586,7 +581,7 @@ export default function IntuneAdmin() {
         </Box>
 
         {loading ? (
-          <Box display="flex" justifyContent="center" p={3}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress size={24} />
           </Box>
         ) : (
@@ -633,7 +628,7 @@ export default function IntuneAdmin() {
         )}
 
         {deviceTotalPages > 1 && (
-          <Box display="flex" justifyContent="center" p={2}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
             {[...Array(deviceTotalPages)].map((_, i) => (
               <Chip
                 key={i + 1}

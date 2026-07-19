@@ -15,7 +15,7 @@ function getSystemDarkMode(): boolean {
 }
 
 export function DarkModeProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuthStore();
+  const { user, updateUserPreferences } = useAuthStore();
 
   const [darkMode, setDarkModeState] = useState<boolean>(() => {
     // Fallback to localStorage or system preference while loading
@@ -51,8 +51,13 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
 
   const setDarkMode = async (value: boolean) => {
     setDarkModeState(value);
+    localStorage.setItem('darkMode', String(value));
+    updateUserPreferences({ darkMode: value });
     try {
-      await authApi.updatePreferences({ darkMode: value });
+      const response = await authApi.updatePreferences({ darkMode: value });
+      if (typeof response.data?.darkMode === 'boolean') {
+        updateUserPreferences({ darkMode: response.data.darkMode });
+      }
     } catch (err) {
       console.error('Failed to save dark mode preference:', err);
     }

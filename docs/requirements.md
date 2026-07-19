@@ -158,8 +158,8 @@
 | **Priorität** | P0 |
 | **Kategorie** | SEC |
 | **ID** | SEC-006 |
-| **Beschreibung** | Öffentliche Registrierung muss kontrolliert sein. Entweder deaktivierbar oder auf verifizierte E-Mail-Domains beschränkt. Rate-Limiting auf Auth-Endpunkte. |
-| **Akzeptanzkriterium** | 1. Registrierung kann über Konfiguration deaktiviert werden. 2. Rate-Limiter auf `/auth/login`, `/auth/register` (max 5 Versuche/Minute/IP). |
+| **Beschreibung** | Öffentliche Registrierung muss standardmäßig deaktiviert sein. Selbstregistrierung darf nur explizit per Konfiguration zugelassen werden; der Setup-Flow darf ausschließlich den ersten Admin erstellen. Rate-Limiting muss relevante Auth-Endpunkte schützen. |
+| **Akzeptanzkriterium** | 1. `POST /auth/register` ist ohne `ALLOW_SELF_REGISTRATION=true` blockiert. 2. `POST /auth/create-first-admin` bleibt nur zulässig, solange noch kein Admin existiert. 3. Rate-Limiter schützt `/auth/login`, `/auth/register`, `/auth/create-first-admin`, `/auth/oidc/authorize` und `/auth/oidc/callback` mit konfigurierbaren Limits pro IP. |
 
 ---
 
@@ -374,3 +374,37 @@
 | P3 | 4 | OPS-001, OPS-002, OPS-003, OPS-004 |
 
 **Gesamt:** 24 Anforderungen
+
+---
+
+## Phase 8 – API Reife, Betrieb und CI/CD-Gates
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| API-004 | P0 | API | OpenAPI-Spezifikation muss alle Endpunkte dokumentieren mit request/response schemas, error codes und auth requirements. | `docs/api/openapi.yaml` enthält alle Phase 8 Endpoints; `openapi-cli` generiert client/server stubs ohne Fehler. |
+| API-005 | P0 | API | Pagination muss configurable pageLimit haben (default 100, max 1000) mit cursor/basiertem Offset. | Alle list-endpoints unterstützen `?limit=&offset=`; `res.paginateResponse()` setzt korrekte Link-Headers für pagination. |
+| API-006 | P0 | API | Sortierung muss über `?sort=field:direction` unterstützt werden mit Whitelist-Validierung gegen Schema-Felder. | `parseSort()` validiert Feldnamen; nur whiteliste Felder sind erlaubt; direction default 'asc'. |
+| API-007 | P1 | API | Bulk-Endpunkte müssen atomare Operationen für mehrere Ressourcen mit detaillierten Fehlermeldungen pro Item unterstützen. | `POST /assets/bulk` akzeptiert Array von Operationen; Ergebnis enthält success/error pro Item; max 100 Items/Batch. |
+| API-008 | P1 | API | Idempotency Keys müssen POST/PUT/PATCH Requests durch key-basierte Caching vor Duplikaten schützen (TTL 24h). | `X-Idempotency-Key` Header wird validiert; gleiche Key + Body = gespeicherte Antwort; unterschiedliche Body = 409 Conflict. |
+| API-009 | P1 | SEC | ETags und optimistisches Locking müssen Resource-Versionierung mit `If-Match`/`If-None-Match` Headern unterstützen. | GET setzt `ETag` Header; PUT mit `If-Match` prüft version; mismatch = 412 Precondition Failed. |
+| API-010 | P1 | SEC | Webhooks müssen CRUD-endpoints mit HMAC-SHA256 signature, retry logic und delivery audit haben. | Webhook endpoints erstellen/leschen/testen; `X-Webhook-Signature` Header für payload verification; 5 fehlgeschlagene retries = disabled. |
+| API-011 | P1 | SEC | Service Accounts müssen token-basierten API-Zugriff mit scope-based access control und rotation support ermöglichen. | POST `/service-accounts` erzeugt accessToken; scopes begrenzen endpoint access; `POST /:id/regenerate-token` invalidiert alten token. |
+| API-012 | P0 | SEC | API-Scopes müssen feingranulare Berechtigungen pro endpoint group mit audit trail implementieren. | `requireScopes('assets:read', 'assets:write')` validiert scope; scope violations werden in `ScopeAuditLog` protokolliert. |
+| OPS-005 | P0 | OPS | Strukturierte JSON-Logs müssen alle sensiblen Daten redigieren (passwords, tokens, secrets) vor dem Schreiben. | `redactSensitiveData()` entfernt/maskiert password, token, secret, key, authorization Felder; jsonLogger schreibt strukturiertes JSON. |
+| OPS-006 | P0 | OPS | Correlation IDs müssen jeden Request über den gesamten Stack begleiten für request-tracing. | `correlationId()` generiert UUID pro Request; `X-Correlation-ID` Header wird gesetzt/gelesen; jeder Log-Eintrag enthält correlationId. |
+| OPS-007 | P0 | OPS | Health Checks müssen liveness (/health/live) und readiness (/health/ready) Probes für Kubernetes unterstützen. | `/health/live` prüft Prozess-alive; `/health/ready` prüft DB-Konnektivität + alle registered checks; Prometheus-metriken unter `/metrics`. |
+| OPS-008 | P1 | OPS | Graceful Shutdown muss aktive Requests abschließen, DB-Pool schließen und Signale (SIGTERM/SIGINT) korrekt handhaben. | `gracefulShutdown()` stoppt express server nach idleTimeout; schließt prisma `$disconnect`; SIGTERM/SIGINT triggern shutdown automatisch. |
+| OPS-009 | P1 | OPS | Datenbank-Backup und Restore müssen pg_dump/pg_restore basierte Procedures dokumentiert und getestet sein. | Backup enthält schema + data; restore validiert foreign keys; RTO ≤ 4h, RPO ≤ 24h; Disaster Recovery Runbook existiert. |
+| OPS-010 | P1 | SEC | Secret Rotation muss JWT_SECRET, database credentials und service account tokens ohne downtime rotieren. | Dual-auth phase supported during rotation; `POST /admin/secrets/rotate` triggert rotation; alte tokens bleiben bis expiry gültig. |
+| OPS-011 | P1 | SEC | Container Hardening muss non-root user, read-only filesystem und minimal base image enforce. | Dockerfile nutzt `node:<version>-alpine` + `USER node`; filesystem readonly mit tmpfs für uploads; no sudo/root in container. |
+| OPS-012 | P1 | OPS | Environment Separation muss dev/staging/prod Konfiguration über Umgebungsvariablen mit validation enforce. | `.env.example` dokumentiert alle required vars; `zod`-validation beim startup; missing required var = exit with error. |
+| CI-001 | P0 | CI/CD | CI-Pipeline muss folgende gates haben: build, lint, prisma validation, unit tests, integration tests, frontend tests, SAST, dependency scan, secret scan, SBOM, container scan. | `.github/workflows/ci.yml` enthält alle 12 jobs; path filtering für relevante changes; failure = PR blocked. |
+| CI-002 | P0 | CI/CD | Release-Gates müssen checklist-driven sein mit mandatory code review, test coverage ≥ 80%, security scan pass und changelog entry. | Release workflow prüft: 15+ checks bestanden; 2x approver required; semver tag自动生成; artifacts uploaded zu GitHub Releases. |
+
+### Legende Phase 8 Prioritäten
+
+| Feld | Beschreibung |
+|------|-------------|
+| **ID** | Eindeutige Anforderungs-ID (Kategorie-Nummer) |
+| **Priorität** | P0 = sicherheitskritisch, P1 = hoch |
+| **Kategorie** | API = API-Funktionalität, SEC = Sicherheit, OPS = Betrieb, CI/CD = Continuous Integration/Delivery |

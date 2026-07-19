@@ -1,10 +1,20 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { authService } from '../services/auth.service';
 import { oidcService } from '../services/oidc.service';
 import crypto from 'crypto';
 
 export const authRouter = Router();
+
+const authRateLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  limit: () => Number(process.env.AUTH_RATE_LIMIT_MAX || 20),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: { message: 'Too many authentication attempts. Please try again later.' } },
+  skip: () => process.env.NODE_ENV === 'test' && process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS !== 'true',
+});
 
 authRouter.get('/has-admin', async (_req, res, next) => {
   try {
@@ -15,7 +25,7 @@ authRouter.get('/has-admin', async (_req, res, next) => {
   }
 });
 
-authRouter.post('/create-first-admin', async (req, res, next) => {
+authRouter.post('/create-first-admin', authRateLimiter, async (req, res, next) => {
   try {
     const result = await authService.createFirstAdmin(req.body);
     res.json(result);
@@ -24,7 +34,7 @@ authRouter.post('/create-first-admin', async (req, res, next) => {
   }
 });
 
-authRouter.post('/register', async (req, res, next) => {
+authRouter.post('/register', authRateLimiter, async (req, res, next) => {
   try {
     const result = await authService.register(req.body);
     res.json(result);
@@ -33,7 +43,7 @@ authRouter.post('/register', async (req, res, next) => {
   }
 });
 
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', authRateLimiter, async (req, res, next) => {
   try {
     // Check if local login is enabled
     const localLoginEnabled = await oidcService.isLocalLoginEnabled();
@@ -48,7 +58,7 @@ authRouter.post('/login', async (req, res, next) => {
 });
 
 // OIDC endpoints
-authRouter.get('/oidc/authorize', async (_req, res, next) => {
+authRouter.get('/oidc/authorize', authRateLimiter, async (_req, res, next) => {
   try {
     const state = crypto.randomUUID();
     // Store state in session or cache - for now use query param approach
@@ -60,7 +70,7 @@ authRouter.get('/oidc/authorize', async (_req, res, next) => {
   }
 });
 
-authRouter.post('/oidc/callback', async (req, res, next) => {
+authRouter.post('/oidc/callback', authRateLimiter, async (req, res, next) => {
   try {
     const { code, state, code_verifier } = req.body;
     const result = await oidcService.handleCallback(code, state, code_verifier);

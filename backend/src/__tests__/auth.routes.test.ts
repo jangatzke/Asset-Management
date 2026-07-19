@@ -59,6 +59,13 @@ jest.mock('../middleware/errorHandler', () => ({
 describe('Auth Routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS;
+    delete process.env.AUTH_RATE_LIMIT_MAX;
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS;
+    delete process.env.AUTH_RATE_LIMIT_MAX;
   });
 
   describe('GET /auth/has-admin', () => {
@@ -187,6 +194,23 @@ describe('Auth Routes', () => {
         .send(credentials);
 
       expect(response.status).toBe(500);
+    });
+
+    it('should rate-limit repeated login attempts when enabled', async () => {
+      process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS = 'true';
+      process.env.AUTH_RATE_LIMIT_MAX = '2';
+      mockOidcService.isLocalLoginEnabled.mockResolvedValue(true);
+      mockAuthService.login.mockResolvedValue({
+        user: { id: 'user-123', email: credentials.email },
+        token: 'test-token',
+      });
+
+      await request(app).post('/auth/login').send(credentials).expect(200);
+      await request(app).post('/auth/login').send(credentials).expect(200);
+      const response = await request(app).post('/auth/login').send(credentials);
+
+      expect(response.status).toBe(429);
+      expect(response.body.error.message).toContain('Too many authentication attempts');
     });
   });
 

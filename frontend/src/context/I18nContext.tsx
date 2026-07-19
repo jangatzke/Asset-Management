@@ -26,7 +26,7 @@ function getBrowserLocale(): Language {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuthStore();
+  const { user, updateUserPreferences } = useAuthStore();
 
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('language');
@@ -56,8 +56,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = async (lang: Language) => {
     setLanguageState(lang);
+    localStorage.setItem('language', lang);
+    updateUserPreferences({ language: lang });
     try {
-      await authApi.updatePreferences({ language: lang });
+      const response = await authApi.updatePreferences({ language: lang });
+      if (response.data?.language === 'en' || response.data?.language === 'de') {
+        updateUserPreferences({ language: response.data.language });
+      }
     } catch (err) {
       console.error('Failed to save language preference:', err);
     }
