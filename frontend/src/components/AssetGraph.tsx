@@ -510,7 +510,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
       {/* Empty state */}
       {!loading && !error && nodes.length === 0 && (
         <div className="flex items-center justify-center h-96 text-gray-500 dark:text-gray-400">
-          {assetId ? 'No dependencies found' : t('graph.noData')}
+          {assetId ? t('graph.noDependencies') : t('graph.noData')}
         </div>
       )}
     </div>

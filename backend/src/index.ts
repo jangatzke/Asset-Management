@@ -35,6 +35,7 @@ import { auditLogRouter } from './routes/auditLog.routes';
 import { adminRouter } from './routes/admin.routes';
 import { intuneRouter } from './routes/intune.routes';
 import { initializeScheduler } from './services/intune.scheduler';
+import { initializeReminderScheduler } from './services/reminder.scheduler';
 import { vmwareRouter } from './routes/vmware.routes';
 import { proxmoxRouter } from './routes/proxmox.routes';
 // ISO 27001 Phase 2 routes
@@ -49,9 +50,13 @@ import { evidenceRouter } from './routes/evidence.routes';
 import { documentRouter } from './routes/document.routes';
 import { nis2Router } from './routes/nis2.routes';
 import { phase6Router } from './routes/phase6.routes';
+import { catalogRouter } from './routes/catalog.routes';
+import { costPlanningRouter } from './routes/costPlanning.routes';
 // Phase 8 routes
 import { webhookRouter } from './routes/webhook.routes';
 import { serviceAccountRouter } from './routes/serviceAccount.routes';
+import { prisma } from './config/database';
+import { ensureStandardAssetTypes } from './services/bootstrap.service';
 
 const app: Application = express();
 const DEFAULT_BACKEND_PORT = 3001;
@@ -168,6 +173,9 @@ app.use('/api/v1/evidence', evidenceRouter);
 app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/nis2', nis2Router);
 app.use('/api/v1/phase6', phase6Router);
+app.use('/api/v1/isms-operations', phase6Router);
+app.use('/api/v1/catalog', catalogRouter);
+app.use('/api/v1/cost-planning', costPlanningRouter);
 
 // Phase 8 Routes - Webhooks & Service Accounts (with idempotency)
 app.use('/api/v1/webhooks', idempotency(), webhookRouter);
@@ -199,10 +207,19 @@ async function startServer(): Promise<void> {
     // Initialize idempotency cleanup
     initializeIdempotency();
 
+    try {
+      await ensureStandardAssetTypes(prisma);
+      console.log('Standard ISO27001 asset types ensured');
+    } catch (error) {
+      console.error('Failed to ensure standard ISO27001 asset types:', error);
+    }
+
     // Start background services
     try {
       const scheduler = initializeScheduler();
       await scheduler.start();
+      const reminderScheduler = initializeReminderScheduler();
+      await reminderScheduler.start();
       console.log('Background services initialized');
     } catch (error) {
       console.error('Failed to initialize background services:', error);

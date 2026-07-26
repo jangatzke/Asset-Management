@@ -23,42 +23,51 @@ import { userRouter } from '../routes/user.routes';
 import { auditLogRouter } from '../routes/auditLog.routes';
 import { orgRouter } from '../routes/organization.routes';
 
+jest.mock('../services/user.service', () => ({
+  UserService: jest.fn().mockImplementation(() => ({
+    listUsers: jest.fn(() => Promise.resolve({ data: [], total: 0 })),
+    getUserById: jest.fn(() => Promise.resolve({ id: 'some-id' })),
+    updateUser: jest.fn((_id: string, data: any) => Promise.resolve({ id: 'some-id', ...data })),
+    deleteUser: jest.fn(() => Promise.resolve({ message: 'User deleted' })),
+  })),
+}));
+
 const app = express();
 app.use(express.json());
 app.use('/users', userRouter);
 app.use('/audit-logs', auditLogRouter);
 app.use('/organization', orgRouter);
 
-describe('Placeholder Endpoints Return 501 (P0-04)', () => {
+describe('Placeholder endpoint and implemented-route consistency (P0-04)', () => {
   describe('User Routes', () => {
-    it('GET /users returns 501 Not Implemented', async () => {
+    it('GET /users is implemented', async () => {
       const response = await request(app).get('/users');
 
-      expect(response.status).toBe(501);
-      expect(response.body.error).toBe('Not Implemented');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ data: [], total: 0 });
     });
 
-    it('GET /users/:id returns 501 Not Implemented', async () => {
+    it('GET /users/:id is implemented', async () => {
       const response = await request(app).get('/users/some-id');
 
-      expect(response.status).toBe(501);
-      expect(response.body.error).toBe('Not Implemented');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ id: 'some-id' });
     });
 
-    it('PUT /users/:id returns 501 Not Implemented', async () => {
+    it('PUT /users/:id is implemented', async () => {
       const response = await request(app)
         .put('/users/some-id')
         .send({ name: 'Updated' });
 
-      expect(response.status).toBe(501);
-      expect(response.body.error).toBe('Not Implemented');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ id: 'some-id', name: 'Updated' });
     });
 
-    it('DELETE /users/:id returns 501 Not Implemented', async () => {
+    it('DELETE /users/:id is implemented', async () => {
       const response = await request(app).delete('/users/some-id');
 
-      expect(response.status).toBe(501);
-      expect(response.body.error).toBe('Not Implemented');
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe('User deleted');
     });
   });
 

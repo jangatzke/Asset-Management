@@ -3,6 +3,7 @@ import { AppError } from '../middleware/errorHandler';
 import bcrypt from 'bcryptjs';
 import { oidcService } from './oidc.service';
 import { auditService } from './audit.service';
+import { authSettingsService, AuthSettingsDto } from './authSettings.service';
 
 // --- Types ---
 
@@ -54,6 +55,7 @@ export interface EntityPermissions {
   risks?: EntityPermissionLevel;
   controls?: EntityPermissionLevel;
   incidents?: EntityPermissionLevel;
+  costPlanning?: EntityPermissionLevel;
 }
 
 export interface CreateRoleDto {
@@ -158,6 +160,7 @@ const BUILTIN_ROLES: CreateRoleDto[] = [
       risks: 'readwrite',
       controls: 'readwrite',
       incidents: 'readwrite',
+      costPlanning: 'readwrite',
     },
   },
   {
@@ -170,6 +173,7 @@ const BUILTIN_ROLES: CreateRoleDto[] = [
       risks: 'readonly',
       controls: 'readonly',
       incidents: 'readonly',
+      costPlanning: 'readonly',
     },
   },
 ];
@@ -177,6 +181,25 @@ const BUILTIN_ROLES: CreateRoleDto[] = [
 // --- Service ---
 
 export class AdminService {
+  async getAuthSettings(): Promise<AuthSettingsDto> {
+    return authSettingsService.getSettings();
+  }
+
+  async updateAuthSettings(data: Partial<AuthSettingsDto>, updatedBy: string): Promise<AuthSettingsDto> {
+    const before = await authSettingsService.getSettings();
+    const updated = await authSettingsService.updateSettings(data, updatedBy);
+    await auditService.logEventStandalone(prisma, {
+      userId: updatedBy,
+      action: 'CONFIG_CHANGE',
+      entityType: 'AuthSettings',
+      entityId: updated.id ?? 'auth-settings',
+      details: 'Local authentication settings changed',
+      oldValue: before as any,
+      newValue: updated as any,
+    });
+    return updated;
+  }
+
   // ---- User Management ----
 
   async listUsers(): Promise<UserWithRoles[]> {
@@ -256,6 +279,8 @@ export class AdminService {
       throw new AppError('Email already registered', 409);
     }
 
+    await authSettingsService.ensurePasswordAllowedForLocalUser(null, data.password);
+
     const passwordHash = await bcrypt.hash(data.password, 10);
 
     // Get admin user name for audit log
@@ -276,6 +301,8 @@ export class AdminService {
         userGroups: { include: { group: true } },
       },
     });
+
+    await authSettingsService.recordPasswordHash(user.id, passwordHash);
 
     // Audit log for user creation
     await auditService.logEventStandalone(prisma, {
@@ -415,6 +442,12 @@ export class AdminService {
       throw new AppError('User not found', 404);
     }
 
+    if (existing.oidcId) {
+      throw new AppError('Password resets for OIDC-linked accounts must be handled by the identity provider', 400);
+    }
+
+    await authSettingsService.ensurePasswordAllowedForLocalUser(userId, newPassword);
+
     // Get admin user name for audit log
     const adminUser = await prisma.user.findUnique({ where: { id: changedBy }, select: { firstName: true, lastName: true } });
 
@@ -439,6 +472,7 @@ export class AdminService {
         updatedBy: changedBy,
       },
     });
+    await authSettingsService.recordPasswordHash(userId, passwordHash);
   }
 
   // ---- Role Management ----
@@ -1097,7 +1131,16 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
       throw new AppError('Business process with this name already exists', 409);
     }
 
-    const displayId = `BP-${Date.now()}`;
+    // IAM-004: Use sequential display ID instead of Date.now()
+    const counter = await prisma.displayIdCounter.upsert({
+      where: { entityType: 'BusinessProcess' },
+      create: { entityType: 'BusinessProcess', sequence: 1 },
+      update: { sequence: { increment: 1 } },
+    });
+    const sequence = counter.sequence;
+    const padded = String(sequence).padStart(4, '0');
+    const processDisplayId = `PROC-${padded}`;
+
     const process = await prisma.businessProcess.create({
       data: {
         name: data.name,
@@ -1105,7 +1148,7 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
         processOwner: data.owner ?? '',
         criticality: data.criticality ?? 'low',
         status: data.status ?? 'active',
-        displayId,
+        displayId: processDisplayId,
       },
     });
 

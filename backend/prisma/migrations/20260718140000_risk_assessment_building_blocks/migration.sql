@@ -17,12 +17,12 @@ CREATE UNIQUE INDEX "vulnerabilities_displayId_key" ON "vulnerabilities"("displa
 
 -- 3. Create RiskScenario table
 CREATE TABLE "risk_scenarios" (
-  "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
   "displayId" VARCHAR NOT NULL,
   "title" VARCHAR NOT NULL,
   "description" TEXT,
-  "threatId" UUID NOT NULL,
-  "vulnerabilityId" UUID,
+  "threatId" TEXT NOT NULL,
+  "vulnerabilityId" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "createdBy" VARCHAR,
@@ -35,7 +35,7 @@ CREATE INDEX "risk_scenarios_threatId_idx" ON "risk_scenarios"("threatId");
 
 -- 4. Create RiskCause table
 CREATE TABLE "risk_causes" (
-  "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
   "displayId" VARCHAR NOT NULL,
   "title" VARCHAR NOT NULL,
   "description" TEXT,
@@ -49,7 +49,7 @@ CREATE UNIQUE INDEX "risk_causes_displayId_key" ON "risk_causes"("displayId");
 
 -- 5. Create RiskImpact table
 CREATE TABLE "risk_impacts" (
-  "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
   "displayId" VARCHAR NOT NULL,
   "title" VARCHAR NOT NULL,
   "description" TEXT,
@@ -64,9 +64,9 @@ CREATE UNIQUE INDEX "risk_impacts_displayId_key" ON "risk_impacts"("displayId");
 
 -- 6. Create RiskCauseLink junction table (Risk <-> Cause M:N)
 CREATE TABLE "risk_cause_links" (
-  "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-  "riskId" UUID NOT NULL,
-  "causeId" UUID NOT NULL,
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "riskId" TEXT NOT NULL,
+  "causeId" TEXT NOT NULL,
   CONSTRAINT "risk_cause_links_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "risk_cause_links_causeId_fkey" FOREIGN KEY ("causeId") REFERENCES "risk_causes"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -74,16 +74,16 @@ CREATE UNIQUE INDEX "risk_cause_links_riskId_causeId_key" ON "risk_cause_links"(
 
 -- 7. Create RiskImpactLink junction table (Risk <-> Impact M:N)
 CREATE TABLE "risk_impact_links" (
-  "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-  "riskId" UUID NOT NULL,
-  "impactId" UUID NOT NULL,
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "riskId" TEXT NOT NULL,
+  "impactId" TEXT NOT NULL,
   CONSTRAINT "risk_impact_links_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "risk_impact_links_impactId_fkey" FOREIGN KEY ("impactId") REFERENCES "risk_impacts"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "risk_impact_links_riskId_impactId_key" ON "risk_impact_links"("riskId", "impactId");
 
 -- 8. Add scenarioId to Risk (relational reference)
-ALTER TABLE "risks" ADD COLUMN "scenarioId" UUID;
+ALTER TABLE "risks" ADD COLUMN "scenarioId" TEXT;
 ALTER TABLE "risks" ADD CONSTRAINT "risks_scenarioId_fkey" FOREIGN KEY ("scenarioId") REFERENCES "risk_scenarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 CREATE INDEX "risks_scenarioId_idx" ON "risks"("scenarioId");
 
@@ -99,9 +99,9 @@ ALTER TABLE "risk_assessments" ALTER COLUMN "justification" SET NOT NULL;
 
 -- 11. Create ReviewTask table
 CREATE TABLE "review_tasks" (
-  "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
   "displayId" VARCHAR NOT NULL,
-  "riskId" UUID NOT NULL,
+  "riskId" TEXT NOT NULL,
   "scheduledDate" TIMESTAMPTZ NOT NULL,
   "dueDate" TIMESTAMPTZ NOT NULL,
   "status" VARCHAR NOT NULL DEFAULT 'pending',

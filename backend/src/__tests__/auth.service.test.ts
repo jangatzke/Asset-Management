@@ -26,6 +26,16 @@ const mockPrismaClient: any = {
     create: jest.fn(),
     count: jest.fn(),
   },
+  authSettings: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  passwordHistory: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   userGroup: {
     findMany: jest.fn(),
   },
@@ -33,6 +43,9 @@ const mockPrismaClient: any = {
     create: jest.fn(),
     findFirst: jest.fn(),
     updateMany: jest.fn(),
+  },
+  displayIdCounter: {
+    upsert: jest.fn(),
   },
   $transaction: jest.fn((fn: any) => fn(mockPrismaClient)),
 };
@@ -54,6 +67,19 @@ describe('AuthService', () => {
     authService = new AuthService();
     process.env.JWT_SECRET = 'test-secret-key';
     process.env.ALLOW_SELF_REGISTRATION = 'true';
+    // Mock displayIdCounter.upsert to return sequential IDs
+    mockPrismaClient.displayIdCounter.upsert.mockResolvedValue({ entityType: 'User', sequence: 1 });
+    mockPrismaClient.authSettings.findFirst.mockResolvedValue({
+      id: 'auth-settings-1',
+      passwordComplexityEnabled: true,
+      minPasswordLength: 12,
+      passwordHistoryCount: 0,
+      passwordValidityDays: 0,
+      forceMfa: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    mockPrismaClient.passwordHistory.findMany.mockResolvedValue([]);
   });
 
   describe('register', () => {
@@ -72,7 +98,7 @@ describe('AuthService', () => {
     it('should register a new user successfully', async () => {
       const registerData = {
         email: 'newuser@example.com',
-        password: 'password123',
+        password: 'Str0ng!Password',
         firstName: 'New',
         lastName: 'User',
       };
@@ -104,7 +130,7 @@ describe('AuthService', () => {
     it('should throw an error if email is already registered', async () => {
       const registerData = {
         email: testUser.email,
-        password: 'password123',
+        password: 'Str0ng!Password',
         firstName: 'Test',
         lastName: 'User',
       };
@@ -179,6 +205,60 @@ describe('AuthService', () => {
       await expect(authService.login(credentials)).rejects.toThrow(AppError);
       await expect(authService.login(credentials)).rejects.toThrow('Account is disabled');
     });
+
+    it('should reject expired local passwords', async () => {
+      const credentials = { email: testUser.email, password: testUserPassword };
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      mockPrismaClient.authSettings.findFirst.mockResolvedValue({
+        id: 'auth-settings-1',
+        passwordComplexityEnabled: true,
+        minPasswordLength: 12,
+        passwordHistoryCount: 0,
+        passwordValidityDays: 1,
+        forceMfa: false,
+      });
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        ...testUser,
+        oidcId: null,
+        passwordChangedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      });
+
+      await expect(authService.login(credentials)).rejects.toThrow('Password has expired');
+    });
+
+    it('should require MFA enrollment for local users when forced', async () => {
+      const credentials = { email: testUser.email, password: testUserPassword };
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      mockPrismaClient.authSettings.findFirst.mockResolvedValue({
+        id: 'auth-settings-1',
+        passwordComplexityEnabled: true,
+        minPasswordLength: 12,
+        passwordHistoryCount: 0,
+        passwordValidityDays: 0,
+        forceMfa: true,
+      });
+      mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, oidcId: null, mfaEnabled: false });
+
+      await expect(authService.login(credentials)).rejects.toThrow('MFA enrollment is required');
+    });
+  });
+
+  describe('changeOwnPassword', () => {
+    it('should reject recently used local passwords', async () => {
+      (jest.spyOn(bcrypt, 'compare') as any).mockImplementation(async (_plain: string, hash: string) => hash === testUser.passwordHash || hash === 'old-hash');
+      mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, oidcId: null });
+      mockPrismaClient.authSettings.findFirst.mockResolvedValue({
+        id: 'auth-settings-1',
+        passwordComplexityEnabled: false,
+        minPasswordLength: 8,
+        passwordHistoryCount: 1,
+        passwordValidityDays: 0,
+        forceMfa: false,
+      });
+      mockPrismaClient.passwordHistory.findMany.mockResolvedValue([{ id: 'history-1', userId: testUser.id, passwordHash: 'old-hash' }]);
+
+      await expect(authService.changeOwnPassword(testUser.id, testUserPassword, 'AnyPass123')).rejects.toThrow('Password was used recently');
+    });
   });
 
   describe('getCurrentUser', () => {
@@ -222,7 +302,7 @@ describe('AuthService', () => {
     it('should create first admin successfully', async () => {
       const adminData = {
         email: 'admin@example.com',
-        password: 'adminpass123',
+        password: 'Adm1n!Secure',
         firstName: 'Admin',
         lastName: 'User',
       };
@@ -250,7 +330,7 @@ describe('AuthService', () => {
 
       const adminData = {
         email: 'admin2@example.com',
-        password: 'password123',
+        password: 'Adm1n!Secure',
         firstName: 'Admin',
         lastName: 'Two',
       };

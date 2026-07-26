@@ -15,11 +15,15 @@ import AdminOIDC from './pages/AdminOIDC';
 import AdminIntune from './pages/AdminIntune';
 import AdminVMware from './pages/AdminVMware';
 import AdminProxmox from './pages/AdminProxmox';
+import AdminReminders from './pages/AdminReminders';
+import AdminFiscalYear from './pages/AdminFiscalYear';
+import AdminAuthSettings from './pages/AdminAuthSettings';
 import Contracts from './pages/Contracts';
 import Licenses from './pages/Licenses';
 import Processes from './pages/Processes';
 import RiskAggregation from './pages/RiskAggregation';
 import ISMSPhase6 from './pages/ISMSPhase6';
+import CostPlanning from './pages/CostPlanning';
 
 function App() {
   return (
@@ -34,8 +38,10 @@ function App() {
         <Route path="contracts" element={<Contracts />} />
         <Route path="licenses" element={<Licenses />} />
         <Route path="processes" element={<Processes />} />
+        <Route path="cost-planning" element={<CostPlanning />} />
         <Route path="risk-aggregation" element={<RiskAggregation />} />
-        <Route path="isms-phase6" element={<ISMSPhase6 />} />
+        <Route path="isms-operations" element={<ISMSPhase6 />} />
+        <Route path="isms-phase6" element={<Navigate to="/isms-operations" replace />} />
         <Route path="settings" element={<Settings />} />
         <Route path="admin/users" element={<AdminUsers />} />
         <Route path="admin/roles" element={<AdminRoles />} />
@@ -45,6 +51,9 @@ function App() {
         <Route path="admin/intune" element={<AdminIntune />} />
         <Route path="admin/vmware" element={<AdminVMware />} />
         <Route path="admin/proxmox" element={<AdminProxmox />} />
+        <Route path="admin/reminders" element={<AdminReminders />} />
+        <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
+        <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
 import { riskService } from '../services/risk.service';
 import { riskAggregationService } from '../services/risk.aggregation';
 
-const requireAdminAccess = authorize('system_admin');
+
 
 export const riskRouter = Router();
 
@@ -50,6 +51,32 @@ riskRouter.post('/assessments', authenticate, authorizeEntityWrite('risks'), asy
   try {
     const assessments = await riskService.createAssessment({ ...req.body, assessorId: req.userId! });
     res.status(201).json(assessments);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/risk-controls', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const link = await riskService.linkRiskControl(req.body, req.userId);
+    res.status(201).json(link);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/risk-control-assessments', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    const assessment = await riskService.assessRiskControl(req.body, req.userId);
+    res.status(201).json(assessment);
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/assessment-versions/:id/close', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await riskService.closeAssessmentVersion(req.params.id, req.userId));
   } catch (error) {
     next(error);
   }

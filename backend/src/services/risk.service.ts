@@ -4,6 +4,12 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { displayIdService } from './displayId.service';
 
+const db = prisma as any;
+
+const DEPRECATED_RISK_CONTROL_FIELDS = ['existingControls', 'controls', 'controlIds', 'relatedRiskIds', 'riskIds'];
+const RISK_CONTROL_ROLES = ['preventive', 'detective', 'corrective', 'recovery', 'compensating'];
+const MITIGATION_DIMENSIONS = ['likelihood', 'impact', 'both'];
+
 // ==========================================
 // Interfaces
 // ==========================================
@@ -30,6 +36,8 @@ export interface CreateRiskData {
   riskOwnerId: string;
   nextReviewDate: Date;
   justification: string;
+  residualRisk?: string;
+  targetRisk?: string;
 }
 
 export interface UpdateRiskData extends Partial<CreateRiskData> {
@@ -68,6 +76,28 @@ export interface CreateAssessmentData {
   assessorId: string;
   nextReviewDate: Date;
   justification: string;
+  status?: string;
+}
+
+export interface CreateRiskControlData {
+  riskId: string;
+  controlImplementationId: string;
+  role: 'preventive' | 'detective' | 'corrective' | 'recovery' | 'compensating';
+  mitigationDimension: 'likelihood' | 'impact' | 'both';
+  isKeyControl?: boolean;
+  status?: string;
+}
+
+export interface CreateRiskControlAssessmentData {
+  riskControlId: string;
+  riskAssessmentVersionId: string;
+  effectivenessStatus: string;
+  effectivenessRating?: number;
+  likelihoodReduction?: number;
+  impactReduction?: number;
+  justification: string;
+  assessedBy: string;
+  evidenceLinks?: Array<{ evidenceId: string; relationType?: string }>;
 }
 
 export interface CreateReviewTaskData {
@@ -89,6 +119,20 @@ type ReviewTaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'c
 // ==========================================
 
 export class RiskService {
+  private rejectDeprecatedRiskControlPayload(data: Record<string, unknown>) {
+    const forbidden = DEPRECATED_RISK_CONTROL_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(data, field));
+    if (forbidden.length) {
+      throw new AppError(`Deprecated direct risk-control fields are not accepted: ${forbidden.join(', ')}. Use RiskControl with controlImplementationId.`, 400);
+    }
+  }
+
+  private validateAssessmentMutability(version: any) {
+    if (!version) throw new AppError('Risk assessment version not found', 404);
+    if (version.isClosed || ['completed', 'closed', 'approved'].includes(version.status)) {
+      throw new AppError('Closed/completed risk assessment versions are immutable; create a new assessment version instead', 409);
+    }
+  }
+
   /**
    * List risks with pagination and filters.
    */
@@ -198,8 +242,11 @@ export class RiskService {
    * Creates an initial assessment snapshot automatically.
    */
   async create(data: CreateRiskData, createdBy?: string) {
+    this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
     const displayId = await displayIdService.nextDisplayIdStandalone(prisma, 'Risk');
     const inherentRisk = this.calculateRiskLevel(data.likelihood, data.impact);
+    const residualRisk = data.residualRisk ?? inherentRisk;
+    const targetRisk = data.targetRisk ?? inherentRisk;
 
     // Validate scenario references if provided
     if (data.scenarioId) {
@@ -271,8 +318,8 @@ export class RiskService {
           likelihood: data.likelihood,
           impact: data.impact,
           inherentRisk,
-          residualRisk: inherentRisk,
-          targetRisk: inherentRisk,
+          residualRisk,
+          targetRisk,
           riskOwnerId: data.riskOwnerId,
           assessorId: data.assessorId,
           nextReviewDate: data.nextReviewDate,
@@ -334,11 +381,31 @@ export class RiskService {
             likelihood: data.likelihood,
             impact: data.impact,
             inherentRisk,
-            residualRisk: inherentRisk,
-            targetRisk: inherentRisk,
+            residualRisk,
+            targetRisk,
             assessorId: data.assessorId,
             nextReviewDate: data.nextReviewDate,
             justification: data.justification,
+            isCurrent: true,
+          },
+        });
+
+        await (tx as any).riskAssessmentVersion.create({
+          data: {
+            riskId: risk.id,
+            riskMethodVersionId: data.riskMethodVersionId,
+            versionNumber: 1,
+            assessmentType: 'current',
+            likelihood: data.likelihood,
+            impact: data.impact,
+            inherentRisk,
+            residualRisk,
+            targetRisk,
+            score: data.likelihood * data.impact,
+            assessorId: data.assessorId,
+            nextReviewDate: data.nextReviewDate,
+            justification: data.justification,
+            status: 'draft',
             isCurrent: true,
           },
         });
@@ -371,6 +438,7 @@ export class RiskService {
    * Update an existing risk. Changes to assessment values create a new assessment snapshot.
    */
   async update(id: string, data: UpdateRiskData, updatedBy?: string) {
+    this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
     const existing = await prisma.risk.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Risk not found', 404);
@@ -582,6 +650,13 @@ export class RiskService {
       throw new AppError('Risk method version not found', 404);
     }
 
+    const currentClosed = await db.riskAssessmentVersion.findFirst({
+      where: { riskId: data.riskId, assessmentType: data.assessmentType, isCurrent: true },
+    });
+    if (currentClosed?.isClosed || ['completed', 'closed', 'approved'].includes(currentClosed?.status)) {
+      // Explicitly version instead of mutating the closed version below.
+    }
+
     // Determine next assessment number
     const maxAssessment = await prisma.riskAssessment.findFirst({
       where: { riskId: data.riskId },
@@ -615,6 +690,35 @@ export class RiskService {
           assessorId: data.assessorId,
           nextReviewDate: data.nextReviewDate,
           justification: data.justification,
+          isCurrent: true,
+        },
+      });
+
+      const maxVersion = await (tx as any).riskAssessmentVersion.findFirst({
+        where: { riskId: data.riskId },
+        orderBy: { versionNumber: 'desc' },
+        select: { versionNumber: true },
+      });
+      await (tx as any).riskAssessmentVersion.updateMany({
+        where: { riskId: data.riskId, assessmentType: data.assessmentType, isCurrent: true },
+        data: { isCurrent: false },
+      });
+      await (tx as any).riskAssessmentVersion.create({
+        data: {
+          riskId: data.riskId,
+          riskMethodVersionId: data.riskMethodVersionId,
+          versionNumber: (maxVersion?.versionNumber ?? 0) + 1,
+          assessmentType: data.assessmentType,
+          likelihood: data.likelihood,
+          impact: data.impact,
+          inherentRisk: data.inherentRisk,
+          residualRisk: data.residualRisk,
+          targetRisk: data.targetRisk,
+          score,
+          assessorId: data.assessorId,
+          nextReviewDate: data.nextReviewDate,
+          justification: data.justification,
+          status: data.status ?? 'draft',
           isCurrent: true,
         },
       });
@@ -660,11 +764,11 @@ export class RiskService {
    * Get all assessments for a risk (full history).
    */
   async getAssessments(riskId: string) {
-    const assessments = await prisma.riskAssessment.findMany({
+    const assessments = await db.riskAssessmentVersion.findMany({
       where: { riskId },
-      orderBy: { assessmentNumber: 'desc' },
+      orderBy: { versionNumber: 'desc' },
       include: {
-        riskMethodVersion: true,
+        controlAssessments: { include: { riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: true } },
       },
     });
 
@@ -675,17 +779,88 @@ export class RiskService {
    * Get the current assessment for a risk by type.
    */
   async getCurrentAssessment(riskId: string, assessmentType?: 'inherent' | 'current' | 'target') {
-    const where: Prisma.RiskAssessmentWhereInput = { riskId, isCurrent: true };
+    const where: any = { riskId, isCurrent: true };
     if (assessmentType) {
       where.assessmentType = assessmentType;
     }
 
-    return prisma.riskAssessment.findFirst({
+    return db.riskAssessmentVersion.findFirst({
       where,
       include: {
-        riskMethodVersion: true,
+        controlAssessments: { include: { riskControl: true, evidenceLinks: true } },
       },
     });
+  }
+
+  async linkRiskControl(data: CreateRiskControlData, createdBy?: string) {
+    if (!RISK_CONTROL_ROLES.includes(data.role)) throw new AppError('Invalid risk-control role', 400);
+    if (!MITIGATION_DIMENSIONS.includes(data.mitigationDimension)) throw new AppError('Invalid mitigation dimension', 400);
+    const [risk, implementation] = await Promise.all([
+      db.risk.findUnique({ where: { id: data.riskId } }),
+      db.controlImplementation.findUnique({ where: { id: data.controlImplementationId } }),
+    ]);
+    if (!risk) throw new AppError('Risk not found', 404);
+    if (!implementation) throw new AppError('Control implementation not found', 404);
+
+    return db.riskControl.create({
+      data: {
+        riskId: data.riskId,
+        controlImplementationId: data.controlImplementationId,
+        role: data.role,
+        mitigationDimension: data.mitigationDimension,
+        isKeyControl: data.isKeyControl ?? false,
+        status: data.status ?? 'active',
+        createdBy,
+      },
+      include: { risk: true, controlImplementation: { include: { control: true } } },
+    });
+  }
+
+  async assessRiskControl(data: CreateRiskControlAssessmentData, userId?: string) {
+    if (!data.justification?.trim()) throw new AppError('Risk-control assessment justification is required', 400);
+    const [riskControl, version] = await Promise.all([
+      db.riskControl.findUnique({ where: { id: data.riskControlId } }),
+      db.riskAssessmentVersion.findUnique({ where: { id: data.riskAssessmentVersionId } }),
+    ]);
+    if (!riskControl) throw new AppError('Risk control link not found', 404);
+    this.validateAssessmentMutability(version);
+    if (version.riskId !== riskControl.riskId) throw new AppError('Risk-control assessment version must belong to the same risk', 400);
+
+    return db.$transaction(async (tx: any) => {
+      const created = await tx.riskControlAssessment.create({
+        data: {
+          riskControlId: data.riskControlId,
+          riskAssessmentVersionId: data.riskAssessmentVersionId,
+          effectivenessStatus: data.effectivenessStatus,
+          effectivenessRating: data.effectivenessRating,
+          likelihoodReduction: data.likelihoodReduction,
+          impactReduction: data.impactReduction,
+          justification: data.justification,
+          assessedBy: userId ?? data.assessedBy,
+        },
+      });
+      if (data.evidenceLinks?.length) {
+        await tx.evidenceLink.createMany({
+          data: data.evidenceLinks.map((link) => ({
+            evidenceId: link.evidenceId,
+            entityType: 'RiskControlAssessment',
+            entityId: created.id,
+            relationType: link.relationType ?? 'supports',
+            riskControlAssessmentId: created.id,
+            createdBy: userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      return tx.riskControlAssessment.findUnique({ where: { id: created.id }, include: { evidenceLinks: true, riskControl: true } });
+    });
+  }
+
+  async closeAssessmentVersion(id: string, userId?: string) {
+    void userId;
+    const version = await db.riskAssessmentVersion.findUnique({ where: { id } });
+    this.validateAssessmentMutability(version);
+    return db.riskAssessmentVersion.update({ where: { id }, data: { status: 'closed', isClosed: true, closedAt: new Date() } });
   }
 
   // ==========================================

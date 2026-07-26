@@ -1,5 +1,42 @@
 # Implementation Log
 
+## 2026-07-26 — Normalized risk-control and asset inventory integration validation
+
+### Änderungen
+
+- Cross-package validation found shared-package type defects after the normalized overhaul. Fixed shared DTO/type issues in `shared/src/dtos/index.ts`, `shared/src/types/control.ts`, `shared/src/types/risk.ts`, and `shared/src/types/incident.ts`:
+  - RiskTreatment update schema now derives from the base object schema before superRefine, avoiding invalid partial() usage on ZodEffects.
+  - Shared RiskControl is exported from the risk model and imported by control types to avoid ambiguous barrel exports.
+  - StatementOfApplicability and SoAItem override BaseEntity.version as numeric versions via Omit.
+  - TreatmentAction.status and IncidentReport.createdBy were aligned with BaseEntity compatibility.
+- Documentation updated in `docs/architecture.md` for the new normalized data model, removed fields and relationship rules.
+- OpenAPI updated in `docs/api/openapi.yaml` for RiskControl, RiskControlAssessment, RiskAssessmentVersion close, ControlTest, generic EvidenceLink, AssetSubtype and inventory-number APIs.
+
+### Validierung
+
+- `npm exec --workspace=backend -- prisma validate` erfolgreich.
+- `npm run build --workspaces --if-present` erfolgreich after shared-package fixes; backend, frontend and shared TypeScript/build validation passed. Vite still reports the existing large chunk warning only.
+- `npm exec --workspace=backend -- jest --runInBand src/__tests__/normalized-risk-control-asset-overhaul.test.ts` erfolgreich: 16 Tests bestanden.
+- A full backend Jest run was attempted through npm workspace argument forwarding; because the flags were not forwarded, all backend suites ran. The normalized-overhaul suite passed, while unrelated legacy mock gaps failed in risktreatment, asset CRUD/admin/auth-settings and phase6 route tests.
+
+### Deprecated-reference scan
+
+- Searched active TypeScript/TSX/YAML sources for `existingControls`, `relatedRiskIds`, `Control.risks`, `Risk.controls`, `controlIds`, `riskIds`, `relatedControlIds` and `relatedRiskIds`.
+- Active implementations use these names only for explicit deprecated-field rejection, normalized risk aggregation/recalculation parameters, tests, or documentation. No active direct Risk-Control implementation remnant was found.
+- OpenAPI SoA/Evidence schemas had stale mirror arrays and were updated to use `controlImplementationIds` and generic `links[]`.
+
+### Breaking Changes
+
+- Risk-Control links must be created through RiskControl using `riskId` and `controlImplementationId`; deprecated direct arrays/relations such as `existingControls`, `controlIds`, `Control.risks`, `Risk.controls`, `relatedRiskIds` and SoA risk/evidence mirror arrays are rejected.
+- Evidence associations are represented through `links[]`/EvidenceLink; `relatedControlIds` and `relatedRiskIds` are no longer canonical API inputs.
+- Asset creation/update supports `assetSubtypeId` and globally unique `inventoryNumber`; generated numbers come from subtype pattern first, then asset type pattern.
+- Risk treatment actions are persisted as TreatmentAction rows and optional control implementation references, rather than unstructured planned-action text only.
+
+### Bekannte Restpunkte
+
+- Full backend Jest still has unrelated mock drift after recent schema additions: missing mocks for `treatmentAction`, `assetType`/`assetSubtype` inventory resolution in old asset CRUD tests, `authSettings` in admin password tests, and phase6 route worker failures. These were not broad-refactored in this integration task.
+- Vite production build still warns about chunks larger than 500 kB; not a build failure.
+
 ## 2026-07-19 — Persistierender Vite-Proxy ECONNREFUSED diagnostiziert und gehärtet
 
 ### Änderungen

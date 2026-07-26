@@ -17,6 +17,8 @@ const Login = () => {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mfaToken, setMfaToken] = useState('');
+  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
@@ -24,6 +26,7 @@ const Login = () => {
   const [needsFirstAdmin, setNeedsFirstAdmin] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const setUser = useAuthStore((state) => state.setUser);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -50,7 +53,17 @@ const Login = () => {
         await login(email, password);
         navigate('/');
       } else if (mode === 'login') {
-        await login(email, password);
+        if (mfaChallenge) {
+          const response = await authApi.verifyMfaLogin(mfaChallenge, mfaToken);
+          setUser(response.data.user, response.data.token);
+          localStorage.setItem('token', response.data.token);
+        } else {
+          const result = await login(email, password);
+          if (result?.mfaRequired && result.challenge) {
+            setMfaChallenge(result.challenge);
+            return;
+          }
+        }
         navigate('/');
       } else {
         await authApi.register({ email, password, firstName, lastName });
@@ -233,11 +246,26 @@ const Login = () => {
               required
             />
           </div>
+          {mfaChallenge && (
+            <div className="mb-6">
+              <label htmlFor="mfaToken" className={loginLabelClass}>Authenticator code</label>
+              <input
+                type="text"
+                id="mfaToken"
+                value={mfaToken}
+                onChange={(e) => setMfaToken(e.target.value)}
+                className={loginInputClass}
+                placeholder="123456"
+                inputMode="numeric"
+                required
+              />
+            </div>
+          )}
           <button
             type="submit"
             className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition"
           >
-            {mode === 'login' ? 'Sign In' : 'Create Account'}
+            {mfaChallenge ? 'Verify code' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
         <div className="mt-4 text-center">

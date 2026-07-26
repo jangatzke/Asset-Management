@@ -9,6 +9,7 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const backdropPointerDownRef = useRef(false);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -32,16 +33,23 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     <div
       ref={overlayRef}
       className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onMouseDown={(e) => {
+        backdropPointerDownRef.current = e.target === overlayRef.current;
+      }}
       onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
+        const startedOnBackdrop = backdropPointerDownRef.current;
+        backdropPointerDownRef.current = false;
+        if (startedOnBackdrop && e.target === overlayRef.current) onClose();
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+      <div className="bg-white dark:bg-card rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-transparent dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            aria-label="Close"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
           >
             &times;
           </button>

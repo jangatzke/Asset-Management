@@ -7,6 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum RiskControlRole {
+  preventive
+  detective
+  corrective
+  recovery
+  compensating
+}
+
+enum RiskControlMitigationDimension {
+  likelihood
+  impact
+  both
+}
+
 // ==========================================
 // Identity & Access Management
 // ==========================================
@@ -34,6 +48,12 @@ model User {
   oidcId       String?
   oidcProvider String?
 
+  // Local account MFA / TOTP fields
+  mfaEnabled       Boolean   @default(false)
+  mfaSecret        String?
+  mfaPendingSecret String?
+  mfaEnabledAt     DateTime?
+
   // User preferences
   language String?  @default("en")
   darkMode Boolean?
@@ -42,9 +62,39 @@ model User {
   userRoles        UserRole[]        @relation("UserRoles")
   userGroups       UserGroup[]       @relation("UserGroups")
   ServiceAccount   ServiceAccount[]
+  fiscalYearUpdates FiscalYearConfig[] @relation("FiscalYearConfigUpdatedBy")
+  ownedCostPlans CostPlan[] @relation("CostPlanOwner")
+  completedCostPlanItems CostPlanItem[] @relation("CostPlanItemCompletedBy")
+  passwordHistory PasswordHistory[] @relation("UserPasswordHistory")
 
   @@index([oidcId, oidcProvider])
   @@map("users")
+}
+
+model AuthSettings {
+  id                         String   @id @default(uuid())
+  passwordComplexityEnabled  Boolean  @default(true)
+  minPasswordLength          Int      @default(12)
+  passwordHistoryCount       Int      @default(0)
+  passwordValidityDays       Int      @default(0)
+  forceMfa                   Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  updatedBy                  String?
+
+  @@map("auth_settings")
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  user User @relation("UserPasswordHistory", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_history")
 }
 
 model UserRole {
@@ -253,17 +303,41 @@ model InterestedParty {
 // ==========================================
 
 model AssetType {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  category    String
-  isArchived  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  name                    String   @unique
+  description             String?
+  category                String
+  inventoryEnabled        Boolean  @default(false)
+  inventoryPattern        String?
+  inventoryNextSequence   Int      @default(1)
+  isArchived              Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
-  assets Asset[] @relation("AssetTypeRelation")
+  assets   Asset[]        @relation("AssetTypeRelation")
+  subtypes AssetSubtype[]
 
   @@map("asset_types")
+}
+
+model AssetSubtype {
+  id                    String   @id @default(uuid())
+  assetTypeId           String
+  name                  String
+  description           String?
+  inventoryEnabled      Boolean?
+  inventoryPattern      String?
+  inventoryNextSequence Int      @default(1)
+  isArchived            Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  assetType AssetType @relation(fields: [assetTypeId], references: [id], onDelete: Cascade)
+  assets    Asset[]
+
+  @@unique([assetTypeId, name])
+  @@index([assetTypeId])
+  @@map("asset_subtypes")
 }
 
 model BusinessService {
@@ -294,6 +368,8 @@ model Asset {
   name                             String
   description                      String?
   assetTypeId                      String
+  assetSubtypeId                   String?
+  inventoryNumber                  String? @unique
   subType                          String?
   manufacturer                     String?
   model                            String?
@@ -344,6 +420,7 @@ model Asset {
   updatedBy               String?
 
   assetType        AssetType         @relation("AssetTypeRelation", fields: [assetTypeId], references: [id], onDelete: Restrict)
+  assetSubtype     AssetSubtype?     @relation(fields: [assetSubtypeId], references: [id], onDelete: SetNull)
   organizationUnit OrganizationUnit? @relation("AssetOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
   location         Site?             @relation("AssetLocation", fields: [locationId], references: [id], onDelete: SetNull)
 
@@ -368,6 +445,7 @@ model Asset {
   importRecords   ImportRecord[]
   fieldProvenance FieldProvenance[]
   fieldLocks      FieldLock[]
+  costPlanItems   CostPlanItem[]
 
   // Junction table links for M:N relationships
   processLinks  AssetProcess[]
@@ -601,6 +679,7 @@ model RiskMethodVersion {
   riskMethod     RiskMethod       @relation(fields: [riskMethodId], references: [id], onDelete: Cascade)
   Risk           Risk[]
   RiskAssessment RiskAssessment[]
+  riskAssessmentVersions RiskAssessmentVersion[]
 
   @@index([riskMethodId])
   @@map("risk_method_versions")
@@ -618,7 +697,6 @@ model Risk {
   threatId                String? // Legacy FK — prefer scenarioId for relational approach
   vulnerabilityId         String? // Legacy FK — prefer scenarioId for relational approach
   possibleImpact          String
-  existingControls        String[] @default([])
   likelihood              Int
   impact                  Int
   inherentRisk            String
@@ -642,9 +720,8 @@ model Risk {
 
   organizationUnit  OrganizationUnit?  @relation("RiskOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
   assets            Asset[]            @relation("AssetRisks")
-  controls          Control[]          @relation("RiskControls")
   businessProcess   BusinessProcess?   @relation("ProcessRisks", fields: [businessProcessId], references: [id], onDelete: SetNull)
-  evidenceLinks     RiskEvidence[]
+  riskControls      RiskControl[]
   riskAssets        RiskAsset[]
   treatments        RiskTreatment[]
   riskMethodVersion RiskMethodVersion? @relation(fields: [riskMethodVersionId], references: [id], onDelete: SetNull)
@@ -661,10 +738,88 @@ model Risk {
   processLinks   RiskProcess[]
   serviceLinks   RiskService[]
   RiskAssessment RiskAssessment[]
+  riskAssessmentVersions RiskAssessmentVersion[]
 
   @@index([riskMethodVersionId])
   @@index([scenarioId])
   @@map("risks")
+}
+
+model RiskAssessmentVersion {
+  id                  String   @id @default(uuid())
+  riskId              String
+  riskMethodVersionId String
+  versionNumber       Int      @default(1)
+  assessmentType      String   @default("current")
+  likelihood          Int
+  impact              Int
+  inherentRisk        String
+  residualRisk        String
+  targetRisk          String
+  score               Int?
+  assessorId          String
+  assessedAt          DateTime @default(now())
+  nextReviewDate      DateTime
+  justification       String
+  status              String   @default("draft")
+  isCurrent           Boolean  @default(true)
+  isClosed            Boolean  @default(false)
+  closedAt            DateTime?
+  createdAt           DateTime @default(now())
+
+  risk                   Risk                    @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  riskMethodVersionIdRef RiskMethodVersion       @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  controlAssessments     RiskControlAssessment[]
+
+  @@unique([riskId, versionNumber])
+  @@index([riskId, isCurrent])
+  @@index([assessmentType])
+  @@map("risk_assessment_versions")
+}
+
+model RiskControl {
+  id                         String                         @id @default(uuid())
+  riskId                     String
+  controlImplementationId    String
+  role                       RiskControlRole
+  mitigationDimension        RiskControlMitigationDimension
+  isKeyControl               Boolean                        @default(false)
+  status                     String                         @default("active")
+  createdAt                  DateTime                       @default(now())
+  createdBy                  String?
+
+  risk                  Risk                  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  controlImplementation ControlImplementation @relation(fields: [controlImplementationId], references: [id], onDelete: Cascade)
+  assessments           RiskControlAssessment[]
+
+  @@unique([riskId, controlImplementationId])
+  @@index([riskId])
+  @@index([controlImplementationId])
+  @@map("risk_controls")
+}
+
+model RiskControlAssessment {
+  id                      String   @id @default(uuid())
+  riskControlId           String
+  riskAssessmentVersionId String
+  effectivenessStatus     String
+  effectivenessRating     Int?
+  likelihoodReduction     Int?
+  impactReduction         Int?
+  justification           String
+  assessedBy              String
+  assessedAt              DateTime @default(now())
+  status                  String   @default("draft")
+  isClosed                Boolean  @default(false)
+  closedAt                DateTime?
+
+  riskControl           RiskControl           @relation(fields: [riskControlId], references: [id], onDelete: Cascade)
+  riskAssessmentVersion RiskAssessmentVersion @relation(fields: [riskAssessmentVersionId], references: [id], onDelete: Cascade)
+  evidenceLinks         EvidenceLink[]
+
+  @@unique([riskControlId, riskAssessmentVersionId])
+  @@index([riskAssessmentVersionId])
+  @@map("risk_control_assessments")
 }
 
 // RiskAssessment tracks a specific assessment snapshot bound to a method version.
@@ -729,10 +884,35 @@ model RiskTreatment {
   acceptance           RiskAcceptance?
   approvals            RiskTreatmentApproval[]
   effectivenessReviews RiskTreatmentEffectivenessReview[]
+  actions              TreatmentAction[]
 
   @@index([riskId])
   @@index([assessmentId])
   @@map("risk_treatments")
+}
+
+model TreatmentAction {
+  id                              String    @id @default(uuid())
+  treatmentId                     String
+  controlImplementationId         String?
+  actionType                      String
+  title                           String
+  description                     String?
+  responsibleUserId               String?
+  targetDate                      DateTime?
+  status                          String    @default("planned")
+  completedAt                     DateTime?
+  completedBy                     String?
+  createdAt                       DateTime  @default(now())
+  updatedAt                       DateTime  @updatedAt
+  createdBy                       String?
+
+  treatment             RiskTreatment          @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  controlImplementation ControlImplementation? @relation(fields: [controlImplementationId], references: [id], onDelete: SetNull)
+
+  @@index([treatmentId])
+  @@index([controlImplementationId])
+  @@map("treatment_actions")
 }
 
 model RiskAcceptance {
@@ -1085,8 +1265,8 @@ model Control {
   // affectedAssetIds removed — use ControlAsset junction table
   // affectedProcessIds removed — use ControlProcess junction table
   // affectedSiteIds removed — use ControlSite junction table
-  // relatedRiskIds removed — relation via Risk.controls already exists
-  // evidenceIds removed — use Evidence.relatedControlIds or junction table
+  // direct risk-control links removed — use RiskControl via ControlImplementation
+  // evidenceIds removed — use generic EvidenceLink
   testMethod                 String?
   testFrequency              String?
   lastEffectivenessReview    DateTime?
@@ -1102,7 +1282,6 @@ model Control {
   updatedBy                  String?
 
   assets Asset[] @relation("AssetControls")
-  risks  Risk[]  @relation("RiskControls")
 
   // Junction table links for M:N relationships (replaces ID arrays)
   assetLinks          ControlAsset[]
@@ -1142,12 +1321,37 @@ model ControlImplementation {
   requirements ControlImplementationRequirement[]
   findings     ControlFinding[]
   actions      ControlAction[]
+  riskControls RiskControl[]
+  controlTests ControlTest[]
+  treatmentActions TreatmentAction[]
 
   @@index([controlId])
   @@index([scopeId])
   @@index([organizationUnitId])
   @@index([siteId])
   @@map("control_implementations")
+}
+
+model ControlTest {
+  id                      String    @id @default(uuid())
+  controlImplementationId String
+  testType                String
+  testMethod              String?
+  testedBy                String
+  testedAt                DateTime  @default(now())
+  result                  String
+  effectivenessRating     Int?
+  findings                String?
+  evidenceRequired        Boolean   @default(false)
+  nextTestDate            DateTime?
+  createdAt               DateTime  @default(now())
+  createdBy               String?
+
+  controlImplementation ControlImplementation @relation(fields: [controlImplementationId], references: [id], onDelete: Cascade)
+  evidenceLinks         EvidenceLink[]
+
+  @@index([controlImplementationId])
+  @@map("control_tests")
 }
 
 model ControlImplementationRequirement {
@@ -1240,9 +1444,6 @@ model SoAItem {
   applicability            String   @default("under_review")
   justification            String
   implementationStatus     String   @default("planned")
-  controlImplementationIds String[] @default([])
-  riskIds                  String[] @default([])
-  evidenceIds              String[] @default([])
   version                  Int      @default(1)
   isImmutable              Boolean  @default(false)
   createdAt                DateTime @default(now())
@@ -1252,11 +1453,24 @@ model SoAItem {
 
   soa     StatementOfApplicability @relation(fields: [soaId], references: [id], onDelete: Cascade)
   control Control?                 @relation(fields: [controlId], references: [id], onDelete: SetNull)
+  implementationLinks SoAItemControlImplementation[]
 
   @@index([soaId])
   @@index([requirementId])
   @@index([controlId])
   @@map("soa_items")
+}
+
+model SoAItemControlImplementation {
+  id                      String @id @default(uuid())
+  soaItemId               String
+  controlImplementationId String
+
+  soaItem SoAItem @relation(fields: [soaItemId], references: [id], onDelete: Cascade)
+
+  @@unique([soaItemId, controlImplementationId])
+  @@index([controlImplementationId])
+  @@map("soa_item_control_implementations")
 }
 
 model SoAApproval {
@@ -1481,11 +1695,6 @@ model Evidence {
   validUntil         DateTime?
   classification     String?
   responsibleId      String
-  relatedControlIds  String[]  @default([])
-  relatedRiskIds     String[]  @default([])
-  relatedAssetIds    String[]  @default([])
-  relatedSoAItemIds  String[]  @default([])
-  relatedDocumentIds String[]  @default([])
   fileHash           String?
   hashAlgorithm      String    @default("sha256")
   fileName           String?
@@ -1500,7 +1709,6 @@ model Evidence {
   updatedAt          DateTime  @updatedAt
   updatedBy          String?
 
-  riskLinks RiskEvidence[]
   links     EvidenceLink[]
 
   @@map("evidence")
@@ -1516,6 +1724,10 @@ model EvidenceLink {
   createdBy    String?
 
   evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  riskControlAssessment RiskControlAssessment? @relation(fields: [riskControlAssessmentId], references: [id])
+  riskControlAssessmentId String?
+  controlTest ControlTest? @relation(fields: [controlTestId], references: [id])
+  controlTestId String?
 
   @@unique([evidenceId, entityType, entityId])
   @@index([entityType, entityId])
@@ -1552,6 +1764,95 @@ model DisplayIdCounter {
   updatedAt  DateTime @updatedAt
 
   @@map("display_id_counters")
+}
+
+model FiscalYearConfig {
+  id              String   @id @default(uuid())
+  startMonth      Int      @default(1)
+  startDay        Int      @default(1)
+  timezone        String   @default("Europe/Berlin")
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("FiscalYearConfigUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("fiscal_year_configs")
+}
+
+model CostPlan {
+  id              String   @id @default(uuid())
+  displayId       String   @unique
+  fiscalYearLabel String   @unique
+  periodStart     DateTime
+  periodEnd       DateTime
+  currency        String   @default("EUR")
+  status          String   @default("draft")
+  notes           String?
+  ownerUserId     String?
+  isArchived      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId String?
+  updatedByUserId String?
+
+  owner User? @relation("CostPlanOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  items CostPlanItem[]
+
+  @@index([periodStart, periodEnd])
+  @@index([status])
+  @@index([ownerUserId])
+  @@map("cost_plans")
+}
+
+model CostPlanItem {
+  id                String    @id @default(uuid())
+  displayId         String    @unique
+  costPlanId        String
+  sourceType        String
+  sourceKey         String?
+  sourceAssetId     String?
+  sourceLicenseId   String?
+  sourceContractId  String?
+  title             String
+  description       String?
+  category          String
+  investmentType    String
+  relevanceReason   String?
+  plannedAmount     Decimal
+  knownAmount       Decimal?
+  currency          String    @default("EUR")
+  plannedDate       DateTime?
+  dueDate           DateTime?
+  status            String    @default("planned")
+  supplierId        String?
+  supplierName      String?
+  invoiceNumber     String?
+  invoiceDate       DateTime?
+  acquiredAt        DateTime?
+  completedAt       DateTime?
+  completedByUserId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdByUserId   String?
+  updatedByUserId   String?
+
+  costPlan       CostPlan  @relation(fields: [costPlanId], references: [id], onDelete: Cascade)
+  sourceAsset    Asset?    @relation(fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  sourceLicense  License?  @relation(fields: [sourceLicenseId], references: [id], onDelete: SetNull)
+  sourceContract Contract? @relation(fields: [sourceContractId], references: [id], onDelete: SetNull)
+  completedBy    User?     @relation("CostPlanItemCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([costPlanId, sourceKey])
+  @@index([costPlanId, status])
+  @@index([category])
+  @@index([sourceType])
+  @@index([plannedDate])
+  @@index([dueDate])
+  @@index([sourceAssetId])
+  @@index([sourceLicenseId])
+  @@index([sourceContractId])
+  @@map("cost_plan_items")
 }
 
 model PolicyDocument {
@@ -2481,6 +2782,51 @@ model IntuneSyncConfig {
   @@map("intune_sync_config")
 }
 
+model ReminderConfig {
+  id                      String    @id @default(uuid())
+  enabled                 Boolean   @default(false)
+  intervalMinutes         Int       @default(1440)
+  lookAheadDays           Int       @default(0)
+  reminderFromEmail       String?
+  reminderSubjectPrefix   String    @default("[ISMS Reminder]")
+  smtpHost                String?
+  smtpPort                Int       @default(587)
+  smtpSecure              Boolean   @default(false)
+  smtpUser                String?
+  smtpPassword            String?
+  smtpRejectUnauthorized  Boolean   @default(true)
+  lastRunAt               DateTime?
+  nextRunAt               DateTime?
+  lastRunStatus           String?
+  lastRunMessage          String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  updatedBy               String?
+
+  @@map("reminder_config")
+}
+
+model ReminderDeliveryLog {
+  id             String   @id @default(uuid())
+  runId          String
+  resource       String
+  entityType     String
+  entityId       String
+  recipientEmail String?
+  recipientUserId String?
+  subject        String?
+  status         String   @default("pending")
+  errorMessage   String?
+  dueDate        DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([runId])
+  @@index([resource, entityId])
+  @@index([status, createdAt])
+  @@map("reminder_delivery_logs")
+}
+
 // ==========================================
 // Intune App Credentials Model
 // Separate Entra app credentials for Intune (different from OIDC)
@@ -2526,6 +2872,7 @@ model Contract {
 
   assetLinks   AssetContract[]
   licenseLinks ContractLicense[]
+  costPlanItems CostPlanItem[]
 
   @@map("contracts")
 }
@@ -2554,6 +2901,7 @@ model License {
 
   assetLinks    AssetLicense[]
   contractLinks ContractLicense[]
+  costPlanItems CostPlanItem[]
 
   @@map("licenses")
 }
@@ -2599,18 +2947,6 @@ model AssetDocument {
 
   @@unique([assetId, documentId])
   @@map("asset_documents")
-}
-
-model RiskEvidence {
-  id         String @id @default(uuid())
-  riskId     String
-  evidenceId String
-
-  risk     Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
-  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
-
-  @@unique([riskId, evidenceId])
-  @@map("risk_evidence")
 }
 
 // Risk-Asset junction table (replaces affectedAssetIds array in Risk)
@@ -3052,4 +3388,39 @@ model ApiScope {
   createdAt   DateTime @default(now())
 
   @@map("api_scopes")
+}
+model ControlCatalog {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  version     String?
+  url         String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items ControlCatalogItem[]
+
+  @@map("control_catalogs")
+}
+
+model ControlCatalogItem {
+  id          String   @id @default(uuid())
+  catalogId   String
+  controlId   String
+  title       String
+  description String?
+  controlText String?
+  category    String?
+  subcategory String?
+  sortOrder   Int?
+  tags        String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  catalog ControlCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  @@unique([catalogId, controlId])
+  @@index([catalogId])
+  @@map("control_catalog_items")
 }

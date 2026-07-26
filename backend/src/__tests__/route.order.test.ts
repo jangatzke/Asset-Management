@@ -42,6 +42,7 @@ jest.mock('../middleware/entityAuth', () => ({
   authorizeEntityWrite: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   authorizeEntityDelete: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   authorizeEntityRead: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
+  requireAdminAccess: jest.fn((req: any, _res: any, next: any) => next()),
 }));
 
 import { assetRouter } from '../routes/asset.routes';

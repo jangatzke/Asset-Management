@@ -70,6 +70,8 @@ export const CreateAssetSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   description: z.string().max(2000).optional(),
   assetTypeId: z.string().uuid('Invalid asset type ID'),
+  assetSubtypeId: z.string().uuid('Invalid asset subtype ID').optional(),
+  inventoryNumber: z.string().max(100).optional(),
   subType: z.string().max(100).optional(),
   manufacturer: z.string().max(200).optional(),
   model: z.string().max(200).optional(),
@@ -159,6 +161,7 @@ export const AssetQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
   assetTypeId: z.string().uuid().optional(),
+  assetSubtypeId: z.string().uuid().optional(),
   lifecycleStatus: z.string().optional(),
   criticality: CriticalitySchema.optional(),
   organizationUnitId: z.string().uuid().optional(),
@@ -166,6 +169,14 @@ export const AssetQuerySchema = z.object({
 });
 
 export type AssetQueryDTO = z.infer<typeof AssetQuerySchema>;
+
+export const CreateAssetSubtypeSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  inventoryEnabled: z.boolean().optional(),
+  inventoryPattern: z.string().max(50).optional(),
+});
+export type CreateAssetSubtypeDTO = z.infer<typeof CreateAssetSubtypeSchema>;
 
 // ==========================================
 // Phase 6 ISMS DTOs
@@ -302,6 +313,55 @@ export const ControlImplementationSchema = z.object({
 }).refine((data) => Boolean(data.scopeId || data.organizationUnitId || data.siteId), { message: 'Scope, organization unit, or site is required' });
 export type ControlImplementationDTO = z.infer<typeof ControlImplementationSchema>;
 
+const DeprecatedDirectRiskControlFields = z.object({
+  relatedRiskIds: z.never().optional(),
+  riskIds: z.never().optional(),
+  evidenceIds: z.never().optional(),
+  controls: z.never().optional(),
+  existingControls: z.never().optional(),
+});
+
+export const RiskControlRoleSchema = z.enum(['preventive', 'detective', 'corrective', 'recovery', 'compensating']);
+export const RiskControlMitigationDimensionSchema = z.enum(['likelihood', 'impact', 'both']);
+
+export const CreateRiskControlSchema = z.object({
+  riskId: z.string().uuid(),
+  controlImplementationId: z.string().uuid(),
+  role: RiskControlRoleSchema,
+  mitigationDimension: RiskControlMitigationDimensionSchema,
+  isKeyControl: z.boolean().default(false),
+  status: z.string().default('active'),
+}).merge(DeprecatedDirectRiskControlFields);
+export type CreateRiskControlDTO = z.infer<typeof CreateRiskControlSchema>;
+
+export const CreateRiskControlAssessmentSchema = z.object({
+  riskControlId: z.string().uuid(),
+  riskAssessmentVersionId: z.string().uuid(),
+  effectivenessStatus: z.string().min(1),
+  effectivenessRating: z.number().int().min(0).max(100).optional(),
+  likelihoodReduction: z.number().int().min(0).optional(),
+  impactReduction: z.number().int().min(0).optional(),
+  justification: z.string().min(1),
+  assessedBy: z.string().min(1),
+  evidenceLinks: z.array(z.object({ evidenceId: z.string().uuid(), relationType: z.string().optional() })).default([]),
+});
+export type CreateRiskControlAssessmentDTO = z.infer<typeof CreateRiskControlAssessmentSchema>;
+
+export const CreateControlTestSchema = z.object({
+  controlImplementationId: z.string().uuid(),
+  testType: z.string().min(1),
+  testMethod: z.string().optional(),
+  testedBy: z.string().min(1),
+  testedAt: z.coerce.date().optional(),
+  result: z.string().min(1),
+  effectivenessRating: z.number().int().min(0).max(100).optional(),
+  findings: z.string().optional(),
+  evidenceRequired: z.boolean().default(false),
+  nextTestDate: z.coerce.date().optional(),
+  evidenceLinks: z.array(z.object({ evidenceId: z.string().uuid(), relationType: z.string().optional() })).default([]),
+});
+export type CreateControlTestDTO = z.infer<typeof CreateControlTestSchema>;
+
 export const CreateSoAItemSchema = z.object({
   requirementId: z.string().uuid().optional(),
   controlId: z.string().uuid().optional(),
@@ -309,9 +369,7 @@ export const CreateSoAItemSchema = z.object({
   justification: z.string().min(1),
   implementationStatus: z.string().default('planned'),
   controlImplementationIds: z.array(z.string().uuid()).default([]),
-  riskIds: z.array(z.string()).default([]),
-  evidenceIds: z.array(z.string().uuid()).default([]),
-});
+}).merge(DeprecatedDirectRiskControlFields);
 
 export const CreateSoASchema = z.object({
   frameworkId: z.string().uuid(),
@@ -337,7 +395,7 @@ export const CreateEvidenceSchema = z.object({
   retentionUntil: z.coerce.date().optional(),
   expiresAt: z.coerce.date().optional(),
   deleteProtected: z.boolean().default(false),
-  links: z.array(z.object({ entityType: z.enum(['Control', 'Risk', 'Asset', 'SoAItem', 'Document']), entityId: z.string().min(1), relationType: z.string().optional() })).default([]),
+  links: z.array(z.object({ entityType: z.enum(['Control', 'Risk', 'Asset', 'SoAItem', 'Document', 'RiskControlAssessment', 'ControlTest']), entityId: z.string().min(1), relationType: z.string().optional() })).default([]),
 });
 export type CreateEvidenceDTO = z.infer<typeof CreateEvidenceSchema>;
 
@@ -565,7 +623,7 @@ export type CreateBusinessProcessDTO = z.infer<typeof CreateBusinessProcessSchem
 // Risk Treatment DTOs
 // ==========================================
 
-export const CreateRiskTreatmentSchema = z.object({
+const RiskTreatmentBaseSchema = z.object({
   riskId: z.string().uuid(),
   assessmentId: z.string().uuid('Invalid assessment ID').optional(),
   treatmentOption: z.enum(['reduce', 'mitigate', 'transfer', 'accept', 'avoid']),
@@ -579,18 +637,32 @@ export const CreateRiskTreatmentSchema = z.object({
   justification: z.string().max(2000).optional(),
   expiryDate: z.coerce.date().optional(),
   approverId: z.string().uuid('Invalid approver ID').optional(),
-}).superRefine((data, ctx) => {
+  actions: z.array(z.object({
+    actionType: z.enum(['create', 'extend', 'replace', 'improve']),
+    title: z.string().min(1),
+    description: z.string().optional(),
+    controlImplementationId: z.string().uuid().optional(),
+    responsibleUserId: z.string().uuid().optional(),
+    targetDate: z.coerce.date().optional(),
+  })).default([]),
+});
+
+const validateRiskTreatmentAcceptance = (data: z.infer<typeof RiskTreatmentBaseSchema>, ctx: z.RefinementCtx) => {
   if (data.treatmentOption === 'accept') {
     if (!data.assessmentId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['assessmentId'], message: 'Acceptance requires a concrete risk assessment version' });
     if (!data.justification || data.justification.trim().length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['justification'], message: 'Acceptance requires justification' });
     if (!data.expiryDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expiryDate'], message: 'Acceptance requires expiry date' });
     if (!data.approverId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['approverId'], message: 'Acceptance requires approver' });
   }
-});
+};
+
+export const CreateRiskTreatmentSchema = RiskTreatmentBaseSchema.superRefine(validateRiskTreatmentAcceptance);
 
 export type CreateRiskTreatmentDTO = z.infer<typeof CreateRiskTreatmentSchema>;
 
-export const UpdateRiskTreatmentSchema = CreateRiskTreatmentSchema.partial();
+export const UpdateRiskTreatmentSchema = RiskTreatmentBaseSchema.partial().superRefine((data, ctx) => {
+  validateRiskTreatmentAcceptance(data as z.infer<typeof RiskTreatmentBaseSchema>, ctx);
+});
 export type UpdateRiskTreatmentDTO = z.infer<typeof UpdateRiskTreatmentSchema>;
 
 export const ApproveRiskTreatmentSchema = z.object({

@@ -151,3 +151,9 @@ export const testAsset = {
  * The hash was generated with bcrypt.hash('password123', 10)
  */
 export const testUserPassword = 'password123';
+
+/**
+ * Password that meets ISO 27001 strength requirements:
+ * - 12+ characters, uppercase, lowercase, digit, special char
+ */
+export const strongTestPassword = 'Str0ng!Pass';

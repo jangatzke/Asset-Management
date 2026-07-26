@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { processApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { useI18n } from '../context/I18nContext';
 
 interface Process {
   id: string;
@@ -33,6 +34,7 @@ const initialForm: ProcessForm = {
 };
 
 const Processes = () => {
+  const { t } = useI18n();
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -211,9 +213,9 @@ const Processes = () => {
                 <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(p.status)}`}>{p.status}</span></td>
                 <td className="px-6 py-4 text-sm text-gray-500">{p.processOwner || '-'}</td>
                 <td className="px-6 py-4 text-sm">
-                  <button onClick={() => handleViewDetails(p)} className="text-blue-600 hover:text-blue-800 mr-3">View</button>
-                  <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
-                  <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                  <button onClick={() => handleViewDetails(p)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.view')}</button>
+                  <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
+                  <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
                 </td>
               </tr>
             ))}

@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite } from '../middleware/entityAuth';
 import { riskTreatmentService } from '../services/risktreatment.service';
 
-const requireAdminAccess = authorize('system_admin');
+
 
 export const riskTreatmentRouter = Router();
 

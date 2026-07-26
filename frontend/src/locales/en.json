@@ -10,6 +10,11 @@
     "saving": "Saving...",
     "noResults": "No results found",
     "actions": "Actions",
+    "view": "View",
+    "treatment": "Treatment",
+    "dismiss": "Dismiss",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
     "close": "Close",
     "confirm": "Confirm",
     "confirmDelete": "Are you sure you want to delete this item?",
@@ -35,7 +40,21 @@
     "role": "Role",
     "group": "Group",
     "users": "Users",
-    "roles": "Roles"
+    "roles": "Roles",
+    "update": "Update",
+    "back": "Back",
+    "allStatuses": "All Statuses",
+    "number": "Number",
+    "vendor": "Vendor",
+    "dates": "Dates",
+    "currency": "Currency",
+    "value": "Value",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "id": "ID",
+    "add": "Add",
+    "scrollForMore": "Scroll for more...",
+    "searchEllipsis": "Search..."
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -53,7 +72,98 @@
     "proxmoxConfig": "Proxmox PVE",
     "settings": "Settings",
     "logout": "Logout",
-    "applicationName": "ISMS Asset Manager"
+    "applicationName": "ISMS Asset Manager",
+    "contracts": "Contracts",
+    "licenses": "Licenses",
+    "processes": "Processes",
+    "costPlanning": "Cost Planning",
+    "ismsOperations": "ISMS Operations",
+    "riskAggregation": "Risk Aggregation",
+    "reminderSettings": "Reminder Automation",
+    "fiscalYearSettings": "Fiscal Year",
+    "authSettings": "Authentication"
+  },
+  "ismsOperations": {
+    "title": "ISMS Operations",
+    "description": "Operational hub for supplier governance, continuity, audits, improvements, awareness, reviews, objectives, workflows, reports and evidence.",
+    "domains": {
+      "supplierManagement": "Supplier Management",
+      "businessContinuity": "Business Continuity",
+      "auditImprovement": "Audit & Improvement",
+      "awarenessTraining": "Awareness & Training",
+      "managementReview": "Management Review",
+      "objectivesMetrics": "Objectives & Metrics",
+      "workflowAutomation": "Workflow Automation",
+      "reportsEvidence": "Reports & Evidence"
+    },
+    "domainDescriptions": {
+      "supplierManagement": "Third-party reviews, criticality, requirements and exit readiness.",
+      "businessContinuity": "Business impact analyses, continuity plans and test schedules.",
+      "auditImprovement": "Audit planning, findings, corrective and preventive actions.",
+      "awarenessTraining": "Training assignments, awareness follow-up and completion tracking.",
+      "managementReview": "Leadership reviews, decisions, actions and review cadence.",
+      "objectivesMetrics": "Security objectives, KPI/KRI definitions, thresholds and ownership.",
+      "workflowAutomation": "Operational approval and review workflows across ISMS records.",
+      "reportsEvidence": "Report runs and evidence-ready operational exports."
+    }
+  },
+  "fiscalYear": {
+    "title": "Fiscal-year settings",
+    "startMonth": "Start month",
+    "startDay": "Start day",
+    "timezone": "Timezone",
+    "current": "Current fiscal year",
+    "next": "Next fiscal year",
+    "saved": "Fiscal-year settings saved.",
+    "loadError": "Could not load fiscal-year settings.",
+    "saveError": "Could not save fiscal-year settings."
+  },
+  "authSettings": {
+    "title": "Authentication settings",
+    "description": "Configure password and MFA rules for local users only. OIDC users remain governed by their identity provider.",
+    "passwordComplexity": "Enforce password complexity",
+    "passwordComplexityHelp": "Require uppercase, lowercase, digit and special character.",
+    "minPasswordLength": "Minimum password length",
+    "passwordHistoryCount": "Password history",
+    "passwordValidityDays": "Password validity in days",
+    "forceMfa": "Force MFA",
+    "forceMfaHelp": "Require local users to have TOTP MFA enabled before login.",
+    "zeroDisables": "0 disables password history checks.",
+    "zeroNeverExpires": "0 means passwords never expire.",
+    "localOnlyNotice": "These settings are enforced only for local accounts. OIDC-linked accounts are not affected.",
+    "saved": "Authentication settings saved.",
+    "loadError": "Could not load authentication settings.",
+    "saveError": "Could not save authentication settings."
+  },
+  "costPlanning": {
+    "title": "Cost Planning",
+    "planned": "Planned",
+    "known": "Known",
+    "acquired": "Acquired",
+    "open": "Open",
+    "yearlyPlanItems": "Yearly plan items",
+    "csvExport": "CSV export",
+    "item": "Item",
+    "status": "Status",
+    "category": "Category",
+    "amount": "Amount",
+    "due": "Due",
+    "actions": "Actions",
+    "manualPlannedAcquisition": "Manual planned acquisition",
+    "titleField": "Title",
+    "supplier": "Supplier",
+    "add": "Add",
+    "candidates": "Candidates",
+    "takeOverSelected": "Take over selected",
+    "source": "Source",
+    "reason": "Reason",
+    "alreadyInPlan": "Already in plan",
+    "done": "Done",
+    "markAcquired": "Acquired",
+    "invoiceNumberPrompt": "Invoice number",
+    "invoiceDatePrompt": "Invoice date (YYYY-MM-DD)",
+    "loadYearsError": "Could not load fiscal years.",
+    "loadPlanError": "Could not load cost plan."
   },
   "settings": {
     "title": "User Settings",
@@ -71,7 +181,22 @@
     "accountType": "Account Type",
     "oidcLinked": "OIDC Linked",
     "localAccount": "Local Account",
-    "roles": "Roles"
+    "roles": "Roles",
+    "changePassword": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmNewPassword": "Confirm New Password",
+    "changingPassword": "Changing...",
+    "passwordRequirements": "Minimum 12 characters with uppercase, lowercase, digit, and special character.",
+    "mustChangeTemporaryPassword": "You must change your temporary password before continuing.",
+    "mfaTitle": "Multi-factor authentication",
+    "mfaEnabled": "MFA is enabled for this local account.",
+    "mfaDisabled": "Protect this local account with an authenticator app.",
+    "mfaSetup": "Set up MFA",
+    "mfaConfirm": "Verify and enable MFA",
+    "mfaDisable": "Disable MFA",
+    "mfaCode": "Authenticator code",
+    "mfaQrAlt": "MFA enrollment QR code"
   },
   "roles": {
     "permissions": "Permissions",
@@ -128,7 +253,9 @@
     "columns": {
       "id": "ID",
       "name": "Name",
+      "inventoryNumber": "Inventory No.",
       "type": "Type",
+      "subtype": "Subtype",
       "criticality": "Criticality",
       "status": "Status",
       "lifecycle": "Lifecycle"
@@ -137,6 +264,8 @@
       "name": "Name",
       "description": "Description",
       "assetType": "Asset Type",
+      "assetSubtype": "Asset Subtype",
+      "inventoryNumber": "Inventory Number",
       "serialNumber": "Serial Number",
       "manufacturer": "Manufacturer",
       "model": "Model",
@@ -153,15 +282,65 @@
     },
     "lifecycleStatus": {
       "planned": "Planned",
-      "procured": "Procured",
-      "in_use": "In Use",
+      "ordered": "Ordered",
+      "in_stock": "In Stock",
+      "active": "Active",
+      "maintenance": "Maintenance",
+      "isolated": "Isolated",
       "decommissioned": "Decommissioned",
-      "retired": "Retired"
+      "disposed": "Disposed",
+      "destroyed": "Destroyed",
+      "lost": "Lost",
+      "unknown": "Unknown"
+    },
+    "noSubtype": "No subtype",
+    "inventory": {
+      "generateNext": "Generate next",
+      "manualPlaceholder": "Manual unique number or generated preview",
+      "selectTypeFirst": "Select an asset type first.",
+      "previewError": "Could not generate the next inventory number.",
+      "noPattern": "No inventory pattern configured."
     },
     "noAssetTypes": "No asset types available",
     "createSuccess": "Asset created successfully",
     "updateSuccess": "Asset updated successfully",
-    "deleteSuccess": "Asset deleted successfully"
+    "deleteSuccess": "Asset deleted successfully",
+    "basicInformation": "Basic Information",
+    "relations": "Relations (AST-002)",
+    "extendedRatings": "Extended Ratings (AST-004)",
+    "assetRelationships": "Asset Relationships",
+    "backToAssets": "← Back to Assets",
+    "dependencyGraph": "Dependency Graph",
+    "impactAnalysis": "Impact Analysis",
+    "organizationUnit": "Organization Unit",
+    "businessOwner": "Business Owner",
+    "technicalOperator": "Technical Operator",
+    "securityResponsible": "Security Responsible",
+    "contract": "Contract",
+    "license": "License",
+    "targetAsset": "Target Asset",
+    "relationType": "Relation Type",
+    "personnelSafetyRelevance": "Personnel Safety Relevance",
+    "regulatoryRelevance": "Regulatory Relevance",
+    "financialDamagePotential": "Financial Damage Potential",
+    "productionDowntimeImpact": "Production Downtime Impact",
+    "searchOrgUnits": "Search org units...",
+    "searchUsers": "Search users...",
+    "searchContracts": "Search contracts...",
+    "searchLicenses": "Search licenses...",
+    "searchRisks": "Search risks...",
+    "searchControls": "Search controls...",
+    "searchTargetAsset": "Search target asset...",
+    "deleteConfirm": "Are you sure you want to delete this asset?",
+    "loadDetailsError": "Failed to load asset details",
+    "addRelationError": "Failed to add relation",
+    "relationTypes": {
+      "depends_on": "Depends On",
+      "connects_to": "Connects To",
+      "hosts": "Hosts",
+      "uses": "Uses",
+      "protects": "Protects"
+    }
   },
   "risks": {
     "title": "Risk Management",
@@ -176,6 +355,9 @@
       "likelihood": "Likelihood",
       "impact": "Impact",
       "inherentRisk": "Inherent Risk",
+      "residualRisk": "Residual Risk",
+      "targetRisk": "Target Risk",
+      "controls": "Risk Controls",
       "status": "Status"
     },
     "fields": {
@@ -184,6 +366,8 @@
       "possibleImpact": "Possible Impact",
       "likelihood": "Likelihood (1-5)",
       "impact": "Impact (1-5)",
+      "nextReviewDate": "Next Review Date",
+      "justification": "Assessment Justification",
       "riskOwnerId": "Risk Owner ID",
       "assessorId": "Assessor ID",
       "assets": "Affected Assets",
@@ -208,7 +392,23 @@
       "high": "High",
       "medium": "Medium",
       "low": "Low",
-      "very_low": "Very Low"
+      "very_low": "Very Low",
+      "critical": "Critical"
+    },
+    "controls": {
+      "none": "No linked implementations",
+      "notVerified": "implemented, not verified",
+      "effectiveTested": "effective/tested",
+      "plannedNoResidualReduction": "planned; no residual reduction"
+    },
+    "treatmentAssessmentNotice": "Completing treatment actions enables or requires a new risk assessment; historical residual risk is not modified.",
+    "treatmentActionTitle": "Treatment action title",
+    "selectControlImplementation": "Link a control implementation (optional)",
+    "treatmentOptions": {
+      "reduce": "Reduce",
+      "avoid": "Avoid",
+      "transfer": "Transfer",
+      "accept": "Accept"
     },
     "status": {
       "identified": "Identified",
@@ -220,7 +420,25 @@
     },
     "createSuccess": "Risk created successfully",
     "updateSuccess": "Risk updated successfully",
-    "deleteSuccess": "Risk deleted successfully"
+    "deleteSuccess": "Risk deleted successfully",
+    "basicInformation": "Basic Information",
+    "relations": "Relations",
+    "riskOwner": "Risk Owner",
+    "assessor": "Assessor",
+    "organizationUnit": "Organization Unit",
+    "businessProcess": "Business Process",
+    "searchUsers": "Search users...",
+    "searchOrgUnits": "Search org units...",
+    "searchProcesses": "Search processes...",
+    "searchAssets": "Search assets...",
+    "deleteConfirm": "Are you sure you want to delete this risk?",
+    "loadDetailsError": "Failed to load risk details",
+    "treatmentTitle": "Treatment: {title}",
+    "noTreatmentPlans": "No treatment plans yet for this risk.",
+    "createNewTreatment": "Create New Treatment",
+    "describeTreatmentPlan": "Describe the treatment plan...",
+    "createTreatmentPlan": "Create Treatment Plan",
+    "createTreatmentError": "Failed to create treatment"
   },
   "controls": {
     "title": "Controls & Compliance",
@@ -229,12 +447,22 @@
     "editControl": "Edit Control",
     "searchPlaceholder": "Search controls...",
     "noControls": "No controls found",
+    "createError": "Failed to create control",
+    "selectCatalog": "Select catalog",
+    "selectVersion": "Select version",
+    "stats": {
+      "frameworkVersions": "Framework versions",
+      "statementsOfApplicability": "Statements of Applicability",
+      "evidenceItems": "Evidence items"
+    },
     "columns": {
       "title": "Title",
       "controlGoal": "Control Goal",
       "status": "Status",
+      "implementation": "Implementation",
       "maturity": "Maturity",
-      "applicability": "Applicability"
+      "applicability": "Applicability",
+      "requirements": "Framework Requirements"
     },
     "fields": {
       "catalogId": "Catalog ID",
@@ -245,6 +473,8 @@
       "responsibleId": "Responsible Person ID",
       "applicability": "Applicability",
       "implementationStatus": "Implementation Status",
+      "implementationDescription": "Implementation Description",
+      "organizationUnitId": "Organization Unit ID",
       "maturityLevel": "Maturity Level (0-5)",
       "assets": "Affected Assets",
       "risks": "Related Risks"
@@ -256,16 +486,102 @@
       "under_review": "Under Review",
       "tested": "Tested",
       "effective": "Effective",
-      "not_applicable": "Not Applicable"
+      "not_applicable": "Not Applicable",
+      "not_verified": "Not Verified"
+    },
+    "noImplementation": "No implementation",
+    "implementationCount": "{count} implementation(s)",
+    "addImplementation": "Add implementation",
+    "createImplementation": "Create Control Implementation",
+    "implementationCreateError": "Could not create control implementation",
+    "implementationNotice": "Control tests, evidence, linked risks and requirements are tracked on concrete implementations, not abstract controls.",
+    "verification": {
+      "notVerified": "implemented, not verified",
+      "effectiveTested": "effective/tested"
     },
     "applicability": {
       "applicable": "Applicable",
       "not_applicable": "Not Applicable",
       "under_review": "Under Review"
     },
+    "maturity": {
+      "0": "0 - Not Defined",
+      "1": "1 - Initial",
+      "2": "2 - Repeatable",
+      "3": "3 - Defined",
+      "4": "4 - Managed",
+      "5": "5 - Optimized"
+    },
     "createSuccess": "Control created successfully",
     "updateSuccess": "Control updated successfully",
     "deleteSuccess": "Control deleted successfully"
+  },
+  "incidents": {
+    "title": "Incident Management",
+    "loading": "Loading incidents...",
+    "loadError": "Failed to load incidents",
+    "addIncident": "Add incident",
+    "createIncident": "Add incident",
+    "editIncident": "Edit incident",
+    "createSuccess": "Incident created successfully.",
+    "updateSuccess": "Incident updated successfully.",
+    "saveError": "Failed to save incident",
+    "ensureCatalogue": "Ensure NIS-2 Catalogue",
+    "catalogueEnsured": "NIS-2 measures catalogue ensured.",
+    "catalogueError": "Failed to ensure NIS-2 catalogue",
+    "warningDraftCreated": "Draft early warning created for {title}.",
+    "warningDraftError": "Failed to create early warning",
+    "searchPlaceholder": "Search incidents...",
+    "noIncidents": "No incidents found",
+    "significant": "Significant / reportable candidate",
+    "notSignificant": "Not significant",
+    "knowledge": "Knowledge",
+    "warningDraft": "24h warning draft",
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "detectionTime": "Detection time",
+      "knowledgeTime": "Knowledge time",
+      "incidentManagerId": "Incident manager ID",
+      "severity": "Severity",
+      "status": "Status",
+      "reporterSource": "Reporter source",
+      "confidentialityImpact": "Confidentiality impact",
+      "integrityImpact": "Integrity impact",
+      "availabilityImpact": "Availability impact",
+      "operationalImpact": "Operational impact",
+      "financialImpact": "Financial impact",
+      "legalImpact": "Legal impact",
+      "personalDataImpact": "Personal data impacted",
+      "suspectedCause": "Suspected cause",
+      "isIntentional": "Suspected intentional",
+      "hasCrossBorderImpact": "Cross-border impact"
+    },
+    "severity": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "status": {
+      "new": "New",
+      "under_investigation": "Under investigation",
+      "contained": "Contained",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "impact": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "columns": {
+      "title": "Title",
+      "status": "Status",
+      "severity": "Severity",
+      "detectionTime": "Detection Time"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -342,7 +658,14 @@
     "importSuccess": "Import completed successfully",
     "noCredentialsWarning": "Please add VMware credentials first before configuring vCenter servers",
     "noServersConfigured": "No vCenter servers configured",
-    "noCredentialsConfigured": "No credentials configured"
+    "noCredentialsConfigured": "No credentials configured",
+    "username": "Username",
+    "newPasswordKeep": "New Password (leave blank to keep)",
+    "confirmPassword": "Confirm Password",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "editVcenterServer": "Edit vCenter Server",
+    "default": "Default",
+    "selectCredential": "Please select a credential"
   },
   "proxmox": {
     "title": "Proxmox VE Integration",
@@ -370,5 +693,117 @@
     "noCredentialsConfigured": "No credentials configured",
     "useApiToken": "Use API Token (instead of password)",
     "authType": "Auth Type"
+  },
+  "contracts": {
+    "title": "Contracts",
+    "newContract": "New Contract",
+    "editContract": "Edit Contract",
+    "searchPlaceholder": "Search contracts...",
+    "noContracts": "No contracts found",
+    "deleteConfirm": "Are you sure you want to delete this contract?",
+    "loadError": "Failed to load contracts",
+    "fields": {
+      "contractNumber": "Contract Number",
+      "type": "Type",
+      "status": "Status"
+    },
+    "types": {
+      "service": "Service",
+      "maintenance": "Maintenance",
+      "license": "License",
+      "sla": "SLA",
+      "other": "Other"
+    },
+    "status": {
+      "active": "Active",
+      "pending": "Pending",
+      "expired": "Expired",
+      "terminated": "Terminated"
+    }
+  },
+  "assetTypes": {
+    "title": "Asset Types",
+    "newAssetType": "+ New Asset Type",
+    "editAssetType": "Edit Asset Type",
+    "searchPlaceholder": "Search asset types...",
+    "loading": "Loading asset types...",
+    "noAssetTypes": "No asset types found",
+    "archived": "Archived",
+    "archive": "Archive",
+    "category": "Category",
+    "selectCategory": "Select category...",
+    "descriptionOptional": "Description (optional)",
+    "namePlaceholder": "e.g. Physical Server",
+    "descriptionPlaceholder": "Brief description of this asset type",
+    "nameRequired": "Name is required",
+    "categoryRequired": "Category is required",
+    "deleteConfirm": "Are you sure you want to delete this asset type?",
+    "loadError": "Failed to load asset types",
+    "saveError": "Failed to save asset type",
+    "deleteError": "Failed to delete asset type",
+    "archiveError": "Failed to archive asset type",
+    "createSuccess": "Asset type created",
+    "updateSuccess": "Asset type updated",
+    "deleteSuccess": "Asset type deleted",
+    "archiveSuccess": "Asset type archived",
+    "inventoryEnabled": "Inventory enabled",
+    "inventoryPattern": "Inventory pattern",
+    "inventoryPatternPlaceholder": "e.g. SRV-{YYYY}-{SEQ4}",
+    "subtypes": "Subtypes",
+    "noSubtypes": "No subtypes configured",
+    "addSubtype": "Add subtype",
+    "subtypeNamePlaceholder": "e.g. Laptop",
+    "subtypeNameRequired": "Subtype name is required",
+    "subtypeCreateSuccess": "Subtype created",
+    "subtypeSaveError": "Could not save subtype",
+    "categories": {
+      "Hardware": "Hardware",
+      "Software": "Software",
+      "Network": "Network",
+      "Cloud": "Cloud",
+      "Security": "Security",
+      "Application": "Application",
+      "Data": "Data",
+      "Service": "Service",
+      "Physical": "Physical",
+      "Other": "Other"
+    }
+  },
+  "licenses": {
+    "title": "Licenses",
+    "newLicense": "New License",
+    "editLicense": "Edit License",
+    "searchPlaceholder": "Search licenses...",
+    "noLicenses": "No licenses found",
+    "deleteConfirm": "Are you sure you want to delete this license?",
+    "loadError": "Failed to load licenses",
+    "nameRequired": "Name is required",
+    "fields": {
+      "licenseKey": "License Key",
+      "seats": "Seats",
+      "purchaseDate": "Purchase Date",
+      "expiryDate": "Expiry Date",
+      "renewalDate": "Renewal Date"
+    },
+    "types": {
+      "commercial": "Commercial",
+      "open_source": "Open Source",
+      "subscription": "Subscription",
+      "perpetual": "Perpetual"
+    },
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "expiring_soon": "Expiring Soon",
+      "suspended": "Suspended"
+    }
+  },
+  "entitySearch": {
+    "empty": "No results found",
+    "scrollForMore": "Scroll for more..."
+  },
+  "graph": {
+    "noData": "No graph data available",
+    "noDependencies": "No dependencies found"
   }
 }

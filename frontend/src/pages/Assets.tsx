@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { assetApi, riskApi, controlApi, contractApi, licenseApi, adminApi } from '../services/api';
+import { assetApi, contractApi, licenseApi, adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import AssetGraph from '../components/AssetGraph';
@@ -16,12 +16,24 @@ interface Asset {
   lifecycleStatus: string;
   status: string;
   assetType?: { name: string };
+  assetSubtype?: { name: string };
+  inventoryNumber?: string;
   organizationUnit?: { name: string };
 }
 
 interface AssetType {
   id: string;
   name: string;
+  inventoryEnabled?: boolean;
+  inventoryPattern?: string;
+  subtypes?: AssetSubtype[];
+}
+
+interface AssetSubtype {
+  id: string;
+  name: string;
+  inventoryEnabled?: boolean | null;
+  inventoryPattern?: string | null;
 }
 
 interface EntityOption {
@@ -38,6 +50,8 @@ interface CreateAssetForm {
   name: string;
   description: string;
   assetTypeId: string;
+  assetSubtypeId: string;
+  inventoryNumber: string;
   manufacturer: string;
   model: string;
   serialNumber: string;
@@ -51,8 +65,6 @@ interface CreateAssetForm {
   securityResponsibleId?: EntityOption | null;
   contractId?: EntityOption | null;
   licenseId?: EntityOption | null;
-  riskIds?: EntityOption[];
-  controlIds?: EntityOption[];
   // AST-004 Extended Ratings
   personnelSafetyRelevance: string;
   regulatoryRelevance: string;
@@ -64,6 +76,8 @@ const initialForm: CreateAssetForm = {
   name: '',
   description: '',
   assetTypeId: '',
+  assetSubtypeId: '',
+  inventoryNumber: '',
   manufacturer: '',
   model: '',
   serialNumber: '',
@@ -123,20 +137,6 @@ const Assets = () => {
     } catch { return []; }
   };
 
-  const searchRisks = async (q: string) => {
-    try {
-      const res = await riskApi.list({ q, limit: 20 });
-      return res.data?.data ?? [];
-    } catch { return []; }
-  };
-
-  const searchControls = async (q: string) => {
-    try {
-      const res = await controlApi.list({ q, limit: 20 });
-      return res.data?.data ?? [];
-    } catch { return []; }
-  };
-
   const searchContracts = async (q: string) => {
     try {
       const res = await contractApi.list({ q, limit: 20 });
@@ -167,6 +167,19 @@ const Assets = () => {
     asset.displayId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const selectedType = assetTypes.find((type) => type.id === form.assetTypeId);
+  const selectedSubtype = selectedType?.subtypes?.find((subtype) => subtype.id === form.assetSubtypeId);
+
+  const handleGenerateInventory = async () => {
+    if (!form.assetTypeId) { setError(t('assets.inventory.selectTypeFirst')); return; }
+    try {
+      const res = await assetApi.previewInventoryNumber(form.assetTypeId, form.assetSubtypeId || undefined);
+      setForm((prev) => ({ ...prev, inventoryNumber: res.data?.inventoryNumber ?? res.data?.nextInventoryNumber ?? res.data?.preview ?? '' }));
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || t('assets.inventory.previewError'));
+    }
+  };
+
   const handleSubmit = async () => {
     if (!form.name) { setError(t('common.requiredField')); return; }
     if (!form.assetTypeId) { setError(t('common.requiredField')); return; }
@@ -178,6 +191,8 @@ const Assets = () => {
         name: form.name,
         description: form.description,
         assetTypeId: form.assetTypeId,
+        assetSubtypeId: form.assetSubtypeId || undefined,
+        inventoryNumber: form.inventoryNumber || undefined,
         manufacturer: form.manufacturer,
         model: form.model,
         serialNumber: form.serialNumber,
@@ -195,10 +210,8 @@ const Assets = () => {
       if (form.technicalOperatorId) payload.technicalOperatorId = form.technicalOperatorId.id;
       if (form.businessOwnerId) payload.businessOwnerId = form.businessOwnerId.id;
       if (form.securityResponsibleId) payload.securityResponsibleId = form.securityResponsibleId.id;
-      if (form.contractId) payload.contractId = form.contractId.id;
-      if (form.licenseId) payload.licenseId = form.licenseId.id;
-      if (form.riskIds?.length) payload.riskIds = form.riskIds.map(r => r.id);
-      if (form.controlIds?.length) payload.controlIds = form.controlIds.map(c => c.id);
+      if (form.contractId) payload.contractIds = [form.contractId.id];
+      if (form.licenseId) payload.licenseIds = [form.licenseId.id];
 
       if (editingId) {
         await assetApi.update(editingId, payload);
@@ -223,6 +236,8 @@ const Assets = () => {
         name: data.name || '',
         description: data.description || '',
         assetTypeId: data.assetTypeId || '',
+        assetSubtypeId: data.assetSubtypeId || '',
+        inventoryNumber: data.inventoryNumber || '',
         manufacturer: data.manufacturer || '',
         model: data.model || '',
         serialNumber: data.serialNumber || '',
@@ -236,17 +251,17 @@ const Assets = () => {
       setEditingId(asset.id);
       setModalOpen(true);
     } catch {
-      setError('Failed to load asset details');
+      setError(t('assets.loadDetailsError'));
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this asset?')) return;
+    if (!confirm(t('assets.deleteConfirm'))) return;
     try {
       await assetApi.delete(id);
       await loadAssets();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Delete failed');
+      setError(err.response?.data?.error?.message || t('common.deleteError'));
     }
   };
 
@@ -282,7 +297,7 @@ const Assets = () => {
       }]);
       setNewRelationTarget(null);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to add relation');
+      setError(err.response?.data?.error?.message || t('assets.addRelationError'));
     }
   };
 
@@ -303,7 +318,7 @@ const Assets = () => {
       {selectedAsset ? (
         <div>
           <button onClick={() => setSelectedAsset(null)} className="mb-4 text-blue-600 hover:text-blue-800">
-            ← Back to Assets
+            {t('assets.backToAssets')}
           </button>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{selectedAsset.name}</h1>
           <p className="text-sm text-gray-500 mb-4">{selectedAsset.displayId}</p>
@@ -313,11 +328,11 @@ const Assets = () => {
             <nav className="-mb-px flex space-x-8">
               <button onClick={() => setDetailTab('graph')}
                 className={`py-3 px-1 border-b-2 font-medium text-sm ${detailTab === 'graph' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                Dependency Graph
+                {t('assets.dependencyGraph')}
               </button>
               <button onClick={() => setDetailTab('impact')}
                 className={`py-3 px-1 border-b-2 font-medium text-sm ${detailTab === 'impact' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                Impact Analysis
+                {t('assets.impactAnalysis')}
               </button>
             </nav>
           </div>
@@ -353,20 +368,24 @@ const Assets = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.id')}</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.name')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.inventoryNumber')}</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.type')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.subtype')}</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.criticality')}</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.status')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredAssets.length === 0 ? (
-                  <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('assets.noAssets')}</td></tr>
+                   <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('assets.noAssets')}</td></tr>
                 ) : filteredAssets.map((asset) => (
                   <tr key={asset.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.displayId}</td>
                     <td className="px-6 py-4 text-sm font-medium text-blue-600 dark:text-blue-400 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.inventoryNumber || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.assetType?.name || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.assetSubtype?.name || '-'}</td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         asset.criticality === 'critical' ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200' :
@@ -379,8 +398,8 @@ const Assets = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.status}</td>
                     <td className="px-6 py-4 text-sm">
-                      <button onClick={() => handleEdit(asset)} className="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
-                      <button onClick={() => handleDelete(asset.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                      <button onClick={() => handleEdit(asset)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
+                      <button onClick={() => handleDelete(asset.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
                     </td>
                   </tr>
                 ))}
@@ -391,10 +410,10 @@ const Assets = () => {
       )}
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Asset' : t('assets.createAsset')}>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('assets.editAsset') : t('assets.createAsset')}>
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
           {/* Basic Info */}
-          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">Basic Information</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">{t('assets.basicInformation')}</h3>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.name')} *</label>
@@ -411,7 +430,7 @@ const Assets = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetType')} *</label>
-              <select value={form.assetTypeId} onChange={(e) => handleChange('assetTypeId', e.target.value)}
+              <select value={form.assetTypeId} onChange={(e) => setForm({ ...form, assetTypeId: e.target.value, assetSubtypeId: '', inventoryNumber: '' })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">{t('common.select')}</option>
                 {assetTypes.map((type) => (
@@ -420,10 +439,29 @@ const Assets = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.serialNumber')}</label>
-              <input type="text" value={form.serialNumber} onChange={(e) => handleChange('serialNumber', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetSubtype')}</label>
+              <select value={form.assetSubtypeId} onChange={(e) => setForm({ ...form, assetSubtypeId: e.target.value, inventoryNumber: '' })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">{t('assets.noSubtype')}</option>
+                {(selectedType?.subtypes ?? []).map((subtype) => <option key={subtype.id} value={subtype.id}>{subtype.name}</option>)}
+              </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.inventoryNumber')}</label>
+              <input type="text" value={form.inventoryNumber} onChange={(e) => handleChange('inventoryNumber', e.target.value)} placeholder={t('assets.inventory.manualPlaceholder')}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{selectedSubtype?.inventoryPattern || selectedType?.inventoryPattern || t('assets.inventory.noPattern')}</p>
+            </div>
+            <button type="button" onClick={handleGenerateInventory} className="self-end px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600">{t('assets.inventory.generateNext')}</button>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.serialNumber')}</label>
+            <input type="text" value={form.serialNumber} onChange={(e) => handleChange('serialNumber', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -455,109 +493,109 @@ const Assets = () => {
               <select value={form.lifecycleStatus} onChange={(e) => handleChange('lifecycleStatus', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="planned">{t('assets.lifecycleStatus.planned')}</option>
-                <option value="procured">{t('assets.lifecycleStatus.procured')}</option>
-                <option value="in_use">{t('assets.lifecycleStatus.in_use')}</option>
+                <option value="ordered">{t('assets.lifecycleStatus.ordered')}</option>
+                <option value="in_stock">{t('assets.lifecycleStatus.in_stock')}</option>
+                <option value="active">{t('assets.lifecycleStatus.active')}</option>
+                <option value="maintenance">{t('assets.lifecycleStatus.maintenance')}</option>
+                <option value="isolated">{t('assets.lifecycleStatus.isolated')}</option>
                 <option value="decommissioned">{t('assets.lifecycleStatus.decommissioned')}</option>
-                <option value="retired">{t('assets.lifecycleStatus.retired')}</option>
+                <option value="disposed">{t('assets.lifecycleStatus.disposed')}</option>
+                <option value="destroyed">{t('assets.lifecycleStatus.destroyed')}</option>
+                <option value="lost">{t('assets.lifecycleStatus.lost')}</option>
+                <option value="unknown">{t('assets.lifecycleStatus.unknown')}</option>
               </select>
             </div>
           </div>
 
           {/* AST-002: Relations */}
-          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">Relations (AST-002)</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">{t('assets.relations')}</h3>
 
-          <EntitySearchSelect label="Organization Unit" searchEndpoint={searchUsers} value={form.organizationUnitId}
-            onChange={(v) => setForm({ ...form, organizationUnitId: v })} placeholder="Search org units..." />
-
-          <div className="grid grid-cols-2 gap-4">
-            <EntitySearchSelect label="Business Owner" searchEndpoint={searchUsers} value={form.businessOwnerId}
-              onChange={(v) => setForm({ ...form, businessOwnerId: v })} placeholder="Search users..." />
-            <EntitySearchSelect label="Technical Operator" searchEndpoint={searchUsers} value={form.technicalOperatorId}
-              onChange={(v) => setForm({ ...form, technicalOperatorId: v })} placeholder="Search users..." />
-          </div>
-
-          <EntitySearchSelect label="Security Responsible" searchEndpoint={searchUsers} value={form.securityResponsibleId}
-            onChange={(v) => setForm({ ...form, securityResponsibleId: v })} placeholder="Search users..." />
+          <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchUsers} value={form.organizationUnitId}
+            onChange={(v) => setForm({ ...form, organizationUnitId: v })} placeholder={t('assets.searchOrgUnits')} />
 
           <div className="grid grid-cols-2 gap-4">
-            <EntitySearchSelect label="Contract" searchEndpoint={searchContracts} value={form.contractId}
-              onChange={(v) => setForm({ ...form, contractId: v })} placeholder="Search contracts..." />
-            <EntitySearchSelect label="License" searchEndpoint={searchLicenses} value={form.licenseId}
-              onChange={(v) => setForm({ ...form, licenseId: v })} placeholder="Search licenses..." />
+            <EntitySearchSelect label={t('assets.businessOwner')} searchEndpoint={searchUsers} value={form.businessOwnerId}
+              onChange={(v) => setForm({ ...form, businessOwnerId: v })} placeholder={t('assets.searchUsers')} />
+            <EntitySearchSelect label={t('assets.technicalOperator')} searchEndpoint={searchUsers} value={form.technicalOperatorId}
+              onChange={(v) => setForm({ ...form, technicalOperatorId: v })} placeholder={t('assets.searchUsers')} />
           </div>
 
-          <EntitySearchSelect label="Related Risks" searchEndpoint={searchRisks} values={form.riskIds}
-            onValuesChange={(v) => setForm({ ...form, riskIds: v })} multiple placeholder="Search risks..." />
+          <EntitySearchSelect label={t('assets.securityResponsible')} searchEndpoint={searchUsers} value={form.securityResponsibleId}
+            onChange={(v) => setForm({ ...form, securityResponsibleId: v })} placeholder={t('assets.searchUsers')} />
 
-          <EntitySearchSelect label="Related Controls" searchEndpoint={searchControls} values={form.controlIds}
-            onValuesChange={(v) => setForm({ ...form, controlIds: v })} multiple placeholder="Search controls..." />
+          <div className="grid grid-cols-2 gap-4">
+            <EntitySearchSelect label={t('assets.contract')} searchEndpoint={searchContracts} value={form.contractId}
+              onChange={(v) => setForm({ ...form, contractId: v })} placeholder={t('assets.searchContracts')} />
+            <EntitySearchSelect label={t('assets.license')} searchEndpoint={searchLicenses} value={form.licenseId}
+              onChange={(v) => setForm({ ...form, licenseId: v })} placeholder={t('assets.searchLicenses')} />
+          </div>
 
           {/* AST-004: Extended Ratings */}
-          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">Extended Ratings (AST-004)</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">{t('assets.extendedRatings')}</h3>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Personnel Safety Relevance</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.personnelSafetyRelevance')}</label>
               <select value={form.personnelSafetyRelevance} onChange={(e) => handleChange('personnelSafetyRelevance', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">{t('assets.criticality.low')}</option>
+                <option value="medium">{t('assets.criticality.medium')}</option>
+                <option value="high">{t('assets.criticality.high')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Regulatory Relevance</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.regulatoryRelevance')}</label>
               <select value={form.regulatoryRelevance} onChange={(e) => handleChange('regulatoryRelevance', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">{t('assets.criticality.low')}</option>
+                <option value="medium">{t('assets.criticality.medium')}</option>
+                <option value="high">{t('assets.criticality.high')}</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Financial Damage Potential</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.financialDamagePotential')}</label>
               <select value={form.financialDamagePotential} onChange={(e) => handleChange('financialDamagePotential', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">{t('assets.criticality.low')}</option>
+                <option value="medium">{t('assets.criticality.medium')}</option>
+                <option value="high">{t('assets.criticality.high')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Production Downtime Impact</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.productionDowntimeImpact')}</label>
               <select value={form.productionDowntimeImpact} onChange={(e) => handleChange('productionDowntimeImpact', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">{t('assets.criticality.low')}</option>
+                <option value="medium">{t('assets.criticality.medium')}</option>
+                <option value="high">{t('assets.criticality.high')}</option>
               </select>
             </div>
           </div>
 
           {/* Asset Relations */}
-          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">Asset Relationships</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">{t('assets.assetRelationships')}</h3>
 
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <EntitySearchSelect label="Target Asset" searchEndpoint={searchAssets} value={newRelationTarget}
-                onChange={(v) => setNewRelationTarget(v)} placeholder="Search target asset..." />
+              <EntitySearchSelect label={t('assets.targetAsset')} searchEndpoint={searchAssets} value={newRelationTarget}
+                onChange={(v) => setNewRelationTarget(v)} placeholder={t('assets.searchTargetAsset')} />
             </div>
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Relation Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.relationType')}</label>
               <select value={newRelationType} onChange={(e) => setNewRelationType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="depends_on">Depends On</option>
-                <option value="connects_to">Connects To</option>
-                <option value="hosts">Hosts</option>
-                <option value="uses">Uses</option>
-                <option value="protects">Protects</option>
+                <option value="depends_on">{t('assets.relationTypes.depends_on')}</option>
+                <option value="connects_to">{t('assets.relationTypes.connects_to')}</option>
+                <option value="hosts">{t('assets.relationTypes.hosts')}</option>
+                <option value="uses">{t('assets.relationTypes.uses')}</option>
+                <option value="protects">{t('assets.relationTypes.protects')}</option>
               </select>
             </div>
             <button type="button" onClick={handleAddRelation}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 mb-[1px]">Add</button>
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 mb-[1px]">{t('common.add')}</button>
           </div>
 
           {existingRelations.length > 0 && (
@@ -579,7 +617,7 @@ const Assets = () => {
             </button>
             <button onClick={handleSubmit} disabled={saving}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
-              {saving ? t('common.loading') : (editingId ? 'Update' : t('assets.createAsset'))}
+              {saving ? t('common.loading') : (editingId ? t('common.update') : t('assets.createAsset'))}
             </button>
           </div>
         </div>

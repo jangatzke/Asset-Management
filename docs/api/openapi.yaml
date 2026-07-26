@@ -753,6 +753,42 @@ paths:
                 items:
                   $ref: '#/components/schemas/AssetTypeResponse'
 
+  /assets/types/{typeId}/subtypes:
+    post:
+      summary: Create asset subtype for inventory-aware asset classification
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: typeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetSubtypeInput'
+      responses:
+        '201': { description: Asset subtype created }
+
+  /assets/inventory/preview:
+    get:
+      summary: Preview next inventory number from asset type or subtype pattern
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: assetTypeId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: assetSubtypeId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Inventory preview with enabled flag and nextInventoryNumber }
+
   # ==================== Assets ====================
   /assets:
     get:
@@ -782,6 +818,12 @@ paths:
       summary: Create asset
       tags: [Assets]
       security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetInput'
       responses:
         '201':
           content:
@@ -805,6 +847,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssetResponse'
+
+  /risks/risk-controls:
+    post:
+      summary: Link risk to a concrete control implementation
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskControlInput'
+      responses:
+        '201': { description: RiskControl link created }
+
+  /risks/risk-control-assessments:
+    post:
+      summary: Assess a RiskControl for a specific RiskAssessmentVersion
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskControlAssessmentInput'
+      responses:
+        '201': { description: Versioned risk-control assessment created }
+
+  /risks/assessment-versions/{id}/close:
+    post:
+      summary: Close an immutable risk assessment version
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: RiskAssessmentVersion closed }
+
+  /controls/tests:
+    post:
+      summary: Create a control implementation test with generic evidence links
+      tags: [Controls]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlTestInput'
+      responses:
+        '201': { description: Control test created }
 
   /assets/{id}/graph:
     get:
@@ -1501,6 +1598,57 @@ components:
         testFrequency: { type: string }
         nextTestDate: { type: string, format: date-time }
         requirementIds: { type: array, items: { type: string, format: uuid } }
+    RiskControlInput:
+      type: object
+      required: [riskId, controlImplementationId, role, mitigationDimension]
+      description: Canonical Risk-Control link; replaces deprecated direct arrays such as existingControls, relatedRiskIds, controlIds and riskIds.
+      properties:
+        riskId: { type: string, format: uuid }
+        controlImplementationId: { type: string, format: uuid }
+        role: { type: string, enum: [preventive, detective, corrective, recovery, compensating] }
+        mitigationDimension: { type: string, enum: [likelihood, impact, both] }
+        isKeyControl: { type: boolean, default: false }
+        status: { type: string, default: active }
+    RiskControlAssessmentInput:
+      type: object
+      required: [riskControlId, riskAssessmentVersionId, effectivenessStatus, justification, assessedBy]
+      properties:
+        riskControlId: { type: string, format: uuid }
+        riskAssessmentVersionId: { type: string, format: uuid }
+        effectivenessStatus: { type: string, enum: [not_verified, ineffective, partially_effective, effective] }
+        effectivenessRating: { type: integer, minimum: 0, maximum: 100 }
+        likelihoodReduction: { type: integer }
+        impactReduction: { type: integer }
+        justification: { type: string }
+        assessedBy: { type: string }
+        evidenceLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceLinkInput'
+    ControlTestInput:
+      type: object
+      required: [controlImplementationId, testType, testedBy, result]
+      properties:
+        controlImplementationId: { type: string, format: uuid }
+        testType: { type: string }
+        testMethod: { type: string }
+        testedBy: { type: string }
+        testedAt: { type: string, format: date-time }
+        result: { type: string }
+        effectivenessRating: { type: integer, minimum: 0, maximum: 100 }
+        findings: { type: string }
+        evidenceRequired: { type: boolean }
+        nextTestDate: { type: string, format: date-time }
+        evidenceLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceLinkInput'
+    EvidenceLinkInput:
+      type: object
+      required: [evidenceId]
+      properties:
+        evidenceId: { type: string, format: uuid }
+        relationType: { type: string, default: supports }
     SoAInput:
       type: object
       required: [frameworkId, frameworkVersion, scopeId]
@@ -1519,8 +1667,7 @@ components:
               applicability: { type: string, enum: [applicable, not_applicable, under_review] }
               justification: { type: string }
               implementationStatus: { type: string }
-              riskIds: { type: array, items: { type: string } }
-              evidenceIds: { type: array, items: { type: string, format: uuid } }
+              controlImplementationIds: { type: array, items: { type: string, format: uuid } }
     EvidenceInput:
       type: object
       required: [title, evidenceType, classification, responsibleId, fileHash]
@@ -1528,6 +1675,17 @@ components:
         title: { type: string }
         evidenceType: { type: string }
         classification: { type: string }
+        fileHash: { type: string, minLength: 64, maxLength: 64 }
+        links:
+          type: array
+          description: Generic evidence associations replacing relatedControlIds/relatedRiskIds mirror arrays.
+          items:
+            type: object
+            required: [entityType, entityId]
+            properties:
+              entityType: { type: string, enum: [Control, Risk, Asset, SoAItem, Document, RiskControlAssessment, ControlTest] }
+              entityId: { type: string }
+              relationType: { type: string }
     IncidentInput:
       type: object
       required: [title, description, detectionTime, knowledgeTime, incidentManagerId]
@@ -1754,7 +1912,50 @@ components:
         name: { type: string }
         description: { type: string, nullable: true }
         category: { type: string }
+        inventoryEnabled: { type: boolean }
+        inventoryPattern: { type: string, nullable: true }
+        inventoryNextSequence: { type: integer }
         isArchived: { type: boolean }
+        subtypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetSubtypeResponse'
+    AssetSubtypeInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        inventoryEnabled: { type: boolean, nullable: true }
+        inventoryPattern: { type: string, nullable: true }
+    AssetSubtypeResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        assetTypeId: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        inventoryEnabled: { type: boolean, nullable: true }
+        inventoryPattern: { type: string, nullable: true }
+        isArchived: { type: boolean }
+    AssetInput:
+      type: object
+      required: [name, assetTypeId]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        assetTypeId: { type: string, format: uuid }
+        assetSubtypeId: { type: string, format: uuid }
+        inventoryNumber: { type: string, description: Optional manual number; otherwise generated from subtype/type inventory pattern when enabled. }
+        criticality: { type: string, enum: [low, medium, high, critical] }
+        networkAddresses:
+          type: array
+          items:
+            type: object
+            properties:
+              address: { type: string }
+              type: { type: string, enum: [ipv4, ipv6, cidr, hostname] }
+              primary: { type: boolean }
   
     AssetResponse:
       type: object
@@ -1764,6 +1965,8 @@ components:
         name: { type: string }
         description: { type: string, nullable: true }
         assetTypeId: { type: string }
+        assetSubtypeId: { type: string, nullable: true }
+        inventoryNumber: { type: string, nullable: true }
         criticality: { type: string }
         lifecycleStatus: { type: string }
         confidentialityNeed: { type: string }

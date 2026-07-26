@@ -36,18 +36,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return getBrowserLocale();
   });
 
-  // Sync from user profile when loaded
+  // Sync from user profile when loaded, without overwriting an explicit local choice
   useEffect(() => {
     if (!user) return;
     if (user.language && (user.language === 'en' || user.language === 'de')) {
       setLanguageState(user.language as Language);
     } else {
-      // No DB value yet - fall back to browser locale and persist
-      const browserLocale = getBrowserLocale();
-      setLanguageState(browserLocale);
-      void authApi.updatePreferences({ language: browserLocale }).catch(() => {});
+      // No DB value yet - keep saved/local language and persist that preference
+      void authApi.updatePreferences({ language }).catch(() => {});
     }
-  }, [user?.id, user?.language]);
+  }, [user?.id, user?.language, language]);
 
   useEffect(() => {
     localStorage.setItem('language', language);

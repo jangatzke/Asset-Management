@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
 import { controlService } from '../services/control.service';
 
@@ -73,6 +74,14 @@ controlRouter.post('/soa/:id/approve', authenticate, authorizeEntityWrite('contr
 controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createImplementation(req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json(await controlService.createControlTest(req.body, req.userId));
   } catch (error) {
     next(error);
   }

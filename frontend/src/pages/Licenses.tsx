@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { licenseApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { useI18n } from '../context/I18nContext';
 
 interface License {
   id: string;
@@ -46,6 +47,7 @@ const initialForm: LicenseForm = {
 };
 
 const Licenses = () => {
+  const { t } = useI18n();
   const [licenses, setLicenses] = useState<License[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,7 +66,7 @@ const Licenses = () => {
       const response = await licenseApi.list({ page: 1, limit: 100 });
       setLicenses(response.data?.data ?? response.data ?? []);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to load licenses');
+      setError(err.response?.data?.error?.message || t('licenses.loadError'));
     } finally { setLoading(false); }
   };
 
@@ -78,7 +80,7 @@ const Licenses = () => {
   });
 
   const handleSubmit = async () => {
-    if (!form.name) { setError('Name is required'); return; }
+    if (!form.name) { setError(t('licenses.nameRequired')); return; }
     setSaving(true);
     setError('');
     try {
@@ -93,7 +95,7 @@ const Licenses = () => {
       setEditingId(null);
       await loadLicenses();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Save failed');
+      setError(err.response?.data?.error?.message || t('common.saveError'));
     } finally { setSaving(false); }
   };
 
@@ -115,12 +117,12 @@ const Licenses = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this license?')) return;
+    if (!confirm(t('licenses.deleteConfirm'))) return;
     try {
       await licenseApi.delete(id);
       await loadLicenses();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Delete failed');
+      setError(err.response?.data?.error?.message || t('common.deleteError'));
     }
   };
 
@@ -142,7 +144,7 @@ const Licenses = () => {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Licenses</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('licenses.title')}</h1>
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -153,24 +155,24 @@ const Licenses = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Licenses</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('licenses.title')}</h1>
         <button onClick={() => { setForm(initialForm); setEditingId(null); setModalOpen(true); }}
           className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
-          New License
+          {t('licenses.newLicense')}
         </button>
       </div>
 
       {error && <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">{error}</div>}
 
       <div className="flex gap-4 mb-4">
-        <input type="text" placeholder="Search licenses..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+        <input type="text" placeholder={t('licenses.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="expired">Expired</option>
-          <option value="expiring_soon">Expiring Soon</option>
+          <option value="">{t('common.allStatuses')}</option>
+          <option value="active">{t('licenses.status.active')}</option>
+          <option value="expired">{t('licenses.status.expired')}</option>
+          <option value="expiring_soon">{t('licenses.status.expiring_soon')}</option>
         </select>
       </div>
 
@@ -178,19 +180,19 @@ const Licenses = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Vendor</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Seats</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expiry</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.id')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.name')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.vendor')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.type')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.seats')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.status')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.expiryDate')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No licenses found</td></tr>
+              <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('licenses.noLicenses')}</td></tr>
             ) : filtered.map(l => {
               const daysLeft = getDaysUntilExpiry(l.expiryDate);
               return (
@@ -200,7 +202,7 @@ const Licenses = () => {
                   <td className="px-6 py-4 text-sm text-gray-500">{l.vendor || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.type || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{l.seats ? `${l.usedSeats ?? 0}/${l.seats}` : '-'}</td>
-                  <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(l.status)}`}>{l.status}</span></td>
+                  <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(l.status)}`}>{l.status ? t(`licenses.status.${l.status}`) : '-'}</span></td>
                   <td className="px-6 py-4 text-sm">
                     {l.expiryDate ? (
                       <span className={daysLeft !== null && daysLeft <= 30 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}>
@@ -210,8 +212,8 @@ const Licenses = () => {
                     ) : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    <button onClick={() => handleEdit(l)} className="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
-                    <button onClick={() => handleDelete(l.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                    <button onClick={() => handleEdit(l)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
+                    <button onClick={() => handleDelete(l.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
                   </td>
                 </tr>
               );
@@ -220,83 +222,83 @@ const Licenses = () => {
         </table>
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit License' : 'New License'}>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('licenses.editLicense') : t('licenses.newLicense')}>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')} *</label>
             <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.vendor')}</label>
               <input type="text" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.type')}</label>
               <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="commercial">Commercial</option>
-                <option value="open_source">Open Source</option>
-                <option value="subscription">Subscription</option>
-                <option value="perpetual">Perpetual</option>
+                <option value="commercial">{t('licenses.types.commercial')}</option>
+                <option value="open_source">{t('licenses.types.open_source')}</option>
+                <option value="subscription">{t('licenses.types.subscription')}</option>
+                <option value="perpetual">{t('licenses.types.perpetual')}</option>
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">License Key</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.licenseKey')}</label>
               <input type="text" value={form.licenseKey} onChange={(e) => setForm({ ...form, licenseKey: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Seats</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.seats')}</label>
               <input type="number" value={form.seats} onChange={(e) => setForm({ ...form, seats: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.purchaseDate')}</label>
               <input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Expiry Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.expiryDate')}</label>
               <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Renewal Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.renewalDate')}</label>
               <input type="date" value={form.renewalDate} onChange={(e) => setForm({ ...form, renewalDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.status')}</label>
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="active">Active</option>
-              <option value="expiring_soon">Expiring Soon</option>
-              <option value="expired">Expired</option>
-              <option value="suspended">Suspended</option>
+              <option value="active">{t('licenses.status.active')}</option>
+              <option value="expiring_soon">{t('licenses.status.expiring_soon')}</option>
+              <option value="expired">{t('licenses.status.expired')}</option>
+              <option value="suspended">{t('licenses.status.suspended')}</option>
             </select>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button onClick={() => setModalOpen(false)}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button onClick={handleSubmit} disabled={saving}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
-              {saving ? 'Saving...' : (editingId ? 'Update' : 'Create')}
+              {saving ? t('common.saving') : (editingId ? t('common.update') : t('common.create'))}
             </button>
           </div>
         </div>

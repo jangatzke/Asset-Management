@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { authService } from '../services/auth.service';
 import { oidcService } from '../services/oidc.service';
 import crypto from 'crypto';
@@ -51,6 +52,15 @@ authRouter.post('/login', authRateLimiter, async (req, res, next) => {
       return res.status(403).json({ error: { message: 'Local login is disabled. Please use Entra ID login.' } });
     }
     const result = await authService.login(req.body);
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRouter.post('/login/mfa', authRateLimiter, async (req, res, next) => {
+  try {
+    const result = await authService.verifyMfaLogin(req.body.challenge, req.body.token);
     return res.json(result);
   } catch (error) {
     return next(error);
@@ -114,6 +124,40 @@ authRouter.patch('/me/preferences', authenticate, async (req: AuthRequest, res, 
     const { language, darkMode } = req.body;
     const user = await authService.updatePreferences(req.userId!, { language, darkMode });
     res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/me/change-password', authenticate, authRateLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    await authService.changeOwnPassword(req.userId!, currentPassword, newPassword);
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/me/mfa/setup', authenticate, authRateLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await authService.beginMfaEnrollment(req.userId!));
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/me/mfa/confirm', authenticate, authRateLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await authService.confirmMfaEnrollment(req.userId!, req.body.token));
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/me/mfa/disable', authenticate, authRateLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await authService.disableMfa(req.userId!, req.body.token));
   } catch (error) {
     next(error);
   }

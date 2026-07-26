@@ -18,13 +18,19 @@ api.interceptors.request.use((config) => {
 export default api;
 
 export const authApi = {
-  login: (email: string, password: string) => api.post('/auth/login', { email, password }),
+  login: (email: string, password: string, mfaToken?: string) => api.post('/auth/login', { email, password, mfaToken }),
+  verifyMfaLogin: (challenge: string, token: string) => api.post('/auth/login/mfa', { challenge, token }),
   register: (data: { email: string; password: string; firstName: string; lastName: string }) =>
     api.post('/auth/register', data),
   createFirstAdmin: (data: { email: string; password: string; firstName: string; lastName: string }) =>
     api.post('/auth/create-first-admin', data),
   hasAdmin: () => api.get('/auth/has-admin'),
   me: () => api.get('/auth/me'),
+  changeOwnPassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post('/auth/me/change-password', data),
+  beginMfaSetup: () => api.post('/auth/me/mfa/setup'),
+  confirmMfaSetup: (token: string) => api.post('/auth/me/mfa/confirm', { token }),
+  disableMfa: (token: string) => api.post('/auth/me/mfa/disable', { token }),
   updatePreferences: (data: { language?: string; darkMode?: boolean }) =>
     api.patch('/auth/me/preferences', data),
   oidcAuthorize: () => api.get('/oidc/authorize'),
@@ -38,6 +44,8 @@ export const assetApi = {
   update: (id: string, data: any) => api.put(`/assets/${id}`, data),
   delete: (id: string) => api.delete(`/assets/${id}`),
   getTypes: () => api.get('/assets/types'),
+  createSubtype: (typeId: string, data: any) => api.post(`/assets/types/${typeId}/subtypes`, data),
+  previewInventoryNumber: (assetTypeId: string, assetSubtypeId?: string) => api.get('/assets/inventory/preview', { params: { assetTypeId, assetSubtypeId } }),
   // AST-011: Graph & dependencies
   getGraph: (id?: string, params?: any) => id
     ? api.get(`/assets/${id}/graph`, { params })
@@ -60,6 +68,12 @@ export const riskApi = {
   update: (id: string, data: any) => api.put(`/risks/${id}`, data),
   delete: (id: string) => api.delete(`/risks/${id}`),
   createTreatmentPlan: (riskId: string, data: any) => api.post(`/risks/${riskId}/treatment`, data),
+  createAssessment: (data: any) => api.post('/risks/assessments', data),
+  listAssessments: (riskId: string) => api.get(`/risks/${riskId}/assessments`),
+  getCurrentAssessment: (riskId: string, type?: 'inherent' | 'current' | 'target') => api.get(`/risks/${riskId}/assessments/current`, { params: { type } }),
+  linkRiskControl: (data: any) => api.post('/risks/risk-controls', data),
+  assessRiskControl: (data: any) => api.post('/risks/risk-control-assessments', data),
+  closeAssessmentVersion: (id: string) => api.post(`/risks/assessment-versions/${id}/close`),
 };
 
 export const controlApi = {
@@ -69,10 +83,32 @@ export const controlApi = {
   update: (id: string, data: any) => api.put(`/controls/${id}`, data),
   delete: (id: string) => api.delete(`/controls/${id}`),
   createImplementation: (data: any) => api.post('/controls/implementations', data),
+  createTest: (data: any) => api.post('/controls/tests', data),
   listSoA: (params?: any) => api.get('/controls/soa', { params }),
   createSoA: (data: any) => api.post('/controls/soa', data),
   submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
+};
+
+export const catalogApi = {
+  listOptions: () => api.get('/catalogs/options'),
+  list: (params?: any) => api.get('/catalogs', { params }),
+  getById: (id: string) => api.get(`/catalogs/${id}`),
+  create: (data: any) => api.post('/catalogs', data),
+  update: (id: string, data: any) => api.patch(`/catalogs/${id}`, data),
+  delete: (id: string) => api.delete(`/catalogs/${id}`),
+  listItems: (params?: any) => api.get('/catalogs/items', { params }),
+  getItem: (catalogId: string, controlId: string) => api.get(`/catalogs/items/${catalogId}/${controlId}`),
+  createItem: (data: any) => api.post('/catalogs/items', data),
+  updateItem: (catalogId: string, controlId: string, data: any) => api.patch(`/catalogs/items/${catalogId}/${controlId}`, data),
+  deleteItem: (catalogId: string, controlId: string) => api.delete(`/catalogs/items/${catalogId}/${controlId}`),
+  getForControl: (controlId: string) => api.get(`/controls/${controlId}/catalogs`),
+};
+
+export const userSearchApi = {
+  list: (params?: any) => api.get('/users', { params }),
+  search: (query: string) => api.get(`/users/search?q=${encodeURIComponent(query)}`),
+  owners: (query?: string) => api.get(`/users/owners${query ? `?q=${encodeURIComponent(query)}` : ''}`),
 };
 
 export const frameworkApi = {
@@ -160,12 +196,33 @@ export const adminApi = {
   updateOidcConfig: (data: any) => api.put('/admin/oidc/config', data),
   // Asset Type Management
   listAssetTypes: () => api.get('/admin/asset-types'),
-  createAssetType: (data: { name: string; description?: string; category: string }) =>
+  createAssetType: (data: { name: string; description?: string; category: string; inventoryEnabled?: boolean; inventoryPattern?: string }) =>
     api.post('/admin/asset-types', data),
-  updateAssetType: (id: string, data: { name?: string; description?: string; category?: string }) =>
+  updateAssetType: (id: string, data: { name?: string; description?: string; category?: string; inventoryEnabled?: boolean; inventoryPattern?: string }) =>
     api.put(`/admin/asset-types/${id}`, data),
   deleteAssetType: (id: string) => api.delete(`/admin/asset-types/${id}`),
   archiveAssetType: (id: string) => api.post(`/admin/asset-types/${id}/archive`),
+  getFiscalYearConfig: () => api.get('/admin/fiscal-year-config'),
+  updateFiscalYearConfig: (data: { startMonth: number; startDay: number; timezone?: string }) =>
+    api.put('/admin/fiscal-year-config', data),
+  getAuthSettings: () => api.get('/admin/auth-settings'),
+  updateAuthSettings: (data: any) => api.put('/admin/auth-settings', data),
+};
+
+export const costPlanningApi = {
+  years: () => api.get('/cost-planning/years'),
+  listPlans: (params?: any) => api.get('/cost-planning/plans', { params }),
+  createPlan: (data: { fiscalYearLabel: string; ownerUserId?: string }) => api.post('/cost-planning/plans', data),
+  getPlan: (id: string, params?: any) => api.get(`/cost-planning/plans/${id}`, { params }),
+  updatePlan: (id: string, data: any) => api.patch(`/cost-planning/plans/${id}`, data),
+  candidates: (params: any) => api.get('/cost-planning/candidates', { params }),
+  takeOverCandidates: (planId: string, candidateKeys: string[]) => api.post(`/cost-planning/plans/${planId}/items/from-candidates`, { candidateKeys }),
+  createManualItem: (planId: string, data: any) => api.post(`/cost-planning/plans/${planId}/items`, data),
+  updateItem: (itemId: string, data: any) => api.patch(`/cost-planning/items/${itemId}`, data),
+  markAcquired: (itemId: string, data: any) => api.post(`/cost-planning/items/${itemId}/mark-acquired`, data),
+  markDone: (itemId: string, data?: any) => api.post(`/cost-planning/items/${itemId}/mark-done`, data ?? {}),
+  exportCsv: (planId: string, params?: any) => api.get(`/cost-planning/plans/${planId}/export.csv`, { params, responseType: 'blob' }),
+  dashboardReport: () => api.get('/cost-planning/reports/dashboard'),
 };
 
 export const intuneApi = {
@@ -231,7 +288,9 @@ export const treatmentApi = {
   create: (data: any) => api.post('/treatments', data),
   update: (id: string, data: any) => api.patch(`/treatments/${id}`, data),
   delete: (id: string) => api.delete(`/treatments/${id}`),
-  approve: (id: string) => api.post(`/treatments/${id}/approve`),
+  approve: (id: string, data?: any) => api.post(`/treatments/${id}/approve`, data ?? {}),
+  recordEffectivenessReview: (id: string, data: any) => api.post(`/treatments/${id}/effectiveness-review`, data),
+  complete: (id: string, data: any) => api.post(`/treatments/${id}/complete`, data),
 };
 
 // Risk Method API
@@ -254,52 +313,36 @@ export const riskAggregationApi = {
   dashboardSummary: () => api.get('/risks/dashboard-summary'),
 };
 
-// Phase 6 ISMS API
+// ISMS operations API; /phase6 remains a backend compatibility alias.
 export const phase6Api = {
-  resources: () => api.get('/phase6/resources'),
-  list: (resource: string, params?: any) => api.get(`/phase6/${resource}`, { params }),
-  getById: (resource: string, id: string) => api.get(`/phase6/${resource}/${id}`),
-  create: (resource: string, data: any) => api.post(`/phase6/${resource}`, data),
-  update: (resource: string, id: string, data: any) => api.patch(`/phase6/${resource}/${id}`, data),
-  delete: (resource: string, id: string) => api.delete(`/phase6/${resource}/${id}`),
-  export: (resource: string, params?: any) => api.get(`/phase6/${resource}/export`, { params }),
-  runReminders: (resource: string) => api.post(`/phase6/${resource}/reminders/run`),
-  createCorrectiveActionFromSource: (data: any) => api.post('/phase6/corrective-actions/from-source', data),
-  completeTrainingAssignment: (id: string, data: any) => api.post(`/phase6/training-assignments/${id}/complete`, data),
-  startWorkflow: (data: any) => api.post('/phase6/workflows/start', data),
-  transitionWorkflow: (id: string, data: any) => api.post(`/phase6/workflows/${id}/transition`, data),
-  runReport: (data: any) => api.post('/phase6/reports/run', data),
+  resources: () => api.get('/isms-operations/resources'),
+  list: (resource: string, params?: any) => api.get(`/isms-operations/${resource}`, { params }),
+  getById: (resource: string, id: string) => api.get(`/isms-operations/${resource}/${id}`),
+  create: (resource: string, data: any) => api.post(`/isms-operations/${resource}`, data),
+  update: (resource: string, id: string, data: any) => api.patch(`/isms-operations/${resource}/${id}`, data),
+  delete: (resource: string, id: string) => api.delete(`/isms-operations/${resource}/${id}`),
+  runReminders: (resource: string) => api.post(`/isms-operations/${resource}/reminders/run`),
+  export: (resource: string, params?: any) => api.get(`/isms-operations/${resource}/export`, { params }),
 };
 
-// Organization API
-export const orgApi = {
-  listUnits: (params?: any) => api.get('/org/units', { params }),
-  createUnit: (data: any) => api.post('/org/units', data),
-  listScopes: () => api.get('/org/scopes'),
-  createScope: (data: any) => api.post('/org/scopes', data),
-  listParties: () => api.get('/org/parties'),
+export const reminderAdminApi = {
+  getConfig: () => api.get('/admin/reminders/config'),
+  updateConfig: (data: any) => api.put('/admin/reminders/config', data),
+  testSmtp: () => api.post('/admin/reminders/test-smtp'),
+  runNow: () => api.post('/admin/reminders/run-now'),
+  logs: (limit = 50) => api.get('/admin/reminders/logs', { params: { limit } }),
 };
 
-// User search API (for EntitySearchSelect)
-export const userApi = {
-  list: (params?: any) => api.get('/admin/users', { params }),
-};
-
+// Proxmox API
 export const proxmoxApi = {
-  // Credentials
-  getCredentials: () => api.get('/admin/proxmox/credentials'),
-  createCredential: (data: { name: string; username: string; password?: string; apiToken?: string }) =>
-    api.post('/admin/proxmox/credentials', data),
-  updateCredential: (id: string, data: { name?: string; username?: string; password?: string; apiToken?: string; isDefault?: boolean }) =>
-    api.put(`/admin/proxmox/credentials/${id}`, data),
-  deleteCredential: (id: string) => api.delete(`/admin/proxmox/credentials/${id}`),
-  // Proxmox Servers
-  getServers: () => api.get('/admin/proxmox/servers'),
-  createServer: (data: { name: string; host: string; port?: number; nodeId?: string; credentialId: string }) =>
-    api.post('/admin/proxmox/servers', data),
-  updateServer: (id: string, data: { name?: string; host?: string; port?: number; nodeId?: string; credentialId?: string; enabled?: boolean }) =>
-    api.put(`/admin/proxmox/servers/${id}`, data),
-  deleteServer: (id: string) => api.delete(`/admin/proxmox/servers/${id}`),
-  importVMs: (id: string, dryRun?: boolean) => api.post(`/admin/proxmox/servers/${id}/import`, { dryRun }),
-  testConnection: (id: string) => api.post(`/admin/proxmox/servers/${id}/test-connection`),
+  getCredentials: () => api.get('/proxmox/credentials'),
+  createCredential: (data: { name: string; username: string; password: string; isDefault?: boolean }) => api.post('/proxmox/credentials', data),
+  updateCredential: (id: string, data: { name?: string; username?: string; password?: string; isDefault?: boolean }) => api.put(`/proxmox/credentials/${id}`, data),
+  deleteCredential: (id: string) => api.delete(`/proxmox/credentials/${id}`),
+  getServers: () => api.get('/proxmox/servers'),
+  createServer: (data: { name: string; host: string; port?: number; credentialId: string }) => api.post('/proxmox/servers', data),
+  updateServer: (id: string, data: { name?: string; host?: string; port?: number; credentialId?: string; enabled?: boolean }) => api.put(`/proxmox/servers/${id}`, data),
+  deleteServer: (id: string) => api.delete(`/proxmox/servers/${id}`),
+  testConnection: (id: string) => api.post(`/proxmox/servers/${id}/test-connection`),
+  importVMs: (id: string, dryRun?: boolean) => api.post(`/proxmox/servers/${id}/import`, { dryRun }),
 };

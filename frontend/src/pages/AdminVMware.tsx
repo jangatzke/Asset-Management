@@ -37,6 +37,7 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { vmwareApi } from '../services/api';
+import { useI18n } from '../context/I18nContext';
 
 interface VMwareCredential {
   id: string;
@@ -73,6 +74,7 @@ const syncStatusColors: Record<string, string> = {
 };
 
 export default function AdminVMware() {
+  const { t } = useI18n();
 
   // Credential state
   const [credentials, setCredentials] = useState<VMwareCredential[]>([]);
@@ -538,14 +540,14 @@ export default function AdminVMware() {
               placeholder="e.g. Production vCenter"
             />
             <TextField
-              label="Username"
+              label={t('vmware.username')}
               value={credUsername}
               onChange={(e) => setCredUsername(e.target.value)}
               fullWidth
               placeholder="e.g. administrator@vsphere.local"
             />
             <TextField
-              label={editingCredId ? 'New Password (leave blank to keep)' : 'Password'}
+              label={editingCredId ? t('vmware.newPasswordKeep') : t('login.password')}
               type="password"
               value={credPassword}
               onChange={(e) => setCredPassword(e.target.value)}
@@ -553,75 +555,75 @@ export default function AdminVMware() {
             />
             {credPassword && (
               <TextField
-                label="Confirm Password"
+                label={t('vmware.confirmPassword')}
                 type="password"
                 value={credConfirmPassword}
                 onChange={(e) => setCredConfirmPassword(e.target.value)}
                 fullWidth
                 error={!!credConfirmPassword && credPassword !== credConfirmPassword}
                 helperText={
-                  credConfirmPassword && credPassword !== credConfirmPassword ? 'Passwords do not match' : ''
+                  credConfirmPassword && credPassword !== credConfirmPassword ? t('vmware.passwordsDoNotMatch') : ''
                 }
               />
             )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCredDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCredDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveCredential}>
-            {editingCredId ? 'Update' : 'Create'}
+            {editingCredId ? t('common.update') : t('common.create')}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* ---- vCenter Server Dialog ---- */}
       <Dialog open={serverDialogOpen} onClose={() => setServerDialogOpen(false)}>
-        <DialogTitle>{editingServerId ? 'Edit vCenter Server' : 'Add vCenter Server'}</DialogTitle>
+        <DialogTitle>{editingServerId ? t('vmware.editVcenterServer') : t('vmware.addVcenterServer')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
             <TextField
-              label="Name"
+              label={t('common.name')}
               value={serverName}
               onChange={(e) => setServerName(e.target.value)}
               fullWidth
               placeholder="e.g. Production vCenter"
             />
             <TextField
-              label="Host (FQDN or IP)"
+              label={t('vmware.host')}
               value={serverHost}
               onChange={(e) => setServerHost(e.target.value)}
               fullWidth
               placeholder="e.g. vcenter.example.com"
             />
             <TextField
-              label="Port"
+              label={t('vmware.port')}
               type="number"
               value={serverPort}
               onChange={(e) => setServerPort(Number(e.target.value))}
               fullWidth
             />
             <FormControl fullWidth error={!serverCredentialId}>
-              <InputLabel>Credential</InputLabel>
+              <InputLabel>{t('vmware.credential')}</InputLabel>
               <Select
                 value={serverCredentialId}
-                label="Credential"
+                label={t('vmware.credential')}
                 onChange={(e) => setServerCredentialId(e.target.value)}
               >
                 {credentials.map((cred) => (
                   <MenuItem key={cred.id} value={cred.id}>
                     {cred.name} ({cred.username})
-                    {cred.isDefault && ' - Default'}
+                    {cred.isDefault && ` - ${t('vmware.default')}`}
                   </MenuItem>
                 ))}
               </Select>
-              {!serverCredentialId && <FormHelperText>Please select a credential</FormHelperText>}
+              {!serverCredentialId && <FormHelperText>{t('vmware.selectCredential')}</FormHelperText>}
             </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setServerDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setServerDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveServer}>
-            {editingServerId ? 'Update' : 'Create'}
+            {editingServerId ? t('common.update') : t('common.create')}
           </Button>
         </DialogActions>
       </Dialog>

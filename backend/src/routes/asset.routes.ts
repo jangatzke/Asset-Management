@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
 import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
@@ -19,6 +20,8 @@ const CreateAssetSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
   assetTypeId: z.string().uuid(),
+  assetSubtypeId: z.string().uuid().optional(),
+  inventoryNumber: z.string().max(100).optional(),
   subType: z.string().max(100).optional(),
   manufacturer: z.string().max(200).optional(),
   model: z.string().max(200).optional(),
@@ -72,13 +75,14 @@ const AssetQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
   assetTypeId: z.string().uuid().optional(),
+  assetSubtypeId: z.string().uuid().optional(),
   lifecycleStatus: z.string().optional(),
   criticality: CriticalitySchema.optional(),
   organizationUnitId: z.string().uuid().optional(),
   archived: z.coerce.boolean().default(false),
 });
 
-const requireAdminAccess = authorize('system_admin');
+
 
 export const assetRouter = Router();
 
@@ -110,6 +114,22 @@ assetRouter.get('/types', authenticate, async (_req, res, next) => {
   try {
     const types = await assetService.getAssetTypes();
     res.json(types);
+  } catch (error) {
+    next(error);
+  }
+});
+
+assetRouter.post('/types/:typeId/subtypes', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json(await assetService.createAssetSubtype(req.params.typeId, req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+assetRouter.get('/inventory/preview', authenticate, async (req, res, next) => {
+  try {
+    res.json(await assetService.generateInventoryPreview(String(req.query.assetTypeId), req.query.assetSubtypeId ? String(req.query.assetSubtypeId) : undefined));
   } catch (error) {
     next(error);
   }

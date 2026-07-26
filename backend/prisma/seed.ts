@@ -9,6 +9,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { ISO27001_STANDARD_ASSET_TYPES } from '../src/services/bootstrap.service';
 
 const prisma = new PrismaClient();
 
@@ -119,43 +120,7 @@ async function seedRoles(): Promise<void> {
 async function seedAssetTypes(): Promise<void> {
   console.log('\n🗄️  Seeding asset types…');
 
-  const assetTypes = [
-    // Hardware
-    { name: 'physical_server', category: 'hardware' },
-    { name: 'client', category: 'hardware' },
-    { name: 'virtual_machine', category: 'hardware' },
-    { name: 'container', category: 'hardware' },
-    { name: 'network_component', category: 'hardware' },
-    { name: 'security_component', category: 'hardware' },
-    { name: 'mobile_device', category: 'hardware' },
-    // Software & Data
-    { name: 'application', category: 'software' },
-    { name: 'software_product', category: 'software' },
-    { name: 'operating_system', category: 'software' },
-    { name: 'database', category: 'software' },
-    { name: 'data_asset', category: 'data' },
-    // Cloud & Services
-    { name: 'cloud_resource', category: 'cloud' },
-    { name: 'saas_service', category: 'cloud' },
-    { name: 'it_service', category: 'service' },
-    { name: 'enterprise_service', category: 'service' },
-    // Identity & Security
-    { name: 'user_account', category: 'identity' },
-    { name: 'technical_account', category: 'identity' },
-    { name: 'privileged_identity', category: 'identity' },
-    { name: 'certificate', category: 'security' },
-    { name: 'cryptographic_key', category: 'security' },
-    // Business & External
-    { name: 'business_process', category: 'business' },
-    { name: 'supplier', category: 'external' },
-    { name: 'external_service', category: 'external' },
-    { name: 'contract', category: 'legal' },
-    { name: 'license', category: 'legal' },
-    // Facilities & OT
-    { name: 'building', category: 'facility' },
-    { name: 'room', category: 'facility' },
-    { name: 'ot_system', category: 'ot' },
-  ];
+  const assetTypes = ISO27001_STANDARD_ASSET_TYPES;
 
   for (const at of assetTypes) {
     await seed(
@@ -163,12 +128,32 @@ async function seedAssetTypes(): Promise<void> {
       { name: at.name },
       {
         name: at.name,
-        description: `Asset type: ${at.name.replace(/_/g, ' ')}`,
+        description: at.description,
         category: at.category,
+        inventoryEnabled: ['Server', 'Workstation', 'Network Device'].includes(at.name),
+        inventoryPattern: at.name === 'Server' ? 'SRV####' : at.name === 'Workstation' ? 'NB####' : at.name === 'Network Device' ? 'NET####' : undefined,
       },
       {},
       `AssetType: ${at.name} (${at.category})`,
     );
+
+    const createdType = await prisma.assetType.findUnique({ where: { name: at.name } });
+    if (createdType && ['Server', 'Workstation'].includes(at.name)) {
+      const subtypeName = at.name === 'Server' ? 'Virtual Machine' : 'Notebook';
+      const existingSubtype = await (prisma as any).assetSubtype.findFirst({ where: { assetTypeId: createdType.id, name: subtypeName } });
+      if (!existingSubtype) {
+        await (prisma as any).assetSubtype.create({
+          data: {
+            assetTypeId: createdType.id,
+            name: subtypeName,
+            description: `${subtypeName} inventory subtype`,
+            inventoryEnabled: true,
+            inventoryPattern: at.name === 'Server' ? 'VM####' : 'NB####',
+          },
+        });
+        console.log(`  ✓ AssetSubtype: ${at.name} / ${subtypeName}`);
+      }
+    }
   }
 }
 
@@ -271,6 +256,101 @@ async function seedRiskMethods(): Promise<void> {
       },
     });
     console.log('  ✓ RiskMethod: ISO 27005 Basic (RM-ISO27005)');
+  }
+}
+
+async function seedNormalizedRiskControlDemo(): Promise<void> {
+  console.log('\n🛡️  Seeding normalized risk-control demo…');
+  const admin = await prisma.user.findUnique({ where: { email: 'admin@example.com' } });
+  const methodVersion = await prisma.riskMethodVersion.findFirst();
+  const serverType = await prisma.assetType.findFirst({ where: { name: 'Server' } });
+  if (!admin || !serverType) return;
+
+  const asset = await prisma.asset.findFirst({ where: { displayId: 'AST-NORM-001' } }) ?? await prisma.asset.create({
+    data: {
+      displayId: 'AST-NORM-001',
+      name: 'Normalized Demo Server',
+      assetTypeId: serverType.id,
+      inventoryNumber: 'SRV0001',
+      lifecycleStatus: 'active',
+      criticality: 'high',
+      createdBy: admin.id,
+    },
+  });
+
+  const control = await prisma.control.findFirst({ where: { catalogId: 'ISO27001', title: 'Access Control Demo' } }) ?? await prisma.control.create({
+    data: {
+      catalogId: 'ISO27001',
+      catalogVersion: '2022',
+      title: 'Access Control Demo',
+      description: 'Demo access control for normalized risk-control chain',
+      controlGoal: 'Reduce unauthorized access risk',
+      responsibleId: admin.id,
+      implementationStatus: 'implemented',
+      createdBy: admin.id,
+    },
+  });
+
+  const implementation = await (prisma as any).controlImplementation.findFirst({ where: { controlId: control.id } }) ?? await (prisma as any).controlImplementation.create({
+    data: {
+      controlId: control.id,
+      responsibleUserId: admin.id,
+      implementationStatus: 'implemented',
+      maturityLevel: 3,
+      implementationDescription: 'MFA enabled on administrative access',
+      createdBy: admin.id,
+    },
+  });
+
+  if (methodVersion) {
+    const risk = await prisma.risk.findFirst({ where: { displayId: 'RSK-NORM-001' } }) ?? await prisma.risk.create({
+      data: {
+        displayId: 'RSK-NORM-001',
+        title: 'Unauthorized administrative access',
+        description: 'Administrative credentials may be abused',
+        possibleImpact: 'Compromise of critical server',
+        likelihood: 3,
+        impact: 4,
+        inherentRisk: 'high',
+        residualRisk: 'medium',
+        targetRisk: 'low',
+        riskOwnerId: admin.id,
+        assessorId: admin.id,
+        nextReviewDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        evaluationJustification: 'Residual risk is justified by implemented MFA control.',
+        riskMethodVersionId: methodVersion.id,
+        createdBy: admin.id,
+      },
+    });
+    await prisma.riskAsset.upsert({ where: { riskId_assetId: { riskId: risk.id, assetId: asset.id } }, create: { riskId: risk.id, assetId: asset.id }, update: {} });
+    const version = await (prisma as any).riskAssessmentVersion.findFirst({ where: { riskId: risk.id } }) ?? await (prisma as any).riskAssessmentVersion.create({
+      data: {
+        riskId: risk.id,
+        riskMethodVersionId: methodVersion.id,
+        versionNumber: 1,
+        assessmentType: 'current',
+        likelihood: 3,
+        impact: 4,
+        inherentRisk: 'high',
+        residualRisk: 'medium',
+        targetRisk: 'low',
+        score: 12,
+        assessorId: admin.id,
+        nextReviewDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        justification: 'Assessor-entered residual risk justified by MFA.',
+      },
+    });
+    const rc = await (prisma as any).riskControl.upsert({
+      where: { riskId_controlImplementationId: { riskId: risk.id, controlImplementationId: implementation.id } },
+      create: { riskId: risk.id, controlImplementationId: implementation.id, role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: true, createdBy: admin.id },
+      update: {},
+    });
+    await (prisma as any).riskControlAssessment.upsert({
+      where: { riskControlId_riskAssessmentVersionId: { riskControlId: rc.id, riskAssessmentVersionId: version.id } },
+      create: { riskControlId: rc.id, riskAssessmentVersionId: version.id, effectivenessStatus: 'effective', effectivenessRating: 80, likelihoodReduction: 1, impactReduction: 0, justification: 'MFA is tested and effective.', assessedBy: admin.id },
+      update: {},
+    });
+    console.log('  ✓ Normalized RiskControl demo chain');
   }
 }
 
@@ -405,6 +485,7 @@ async function main(): Promise<void> {
     await seedOidcConfig();
     await seedIntuneSyncConfig();
     await seedTestUser();
+    await seedNormalizedRiskControlDemo();
 
     console.log('\n✅ Seed completed successfully!\n');
   } catch (error) {

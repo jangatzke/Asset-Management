@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { controlApi, frameworkApi, evidenceApi } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi, catalogApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
 
@@ -14,6 +14,29 @@ interface Control {
   maturityLevel: number;
   applicability: string;
   status: string;
+  implementations?: ControlImplementation[];
+  requirementMappings?: Array<{ requirement?: { id: string; requirementKey?: string; title: string } }>;
+}
+
+interface ControlImplementation {
+  id: string;
+  implementationStatus?: string;
+  maturityLevel?: number;
+  implementationDescription?: string;
+  responsibleUserId?: string;
+  testMethod?: string;
+  testFrequency?: string;
+  lastTestDate?: string;
+  nextTestDate?: string;
+  findings?: any[];
+  actions?: any[];
+}
+
+interface CatalogOption {
+  id: string;
+  name: string;
+  version?: string;
+  itemCount: number;
 }
 
 interface CreateControlForm {
@@ -28,6 +51,17 @@ interface CreateControlForm {
   maturityLevel: number;
 }
 
+interface ImplementationForm {
+  controlId: string;
+  organizationUnitId: string;
+  responsibleUserId: string;
+  implementationStatus: string;
+  maturityLevel: number;
+  implementationDescription: string;
+  testMethod: string;
+  testFrequency: string;
+}
+
 const initialForm: CreateControlForm = {
   catalogId: '',
   catalogVersion: '',
@@ -38,6 +72,17 @@ const initialForm: CreateControlForm = {
   applicability: '',
   implementationStatus: 'planned',
   maturityLevel: 0,
+};
+
+const initialImplementationForm: ImplementationForm = {
+  controlId: '',
+  organizationUnitId: '',
+  responsibleUserId: '',
+  implementationStatus: 'planned',
+  maturityLevel: 0,
+  implementationDescription: '',
+  testMethod: '',
+  testFrequency: '',
 };
 
 const Controls = () => {
@@ -52,10 +97,24 @@ const Controls = () => {
   const [frameworkCount, setFrameworkCount] = useState(0);
   const [soaCount, setSoaCount] = useState(0);
   const [evidenceCount, setEvidenceCount] = useState(0);
+  const [catalogOptions, setCatalogOptions] = useState<CatalogOption[]>([]);
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
+  const [implementationModalOpen, setImplementationModalOpen] = useState(false);
+  const [implementationForm, setImplementationForm] = useState<ImplementationForm>(initialImplementationForm);
 
   useEffect(() => {
     loadControls();
+    loadCatalogOptions();
   }, []);
+
+  const loadCatalogOptions = async () => {
+    try {
+      const response = await catalogApi.listOptions();
+      setCatalogOptions(response.data || []);
+    } catch (err) {
+      console.error('Failed to load catalog options:', err);
+    }
+  };
 
   const loadControls = async () => {
     try {
@@ -92,6 +151,24 @@ const Controls = () => {
     }
   };
 
+  const primaryImplementation = (control: Control) => control.implementations?.[0];
+
+  const implementationSummary = (control: Control) => {
+    const impl = primaryImplementation(control);
+    if (!impl) return t('controls.noImplementation');
+    if (impl.implementationStatus === 'implemented' && !impl.lastTestDate) return t('controls.verification.notVerified');
+    if (impl.implementationStatus === 'tested' || impl.implementationStatus === 'effective') return t('controls.verification.effectiveTested');
+    return t(`controls.implementationStatus.${impl.implementationStatus || 'planned'}`);
+  };
+
+  const handleCatalogChange = (catalogId: string) => {
+    setSelectedCatalogId(catalogId);
+    const catalog = catalogOptions.find(c => c.id === catalogId);
+    if (catalog) {
+      setForm({ ...form, catalogId: `${catalog.name} - ${catalog.version}`, catalogVersion: catalog.version || '' });
+    }
+  };
+
   const handleCreate = async () => {
     if (!form.catalogId || !form.catalogVersion || !form.title || !form.controlGoal) {
       setError(t('common.requiredField'));
@@ -104,12 +181,34 @@ const Controls = () => {
       await controlApi.create(form);
       setModalOpen(false);
       setForm(initialForm);
+      setSelectedCatalogId('');
       await loadControls();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('controls.createSuccess'));
+      setError(err.response?.data?.error?.message || t('controls.createError'));
     } finally {
       setSaving(false);
     }
+  };
+
+  const openImplementationModal = (control: Control) => {
+    setImplementationForm({ ...initialImplementationForm, controlId: control.id });
+    setImplementationModalOpen(true);
+  };
+
+  const handleCreateImplementation = async () => {
+    if (!implementationForm.controlId || !implementationForm.responsibleUserId || !implementationForm.organizationUnitId) {
+      setError(t('common.requiredField'));
+      return;
+    }
+    setSaving(true);
+    try {
+      await controlApi.createImplementation(implementationForm);
+      setImplementationModalOpen(false);
+      setImplementationForm(initialImplementationForm);
+      await loadControls();
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || t('controls.implementationCreateError'));
+    } finally { setSaving(false); }
   };
 
   if (loading) {
@@ -153,15 +252,15 @@ const Controls = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Framework versions</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t('controls.stats.frameworkVersions')}</div>
           <div className="text-2xl font-semibold text-gray-900 dark:text-white">{frameworkCount}</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Statements of Applicability</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t('controls.stats.statementsOfApplicability')}</div>
           <div className="text-2xl font-semibold text-gray-900 dark:text-white">{soaCount}</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Evidence items</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t('controls.stats.evidenceItems')}</div>
           <div className="text-2xl font-semibold text-gray-900 dark:text-white">{evidenceCount}</div>
         </div>
       </div>
@@ -172,15 +271,17 @@ const Controls = () => {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.title')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.controlGoal')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.status')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.implementation')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.maturity')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.applicability')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.requirements')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredControls.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                   {t('controls.noControls')}
                 </td>
               </tr>
@@ -190,12 +291,18 @@ const Controls = () => {
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{control.title}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{control.controlGoal}</td>
                   <td className="px-6 py-4 text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(control.implementationStatus)}`}>
-                      {t(`controls.implementationStatus.${control.implementationStatus}`)}
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(primaryImplementation(control)?.implementationStatus || control.implementationStatus)}`}>
+                      {implementationSummary(control)}
                     </span>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationCount').replace('{count}', String(control.implementations?.length ?? 0))}</div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{control.maturityLevel}/5</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{primaryImplementation(control)?.maturityLevel ?? control.maturityLevel ?? 0}/5</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`controls.applicability.${control.applicability}`)}</td>
+                  <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                    {(control.requirementMappings ?? []).slice(0, 2).map((m) => <div key={m.requirement?.id}>{m.requirement?.requirementKey ?? ''} {m.requirement?.title}</div>)}
+                    {(control.requirementMappings?.length ?? 0) === 0 && '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm"><button onClick={() => openImplementationModal(control)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">{t('controls.addImplementation')}</button></td>
                 </tr>
               ))
             )}
@@ -210,25 +317,44 @@ const Controls = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('controls.fields.catalogId')} <span className="text-red-500">*</span>
               </label>
+              <select
+                value={selectedCatalogId}
+                onChange={(e) => handleCatalogChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- {t('controls.selectCatalog')} --</option>
+                {catalogOptions.map((catalog) => (
+                  <option key={catalog.id} value={catalog.id}>
+                    {catalog.name} ({catalog.version})
+                  </option>
+                ))}
+              </select>
               <input
-                type="text"
+                type="hidden"
                 value={form.catalogId}
                 onChange={(e) => setForm({ ...form, catalogId: e.target.value })}
-                placeholder="e.g., ISO-27001-A.5.1"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('controls.fields.catalogVersion')} <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              <select
                 value={form.catalogVersion}
                 onChange={(e) => setForm({ ...form, catalogVersion: e.target.value })}
-                placeholder="e.g., 2022"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="">-- {t('controls.selectVersion')} --</option>
+                {selectedCatalogId && (
+                  <option value={catalogOptions.find(c => c.id === selectedCatalogId)?.version}>
+                    {catalogOptions.find(c => c.id === selectedCatalogId)?.version}
+                  </option>
+                )}
+                <option value="2022">2022</option>
+                <option value="2.0">2.0</option>
+                <option value="2019">2019</option>
+                <option value="2017">2017</option>
+              </select>
             </div>
           </div>
 
@@ -326,12 +452,12 @@ const Controls = () => {
                 onChange={(e) => setForm({ ...form, maturityLevel: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value={0}>0 - Not Defined</option>
-                <option value={1}>1 - Initial</option>
-                <option value={2}>2 - Repeatable</option>
-                <option value={3}>3 - Defined</option>
-                <option value={4}>4 - Managed</option>
-                <option value={5}>5 - Optimized</option>
+                <option value={0}>{t('controls.maturity.0')}</option>
+                <option value={1}>{t('controls.maturity.1')}</option>
+                <option value={2}>{t('controls.maturity.2')}</option>
+                <option value={3}>{t('controls.maturity.3')}</option>
+                <option value={4}>{t('controls.maturity.4')}</option>
+                <option value={5}>{t('controls.maturity.5')}</option>
               </select>
             </div>
           </div>
@@ -348,9 +474,44 @@ const Controls = () => {
               disabled={!form.catalogId || !form.catalogVersion || !form.title || !form.controlGoal || saving}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? t('common.loading') : t('controls.createControl')}
+              {saving ? t('common.saving') : t('controls.createControl')}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={implementationModalOpen} onClose={() => setImplementationModalOpen(false)} title={t('controls.createImplementation')}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.organizationUnitId')} *</label>
+              <input value={implementationForm.organizationUnitId} onChange={(e) => setImplementationForm({ ...implementationForm, organizationUnitId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.responsibleId')} *</label>
+              <input value={implementationForm.responsibleUserId} onChange={(e) => setImplementationForm({ ...implementationForm, responsibleUserId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <select value={implementationForm.implementationStatus} onChange={(e) => setImplementationForm({ ...implementationForm, implementationStatus: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+              <option value="planned">{t('controls.implementationStatus.planned')}</option>
+              <option value="in_progress">{t('controls.implementationStatus.in_progress')}</option>
+              <option value="implemented">{t('controls.implementationStatus.implemented')}</option>
+              <option value="tested">{t('controls.implementationStatus.tested')}</option>
+              <option value="effective">{t('controls.implementationStatus.effective')}</option>
+            </select>
+            <select value={implementationForm.maturityLevel} onChange={(e) => setImplementationForm({ ...implementationForm, maturityLevel: parseInt(e.target.value) })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+              {[0,1,2,3,4,5].map((level) => <option key={level} value={level}>{t(`controls.maturity.${level}`)}</option>)}
+            </select>
+          </div>
+          <textarea value={implementationForm.implementationDescription} onChange={(e) => setImplementationForm({ ...implementationForm, implementationDescription: e.target.value })} placeholder={t('controls.fields.implementationDescription')}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationNotice')}</p>
+          <div className="flex justify-end gap-2"><button onClick={() => setImplementationModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">{t('common.cancel')}</button><button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button></div>
         </div>
       </Modal>
     </div>

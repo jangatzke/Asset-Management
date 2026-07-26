@@ -22,6 +22,16 @@ export interface CreateRiskTreatmentData {
   justification?: string | null;
   expiryDate?: Date | null;
   approverId?: string | null;
+  actions?: TreatmentActionInput[];
+}
+
+export interface TreatmentActionInput {
+  actionType: 'create' | 'extend' | 'replace' | 'improve';
+  title: string;
+  description?: string | null;
+  controlImplementationId?: string | null;
+  responsibleUserId?: string | null;
+  targetDate?: Date | null;
 }
 
 export interface UpdateRiskTreatmentData extends Partial<CreateRiskTreatmentData> {}
@@ -178,7 +188,7 @@ export class RiskTreatmentService {
   async findById(id: string) {
     const treatment = await db.riskTreatment.findUnique({
       where: { id },
-      include: { risk: true, acceptance: true, approvals: true, effectivenessReviews: true },
+        include: { risk: true, acceptance: true, approvals: true, effectivenessReviews: true, actions: true },
     });
 
     if (!treatment) {
@@ -251,6 +261,21 @@ export class RiskTreatmentService {
             requestedBy: createdBy ?? normalizedData.responsibleUserId ?? 'system',
             requiredLevel,
           },
+        });
+      }
+
+      if (normalizedData.actions?.length) {
+        await tx.treatmentAction.createMany({
+          data: normalizedData.actions.map((action: TreatmentActionInput) => ({
+            treatmentId: created.id,
+            actionType: action.actionType,
+            title: action.title,
+            description: action.description,
+            controlImplementationId: action.controlImplementationId,
+            responsibleUserId: action.responsibleUserId,
+            targetDate: action.targetDate,
+            createdBy,
+          })),
         });
       }
 
@@ -523,6 +548,11 @@ export class RiskTreatmentService {
         assessmentId = created.id;
       }
 
+      await tx.treatmentAction.updateMany({
+        where: { treatmentId: id, status: { not: 'completed' } },
+        data: { status: 'completed', completedAt: new Date(), completedBy: userId },
+      });
+
       const updated = await tx.riskTreatment.update({
         where: { id },
         data: {
@@ -532,7 +562,23 @@ export class RiskTreatmentService {
           residualAssessmentId: assessmentId,
         },
       });
-      await tx.risk.update({ where: { id: treatment.riskId }, data: { status: 'closed', updatedBy: userId } });
+      await tx.reviewTask.create({
+        data: {
+          displayId: await displayIdService.nextDisplayIdStandalone(prisma, 'ReviewTask'),
+          riskId: treatment.riskId,
+          scheduledDate: new Date(),
+          dueDate: data.targetAssessment?.nextReviewDate ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          status: 'pending',
+          priority: 'high',
+          assignedTo: treatment.risk.riskOwnerId,
+          triggerType: 'unplanned_event',
+          triggerEventId: id,
+          triggerSource: 'risk_treatment_completed',
+          notes: 'Treatment completed; new residual/target assessment is required or possible.',
+          createdBy: userId,
+        },
+      });
+      await tx.risk.update({ where: { id: treatment.riskId }, data: { status: 'treatment_completed_pending_assessment', updatedBy: userId } });
       await auditService.logEvent(tx, {
         userId,
         action: 'RISK_TREATMENT_COMPLETE',

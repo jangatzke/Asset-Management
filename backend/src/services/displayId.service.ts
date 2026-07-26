@@ -79,7 +79,9 @@ export async function nextDisplayIdStandalone(prisma: PrismaClient, entityType: 
    License: 'LIC',
    BusinessProcess: 'PROC',
    Document: 'DOC',
- };
+   CostPlan: 'CPLAN',
+   CostPlanItem: 'CPI',
+  };
 
  const PAD_LENGTH = 4;
 

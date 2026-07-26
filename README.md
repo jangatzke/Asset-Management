@@ -2,6 +2,18 @@
 
 **IT-Asset-Management und ISMS-System nach ISO 27001:2022, NIS-2 und BSI-Gesetz**
 
+## Cost Planning and Fiscal-Year setup
+
+The cost-planning MVP stores its fiscal-year configuration in the Prisma migration [`backend/prisma/migrations/20260725190000_cost_planning/migration.sql`](backend/prisma/migrations/20260725190000_cost_planning/migration.sql).
+
+Apply this migration from the backend directory before opening the Admin Fiscal Year page:
+
+```powershell
+npm run db:setup:cost-planning
+```
+
+For production-like environments, [`db:deploy`](backend/package.json) is sufficient when Prisma Client generation is handled separately. The application does not create or alter these tables from request handlers; if the migration is missing, the API returns a clear setup error instead of crashing with an uncaught Prisma table error.
+
 A comprehensive, full-stack IT asset management and Information Security Management System (ISMS) platform designed for ISO 27001:2022 compliance, NIS-2 directive adherence, and BSI regulatory requirements. The system provides end-to-end asset tracking, risk management, incident response, and compliance control capabilities.
 
 ## Table of Contents
@@ -173,18 +185,33 @@ This installs dependencies for `backend`, `frontend`, and `shared` workspaces si
 
 ### 2. Database Setup
 
-Ensure PostgreSQL >= 16 is running, then create the database:
+Ensure PostgreSQL >= 14 is running, then create the database and apply migrations. On Windows, use PowerShell or `cmd.exe` equivalents for shell commands.
 
-```bash
+```powershell
 # Create database (adjust credentials as needed)
 createdb -U postgres asset_management
 
-# Generate Prisma client
-cd backend && npx prisma generate
+# Configure backend/.env first so DATABASE_URL points at the target database
+Set-Location backend
 
-# Run database migrations
-npx prisma migrate dev
+# Generate Prisma client
+npx prisma generate
+
+# Apply committed migrations to an existing database without resetting data
+npx prisma migrate deploy
 ```
+
+For local development against a disposable database, `npx prisma migrate dev` can be used instead. Do not use destructive resets against a database that contains data unless a backup and reset plan has been explicitly approved.
+
+If a database was created from an older consolidated baseline and reports missing runtime columns for `/api/v1/assets` or `/api/v1/risks`, apply the non-destructive alignment migration:
+
+```powershell
+Set-Location backend
+npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260725000000_fix_missing_columns/migration.sql
+npx prisma generate
+```
+
+This migration adds the additive Asset and Risk columns expected by the current Prisma client, including `Asset.complianceRelevance`, asset archival/disposal fields, and risk method/scenario references.
 
 ### 3. Configure Environment Variables
 
@@ -470,6 +497,23 @@ The server handles `SIGTERM`/`SIGINT` signals, drains active connections, and fl
 ---
 
 ## Testing
+
+### Verification Commands
+
+Recommended verification after schema or service changes:
+
+```powershell
+Set-Location backend
+npx prisma validate --schema prisma/schema.prisma
+npx prisma migrate status --schema prisma/schema.prisma
+npm run build
+npx jest src/__tests__/asset.crud.test.ts src/__tests__/risk.assessment.test.ts --runInBand
+
+Set-Location ../frontend
+npm run build
+```
+
+`npx prisma migrate status` is diagnostic only. If it reports migration-history drift, reconcile migration history before relying on `migrate deploy`; use the non-destructive `db execute` command above for the documented missing-column alignment when needed.
 
 ### Backend Tests
 

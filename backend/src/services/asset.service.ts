@@ -23,6 +23,8 @@ export interface CreateAssetData {
   name: string;
   description?: string;
   assetTypeId: string;
+  assetSubtypeId?: string;
+  inventoryNumber?: string;
   subType?: string;
   manufacturer?: string;
   model?: string;
@@ -83,6 +85,7 @@ export interface ListAssetsQuery {
   limit?: string;
   search?: string;
   assetTypeId?: string;
+  assetSubtypeId?: string;
   lifecycleStatus?: string;
   criticality?: string;
   organizationUnitId?: string;
@@ -90,6 +93,52 @@ export interface ListAssetsQuery {
 }
 
 export class AssetService {
+  private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+    if (!assetType) throw new AppError('Asset type not found', 404);
+    if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+
+    const subtype = await tx.assetSubtype.findUnique({ where: { id: assetSubtypeId } });
+    if (!subtype || subtype.assetTypeId !== assetTypeId) throw new AppError('Asset subtype does not belong to selected asset type', 400);
+    return {
+      assetType,
+      subtype,
+      enabled: subtype.inventoryEnabled ?? assetType.inventoryEnabled,
+      pattern: subtype.inventoryPattern ?? assetType.inventoryPattern,
+      owner: subtype.inventoryEnabled !== null || subtype.inventoryPattern ? 'subtype' as const : 'type' as const,
+    };
+  }
+
+  private formatInventoryNumber(pattern: string, sequence: number) {
+    const marker = pattern.match(/#+/);
+    if (!marker) throw new AppError('Inventory pattern must contain # placeholders, e.g. NB####', 400);
+    return pattern.replace(marker[0], String(sequence).padStart(marker[0].length, '0'));
+  }
+
+  private async allocateInventoryNumber(tx: any, assetTypeId: string, assetSubtypeId?: string, manual?: string) {
+    const config = await this.resolveInventoryConfig(tx, assetTypeId, assetSubtypeId);
+    if (manual) {
+      const existing = await tx.asset.findUnique({ where: { inventoryNumber: manual } });
+      if (existing) throw new AppError('Inventory number must be globally unique', 409);
+      return manual;
+    }
+    if (!config.enabled) return undefined;
+    if (!config.pattern) throw new AppError('Inventory generation requires an inventory pattern', 400);
+
+    const model = config.owner === 'subtype' && config.subtype ? tx.assetSubtype : tx.assetType;
+    const id = config.owner === 'subtype' && config.subtype ? config.subtype.id : config.assetType.id;
+    let sequence = config.owner === 'subtype' && config.subtype ? config.subtype.inventoryNextSequence : config.assetType.inventoryNextSequence;
+    for (let attempts = 0; attempts < 10000; attempts += 1) {
+      const candidate = this.formatInventoryNumber(config.pattern, sequence);
+      const exists = await tx.asset.findUnique({ where: { inventoryNumber: candidate } });
+      sequence += 1;
+      if (!exists) {
+        await model.update({ where: { id }, data: { inventoryNextSequence: sequence } });
+        return candidate;
+      }
+    }
+    throw new AppError('Unable to allocate a free inventory number', 409);
+  }
   // ==========================================
   // List / Read
   // ==========================================
@@ -121,6 +170,10 @@ export class AssetService {
       where.assetTypeId = query.assetTypeId;
     }
 
+    if (query.assetSubtypeId) {
+      (where as any).assetSubtypeId = query.assetSubtypeId;
+    }
+
     if (query.lifecycleStatus) {
       where.lifecycleStatus = query.lifecycleStatus;
     }
@@ -141,6 +194,7 @@ export class AssetService {
         orderBy: { createdAt: 'desc' },
         include: {
           assetType: true,
+          assetSubtype: true,
           organizationUnit: true,
           location: true,
           networkAddresses: true,
@@ -148,7 +202,7 @@ export class AssetService {
           serviceLinks: { include: { service: true } },
           contractLinks: { include: { contract: true } },
           licenseLinks: { include: { license: true } },
-        },
+        } as any,
       }),
       prisma.asset.count({ where }),
     ]);
@@ -169,6 +223,7 @@ export class AssetService {
       where: { id },
       include: {
         assetType: true,
+        assetSubtype: true,
         organizationUnit: true,
         location: true,
         networkAddresses: true,
@@ -182,7 +237,7 @@ export class AssetService {
         serviceLinks: { include: { service: true } },
         contractLinks: { include: { contract: true } },
         licenseLinks: { include: { license: true } },
-      },
+      } as any,
     });
 
     if (!asset) {
@@ -200,10 +255,13 @@ export class AssetService {
     const asset = await prisma.$transaction(async (tx) => {
       // Generate sequential display ID (ASSET-0001, ASSET-0002, ...)
       const displayId = await nextDisplayId(tx, 'Asset');
+      const inventoryNumber = await this.allocateInventoryNumber(tx, data.assetTypeId, data.assetSubtypeId, data.inventoryNumber);
 
+      const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, ...assetFields } = data;
       const assetData: any = {
-        ...data,
+        ...assetFields,
         displayId,
+        inventoryNumber,
         createdBy,
         // Ensure new assets are active. archivedAt is included for the normalized schema;
         // any is used because local Prisma client generation can be stale on Windows file locks.
@@ -215,9 +273,10 @@ export class AssetService {
         data: assetData,
         include: {
           assetType: true,
+          assetSubtype: true,
           organizationUnit: true,
           location: true,
-        },
+        } as any,
       });
 
       // Create network addresses if provided
@@ -334,6 +393,14 @@ export class AssetService {
 
       // Build update data without networkAddresses (handled separately)
       const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, ...updateFields } = data;
+      if (data.assetSubtypeId !== undefined || data.assetTypeId !== undefined || data.inventoryNumber !== undefined) {
+        updateFields.inventoryNumber = await this.allocateInventoryNumber(
+          tx,
+          data.assetTypeId ?? existing.assetTypeId,
+          data.assetSubtypeId ?? (existing as any).assetSubtypeId,
+          data.inventoryNumber,
+        );
+      }
       const updateData: Prisma.AssetUpdateInput = {
         ...updateFields,
         updatedBy,
@@ -344,9 +411,10 @@ export class AssetService {
         data: updateData,
         include: {
           assetType: true,
+          assetSubtype: true,
           organizationUnit: true,
           location: true,
-        },
+        } as any,
       });
 
       // Sync network addresses if provided (delete old, create new)
@@ -739,6 +807,25 @@ export class AssetService {
     return prisma.assetType.findMany({
       where: { isArchived: false },
       orderBy: { name: 'asc' },
+      include: { subtypes: { where: { isArchived: false }, orderBy: { name: 'asc' } } } as any,
+    });
+  }
+
+  async createAssetSubtype(assetTypeId: string, data: { name: string; description?: string; inventoryEnabled?: boolean; inventoryPattern?: string }, createdBy?: string) {
+    void createdBy;
+    const type = await prisma.assetType.findUnique({ where: { id: assetTypeId } });
+    if (!type) throw new AppError('Asset type not found', 404);
+    return (prisma as any).assetSubtype.create({
+      data: { assetTypeId, name: data.name, description: data.description, inventoryEnabled: data.inventoryEnabled, inventoryPattern: data.inventoryPattern },
+    });
+  }
+
+  async generateInventoryPreview(assetTypeId: string, assetSubtypeId?: string) {
+    return prisma.$transaction(async (tx: any) => {
+      const config = await this.resolveInventoryConfig(tx, assetTypeId, assetSubtypeId);
+      if (!config.enabled || !config.pattern) return { enabled: false, nextInventoryNumber: null };
+      const sequence = config.owner === 'subtype' && config.subtype ? config.subtype.inventoryNextSequence : config.assetType.inventoryNextSequence;
+      return { enabled: true, pattern: config.pattern, nextInventoryNumber: this.formatInventoryNumber(config.pattern, sequence) };
     });
   }
 

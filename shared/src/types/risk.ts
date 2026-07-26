@@ -36,6 +36,8 @@ export type CalculationType = 'product' | 'sum' | 'max' | 'matrix';
 
 /** Assessment type distinguishes inherent, current (existing/residual), and target. */
 export type AssessmentType = 'inherent' | 'current' | 'target';
+export type RiskControlRole = 'preventive' | 'detective' | 'corrective' | 'recovery' | 'compensating';
+export type RiskControlMitigationDimension = 'likelihood' | 'impact' | 'both';
 
 /** Review task trigger types */
 export type ReviewTaskTriggerType = 'scheduled' | 'unplanned_event' | 'ad_hoc';
@@ -120,7 +122,8 @@ export interface Risk extends BaseEntity {
   threatId?: string;
   vulnerabilityId?: string;
   possibleImpact: string;
-  existingControls: string[];
+  /** Deprecated direct risk-control field; use riskControls links instead. */
+  existingControls?: never;
   likelihood: number;
   impact: number;
   inherentRisk: RiskLevel | string;
@@ -145,6 +148,28 @@ export interface Risk extends BaseEntity {
   causes?: RiskCause[];
   impacts?: RiskImpact[];
   reviewTasks?: ReviewTask[];
+  riskControls?: RiskControl[];
+}
+
+export interface RiskControl extends BaseEntity {
+  riskId: string;
+  controlImplementationId: string;
+  role: RiskControlRole;
+  mitigationDimension: RiskControlMitigationDimension;
+  isKeyControl: boolean;
+  status: string;
+  assessments?: RiskControlAssessment[];
+}
+
+export interface RiskControlAssessment extends BaseEntity {
+  riskControlId: string;
+  riskAssessmentVersionId: string;
+  effectivenessStatus: 'not_verified' | 'ineffective' | 'partially_effective' | 'effective';
+  effectivenessRating?: number;
+  likelihoodReduction?: number;
+  impactReduction?: number;
+  justification: string;
+  assessedBy: string;
 }
 
 // ==========================================
@@ -171,10 +196,22 @@ export interface RiskTreatment extends BaseEntity {
   completedAt?: Date;
   completedBy?: string;
   residualAssessmentId?: string;
+  actions?: TreatmentAction[];
   acceptance?: RiskAcceptance;
   approvals?: RiskTreatmentApproval[];
   effectivenessReviews?: RiskTreatmentEffectivenessReview[];
   isArchived: boolean;
+}
+
+export interface TreatmentAction extends BaseEntity {
+  treatmentId: string;
+  actionType: 'create' | 'extend' | 'replace' | 'improve';
+  title: string;
+  description?: string;
+  controlImplementationId?: string;
+  responsibleUserId?: string;
+  targetDate?: Date;
+  status: string;
 }
 
 export interface RiskAcceptance extends BaseEntity {

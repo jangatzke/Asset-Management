@@ -1,12 +1,13 @@
 import { NextFunction, Response, Router } from 'express';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { auditService } from '../services/audit.service';
 import { prisma } from '../config/database';
 
 export const auditLogRouter = Router();
 
-// All audit log routes require system_admin role
-const adminGuard = [authenticate, authorize('system_admin')];
+// All audit log routes require admin access
+const adminGuard = [authenticate, requireAdminAccess];
 
 /**
  * GET /audit-log

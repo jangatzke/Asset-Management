@@ -3,6 +3,9 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
+const db = prisma as any;
+const DEPRECATED_CONTROL_FIELDS = ['relatedRiskIds', 'riskIds', 'evidenceIds', 'risks'];
+
 export interface CreateControlData {
   catalogId: string;
   catalogVersion: string;
@@ -18,8 +21,6 @@ export interface CreateControlData {
   affectedAssetIds?: string[];
   affectedProcessIds?: string[];
   affectedSiteIds?: string[];
-  relatedRiskIds?: string[];
-  evidenceIds?: string[];
   testMethod?: string;
   testFrequency?: string;
 }
@@ -49,8 +50,20 @@ export interface CreateSoAItemData {
   justification: string;
   implementationStatus?: string;
   controlImplementationIds?: string[];
-  riskIds?: string[];
-  evidenceIds?: string[];
+}
+
+export interface CreateControlTestData {
+  controlImplementationId: string;
+  testType: string;
+  testMethod?: string;
+  testedBy: string;
+  testedAt?: Date;
+  result: string;
+  effectivenessRating?: number;
+  findings?: string;
+  evidenceRequired?: boolean;
+  nextTestDate?: Date;
+  evidenceLinks?: Array<{ evidenceId: string; relationType?: string }>;
 }
 
 export interface CreateSoAData {
@@ -74,6 +87,12 @@ export interface ListControlsQuery {
 }
 
 export class ControlService {
+  private rejectDeprecatedPayload(data: Record<string, unknown>) {
+    const forbidden = DEPRECATED_CONTROL_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(data, field));
+    if (forbidden.length) {
+      throw new AppError(`Deprecated direct control-risk/evidence fields are not accepted: ${forbidden.join(', ')}. Use RiskControl and EvidenceLink.`, 400);
+    }
+  }
   async list(query: ListControlsQuery) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
@@ -142,7 +161,8 @@ export class ControlService {
   }
 
   async create(data: CreateControlData, createdBy?: string) {
-    const { affectedAssetIds, affectedProcessIds, affectedSiteIds, relatedRiskIds, evidenceIds, ...controlData } = data;
+    this.rejectDeprecatedPayload(data as unknown as Record<string, unknown>);
+    const { affectedAssetIds, affectedProcessIds, affectedSiteIds, ...controlData } = data;
     const control = await prisma.control.create({
       data: {
         ...controlData,
@@ -150,7 +170,6 @@ export class ControlService {
         assetLinks: affectedAssetIds?.length ? { create: affectedAssetIds.map((assetId) => ({ assetId })) } : undefined,
         processLinks: affectedProcessIds?.length ? { create: affectedProcessIds.map((processId) => ({ processId })) } : undefined,
         siteLinks: affectedSiteIds?.length ? { create: affectedSiteIds.map((siteId) => ({ siteId })) } : undefined,
-        risks: relatedRiskIds?.length ? { connect: relatedRiskIds.map((id) => ({ id })) } : undefined,
       },
     });
 
@@ -169,6 +188,7 @@ export class ControlService {
   }
 
   async update(id: string, data: UpdateControlData, updatedBy?: string) {
+    this.rejectDeprecatedPayload(data as unknown as Record<string, unknown>);
     const existing = await prisma.control.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Control not found', 404);
@@ -190,7 +210,7 @@ export class ControlService {
     const control = await prisma.control.update({
       where: { id },
       data: {
-        ...Object.fromEntries(Object.entries(data).filter(([key]) => !['affectedAssetIds', 'affectedProcessIds', 'affectedSiteIds', 'relatedRiskIds', 'evidenceIds'].includes(key))),
+        ...Object.fromEntries(Object.entries(data).filter(([key]) => !['affectedAssetIds', 'affectedProcessIds', 'affectedSiteIds'].includes(key))),
         updatedBy,
       },
     });
@@ -237,6 +257,7 @@ export class ControlService {
   }
 
   async createSOA(data: CreateSoAData, createdBy?: string) {
+    data.items?.forEach((item) => this.rejectDeprecatedPayload(item as unknown as Record<string, unknown>));
     const soa = await prisma.statementOfApplicability.create({
       data: {
         frameworkId: data.frameworkId,
@@ -250,9 +271,7 @@ export class ControlService {
             applicability: item.applicability ?? 'under_review',
             justification: item.justification,
             implementationStatus: item.implementationStatus ?? 'planned',
-            controlImplementationIds: item.controlImplementationIds ?? [],
-            riskIds: item.riskIds ?? [],
-            evidenceIds: item.evidenceIds ?? [],
+            implementationLinks: item.controlImplementationIds?.length ? { create: item.controlImplementationIds.map((controlImplementationId) => ({ controlImplementationId })) } : undefined,
             createdBy,
           })),
         } : undefined,
@@ -274,6 +293,7 @@ export class ControlService {
   }
 
   async updateSOAItem(itemId: string, data: Partial<CreateSoAItemData>, updatedBy?: string) {
+    this.rejectDeprecatedPayload(data as Record<string, unknown>);
     const existing = await prisma.soAItem.findUnique({ where: { id: itemId }, include: { soa: true } });
     if (!existing) throw new AppError('SoA item not found', 404);
     if (existing.isImmutable || existing.soa.isImmutable || existing.soa.approvalStatus === 'approved') {
@@ -288,12 +308,19 @@ export class ControlService {
         applicability: data.applicability,
         justification: data.justification,
         implementationStatus: data.implementationStatus,
-        controlImplementationIds: data.controlImplementationIds,
-        riskIds: data.riskIds,
-        evidenceIds: data.evidenceIds,
         updatedBy,
       },
     });
+
+    if (data.controlImplementationIds !== undefined) {
+      await db.soAItemControlImplementation.deleteMany({ where: { soaItemId: itemId } });
+      if (data.controlImplementationIds.length) {
+        await db.soAItemControlImplementation.createMany({
+          data: data.controlImplementationIds.map((controlImplementationId) => ({ soaItemId: itemId, controlImplementationId })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     if (updatedBy) {
       await auditService.logEventStandalone(prisma, {
@@ -385,6 +412,44 @@ export class ControlService {
     }
 
     return implementation;
+  }
+
+  async createControlTest(data: CreateControlTestData, createdBy?: string) {
+    const implementation = await db.controlImplementation.findUnique({ where: { id: data.controlImplementationId } });
+    if (!implementation) throw new AppError('Control implementation not found', 404);
+    if (!data.result?.trim()) throw new AppError('Control test result is required', 400);
+
+    return db.$transaction(async (tx: any) => {
+      const test = await tx.controlTest.create({
+        data: {
+          controlImplementationId: data.controlImplementationId,
+          testType: data.testType,
+          testMethod: data.testMethod,
+          testedBy: createdBy ?? data.testedBy,
+          testedAt: data.testedAt,
+          result: data.result,
+          effectivenessRating: data.effectivenessRating,
+          findings: data.findings,
+          evidenceRequired: data.evidenceRequired ?? false,
+          nextTestDate: data.nextTestDate,
+          createdBy,
+        },
+      });
+      if (data.evidenceLinks?.length) {
+        await tx.evidenceLink.createMany({
+          data: data.evidenceLinks.map((link) => ({
+            evidenceId: link.evidenceId,
+            entityType: 'ControlTest',
+            entityId: test.id,
+            relationType: link.relationType ?? 'supports',
+            controlTestId: test.id,
+            createdBy,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      return tx.controlTest.findUnique({ where: { id: test.id }, include: { evidenceLinks: true } });
+    });
   }
 }
 

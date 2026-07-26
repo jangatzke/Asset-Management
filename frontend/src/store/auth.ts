@@ -7,10 +7,12 @@ interface User {
   firstName: string;
   lastName: string;
   roles: string[];
+  mustChangePasswordOnNext?: boolean;
   isOidcLinked?: boolean;
   oidcProvider?: string | null;
   language?: string | null;
   darkMode?: boolean | null;
+  mfaEnabled?: boolean;
 }
 
 interface AuthState {
@@ -18,7 +20,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, mfaToken?: string) => Promise<{ mfaRequired?: boolean; challenge?: string } | void>;
   logout: () => void;
   setUser: (user: User, token: string) => void;
   updateUserPreferences: (preferences: Pick<User, 'language' | 'darkMode'>) => void;
@@ -30,10 +32,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   isAuthenticated: false,
   isLoading: true, // Initial loading state - checkAuth will resolve this
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string, mfaToken?: string) => {
     set({ isLoading: true });
     try {
-      const response = await authApi.login(email, password);
+      const response = await authApi.login(email, password, mfaToken);
+      if (response.data?.mfaRequired) {
+        set({ isLoading: false });
+        return { mfaRequired: true, challenge: response.data.challenge };
+      }
       const { user, token } = response.data;
       localStorage.setItem('token', token);
       set({ user, token, isAuthenticated: true, isLoading: false });

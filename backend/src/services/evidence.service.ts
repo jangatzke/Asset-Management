@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
 export interface EvidenceLinkInput {
-  entityType: 'Control' | 'Risk' | 'Asset' | 'SoAItem' | 'Document';
+  entityType: 'Control' | 'Risk' | 'Asset' | 'SoAItem' | 'Document' | 'RiskControlAssessment' | 'ControlTest';
   entityId: string;
   relationType?: string;
 }
@@ -67,11 +67,6 @@ export class EvidenceService {
         retentionUntil: data.retentionUntil,
         expiresAt: data.expiresAt,
         deleteProtected: data.deleteProtected ?? false,
-        relatedControlIds: links.filter((link) => link.entityType === 'Control').map((link) => link.entityId),
-        relatedRiskIds: links.filter((link) => link.entityType === 'Risk').map((link) => link.entityId),
-        relatedAssetIds: links.filter((link) => link.entityType === 'Asset').map((link) => link.entityId),
-        relatedSoAItemIds: links.filter((link) => link.entityType === 'SoAItem').map((link) => link.entityId),
-        relatedDocumentIds: links.filter((link) => link.entityType === 'Document').map((link) => link.entityId),
         links: links.length ? { create: links.map((link) => ({ entityType: link.entityType, entityId: link.entityId, relationType: link.relationType ?? 'supports', createdBy: userId })) } : undefined,
       },
       include: { links: true },

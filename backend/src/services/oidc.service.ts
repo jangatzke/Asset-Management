@@ -243,9 +243,19 @@ export class OidcService {
       const lastName = userInfo.family_name || '';
       const defaultRole = config.defaultRoleForNewUsers || 'employee';
 
+      // IAM-004: Use sequential display ID instead of Date.now()
+      const counter = await prisma.displayIdCounter.upsert({
+        where: { entityType: 'User' },
+        create: { entityType: 'User', sequence: 1 },
+        update: { sequence: { increment: 1 } },
+      });
+      const sequence = counter.sequence;
+      const padded = String(sequence).padStart(4, '0');
+      const userDisplayId = `USR-${padded}`;
+
       const newUser = await prisma.user.create({
         data: {
-          displayId: `USR-${Date.now()}`,
+          displayId: userDisplayId,
           email: userInfo.email,
           passwordHash: crypto.randomUUID(), // Placeholder, OIDC user won't use local password
           firstName,

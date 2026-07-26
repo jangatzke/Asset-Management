@@ -11,8 +11,8 @@ ALTER TABLE "risk_methods" ADD COLUMN "formulaExpression" TEXT;
 
 -- 2. Neue Tabelle: RiskMethodVersion (immutable Snapshots)
 CREATE TABLE "risk_method_versions" (
-    "id"                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "riskMethodId"      UUID NOT NULL,
+    "id"                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "riskMethodId"      TEXT NOT NULL,
     "versionTag"        VARCHAR NOT NULL,
     "likelihoodScale"   JSONB NOT NULL,
     "impactScale"       JSONB NOT NULL,
@@ -30,16 +30,16 @@ CREATE TABLE "risk_method_versions" (
 CREATE INDEX "risk_method_versions_riskMethodId_idx" ON "risk_method_versions"("riskMethodId");
 
 -- 3. Risk: riskMethodVersionId hinzufügen
-ALTER TABLE "risks" ADD COLUMN "riskMethodVersionId" UUID;
+ALTER TABLE "risks" ADD COLUMN "riskMethodVersionId" TEXT;
 ALTER TABLE "risks" ADD CONSTRAINT "risks_riskMethodVersionId_fkey"
     FOREIGN KEY ("riskMethodVersionId") REFERENCES "risk_method_versions"("id") ON DELETE SET NULL;
 CREATE INDEX "risks_riskMethodVersionId_idx" ON "risks"("riskMethodVersionId");
 
 -- 4. Neue Tabelle: RiskAssessment (versionierte Bewertungen)
 CREATE TABLE "risk_assessments" (
-    "id"                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "riskId"              UUID NOT NULL,
-    "riskMethodVersionId" UUID NOT NULL,
+    "id"                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "riskId"              TEXT NOT NULL,
+    "riskMethodVersionId" TEXT NOT NULL,
     "assessmentNumber"    INT NOT NULL DEFAULT 1,
     "likelihood"          INT NOT NULL,
     "impact"              INT NOT NULL,

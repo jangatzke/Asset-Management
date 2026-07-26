@@ -85,6 +85,8 @@ export interface Asset extends BaseEntity {
   name: string;
   description?: string;
   assetTypeId: string;
+  assetSubtypeId?: string;
+  inventoryNumber?: string;
   subType?: string;
   manufacturer?: string;
   model?: string;
@@ -143,6 +145,25 @@ export interface Asset extends BaseEntity {
   vulnerabilities?: VulnerabilityAsset[];
   incidents?: IncidentAsset[];
   riskAssets?: RiskAsset[];
+}
+
+export interface AssetSubtype extends BaseEntity {
+  assetTypeId: string;
+  name: string;
+  description?: string;
+  inventoryEnabled?: boolean | null;
+  inventoryPattern?: string | null;
+  isArchived: boolean;
+}
+
+export interface AssetTypeRecord extends BaseEntity {
+  name: string;
+  description?: string | null;
+  category: string;
+  inventoryEnabled: boolean;
+  inventoryPattern?: string | null;
+  isArchived: boolean;
+  subtypes?: AssetSubtype[];
 }
 
 export interface AssetRelation {

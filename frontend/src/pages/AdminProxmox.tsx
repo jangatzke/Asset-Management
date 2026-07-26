@@ -38,6 +38,7 @@ import WarningIcon from '@mui/icons-material/Warning';
 import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { proxmoxApi } from '../services/api';
+import { useI18n } from '../context/I18nContext';
 
 interface ProxmoxCredential {
   id: string;
@@ -77,6 +78,7 @@ const syncStatusColors: Record<string, string> = {
 };
 
 export default function AdminProxmox() {
+  const { t } = useI18n();
   // Credential state
   const [credentials, setCredentials] = useState<ProxmoxCredential[]>([]);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
@@ -555,18 +557,18 @@ export default function AdminProxmox() {
 
       {/* ---- Credential Dialog ---- */}
       <Dialog open={credDialogOpen} onClose={() => setCredDialogOpen(false)}>
-        <DialogTitle>{editingCredId ? 'Edit Credential' : 'Add Proxmox Credential'}</DialogTitle>
+        <DialogTitle>{editingCredId ? t('proxmox.editCredential') : t('proxmox.addCredential')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
             <TextField
-              label="Name"
+              label={t('common.name')}
               value={credName}
               onChange={(e) => setCredName(e.target.value)}
               fullWidth
               placeholder="e.g. Production PVE"
             />
             <TextField
-              label="Username"
+              label={t('proxmox.username')}
               value={credUsername}
               onChange={(e) => setCredUsername(e.target.value)}
               fullWidth
@@ -579,11 +581,11 @@ export default function AdminProxmox() {
                   onChange={(e) => setUseApiToken(e.target.checked)}
                 />
               }
-              label="Use API Token (instead of password)"
+              label={t('proxmox.useApiToken')}
             />
             {useApiToken ? (
               <TextField
-                label={editingCredId ? 'New API Token (leave blank to keep)' : 'API Token'}
+                label={editingCredId ? t('proxmox.newApiTokenKeep') : t('proxmox.apiToken')}
                 type="password"
                 value={credApiToken}
                 onChange={(e) => setCredApiToken(e.target.value)}
@@ -593,7 +595,7 @@ export default function AdminProxmox() {
             ) : (
               <>
                 <TextField
-                  label={editingCredId ? 'New Password (leave blank to keep)' : 'Password'}
+                  label={editingCredId ? t('proxmox.newPasswordKeep') : t('login.password')}
                   type="password"
                   value={credPassword}
                   onChange={(e) => setCredPassword(e.target.value)}
@@ -601,14 +603,14 @@ export default function AdminProxmox() {
                 />
                 {credPassword && (
                   <TextField
-                    label="Confirm Password"
+                    label={t('proxmox.confirmPassword')}
                     type="password"
                     value={credConfirmPassword}
                     onChange={(e) => setCredConfirmPassword(e.target.value)}
                     fullWidth
                     error={!!credConfirmPassword && credPassword !== credConfirmPassword}
                     helperText={
-                      credConfirmPassword && credPassword !== credConfirmPassword ? 'Passwords do not match' : ''
+                      credConfirmPassword && credPassword !== credConfirmPassword ? t('proxmox.passwordsDoNotMatch') : ''
                     }
                   />
                 )}
@@ -617,68 +619,68 @@ export default function AdminProxmox() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCredDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCredDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveCredential}>
-            {editingCredId ? 'Update' : 'Create'}
+            {editingCredId ? t('common.update') : t('common.create')}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* ---- Proxmox Server Dialog ---- */}
       <Dialog open={serverDialogOpen} onClose={() => setServerDialogOpen(false)}>
-        <DialogTitle>{editingServerId ? 'Edit Proxmox Server' : 'Add Proxmox Server'}</DialogTitle>
+        <DialogTitle>{editingServerId ? t('proxmox.editServer') : t('proxmox.addServer')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
             <TextField
-              label="Name"
+              label={t('common.name')}
               value={serverName}
               onChange={(e) => setServerName(e.target.value)}
               fullWidth
               placeholder="e.g. Production PVE Cluster"
             />
             <TextField
-              label="Host (FQDN or IP)"
+              label={t('proxmox.host')}
               value={serverHost}
               onChange={(e) => setServerHost(e.target.value)}
               fullWidth
               placeholder="e.g. pve.example.com"
             />
             <TextField
-              label="Port"
+              label={t('proxmox.port')}
               type="number"
               value={serverPort}
               onChange={(e) => setServerPort(Number(e.target.value))}
               fullWidth
             />
             <TextField
-              label="Node ID (optional, leave blank for all nodes)"
+              label={t('proxmox.nodeIdOptional')}
               value={serverNodeId}
               onChange={(e) => setServerNodeId(e.target.value)}
               fullWidth
               placeholder="e.g. pve1"
             />
             <FormControl fullWidth error={!serverCredentialId}>
-              <InputLabel>Credential</InputLabel>
+              <InputLabel>{t('proxmox.credential')}</InputLabel>
               <Select
                 value={serverCredentialId}
-                label="Credential"
+                label={t('proxmox.credential')}
                 onChange={(e) => setServerCredentialId(e.target.value)}
               >
                 {credentials.map((cred) => (
                   <MenuItem key={cred.id} value={cred.id}>
                     {cred.name} ({cred.username})
-                    {cred.isDefault && ' - Default'}
+                    {cred.isDefault && ` - ${t('proxmox.default')}`}
                   </MenuItem>
                 ))}
               </Select>
-              {!serverCredentialId && <FormHelperText>Please select a credential</FormHelperText>}
+              {!serverCredentialId && <FormHelperText>{t('proxmox.selectCredential')}</FormHelperText>}
             </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setServerDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setServerDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveServer}>
-            {editingServerId ? 'Update' : 'Create'}
+            {editingServerId ? t('common.update') : t('common.create')}
           </Button>
         </DialogActions>
       </Dialog>

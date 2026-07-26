@@ -158,7 +158,7 @@ describe('AdminService', () => {
     it('should create a new user with default role', async () => {
       const userData: any = {
         email: 'newuser@example.com',
-        password: 'password123',
+        password: 'Str0ng!Password',
         firstName: 'New',
         lastName: 'User',
         phoneNumber: '+491234567890',
@@ -196,7 +196,7 @@ describe('AdminService', () => {
     it('should throw an error if email already exists', async () => {
       const userData: any = {
         email: testUser.email,
-        password: 'password123',
+        password: 'Str0ng!Password',
         firstName: 'New',
         lastName: 'User',
         phoneNumber: '+491234567890',
@@ -648,7 +648,7 @@ describe('AdminService', () => {
     it('should change password successfully', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
 
-      await adminService.changePassword(testUser.id, 'newpassword', 'admin-id');
+      await adminService.changePassword(testUser.id, 'Str0ng!NewPass', 'admin-id');
 
       expect(mockPrismaClient.user.update).toHaveBeenCalled();
     });
@@ -656,7 +656,18 @@ describe('AdminService', () => {
     it('should throw an error if user not found', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValue(null);
 
-      await expect(adminService.changePassword('nonexistent', 'newpass', 'admin-id')).rejects.toThrow(AppError);
+      await expect(adminService.changePassword('nonexistent', 'Str0ng!NewPass', 'admin-id')).rejects.toThrow(AppError);
+    });
+
+    it('should reject weak passwords during password change', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
+
+      await expect(adminService.changePassword(testUser.id, 'weak', 'admin-id')).rejects.toThrow(
+        AppError
+      );
+      await expect(adminService.changePassword(testUser.id, 'weak', 'admin-id')).rejects.toThrow(
+        'Password does not meet security requirements'
+      );
     });
   });
 

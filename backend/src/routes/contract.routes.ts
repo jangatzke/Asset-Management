@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { contractService } from '../services/contract.service';
 
-const requireAdminAccess = authorize('system_admin');
+
 
 export const contractRouter = Router();
 

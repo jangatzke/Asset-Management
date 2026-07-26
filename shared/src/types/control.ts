@@ -1,6 +1,7 @@
 // Control and Compliance types
 
 import { BaseEntity } from './common';
+import type { RiskControl } from './risk';
 
 export enum ControlStatus {
   PLANNED = 'planned',
@@ -62,28 +63,31 @@ export interface Control extends BaseEntity {
   responsibleId?: string;
   applicability: Applicability;
   applicabilityJustification?: string;
-  implementationStatus: ControlStatus;
-  maturityLevel: number;
+  /** Abstract control default/status fields; concrete execution lives on ControlImplementation. */
+  implementationStatus?: ControlStatus;
+  maturityLevel?: number;
   implementationDescription?: string;
   affectedAssetIds: string[];
   affectedProcessIds: string[];
   affectedSiteIds: string[];
-  relatedRiskIds: string[];
-  evidenceIds: string[];
   testMethod?: string;
   testFrequency?: string;
   lastEffectivenessReview?: Date;
   nextTestDate?: Date;
   findings?: string;
   actions?: string;
+  implementations?: ControlImplementation[];
+  requirementMappings?: Array<{ requirement: Requirement }>;
 }
+
+export type ControlImplementationStatus = 'planned' | 'in_progress' | 'implemented' | 'tested' | 'effective' | 'not_applicable' | 'not_verified';
 
 export interface ControlImplementation extends BaseEntity {
   controlId: string;
   scopeId?: string;
   organizationUnitId?: string;
   siteId?: string;
-  status: ControlStatus;
+  implementationStatus: ControlImplementationStatus;
   maturityLevel: number;
   implementationDescription?: string;
   responsibleUserId: string;
@@ -95,6 +99,21 @@ export interface ControlImplementation extends BaseEntity {
   testResult?: string;
   findings?: ControlFinding[];
   actions?: ControlAction[];
+  tests?: ControlTest[];
+  riskControls?: RiskControl[];
+}
+
+export interface ControlTest extends BaseEntity {
+  controlImplementationId: string;
+  testType: string;
+  testMethod?: string;
+  testedBy: string;
+  testedAt?: Date;
+  result: string;
+  effectivenessRating?: number;
+  findings?: string;
+  evidenceRequired?: boolean;
+  nextTestDate?: Date;
 }
 
 export interface ControlFinding extends BaseEntity {
@@ -116,7 +135,7 @@ export interface ControlAction extends BaseEntity {
   status: 'open' | 'in_progress' | 'completed';
 }
 
-export interface StatementOfApplicability extends BaseEntity {
+export interface StatementOfApplicability extends Omit<BaseEntity, 'version'> {
   frameworkId: string;
   frameworkVersion: string;
   scopeId: string;
@@ -131,7 +150,7 @@ export interface StatementOfApplicability extends BaseEntity {
   items?: SoAItem[];
 }
 
-export interface SoAItem extends BaseEntity {
+export interface SoAItem extends Omit<BaseEntity, 'version'> {
   soaId: string;
   requirementId?: string;
   controlId?: string;

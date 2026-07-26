@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import { importService } from '../services/import.service';
 
-const requireAdminAccess = authorize('system_admin');
+
 const IdParamSchema = z.object({ id: z.string().uuid() });
 const SourceSchema = z.object({
   name: z.string().min(1).max(200),

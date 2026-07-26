@@ -21,6 +21,7 @@ export interface EntityPermissions {
   risks?: EntityPermissionLevel;
   controls?: EntityPermissionLevel;
   incidents?: EntityPermissionLevel;
+  costPlanning?: EntityPermissionLevel;
 }
 
 export type EntityType = keyof EntityPermissions;
@@ -83,8 +84,14 @@ export class AuthorizationService {
 
       roles.push({
         roleName,
-        canAccessAdmin: assignment.role?.canAccessAdmin ?? false,
-        entityPermissions: (assignment.role?.entityPermissions as EntityPermissions | null) ?? null,
+        canAccessAdmin: assignment.role?.canAccessAdmin ?? roleName === 'system_admin',
+        entityPermissions: (assignment.role?.entityPermissions as EntityPermissions | null) ?? (roleName === 'system_admin' ? {
+          assets: 'readwrite',
+          risks: 'readwrite',
+          controls: 'readwrite',
+          incidents: 'readwrite',
+          costPlanning: 'readwrite',
+        } : null),
         validUntil: assignment.validUntil,
         scopeId: assignment.scopeId,
         organizationUnitId: assignment.organizationUnitId,
@@ -100,8 +107,14 @@ export class AuthorizationService {
 
         roles.push({
           roleName,
-          canAccessAdmin: gr.role?.canAccessAdmin ?? false,
-          entityPermissions: (gr.role?.entityPermissions as EntityPermissions | null) ?? null,
+          canAccessAdmin: gr.role?.canAccessAdmin ?? roleName === 'system_admin',
+          entityPermissions: (gr.role?.entityPermissions as EntityPermissions | null) ?? (roleName === 'system_admin' ? {
+            assets: 'readwrite',
+            risks: 'readwrite',
+            controls: 'readwrite',
+            incidents: 'readwrite',
+            costPlanning: 'readwrite',
+          } : null),
           validUntil: null, // Group roles don't have expiry in current schema
           scopeId: null,
           organizationUnitId: null,
@@ -190,10 +203,8 @@ export class AuthorizationService {
       }
     }
 
-    // If no role has entity permissions defined, allow by default for backward compatibility
-    // but log a warning in production scenarios
     if (!hasAnyEntityPermissions) {
-      return { allowed: true, reason: 'No entity permissions configured (default allow)' };
+      return { allowed: false, reason: 'No entity permissions configured (default deny)' };
     }
 
     const allowed = this.permissionLevelValue(maxPermission) >= this.permissionLevelValue(requiredLevel);
@@ -310,7 +321,7 @@ export class AuthorizationService {
     if (activeRoles.length === 0) return false;
 
     // Check all entity types for any readwrite permission
-    const entityTypes: EntityType[] = ['assets', 'risks', 'controls', 'incidents'];
+    const entityTypes: EntityType[] = ['assets', 'risks', 'controls', 'incidents', 'costPlanning'];
 
     for (const entityType of entityTypes) {
       for (const role of activeRoles) {

@@ -37,6 +37,8 @@ export const createMockPrismaClient = () => {
     groupRole: createMockModel(),
     role: createMockModel(),
     oidcConfig: createMockModel(),
+    authSettings: createMockModel(),
+    passwordHistory: createMockModel(),
 
     // Organization models
     organizationUnit: createMockModel(),
@@ -49,6 +51,7 @@ export const createMockPrismaClient = () => {
     // Asset models
     asset: createMockModel(),
     assetType: createMockModel(),
+    assetSubtype: createMockModel(),
     assetRelation: createMockModel(),
 
     // Risk models
@@ -56,6 +59,9 @@ export const createMockPrismaClient = () => {
     risk: createMockModel(),
     riskTreatment: createMockModel(),
     riskAssessment: createMockModel(),
+    riskAssessmentVersion: createMockModel(),
+    riskControl: createMockModel(),
+    riskControlAssessment: createMockModel(),
     riskMethodVersion: createMockModel(),
     riskScenario: createMockModel(),
     riskCause: createMockModel(),
@@ -78,6 +84,7 @@ export const createMockPrismaClient = () => {
     controlRequirementMapping: createMockModel(),
     control: createMockModel(),
     controlImplementation: createMockModel(),
+    controlTest: createMockModel(),
     controlImplementationRequirement: createMockModel(),
     controlFinding: createMockModel(),
     controlAction: createMockModel(),
@@ -161,6 +168,7 @@ export const createMockPrismaClient = () => {
     riskAsset: createMockModel(),
     riskProcess: createMockModel(),
     riskService: createMockModel(),
+    treatmentAction: createMockModel(),
     vulnerabilityAsset: createMockModel(),
     incidentAsset: createMockModel(),
     assetLifecycleLog: createMockModel(),
@@ -172,6 +180,9 @@ export const createMockPrismaClient = () => {
     assetContract: createMockModel(),
     assetLicense: createMockModel(),
     displayIdCounter: createMockModel(),
+    fiscalYearConfig: createMockModel(),
+    costPlan: createMockModel(),
+    costPlanItem: createMockModel(),
 
     // VMware models
     vmwareCredential: createMockModel(),

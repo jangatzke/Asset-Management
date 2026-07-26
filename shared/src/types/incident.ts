@@ -90,7 +90,7 @@ export interface NotificationDeadline extends BaseEntity {
   submissionProof?: string;
 }
 
-export interface IncidentReport extends BaseEntity {
+export interface IncidentReport extends Omit<BaseEntity, 'createdBy'> {
   incidentId: string;
   reportType: IncidentReportType;
   title: string;

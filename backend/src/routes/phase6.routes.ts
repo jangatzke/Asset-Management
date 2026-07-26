@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { requireWritePermission } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { phase6Service, PHASE6_MODEL_MAP } from '../services/phase6.service';
@@ -57,6 +58,14 @@ phase6Router.post('/reports/run', authenticate, requireWritePermission, validate
 });
 
 phase6Router.post('/:resource/reminders/run', authenticate, requireWritePermission, async (req: AuthRequest, res, next) => {
+  try {
+    ensureResource(req.params.resource);
+    const result = await phase6Service.runReminders(req.params.resource, req.userId ?? 'system');
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+phase6Router.post('/reminders/:resource', authenticate, requireWritePermission, async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     const result = await phase6Service.runReminders(req.params.resource, req.userId ?? 'system');

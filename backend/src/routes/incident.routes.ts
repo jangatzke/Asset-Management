@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';

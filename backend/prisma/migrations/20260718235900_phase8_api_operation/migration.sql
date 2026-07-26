@@ -2,11 +2,11 @@
 
 -- Service Accounts (API-Scopes)
 CREATE TABLE "service_accounts" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     "displayId" VARCHAR UNIQUE DEFAULT '',
     "name" VARCHAR NOT NULL,
     "description" TEXT,
-    "userId" UUID, -- optional: linked to a user account
+    "userId" TEXT, -- optional: linked to a user account
     "accessTokenHash" VARCHAR NOT NULL,
     "accessTokenSalt" VARCHAR NOT NULL,
     "scopes" JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -26,10 +26,10 @@ CREATE INDEX "service_accounts_isArchived_idx" ON "service_accounts"("isArchived
 
 -- API Audit Log (separate from regular audit log for API operations)
 CREATE TABLE "api_audit_logs" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     "correlationId" VARCHAR NOT NULL,
-    "serviceAccountId" UUID,
-    "userId" UUID,
+    "serviceAccountId" TEXT,
+    "userId" TEXT,
     "method" VARCHAR NOT NULL,
     "path" VARCHAR NOT NULL,
     "statusCode" INTEGER,
@@ -50,8 +50,8 @@ CREATE INDEX "api_audit_logs_createdAt_idx" ON "api_audit_logs"("createdAt");
 -- Idempotency Keys
 CREATE TABLE "idempotency_keys" (
     "key" VARCHAR PRIMARY KEY,
-    "serviceAccountId" UUID NOT NULL,
-    "userId" UUID,
+    "serviceAccountId" TEXT NOT NULL,
+    "userId" TEXT,
     "httpMethod" VARCHAR NOT NULL,
     "routePattern" VARCHAR NOT NULL,
     "requestBodyHash" VARCHAR NOT NULL,
@@ -67,7 +67,7 @@ CREATE INDEX "idempotency_keys_serviceAccountId_idx" ON "idempotency_keys"("serv
 
 -- Webhooks
 CREATE TABLE "webhooks" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     "displayId" VARCHAR UNIQUE DEFAULT '',
     "name" VARCHAR NOT NULL,
     "description" TEXT,
@@ -92,8 +92,8 @@ CREATE INDEX "webhooks_events_idx" ON "webhooks" USING GIN ("events");
 
 -- Webhook Deliveries (audit trail)
 CREATE TABLE "webhook_deliveries" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "webhookId" UUID NOT NULL REFERENCES "webhooks"("id") ON DELETE CASCADE,
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "webhookId" TEXT NOT NULL REFERENCES "webhooks"("id") ON DELETE CASCADE,
     "eventId" VARCHAR NOT NULL, -- event type identifier
     "url" VARCHAR NOT NULL,
     "httpMethod" VARCHAR NOT NULL DEFAULT 'POST',
@@ -113,9 +113,9 @@ CREATE INDEX "webhook_deliveries_createdAt_idx" ON "webhook_deliveries"("created
 
 -- API Rate Limits (per service account / user)
 CREATE TABLE "api_rate_limits" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "serviceAccountId" UUID,
-    "userId" UUID,
+    "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    "serviceAccountId" TEXT,
+    "userId" TEXT,
     "endpointPattern" VARCHAR NOT NULL DEFAULT '*',
     "requestsPerMinute" INTEGER NOT NULL DEFAULT 60,
     "requestsPerHour" INTEGER NOT NULL DEFAULT 1000,

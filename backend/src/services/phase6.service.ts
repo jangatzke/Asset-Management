@@ -2,35 +2,10 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService, AuditAction } from './audit.service';
+import { reminderService } from './reminder.service';
+import { PHASE6_MODEL_MAP } from './phase6.resources';
 
 type AnyObject = Record<string, any>;
-
-const PHASE6_MODEL_MAP: Record<string, { delegate: string; entityType: string; prefix: string; searchable: string[]; dueField?: string }> = {
-  suppliers: { delegate: 'supplier', entityType: 'Supplier', prefix: 'SUP', searchable: ['legalName', 'description', 'servicesProvided'], dueField: 'nextReviewDate' },
-  supplierAssessments: { delegate: 'supplierAssessment', entityType: 'SupplierAssessment', prefix: 'SUA', searchable: ['assessmentType', 'rating', 'status'], dueField: 'nextAssessmentDate' },
-  bias: { delegate: 'businessImpactAnalysis', entityType: 'BusinessImpactAnalysis', prefix: 'BIA', searchable: ['title', 'status'], dueField: 'nextReviewDate' },
-  bcps: { delegate: 'businessContinuityPlan', entityType: 'BusinessContinuityPlan', prefix: 'BCP', searchable: ['title', 'scope', 'status'], dueField: 'nextTestDate' },
-  bcpExercises: { delegate: 'bcpExercise', entityType: 'BCPExercise', prefix: 'BCX', searchable: ['exerciseType', 'status'], dueField: 'plannedAt' },
-  auditPrograms: { delegate: 'auditProgram', entityType: 'AuditProgram', prefix: 'AUP', searchable: ['title', 'scope', 'status'] },
-  auditPlans: { delegate: 'auditPlan', entityType: 'AuditPlan', prefix: 'AUPL', searchable: ['title', 'scope', 'auditType', 'status'], dueField: 'plannedStart' },
-  auditFindings: { delegate: 'auditFinding', entityType: 'AuditFinding', prefix: 'AUF', searchable: ['title', 'description', 'severity', 'status'], dueField: 'dueDate' },
-  correctiveActions: { delegate: 'correctiveAction', entityType: 'CorrectiveAction', prefix: 'CAPA', searchable: ['title', 'description', 'sourceType', 'status'], dueField: 'dueDate' },
-  trainingCourses: { delegate: 'trainingCourse', entityType: 'TrainingCourse', prefix: 'TRC', searchable: ['title', 'description', 'category', 'status'] },
-  trainingAssignments: { delegate: 'trainingAssignment', entityType: 'TrainingAssignment', prefix: 'TRA', searchable: ['status'], dueField: 'dueDate' },
-  trainingCompletions: { delegate: 'trainingCompletion', entityType: 'TrainingCompletion', prefix: 'TRCPL', searchable: ['result'] },
-  trainingAcknowledgements: { delegate: 'trainingAcknowledgement', entityType: 'TrainingAcknowledgement', prefix: 'TRACK', searchable: ['comment'] },
-  managementReviews: { delegate: 'managementReview', entityType: 'ManagementReview', prefix: 'MREV', searchable: ['title', 'minutes', 'status'], dueField: 'nextReviewDate' },
-  managementReviewActions: { delegate: 'managementReviewAction', entityType: 'ManagementReviewAction', prefix: 'MRA', searchable: ['title', 'status'], dueField: 'dueDate' },
-  securityObjectives: { delegate: 'securityObjective', entityType: 'SecurityObjective', prefix: 'SOBJ', searchable: ['title', 'description', 'status'] },
-  metricDefinitions: { delegate: 'metricDefinition', entityType: 'MetricDefinition', prefix: 'MET', searchable: ['name', 'description', 'metricType', 'status'] },
-  metricValues: { delegate: 'metricValue', entityType: 'MetricValue', prefix: 'METV', searchable: ['source', 'comment', 'breachStatus'] },
-  workflowDefinitions: { delegate: 'workflowDefinition', entityType: 'WorkflowDefinition', prefix: 'WFD', searchable: ['name', 'entityType', 'status'] },
-  workflowInstances: { delegate: 'workflowInstance', entityType: 'WorkflowInstance', prefix: 'WFI', searchable: ['entityType', 'entityId', 'currentState', 'status'], dueField: 'dueDate' },
-  workflowTasks: { delegate: 'workflowTask', entityType: 'WorkflowTask', prefix: 'WFT', searchable: ['title', 'taskType', 'status'], dueField: 'dueDate' },
-  reportDefinitions: { delegate: 'reportDefinition', entityType: 'ReportDefinition', prefix: 'RPD', searchable: ['name', 'description', 'module', 'status'] },
-  reportRuns: { delegate: 'reportRun', entityType: 'ReportRun', prefix: 'RPR', searchable: ['module', 'status'] },
-  exportJobs: { delegate: 'exportJob', entityType: 'ExportJob', prefix: 'EXP', searchable: ['entityType', 'format', 'status'] },
-};
 
 const CREATE_ACTION: AuditAction = 'CONFIG_CHANGE';
 const UPDATE_ACTION: AuditAction = 'CONFIG_CHANGE';
@@ -78,8 +53,9 @@ export class Phase6Service {
     }
 
     const delegate = this.getDelegate(resource);
+    const defaultOrder = config.defaultOrderBy ?? { createdAt: 'desc' as const };
     const [data, total] = await Promise.all([
-      delegate.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      delegate.findMany({ where, skip, take: limit, orderBy: defaultOrder }),
       delegate.count({ where }),
     ]);
     return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
@@ -159,12 +135,8 @@ export class Phase6Service {
   }
 
   async runReminders(resource: string, userId = 'system') {
-    const config = this.getConfig(resource);
-    if (!config.dueField) throw new AppError('Resource has no due-date field', 400);
-    const overdue = await this.getDelegate(resource).findMany({ where: { [config.dueField]: { lte: new Date() }, status: { notIn: ['completed', 'closed', 'cancelled', 'approved'] } } });
-    const reminders = overdue.map((item: AnyObject) => ({ resource, entityType: config.entityType, id: item.id, dueDate: item[config.dueField!], ownerId: item.ownerId ?? item.assigneeId ?? item.userId ?? item.responsibleUserId ?? null, escalation: new Date(item[config.dueField!]).getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000 }));
-    await auditService.logEventStandalone(prisma, { userId, action: 'REVIEW_TASK_CREATE', entityType: config.entityType, entityId: resource, details: `Generated ${reminders.length} reminders` });
-    return { count: reminders.length, reminders };
+    this.getConfig(resource);
+    return reminderService.runForResource(resource, userId, { sendEmail: false });
   }
 
   async createReportRun(data: AnyObject, userId = 'system') {

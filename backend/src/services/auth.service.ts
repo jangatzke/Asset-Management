@@ -1,13 +1,17 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { authenticator } from 'otplib';
+import QRCode from 'qrcode';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
+import { authSettingsService } from './authSettings.service';
 
 export interface LoginCredentials {
   email: string;
   password: string;
+  mfaToken?: string;
 }
 
 export interface RegisterData {
@@ -25,6 +29,11 @@ export interface TokenPayload {
   roles: string[];
 }
 
+interface MfaChallengePayload {
+  userId: string;
+  purpose: 'mfa_login';
+}
+
 /**
  * Check if self-registration is allowed.
  * Default: disabled (SEC-006). Only admin can create users or OIDC auto-provisioning.
@@ -35,6 +44,52 @@ function isSelfRegistrationAllowed(): boolean {
 }
 
 export class AuthService {
+  private getJwtSecret(): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new AppError('JWT_SECRET is not configured', 500);
+    }
+    if (process.env.NODE_ENV !== 'test' && (secret === 'secret' || secret.length < 32)) {
+      throw new AppError('JWT secret is not securely configured', 500);
+    }
+    return secret;
+  }
+
+  private getMfaEncryptionKey(): Buffer {
+    return crypto.createHash('sha256').update(process.env.MFA_ENCRYPTION_KEY || this.getJwtSecret()).digest();
+  }
+
+  private encryptMfaSecret(secret: string): string {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.getMfaEncryptionKey(), iv);
+    const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `v1:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`;
+  }
+
+  private decryptMfaSecret(value: string): string {
+    if (!value.startsWith('v1:')) return value;
+    const [, iv, tag, encrypted] = value.split(':');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', this.getMfaEncryptionKey(), Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    return Buffer.concat([decipher.update(Buffer.from(encrypted, 'base64')), decipher.final()]).toString('utf8');
+  }
+
+  private generateMfaChallenge(userId: string): string {
+    return jwt.sign({ userId, purpose: 'mfa_login' }, this.getJwtSecret(), { expiresIn: '5m', algorithm: 'HS256' });
+  }
+
+  private verifyMfaChallenge(challenge: string): MfaChallengePayload {
+    const payload = jwt.verify(challenge, this.getJwtSecret(), { algorithms: ['HS256'] }) as MfaChallengePayload;
+    if (payload.purpose !== 'mfa_login') throw new AppError('Invalid MFA challenge', 401);
+    return payload;
+  }
+
+  private verifyTotp(secretValue: string, token: string): boolean {
+    const secret = this.decryptMfaSecret(secretValue);
+    return authenticator.verify({ token: String(token || '').replace(/\s/g, ''), secret });
+  }
+
   async register(data: RegisterData) {
     if (!isSelfRegistrationAllowed()) {
       throw new AppError('Self-registration is disabled. Contact your administrator.', 403);
@@ -48,6 +103,8 @@ export class AuthService {
       throw new AppError('Email already registered', 409);
     }
 
+    await authSettingsService.ensurePasswordAllowedForLocalUser(null, data.password);
+
     const passwordHash = await bcrypt.hash(data.password, 10);
 
     const user = await prisma.user.create({
@@ -60,6 +117,8 @@ export class AuthService {
         organizationUnitId: data.organizationUnitId,
       },
     });
+
+    await authSettingsService.recordPasswordHash(user.id, passwordHash);
 
     const roles = await prisma.userRole.create({
       data: {
@@ -115,6 +174,24 @@ export class AuthService {
       throw new AppError('Invalid email or password', 401);
     }
 
+    const authSettings = await authSettingsService.getSettings();
+    if (!user.oidcId && authSettings.forceMfa && !user.mfaEnabled) {
+      throw new AppError('MFA enrollment is required for local accounts before login can continue', 403);
+    }
+
+    if (!user.oidcId && authSettingsService.isPasswordExpired(user.passwordChangedAt, authSettings)) {
+      throw new AppError('Password has expired. Please contact an administrator or change your password.', 403);
+    }
+
+    if (user.mfaEnabled && user.mfaSecret) {
+      if (!credentials.mfaToken) {
+        return { mfaRequired: true, challenge: this.generateMfaChallenge(user.id) };
+      }
+      if (!this.verifyTotp(user.mfaSecret, credentials.mfaToken)) {
+        throw new AppError('Invalid MFA verification code', 401);
+      }
+    }
+
     const userRoles = await prisma.userRole.findMany({
       where: { userId: user.id },
     });
@@ -149,6 +226,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         roles,
+        mustChangePasswordOnNext: user.mustChangePasswordOnNext,
       },
       token,
     };
@@ -170,6 +248,8 @@ export class AuthService {
         oidcProvider: true,
         language: true,
         darkMode: true,
+        mustChangePasswordOnNext: true,
+        mfaEnabled: true,
       },
     });
 
@@ -202,6 +282,49 @@ export class AuthService {
       isOidcLinked: !!user.oidcId,
       roles: allRoles,
     };
+  }
+
+  async changeOwnPassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (user.oidcId) {
+      throw new AppError('Password changes for OIDC-linked accounts must be handled by the identity provider', 400);
+    }
+
+    const currentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!currentPasswordValid) {
+      throw new AppError('Current password is incorrect', 400);
+    }
+
+    await authSettingsService.ensurePasswordAllowedForLocalUser(userId, newPassword);
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      action: 'PASSWORD_CHANGE',
+      entityType: 'User',
+      entityId: user.id,
+      details: 'User changed own password',
+    });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        mustChangePasswordOnNext: false,
+        passwordChangedAt: new Date(),
+        updatedBy: userId,
+      },
+    });
+    await authSettingsService.recordPasswordHash(userId, passwordHash);
   }
 
   async refreshToken(userId: string) {
@@ -241,7 +364,72 @@ export class AuthService {
     return adminCount > 0;
   }
 
+  async verifyMfaLogin(challenge: string, token: string) {
+    const payload = this.verifyMfaChallenge(challenge);
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user || !user.isActive || !user.mfaEnabled || !user.mfaSecret) throw new AppError('Invalid MFA challenge', 401);
+    if (!this.verifyTotp(user.mfaSecret, token)) throw new AppError('Invalid MFA verification code', 401);
+    const userRoles = await prisma.userRole.findMany({ where: { userId: user.id } });
+    const roles = userRoles.map((ur) => ur.roleName);
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      action: 'MFA_LOGIN',
+      entityType: 'User',
+      entityId: user.id,
+      details: `Successful MFA login: ${user.email}`,
+    });
+    return {
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, roles, mustChangePasswordOnNext: user.mustChangePasswordOnNext },
+      token: this.generateToken({ userId: user.id, email: user.email, roles }),
+    };
+  }
+
+  async beginMfaEnrollment(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (user.oidcId) throw new AppError('MFA setup for OIDC-linked accounts must be handled by the identity provider', 400);
+    const secret = authenticator.generateSecret();
+    const issuer = process.env.MFA_ISSUER || 'ISMS Asset Manager';
+    const otpauthUrl = authenticator.keyuri(user.email, issuer, secret);
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+    await prisma.user.update({ where: { id: userId }, data: { mfaPendingSecret: this.encryptMfaSecret(secret) } });
+    return { otpauthUrl, qrCodeDataUrl };
+  }
+
+  async confirmMfaEnrollment(userId: string, token: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (!user.mfaPendingSecret) throw new AppError('No MFA enrollment in progress', 400);
+    if (!this.verifyTotp(user.mfaPendingSecret, token)) throw new AppError('Invalid MFA verification code', 400);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true, mfaSecret: user.mfaPendingSecret, mfaPendingSecret: null, mfaEnabledAt: new Date() },
+    });
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      action: 'MFA_ENABLE',
+      entityType: 'User',
+      entityId: user.id,
+      details: 'TOTP MFA enabled for local account',
+    });
+    return { mfaEnabled: true };
+  }
+
+  async disableMfa(userId: string, token: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+    if (!user.mfaEnabled || !user.mfaSecret) throw new AppError('MFA is not enabled', 400);
+    if (!this.verifyTotp(user.mfaSecret, token)) throw new AppError('Invalid MFA verification code', 400);
+    await prisma.user.update({ where: { id: userId }, data: { mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaEnabledAt: null } });
+    return { mfaEnabled: false };
+  }
+
   async createFirstAdmin(data: RegisterData) {
+    await authSettingsService.ensurePasswordAllowedForLocalUser(null, data.password);
+
     // Use a database transaction to prevent race conditions
     return await prisma.$transaction(async (tx) => {
       // Check if admin already exists within the transaction
@@ -261,11 +449,18 @@ export class AuthService {
       }
 
       const passwordHash = await bcrypt.hash(data.password, 10);
-      const displayId = `USR-0001`; // Will be replaced by Display-ID service later
+      const displayId = await tx.displayIdCounter.upsert({
+        where: { entityType: 'User' },
+        create: { entityType: 'User', sequence: 1 },
+        update: { sequence: { increment: 1 } },
+      });
+      const sequence = displayId.sequence;
+      const padded = String(sequence).padStart(4, '0');
+      const userDisplayId = `USR-${padded}`;
 
       const user = await tx.user.create({
         data: {
-          displayId,
+          displayId: userDisplayId,
           email: data.email,
           passwordHash,
           firstName: data.firstName,
@@ -274,6 +469,8 @@ export class AuthService {
           organizationUnitId: data.organizationUnitId,
         },
       });
+
+      await (tx as any).passwordHistory.create({ data: { userId: user.id, passwordHash } });
 
       await tx.userRole.create({
         data: {
@@ -422,11 +619,7 @@ export class AuthService {
   }
 
   private generateToken(payload: TokenPayload): string {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new AppError('JWT_SECRET is not configured', 500);
-    }
-    return jwt.sign(payload, secret, { expiresIn: '1h' });
+    return jwt.sign(payload, this.getJwtSecret(), { expiresIn: '1h' });
   }
 }
 

@@ -102,18 +102,18 @@ backend/src/
 
 ### 1.3 Datenmodell (Prisma)
 
-Das Schema umfasst **40+ Modelle** in folgenden Bereichen:
+Das Schema umfasst **40+ Modelle** in folgenden Bereichen. Der aktuelle Risiko-/Kontroll- und Asset-Inventory-Stand ist normalisiert und trennt Katalog-, Implementierungs-, Bewertungs- und Nachweisobjekte.
 
 | Bereich | Modelle |
 |---------|---------|
 | Identität | User, UserRole, Role, Group, UserGroup, GroupRole, OidcConfig, Session, RefreshToken |
 | Organisation | OrganizationUnit, Site |
 | ISMS Core | IsmsScope, InterestedParty, StatementOfApplicability, Framework |
-| Assets | AssetType, Asset, AssetRelation, AssetDocument, AssetLifecycleLog |
-| Risiken | RiskMethod, Risk, RiskTreatment, Threat, Vulnerability, RiskAsset, RiskEvidence |
-| Controls | Control |
+| Assets | AssetType, AssetSubtype, Asset, NetworkAddress, AssetRelation, AssetDocument, AssetLifecycleLog |
+| Risiken | RiskMethod, RiskMethodVersion, Risk, RiskAssessment, RiskAssessmentVersion, RiskControl, RiskControlAssessment, RiskTreatment, TreatmentAction, RiskAcceptance, Threat, Vulnerability, RiskAsset, RiskEvidence |
+| Controls | Requirement, Control, ControlImplementation, ControlImplementationRequirement, ControlTest |
 | Incidents | Incident, IncidentAssessment, NotificationDeadline, IncidentAsset |
-| Dokumente | Document, PolicyDocument, DocumentVersion, Evidence |
+| Dokumente | Document, PolicyDocument, DocumentVersion, Evidence, EvidenceLink |
 | Lieferanten | Supplier |
 | BIA/Workflow | BusinessImpactAnalysis, BusinessProcess, Workflow, WorkflowInstance |
 | Audit/Management | AuditLog, Audit, AuditFinding, CorrectiveAction, Training, ManagementReview |
@@ -164,6 +164,24 @@ frontend/src/
 ### 1.5 Shared Types
 
 ```
+
+### 1.6 Normalisiertes Risiko-/Kontroll-/Asset-Modell
+
+- Requirements werden Framework-Versionen zugeordnet; Controls sind abstrakte Katalog-Controls und werden über ControlImplementation je Scope, Organisationseinheit oder Standort konkret umgesetzt.
+- RiskControl ist die kanonische Verknüpfung zwischen Risk und ControlImplementation. Es ersetzt direkte Risk-Control-Arrays und enthält Rolle, Minderungsdimension, Key-Control-Flag und Status.
+- RiskControlAssessment bewertet einen RiskControl-Link gegen eine RiskAssessmentVersion. Geschlossene Assessment-Versionen sind unveränderlich; neue Bewertungen werden versioniert angelegt.
+- RiskAssessmentVersion speichert aktuelle, inhärente und Zielbewertungen inklusive Methodenversion, Score, Status und Closed-State. Risikoreduktionen werden nicht mehr implizit aus Controls abgeleitet, sondern als Assessor-Eingabe und Assessment-Historie geführt.
+- RiskTreatment nutzt TreatmentAction für Aktionen wie create, extend, replace und improve; Actions können optional auf ControlImplementation verweisen und werden beim Abschluss nachvollziehbar aktualisiert.
+- ControlTest dokumentiert Tests auf ControlImplementation-Ebene und verknüpft Nachweise generisch über EvidenceLink.
+- EvidenceLink ist der generische Nachweisanker für Control, Risk, Asset, SoAItem, Document, RiskControlAssessment und ControlTest. Alte Mirror-Arrays für Risiko-/Control-/Evidence-Bezüge sind nicht mehr API-Eingabe.
+- AssetType kann Inventarnummern zentral konfigurieren; AssetSubtype kann diese Konfiguration überschreiben. Asset.inventoryNumber ist global eindeutig und wird transaktional aus dem Typ-/Subtype-Pattern mit Next-Sequence vergeben oder als manuelle Nummer geprüft.
+
+### 1.7 Entfernte oder abgewiesene Legacy-Felder
+
+- Risk.existingControls, Risk.controls, Risk.controlIds und direkte Control-Risk-Payloads werden abgewiesen; Clients müssen RiskControl mit controlImplementationId verwenden.
+- Control.relatedRiskIds, SoAItem.riskIds, SoAItem.evidenceIds und vergleichbare SoA/Evidence-Mirror-Arrays werden als Eingabe abgewiesen; Clients müssen ControlImplementation-, RiskControl- und EvidenceLink-Ressourcen verwenden.
+- Evidence.relatedControlIds und Evidence.relatedRiskIds sind nicht mehr der kanonische Speicherort; EvidenceInput verwendet links[] mit entityType/entityId.
+- Asset.networkAddresses als kommagetrennter String wurde durch das normalisierte NetworkAddress-Modell ersetzt.
 shared/src/types/
 ├── asset.ts       # AssetType, AssetRelationType enums, interfaces
 ├── common.ts      # Common types (PaginatedResponse, etc.)
@@ -198,7 +216,7 @@ shared/src/types/
 | # | Inkonsistenz | Beschreibung |
 |---|-------------|-------------|
 | D-01 | Dual Storage Risk Assets | Risk hat sowohl `affectedAssetIds: String[]` als auch Relation zu Asset via RiskAsset Junction Table |
-| D-02 | Dual Storage Risk Controls | Risk hat `existingControls: String[]` plus Relation `Control[] @relation("RiskControls")` |
+| D-02 | Dual Storage Risk Controls | ✅ Behoben: RiskControl verbindet Risk mit ControlImplementation; deprecated Payload-Felder werden abgewiesen. |
 | D-03 | Incident Asset Arrays | Incident verwendet `affectedAssetIds: String[]` statt nur der IncidentAsset Junction Table |
 | D-04 | Network Addresses als String | Asset.networkAddresses ist `String?` (comma-separated) statt `String[]` oder eigener Tabelle |
 | D-05 | Control Affected IDs als Arrays | Control verwendet `affectedAssetIds: String[]`, `affectedProcessIds: String[]` etc. statt Relationen |

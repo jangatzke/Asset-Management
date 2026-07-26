@@ -2,8 +2,103 @@ import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { adminService } from '../services/admin.service';
+import { reminderService } from '../services/reminder.service';
+import { getReminderScheduler } from '../services/reminder.scheduler';
+import { fiscalYearService } from '../services/fiscalYear.service';
+import { prisma } from '../config/database';
+import { auditService, AuditService } from '../services/audit.service';
 
 export const adminRouter = Router();
+
+adminRouter.get('/auth-settings', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await adminService.getAuthSettings());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/auth-settings', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await adminService.updateAuthSettings(req.body, req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/fiscal-year-config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    const years = await fiscalYearService.listSelectableYears();
+    res.json({ config: years.config, current: years.current, next: years.next });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/fiscal-year-config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const before = await fiscalYearService.getConfig();
+    const config = await fiscalYearService.updateConfig(req.body, req.userId);
+    await auditService.logEventStandalone(prisma as any, {
+      userId: req.userId ?? 'system',
+      action: 'CONFIG_CHANGE',
+      entityType: 'FiscalYearConfig',
+      entityId: config.id,
+      details: 'Fiscal-year configuration changed',
+      oldValue: { startMonth: before.startMonth, startDay: before.startDay, timezone: before.timezone },
+      newValue: { startMonth: config.startMonth, startDay: config.startDay, timezone: config.timezone },
+      ...AuditService.extractRequestInfo(req),
+    });
+    const years = await fiscalYearService.listSelectableYears();
+    res.json({ config, current: years.current, next: years.next });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- Reminder Automation / SMTP Settings ----
+
+adminRouter.get('/reminders/config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await reminderService.getConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/reminders/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const config = await reminderService.updateConfig(req.body, req.userId ?? 'system');
+    await getReminderScheduler()?.restart();
+    res.json(config);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/reminders/test-smtp', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await reminderService.testSmtp(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/reminders/run-now', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await reminderService.runAllDue(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/reminders/logs', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    res.json(await reminderService.listLogs(Number(req.query.limit ?? 50)));
+  } catch (error) {
+    next(error);
+  }
+});
 
 // ---- User Management ----
 
