@@ -1,5 +1,20 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 1–5 DoD gate stabilization
+
+| Field | Value |
+|-------|-------|
+| Phase | Stabilization only for completed Phases 1–5; Phase 6 was not started. |
+| Commit | Pending during this log entry; target commit message: `Stabilize Phase 1-5 DoD gates`. |
+| Scope | Closed open DoD/test/lint blockers from completed Phase 1–5 work without adding new ISMS modules or changing future-phase scope. |
+| changed files | Root/backend/frontend package metadata, backend/frontend ESLint configs, backend Jest lifecycle/test mocks, frontend Vitest service tests, and this implementation log. |
+| backend stabilization | Prevented importing `backend/src/index.ts` during Jest from starting a real HTTP listener; updated legacy mocks for asset inventory resolution, risk-treatment action/review-task writes, and implemented organization-unit listing behavior. |
+| frontend stabilization | Switched frontend test script to CI-style `vitest run`; rewrote service tests to use runtime `vi.doMock` setup so Vitest collects and executes them reliably. |
+| lint stabilization | Added conservative TypeScript ESLint configs for backend and frontend. Migration-friendly rules keep useful findings as warnings while preserving hard failures for empty blocks and React hook rule violations. |
+| verification | Backend build PASS; shared build PASS; frontend build PASS with existing Vite chunk-size warning; Prisma validate PASS from backend workspace; Prisma migrate status PASS and database schema up to date; full backend Jest PASS (35 suites, 475 tests) with `--runInBand --detectOpenHandles`; frontend Vitest PASS (3 files, 7 tests); workspace lint PASS with warnings only. |
+| known remaining items | Lint currently reports migration warnings for unused variables, hook dependency guidance, no-empty-function context defaults, and React-refresh file-boundary guidance; these do not fail the gate. Vite chunk-size warning remains informational. No destructive Prisma reset was run. |
+| out of scope confirmation | No Phase 6 or later feature/refactor work was started; no new ISMS module was added. |
+
 ## 2026-07-26 — Phase 5: Risk impact and route consistency
 
 | Field | Value |

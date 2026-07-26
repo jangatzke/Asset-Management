@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import api from './api';
+import { vi, beforeEach } from 'vitest';
 import { setAccessToken } from '../store/accessToken';
 
-vi.mock('axios', () => {
+function installAxiosMock() {
   const handlers = { request: undefined as any, response: undefined as any };
   const instance: any = vi.fn(async (config: any) => ({ status: 200, config }));
   instance.interceptors = {
@@ -11,32 +10,34 @@ vi.mock('axios', () => {
   };
   instance.post = vi.fn(async () => ({ data: { token: 'fresh-token' } }));
   instance.__handlers = handlers;
-  return { default: { create: vi.fn(() => instance) } };
+
+  vi.doMock('axios', () => ({ default: { create: vi.fn(() => instance) } }));
+  return instance;
+}
+
+beforeEach(() => {
+  vi.resetModules();
+  vi.clearAllMocks();
+  setAccessToken('expired-token');
 });
 
-describe('api refresh interceptor', () => {
-  const mockedApi = api as any;
+test('api refresh interceptor retries after successful refresh exactly once and shares concurrent refresh', async () => {
+  const mockedApi = installAxiosMock();
+  await import('./api');
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    setAccessToken('expired-token');
+  const error = (url: string) => ({
+    response: { status: 401 },
+    config: { url, headers: {}, _retry: false },
   });
 
-  it('retries a request after successful refresh exactly once and shares concurrent refresh', async () => {
-    const error = (url: string) => ({
-      response: { status: 401 },
-      config: { url, headers: {}, _retry: false },
-    });
+  await Promise.all([
+    mockedApi.__handlers.response(error('/assets')),
+    mockedApi.__handlers.response(error('/risks')),
+  ]);
 
-    await Promise.all([
-      mockedApi.__handlers.response(error('/assets')),
-      mockedApi.__handlers.response(error('/risks')),
-    ]);
-
-    expect(mockedApi.post).toHaveBeenCalledTimes(1);
-    expect(mockedApi.post).toHaveBeenCalledWith('/auth/refresh');
-    expect(mockedApi).toHaveBeenCalledTimes(2);
-    expect(mockedApi.mock.calls[0][0]._retry).toBe(true);
-    expect(mockedApi.mock.calls[0][0].headers.Authorization).toBe('Bearer fresh-token');
-  });
+  expect(mockedApi.post).toHaveBeenCalledTimes(1);
+  expect(mockedApi.post).toHaveBeenCalledWith('/auth/refresh');
+  expect(mockedApi).toHaveBeenCalledTimes(2);
+  expect(mockedApi.mock.calls[0][0]._retry).toBe(true);
+  expect(mockedApi.mock.calls[0][0].headers.Authorization).toBe('Bearer fresh-token');
 });

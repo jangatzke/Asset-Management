@@ -22,6 +22,10 @@ const mockPrismaClient: any = {
   riskTreatmentEffectivenessReview: {
     create: jest.fn(),
   },
+  treatmentAction: {
+    createMany: jest.fn(),
+    updateMany: jest.fn(),
+  },
   riskAssessment: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -31,6 +35,9 @@ const mockPrismaClient: any = {
   risk: {
     findUnique: jest.fn(),
     update: jest.fn(),
+  },
+  reviewTask: {
+    create: jest.fn(),
   },
   riskMethod: {
     findFirst: jest.fn(),
@@ -107,6 +114,7 @@ describe('RiskTreatmentService', () => {
     });
     mockPrismaClient.displayIdCounter.upsert.mockResolvedValue({ sequence: 1 });
     mockPrismaClient.auditLog.create.mockResolvedValue({});
+    mockPrismaClient.reviewTask.create.mockResolvedValue({});
   });
 
   describe('list', () => {

@@ -16,6 +16,12 @@ var mockPrisma = {
     createMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  assetType: {
+    findUnique: jest.fn(),
+  },
+  assetSubtype: {
+    findUnique: jest.fn(),
+  },
   assetProcess: {
     createMany: jest.fn(),
     deleteMany: jest.fn(),
@@ -118,6 +124,12 @@ describe('AssetService - CRUD Operations', () => {
 
   describe('create', () => {
     beforeEach(() => {
+      mockPrisma.assetType.findUnique.mockResolvedValue({
+        id: validAssetTypeId,
+        inventoryEnabled: false,
+        inventoryPattern: null,
+      });
+      mockPrisma.assetSubtype.findUnique.mockResolvedValue(null);
       mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
     });
 

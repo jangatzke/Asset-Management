@@ -32,6 +32,14 @@ jest.mock('../services/user.service', () => ({
   })),
 }));
 
+jest.mock('../config/database', () => ({
+  prisma: {
+    organizationUnit: {
+      findMany: jest.fn(() => Promise.resolve([])),
+    },
+  },
+}));
+
 const app = express();
 app.use(express.json());
 app.use('/users', userRouter);
@@ -72,11 +80,11 @@ describe('Placeholder endpoint and implemented-route consistency (P0-04)', () =>
   });
 
   describe('Organization Routes', () => {
-    it('GET /organization/units returns 501 Not Implemented', async () => {
+    it('GET /organization/units is implemented', async () => {
       const response = await request(app).get('/organization/units');
 
-      expect(response.status).toBe(501);
-      expect(response.body.error).toBe('Not Implemented');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ data: [] });
     });
 
     it('POST /organization/units returns 501 Not Implemented', async () => {

@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import api, { organizationApi, userSearchApi } from './api';
+import { vi, beforeEach } from 'vitest';
 
-vi.mock('axios', () => {
+function installAxiosMock() {
   const instance: any = vi.fn(async (config: any) => ({ status: 200, config }));
   instance.interceptors = {
     request: { use: vi.fn() },
@@ -9,26 +8,31 @@ vi.mock('axios', () => {
   };
   instance.get = vi.fn(async (url: string, config?: any) => ({ data: {}, url, config }));
   instance.post = vi.fn(async (url: string, data?: any) => ({ data: {}, url, requestData: data }));
-  return { default: { create: vi.fn(() => instance) } };
+
+  vi.doMock('axios', () => ({ default: { create: vi.fn(() => instance) } }));
+  return instance;
+}
+
+beforeEach(() => {
+  vi.resetModules();
+  vi.clearAllMocks();
 });
 
-describe('Phase 5 API bug fixes', () => {
-  const mockedApi = api as any;
+test('Phase 5 API bug fixes use organization unit endpoint for organization picker API', async () => {
+  const mockedApi = installAxiosMock();
+  const { organizationApi } = await import('./api');
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  await organizationApi.listUnits({ q: 'prod', limit: 20 });
 
-  it('uses organization unit endpoint for organization picker API', async () => {
-    await organizationApi.listUnits({ q: 'prod', limit: 20 });
+  expect(mockedApi.get).toHaveBeenCalledWith('/organization/units', { params: { q: 'prod', limit: 20 } });
+  expect(mockedApi.get).not.toHaveBeenCalledWith('/users/search?q=prod');
+});
 
-    expect(mockedApi.get).toHaveBeenCalledWith('/organization/units', { params: { q: 'prod', limit: 20 } });
-    expect(mockedApi.get).not.toHaveBeenCalledWith('/users/search?q=prod');
-  });
+test('Phase 5 API bug fixes keep user search API separate from organization unit API', async () => {
+  const mockedApi = installAxiosMock();
+  const { userSearchApi } = await import('./api');
 
-  it('keeps user search API separate from organization unit API', async () => {
-    await userSearchApi.search('prod');
+  await userSearchApi.search('prod');
 
-    expect(mockedApi.get).toHaveBeenCalledWith('/users/search?q=prod');
-  });
+  expect(mockedApi.get).toHaveBeenCalledWith('/users/search?q=prod');
 });

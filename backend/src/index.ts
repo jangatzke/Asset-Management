@@ -92,6 +92,10 @@ function resolveBackendPort(): number {
 
 const PORT = resolveBackendPort();
 
+function isTestRuntime(): boolean {
+  return process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+}
+
 // ==================== Global Middleware (Phase 8) ====================
 
 // 1. Correlation-ID (must be first for tracing)
@@ -269,9 +273,11 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
-startServer().catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+if (!isTestRuntime()) {
+  startServer().catch((error) => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  });
+}
 
 export { app };
