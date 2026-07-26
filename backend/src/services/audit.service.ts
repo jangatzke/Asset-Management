@@ -96,6 +96,7 @@ export type AuditAction =
   | 'PASSWORD_CHANGE'
   | 'MFA_LOGIN'
   | 'MFA_ENABLE'
+  | 'MFA_RESET'
   | 'PERMISSION_CHANGE'
   | 'READ_SENSITIVE'
   | 'IMPORT_SOURCE_CREATE'

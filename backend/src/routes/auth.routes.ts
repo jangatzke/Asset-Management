@@ -40,6 +40,10 @@ function attachRefreshCookie(res: Response, result: { refreshToken?: string; ref
   }
 }
 
+function isAuthenticatedResult(result: { state?: string; refreshToken?: string; refreshTokenExpiresAt?: Date }): result is typeof result & { state: 'authenticated' } {
+  return result.state === 'authenticated' || Boolean(result.refreshToken && result.refreshTokenExpiresAt);
+}
+
 function stripRefreshToken<T extends { refreshToken?: string; refreshTokenExpiresAt?: Date }>(result: T): Omit<T, 'refreshToken'> {
   const { refreshToken: _refreshToken, ...safeResult } = result;
   return safeResult;
@@ -89,9 +93,11 @@ authRouter.post('/login', authRateLimiter, async (req, res, next) => {
       return res.status(403).json({ error: { message: 'Local login is disabled. Please use Entra ID login.' } });
     }
     const result = await authService.login(req.body, requestContext(req));
-    if ('mfaRequired' in result) return res.json(result);
-    attachRefreshCookie(res, result);
-    return res.json(stripRefreshToken(result));
+    if (isAuthenticatedResult(result)) {
+      attachRefreshCookie(res, result);
+      return res.json(stripRefreshToken(result));
+    }
+    return res.json(result);
   } catch (error) {
     return next(error);
   }
@@ -99,9 +105,40 @@ authRouter.post('/login', authRateLimiter, async (req, res, next) => {
 
 authRouter.post('/login/mfa', authRateLimiter, async (req, res, next) => {
   try {
-    const result = await authService.verifyMfaLogin(req.body.challenge, req.body.token, requestContext(req));
+    const result = await authService.verifyMfaLogin(req.body.preAuthToken ?? req.body.challenge, req.body.token, requestContext(req));
     attachRefreshCookie(res, result);
     return res.json(stripRefreshToken(result));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRouter.post('/preauth/mfa/setup', authRateLimiter, async (req, res, next) => {
+  try {
+    res.json(await authService.beginPreAuthMfaEnrollment(req.body.preAuthToken));
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/preauth/mfa/confirm', authRateLimiter, async (req, res, next) => {
+  try {
+    const result = await authService.confirmPreAuthMfaEnrollment(req.body.preAuthToken, req.body.token, requestContext(req));
+    attachRefreshCookie(res, result);
+    res.json(stripRefreshToken(result));
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post('/preauth/password/change', authRateLimiter, async (req, res, next) => {
+  try {
+    const result = await authService.changeExpiredPassword(req.body.preAuthToken, req.body.newPassword, requestContext(req));
+    if (isAuthenticatedResult(result)) {
+      attachRefreshCookie(res, result);
+      return res.json(stripRefreshToken(result));
+    }
+    return res.json(result);
   } catch (error) {
     return next(error);
   }

@@ -1,3 +1,28 @@
+- id: AUTHN-002
+  title: Local MFA and Password Pre-Authentication
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/services/auth.service.ts
+    - backend/src/routes/auth.routes.ts
+    - backend/src/middleware/auth.ts
+    - backend/src/services/admin.service.ts
+    - backend/src/routes/admin.routes.ts
+    - frontend/src/pages/Login.tsx
+    - frontend/src/services/api.ts
+    - frontend/src/store/auth.ts
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+    - backend/src/__tests__/admin.service.test.ts
+    - frontend/src/services/api.test.ts
+  gaps: []
+  evidence:
+    - Login returns explicit states and withholds refresh cookies until authenticated.
+    - Pre-auth tokens are purpose-bound, short-lived and rejected by normal API authentication.
+    - MFA enrollment, MFA verification and expired-password change complete before Phase 2 session issuance.
+    - Admin MFA reset clears secrets, audits MFA_RESET and requires re-enrollment when MFA is forced.
+
 - id: INT-701
   title: Intune MSAL-Zertifikatsauthentifizierung
   priority: P0

@@ -21,7 +21,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, mfaToken?: string) => Promise<{ mfaRequired?: boolean; challenge?: string } | void>;
+  login: (email: string, password: string, mfaToken?: string) => Promise<{ state?: string; preAuthToken?: string; expiresInSeconds?: number } | void>;
   logout: () => Promise<void>;
   setUser: (user: User, token: string) => void;
   updateUserPreferences: (preferences: Pick<User, 'language' | 'darkMode'>) => void;
@@ -37,9 +37,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       const response = await authApi.login(email, password, mfaToken);
-      if (response.data?.mfaRequired) {
+      if (response.data?.state && response.data.state !== 'authenticated') {
         set({ isLoading: false });
-        return { mfaRequired: true, challenge: response.data.challenge };
+        return { state: response.data.state, preAuthToken: response.data.preAuthToken, expiresInSeconds: response.data.expiresInSeconds };
       }
       const { user, token } = response.data;
       setAccessToken(token);

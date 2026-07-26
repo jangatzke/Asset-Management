@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 3: pre-auth MFA and password flows
+
+| Feld | Wert |
+|---|---|
+| Phase | 3 — Pre-Authentication for MFA and expired passwords only |
+| Commit | Pending during this log entry; target commit message: `Phase 3: add pre-auth MFA and password flows`. |
+| Requirements | AUTHN-002 |
+| changed files | `docs/phase3-preauth-plan.md`, auth service/routes/middleware, admin service/routes, audit action enum, backend auth/admin tests, frontend login/API/auth store, security/architecture/requirements/compliance docs. |
+| schema changes | None. Existing local MFA fields and Phase 2 refresh-token schema are reused; pre-auth tokens are stateless short-lived JWTs. |
+| API changes | `POST /api/v1/auth/login` returns explicit states; `POST /api/v1/auth/login/mfa` accepts purpose-bound pre-auth; added `POST /api/v1/auth/preauth/mfa/setup`, `POST /api/v1/auth/preauth/mfa/confirm`, `POST /api/v1/auth/preauth/password/change`, and `POST /api/v1/admin/users/:id/mfa/reset`. |
+| frontend changes | Login handles `mfa_required`, `mfa_enrollment_required`, `password_change_required`, and `disabled` without durable token storage or treating pre-auth as an access token. |
+| new tests | Backend auth/admin route and service tests now cover disabled, invalid credentials, MFA enrollment/verification, expired-password pre-auth, no cookie/session until authenticated, and admin MFA reset audit behavior. |
+| verification | Backend build PASS; shared build PASS; frontend build PASS with known Vite chunk-size warning; Prisma validate PASS; Prisma migrate status PASS; focused backend auth/admin tests PASS (103/103); frontend tests PASS (5/5) but Vitest remains in watch mode when invoked through current scripts; backend/frontend lint FAIL due missing ESLint config. |
+| known baseline failures | Full backend Jest still may fail with known baseline mock drift/open-handle issues; lint still fails due missing ESLint configuration; frontend build chunk-size warning remains; no Prisma migration was added. |
+| out of scope confirmation | Phase 4 OIDC consolidation, Phase 5 risk possibleImpact, UI entity picker, audit hash chain, jobs, health/metrics, CI gates, code-quality refactors and new ISMS functional modules were not started. |
+
+
 ## 2026-07-26 — Phase 1: authorization and scoped permissions
 
 | Feld | Wert |

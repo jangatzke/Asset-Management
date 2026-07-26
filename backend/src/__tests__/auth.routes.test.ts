@@ -14,6 +14,10 @@ const mockAuthService = {
   login: jest.fn<any>(),
   getCurrentUser: jest.fn<any>(),
   refreshToken: jest.fn<any>(),
+  verifyMfaLogin: jest.fn<any>(),
+  beginPreAuthMfaEnrollment: jest.fn<any>(),
+  confirmPreAuthMfaEnrollment: jest.fn<any>(),
+  changeExpiredPassword: jest.fn<any>(),
   logout: jest.fn<any>(),
   hasAdminUsers: jest.fn<any>(),
   createFirstAdmin: jest.fn<any>(),
@@ -180,6 +184,28 @@ describe('Auth Routes', () => {
       expect(response.body).not.toHaveProperty('refreshToken');
     });
 
+    it('should return MFA enrollment pre-auth without refresh cookie', async () => {
+      mockOidcService.isLocalLoginEnabled.mockResolvedValue(true);
+      mockAuthService.login.mockResolvedValue({ state: 'mfa_enrollment_required', preAuthToken: 'preauth-token', expiresInSeconds: 300 });
+
+      const response = await request(app).post('/auth/login').send(credentials);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ state: 'mfa_enrollment_required', preAuthToken: 'preauth-token', expiresInSeconds: 300 });
+      expect(response.headers['set-cookie']).toBeUndefined();
+    });
+
+    it('should return disabled without pre-auth or session', async () => {
+      mockOidcService.isLocalLoginEnabled.mockResolvedValue(true);
+      mockAuthService.login.mockResolvedValue({ state: 'disabled' });
+
+      const response = await request(app).post('/auth/login').send(credentials);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ state: 'disabled' });
+      expect(response.headers['set-cookie']).toBeUndefined();
+    });
+
     it('should reject login when local login is disabled', async () => {
       mockOidcService.isLocalLoginEnabled.mockResolvedValue(false);
 
@@ -288,6 +314,29 @@ describe('Auth Routes', () => {
       expect(response.body).not.toHaveProperty('refreshToken');
       expect(mockAuthService.refreshToken).toHaveBeenCalledWith('old-token', expect.any(Object));
       expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+    });
+  });
+
+  describe('Phase 3 pre-auth endpoints', () => {
+    it('confirms MFA enrollment pre-auth and issues a refresh cookie', async () => {
+      mockAuthService.confirmPreAuthMfaEnrollment.mockResolvedValue({ user: { id: 'user-123' }, token: 'access-token', refreshToken: 'refresh-token', refreshTokenExpiresAt: new Date(Date.now() + 60_000) });
+
+      const response = await request(app).post('/auth/preauth/mfa/confirm').send({ preAuthToken: 'preauth-token', token: '123456' });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('token', 'access-token');
+      expect(response.body).not.toHaveProperty('refreshToken');
+      expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+    });
+
+    it('changes an expired password with pre-auth and returns next MFA state without a cookie', async () => {
+      mockAuthService.changeExpiredPassword.mockResolvedValue({ state: 'mfa_required', preAuthToken: 'next-preauth', expiresInSeconds: 300 });
+
+      const response = await request(app).post('/auth/preauth/password/change').send({ preAuthToken: 'preauth-token', newPassword: 'Str0ng!Password2' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.state).toBe('mfa_required');
+      expect(response.headers['set-cookie']).toBeUndefined();
     });
   });
 

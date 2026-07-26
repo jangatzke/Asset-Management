@@ -160,6 +160,14 @@ adminRouter.post('/users/:id/change-password', authenticate, requireAdminAccess,
   }
 });
 
+adminRouter.post('/users/:id/mfa/reset', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await adminService.resetMfa(req.params.id, req.userId!));
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.put('/users/:id/roles', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     const user = await adminService.assignRoles(req.params.id, req.body);

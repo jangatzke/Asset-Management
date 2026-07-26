@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api';
 
 type Mode = 'login' | 'register';
+type PreAuthState = 'mfa_required' | 'mfa_enrollment_required' | 'password_change_required' | 'disabled' | null;
 
 const loginShellClass = 'min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900';
 const loginCardClass = 'max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 border border-transparent dark:border-gray-700';
@@ -18,7 +19,10 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaToken, setMfaToken] = useState('');
-  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
+  const [preAuthToken, setPreAuthToken] = useState<string | null>(null);
+  const [preAuthState, setPreAuthState] = useState<PreAuthState>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [mfaQrCode, setMfaQrCode] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
@@ -53,13 +57,38 @@ const Login = () => {
         await login(email, password);
         navigate('/');
       } else if (mode === 'login') {
-        if (mfaChallenge) {
-          const response = await authApi.verifyMfaLogin(mfaChallenge, mfaToken);
+        if (preAuthState === 'mfa_required' && preAuthToken) {
+          const response = await authApi.verifyMfaLogin(preAuthToken, mfaToken);
           setUser(response.data.user, response.data.token);
+        } else if (preAuthState === 'mfa_enrollment_required' && preAuthToken) {
+          const response = await authApi.confirmPreAuthMfaSetup(preAuthToken, mfaToken);
+          setUser(response.data.user, response.data.token);
+        } else if (preAuthState === 'password_change_required' && preAuthToken) {
+          const response = await authApi.changePreAuthPassword(preAuthToken, newPassword);
+          if (response.data.state === 'authenticated') {
+            setUser(response.data.user, response.data.token);
+          } else {
+            setPreAuthState(response.data.state);
+            setPreAuthToken(response.data.preAuthToken);
+            if (response.data.state === 'mfa_enrollment_required' && response.data.preAuthToken) {
+              const setup = await authApi.beginPreAuthMfaSetup(response.data.preAuthToken);
+              setMfaQrCode(setup.data.qrCodeDataUrl);
+            }
+            return;
+          }
         } else {
           const result = await login(email, password);
-          if (result?.mfaRequired && result.challenge) {
-            setMfaChallenge(result.challenge);
+          if (result?.state && result.state !== 'authenticated') {
+            if (result.state === 'disabled') {
+              setError('Account is disabled');
+              return;
+            }
+            setPreAuthState(result.state as PreAuthState);
+            setPreAuthToken(result.preAuthToken || null);
+            if (result.state === 'mfa_enrollment_required' && result.preAuthToken) {
+              const setup = await authApi.beginPreAuthMfaSetup(result.preAuthToken);
+              setMfaQrCode(setup.data.qrCodeDataUrl);
+            }
             return;
           }
         }
@@ -218,6 +247,13 @@ const Login = () => {
               </div>
             </>
           )}
+          {preAuthState && preAuthState !== 'disabled' && (
+            <div className="mb-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 px-3 py-2 rounded text-sm">
+              {preAuthState === 'mfa_required' && 'Enter your authenticator code to complete sign-in.'}
+              {preAuthState === 'mfa_enrollment_required' && 'MFA enrollment is required. Scan the QR code and enter the generated code.'}
+              {preAuthState === 'password_change_required' && 'Your password must be changed before sign-in can continue.'}
+            </div>
+          )}
           <div className="mb-4">
             <label htmlFor="email" className={loginLabelClass}>
               Email
@@ -232,7 +268,7 @@ const Login = () => {
               required
             />
           </div>
-          <div className="mb-6">
+          {!preAuthState && <div className="mb-6">
             <label htmlFor="password" className={loginLabelClass}>
               Password
             </label>
@@ -245,8 +281,27 @@ const Login = () => {
               placeholder="Password"
               required
             />
-          </div>
-          {mfaChallenge && (
+          </div>}
+          {preAuthState === 'password_change_required' && (
+            <div className="mb-6">
+              <label htmlFor="newPassword" className={loginLabelClass}>New password</label>
+              <input
+                type="password"
+                id="newPassword"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className={loginInputClass}
+                placeholder="New password"
+                required
+              />
+            </div>
+          )}
+          {mfaQrCode && (
+            <div className="mb-4 text-center">
+              <img src={mfaQrCode} alt="MFA setup QR code" className="mx-auto max-w-48" />
+            </div>
+          )}
+          {(preAuthState === 'mfa_required' || preAuthState === 'mfa_enrollment_required') && (
             <div className="mb-6">
               <label htmlFor="mfaToken" className={loginLabelClass}>Authenticator code</label>
               <input
@@ -265,7 +320,7 @@ const Login = () => {
             type="submit"
             className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition"
           >
-            {mfaChallenge ? 'Verify code' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            {preAuthState === 'mfa_required' ? 'Verify code' : preAuthState === 'mfa_enrollment_required' ? 'Confirm MFA setup' : preAuthState === 'password_change_required' ? 'Change password' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
         <div className="mt-4 text-center">
@@ -275,6 +330,9 @@ const Login = () => {
             onClick={() => {
               setMode(mode === 'login' ? 'register' : 'login');
               setError('');
+              setPreAuthState(null);
+              setPreAuthToken(null);
+              setMfaQrCode(null);
             }}
           >
             {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}

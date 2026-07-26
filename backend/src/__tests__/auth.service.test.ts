@@ -165,7 +165,7 @@ describe('AuthService', () => {
       expect(bcrypt.compare).toHaveBeenCalledWith(credentials.password, testUser.passwordHash);
       expect(result).toHaveProperty('user');
       expect(result).toHaveProperty('token');
-      if ('mfaRequired' in result) throw new Error('MFA challenge was not expected');
+      if (result.state !== 'authenticated') throw new Error('Authenticated result was expected');
       expect(result.user.email).toBe(credentials.email);
     });
 
@@ -205,8 +205,7 @@ describe('AuthService', () => {
         isActive: false,
       });
 
-      await expect(authService.login(credentials)).rejects.toThrow(AppError);
-      await expect(authService.login(credentials)).rejects.toThrow('Account is disabled');
+      await expect(authService.login(credentials)).resolves.toEqual({ state: 'disabled' });
     });
 
     it('should reject expired local passwords', async () => {
@@ -226,7 +225,7 @@ describe('AuthService', () => {
         passwordChangedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
       });
 
-      await expect(authService.login(credentials)).rejects.toThrow('Password has expired');
+      await expect(authService.login(credentials)).resolves.toEqual(expect.objectContaining({ state: 'password_change_required', preAuthToken: expect.any(String) }));
     });
 
     it('should require MFA enrollment for local users when forced', async () => {
@@ -242,7 +241,7 @@ describe('AuthService', () => {
       });
       mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, oidcId: null, mfaEnabled: false });
 
-      await expect(authService.login(credentials)).rejects.toThrow('MFA enrollment is required');
+      await expect(authService.login(credentials)).resolves.toEqual(expect.objectContaining({ state: 'mfa_enrollment_required', preAuthToken: expect.any(String) }));
     });
   });
 
@@ -483,6 +482,7 @@ describe('AuthService', () => {
       if ('mfaRequired' in result) throw new Error('MFA challenge was not expected');
 
       // Verify token can be decoded
+      if (result.state !== 'authenticated') throw new Error('Authenticated result was expected');
       const decoded = jwt.verify(result.token, process.env.JWT_SECRET!);
       expect(decoded).toHaveProperty('userId', testUser.id);
       expect(decoded).toHaveProperty('email', testUser.email);

@@ -65,6 +65,16 @@ const mockPrismaClient: any = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  authSettings: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  passwordHistory: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   intuneAppCredentials: {
     findFirst: jest.fn(),
     create: jest.fn(),
@@ -99,6 +109,17 @@ describe('AdminService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     adminService = new AdminService();
+    mockPrismaClient.authSettings.findFirst.mockResolvedValue({
+      id: 'auth-settings-1',
+      passwordComplexityEnabled: true,
+      minPasswordLength: 12,
+      passwordHistoryCount: 0,
+      passwordValidityDays: 0,
+      forceMfa: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    mockPrismaClient.passwordHistory.findMany.mockResolvedValue([]);
   });
 
   describe('listUsers', () => {

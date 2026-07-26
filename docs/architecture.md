@@ -1,5 +1,13 @@
 # Architektur – Asset Management System (ISO 27001)
 
+## Phase 3 Authentication State Machine
+
+The local-login path is split into credential verification, pre-authentication gates, and final Phase 2 session issuance. Password verification alone never creates a refresh session when MFA enrollment, MFA verification, or password change is still required. Pre-auth tokens are purpose-bound and short-lived, while normal API authentication continues to use access tokens plus the rotated refresh-cookie flow.
+
+Backend endpoints added for this phase are `POST /api/v1/auth/preauth/mfa/setup`, `POST /api/v1/auth/preauth/mfa/confirm`, and `POST /api/v1/auth/preauth/password/change`; `POST /api/v1/auth/login/mfa` now verifies a pre-auth token instead of a full session. Admin recovery is exposed as `POST /api/v1/admin/users/:id/mfa/reset` and remains protected by normal authentication plus admin authorization.
+
+The frontend login screen keeps pre-auth state only in component memory and never stores a pre-auth token as an access token. Only authenticated responses call the auth store's normal `setUser()` path.
+
 **Version:** 1.0  
 **Datum:** 2026-07-17  
 

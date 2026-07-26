@@ -211,6 +211,14 @@ app.use(helmet({
 | Intune/vCenter/Proxmox Credentials | `passwordEncrypted` Feld – AES-256-GCM mit Application-Key |
 | PII (Namen, E-Mails) | Zugriffsbeschränkung via RBAC |
 
+## Phase 3 Pre-Authentication MFA and Password Gates
+
+Local authentication now uses an explicit pre-authentication state machine for MFA and expired-password gates. `POST /api/v1/auth/login` can return `password_required`, `mfa_required`, `mfa_enrollment_required`, `password_change_required`, `authenticated`, or `disabled`. Disabled users receive no pre-auth token and no refresh cookie.
+
+After successful email/password verification, MFA and password gates use short-lived pre-auth JWTs with `typ: pre_auth`, `userId`, and purpose `mfa_required`, `mfa_enrollment`, or `password_change`. The default lifetime is five minutes and can be configured with `PREAUTH_TOKEN_EXPIRES_SECONDS`. Pre-auth tokens are accepted only by matching `/api/v1/auth/preauth/*` endpoints or `/api/v1/auth/login/mfa`, and normal authenticated middleware rejects `typ: pre_auth`, so they cannot access application APIs.
+
+Expired or administrator-required password changes use a password-change pre-auth token and then re-evaluate MFA. MFA enrollment pre-auth allows TOTP setup and confirmation without granting normal API access; successful TOTP confirmation issues the standard Phase 2 access token plus rotated HttpOnly refresh cookie. Admin MFA reset clears stored and pending TOTP secrets, writes an `MFA_RESET` audit event, and causes re-enrollment on next login when MFA is forced.
+
 ### 6.2 Datenbank-Sicherheit
 
 - **Verbindung:** SSL/TLS für DB-Verbindung (`?ssl=require` in DATABASE_URL)

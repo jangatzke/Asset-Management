@@ -29,7 +29,11 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
     const decoded = jwt.verify(token, getJwtSecret(), { algorithms: JWT_ALGORITHMS }) as {
       userId: string;
       roles?: string[];
+      typ?: string;
     };
+    if (decoded.typ === 'pre_auth') {
+      return next(new AppError('Authentication required', 401));
+    }
     req.userId = decoded.userId;
     req.userRoles = decoded.roles ?? [];
     next();

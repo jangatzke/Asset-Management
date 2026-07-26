@@ -475,6 +475,33 @@ export class AdminService {
     await authSettingsService.recordPasswordHash(userId, passwordHash);
   }
 
+  async resetMfa(userId: string, resetBy: string): Promise<{ mfaEnabled: false; reEnrollmentRequired: boolean }> {
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      throw new AppError('User not found', 404);
+    }
+
+    const adminUser = await prisma.user.findUnique({ where: { id: resetBy }, select: { firstName: true, lastName: true } });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaEnabledAt: null, updatedBy: resetBy },
+    });
+
+    await auditService.logEventStandalone(prisma, {
+      userId: resetBy,
+      userName: adminUser ? `${adminUser.firstName} ${adminUser.lastName}` : undefined,
+      action: 'MFA_RESET',
+      entityType: 'User',
+      entityId: userId,
+      details: `Admin reset MFA for: ${existing.email}`,
+      oldValue: { mfaEnabled: existing.mfaEnabled },
+      newValue: { mfaEnabled: false },
+    });
+
+    const authSettings = await authSettingsService.getSettings();
+    return { mfaEnabled: false, reEnrollmentRequired: authSettings.forceMfa && !existing.oidcId };
+  }
+
   // ---- Role Management ----
 
   async assignRoles(userId: string, data: AssignRolesDto): Promise<UserWithRoles> {

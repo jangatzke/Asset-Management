@@ -49,7 +49,10 @@ export default api;
 
 export const authApi = {
   login: (email: string, password: string, mfaToken?: string) => api.post('/auth/login', { email, password, mfaToken }),
-  verifyMfaLogin: (challenge: string, token: string) => api.post('/auth/login/mfa', { challenge, token }),
+  verifyMfaLogin: (preAuthToken: string, token: string) => api.post('/auth/login/mfa', { preAuthToken, token }),
+  beginPreAuthMfaSetup: (preAuthToken: string) => api.post('/auth/preauth/mfa/setup', { preAuthToken }),
+  confirmPreAuthMfaSetup: (preAuthToken: string, token: string) => api.post('/auth/preauth/mfa/confirm', { preAuthToken, token }),
+  changePreAuthPassword: (preAuthToken: string, newPassword: string) => api.post('/auth/preauth/password/change', { preAuthToken, newPassword }),
   register: (data: { email: string; password: string; firstName: string; lastName: string }) =>
     api.post('/auth/register', data),
   createFirstAdmin: (data: { email: string; password: string; firstName: string; lastName: string }) =>
