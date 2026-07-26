@@ -120,16 +120,20 @@
   status: compliant
   implementation:
     - backend/prisma/schema.prisma
-    - backend/src/services/phase6.service.ts
+    - backend/src/services/supplier.service.ts (Phase 7 explicit domain service)
+    - backend/src/services/statusTransition.ts (Phase 7 status automaton)
     - backend/src/routes/phase6.routes.ts
     - frontend/src/pages/ISMSPhase6.tsx
   tests:
     - backend/src/__tests__/phase6.service.test.ts
+    - backend/src/__tests__/statusTransition.test.ts
   gaps: []
   evidence:
     - Supplier, SupplierAssessment, SupplierContractRelation und SupplierRiskRelation sind modelliert
     - Kritikalität, Datenschutz-/NIS2-Relevanz, Bewertung und Reviewdatum werden gespeichert
     - Reminder und JSON/CSV-Export laufen über generische Phase-6-Mechanik
+    - Phase 7: expliziter Domain-Service mit Statusvalidierung (active/inactive/archived)
+    - Phase 7: Archive validiert keine aktive Assessments
 
 - id: BCP-601
   title: BIA und Business Continuity
@@ -137,15 +141,19 @@
   status: compliant
   implementation:
     - backend/prisma/schema.prisma
-    - backend/src/services/phase6.service.ts
+    - backend/src/services/bcm.service.ts (Phase 7 explicit domain service)
+    - backend/src/services/statusTransition.ts (Phase 7 status automaton)
     - backend/src/routes/phase6.routes.ts
   tests:
     - backend/src/__tests__/phase6.service.test.ts
+    - backend/src/__tests__/statusTransition.test.ts
   gaps: []
   evidence:
     - BusinessImpactAnalysis enthält Prozess-/Service-Bezug, MTPD/RTO/RPO und Impact-Kategorien
     - BIAAssetRelation verbindet BIAs mit Assets
     - BusinessContinuityPlan und BCPExercise speichern Strategien, Tests und Findings
+    - Phase 7: expliziter BCM-Domain-Service mit Statusvalidierung (draft → under_review → approved/rejected/archived)
+    - Phase 7: BCP Exercise transitions (scheduled → in_progress → completed/cancelled)
 
 - id: AUD-601
   title: Auditmanagement und CAPA
@@ -153,16 +161,20 @@
   status: compliant
   implementation:
     - backend/prisma/schema.prisma
-    - backend/src/services/phase6.service.ts
+    - backend/src/services/correctiveaction.service.ts (Phase 7 explicit domain service)
+    - backend/src/services/statusTransition.ts (Phase 7 status automaton)
     - backend/src/routes/phase6.routes.ts
   tests:
     - backend/src/__tests__/phase6.service.test.ts
     - backend/src/__tests__/phase6.routes.test.ts
+    - backend/src/__tests__/statusTransition.test.ts
   gaps: []
   evidence:
     - AuditProgram, AuditPlan, AuditFinding und AuditEvidenceRelation sind normalisiert
     - CorrectiveAction unterstützt Quellen Audit, Incident, Risk, Control und Supplier
     - CAPA speichert Owner, DueDate, Status, Root Cause und Wirksamkeitsprüfung
+    - Phase 7: expliziter CAPA-Domain-Service mit Statusautomat (open → in_progress → completed → reopened)
+    - Phase 7: effectiveness review und close/reopen mit business rule validation
 
 - id: TRN-MREV-601
   title: Schulungen und Management Reviews
@@ -170,15 +182,19 @@
   status: compliant
   implementation:
     - backend/prisma/schema.prisma
-    - backend/src/services/phase6.service.ts
+    - backend/src/services/training.service.ts (Phase 7 explicit domain service)
+    - backend/src/services/statusTransition.ts (Phase 7 status automaton)
+    - backend/src/routes/phase6.routes.ts
     - frontend/src/pages/ISMSPhase6.tsx
   tests:
     - backend/src/__tests__/phase6.service.test.ts
+    - backend/src/__tests__/statusTransition.test.ts
   gaps: []
   evidence:
     - TrainingCourse, TrainingAssignment, TrainingCompletion und TrainingAcknowledgement sind modelliert
     - ManagementReview und ManagementReviewAction speichern Agenda, Inputs, Decisions, Minutes, Approval und Actions
     - Due-Date-Reminder und Export sind generisch verfügbar
+    - Phase 7: expliziter Training-Domain-Service mit assignment status transitions (assigned → in_progress → completed/overdue)
 
 - id: MET-WFL-RPT-601
   title: KPI/KRI, Workflowengine und Reporting

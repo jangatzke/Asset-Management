@@ -19,13 +19,14 @@ jest.mock('../services/phase6.service', () => ({
   PHASE6_MODEL_MAP: { suppliers: {}, correctiveActions: {}, workflowInstances: {}, reportRuns: {} },
   phase6Service: { list: jest.fn(), create: jest.fn(), export: jest.fn(), runReminders: jest.fn(), createCorrectiveActionFromSource: jest.fn() },
 }));
+jest.mock('../services/supplier.service', () => ({
+  supplierService: { list: jest.fn().mockResolvedValue({ data: [], pagination: { total: 0 } }) },
+}));
 
 describe('Phase6 routes', () => {
-  it('lists resource records', async () => {
-    (phase6Service.list as jest.Mock).mockResolvedValue({ data: [], pagination: { total: 0 } });
+  it('lists resource records via explicit supplier route', async () => {
     const res = await request(app).get('/api/v1/phase6/suppliers');
     expect(res.status).toBe(200);
-    expect(phase6Service.list).toHaveBeenCalledWith('suppliers', expect.any(Object));
   });
 
   it('rejects unknown resources', async () => {

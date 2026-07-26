@@ -1,5 +1,19 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 7: Domain Services & Business Rule Hardening
+
+| Field | Value |
+|-------|-------|
+| Phase | 7 — explicit domain services, status transition automaton, bounded validation |
+| Commit | Pending; target commit message: `Phase 7: add explicit domain services and status transitions` |
+| Requirements | SUP-001/002, BCM-001/002/003, CAPA-001/002/003, TRAIN-001/002, AUD-005 (status audit trail) |
+| changed files | `shared/src/dtos/index.ts`, `backend/src/services/statusTransition.ts`, `backend/src/services/supplier.service.ts`, `backend/src/services/bcm.service.ts`, `backend/src/services/correctiveaction.service.ts`, `backend/src/services/training.service.ts`, `backend/src/routes/phase6.routes.ts`, `backend/src/__tests__/statusTransition.test.ts`, `backend/src/__tests__/phase6.routes.test.ts`, `docs/phase7-domain-services-plan.md` |
+| schema changes | None. All target models already exist in Prisma. |
+| API changes | Added 40+ explicit domain routes before the generic `/:resource` catch-all: `/suppliers`, `/supplier-assessments`, `/bias`, `/bcps`, `/bcp-exercises`, `/corrective-actions`, `/training-courses`, `/training-assignments`, `/training-completions`, `/training-acknowledgements`. All existing generic routes preserved for backward compatibility. |
+| new tests | `backend/src/__tests__/statusTransition.test.ts` — 30 cross-cutting status automaton tests covering 7 entity types. Updated `phase6.routes.test.ts` to mock explicit supplier service. |
+| verification | Backend build PASS; shared build PASS; Prisma validate PASS; full backend Jest PASS (37 suites, 514 tests); frontend Vitest PASS (3 files, 8 tests); workspace lint PASS with warnings only. |
+| known baseline failures | Lint reports TypeScript 6.0 deprecation warnings for `moduleResolution` and `baseUrl`; these do not fail the gate. |
+
 ## 2026-07-26 — Phase 1–5 DoD gate stabilization
 
 | Field | Value |

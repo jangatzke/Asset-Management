@@ -1097,3 +1097,273 @@ export const CreateRiskEnhancedSchema = z.object({
 });
 
 export type CreateRiskEnhancedDTO = z.infer<typeof CreateRiskEnhancedSchema>;
+
+// ==========================================
+// Phase 7 — Domain DTOs for ISMS business rules
+// ==========================================
+
+// --- Supplier domain schemas ---
+export const SupplierUpdateSchema = z.object({
+  legalName: z.string().min(1).max(255).optional(),
+  description: z.string().max(1000).optional(),
+  contactPerson: z.string().max(200).optional(),
+  contactEmail: z.string().email().nullable().optional(),
+  contactPhone: z.string().max(50).optional(),
+  servicesProvided: z.string().max(500).optional(),
+  criticality: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  dataProtectionRelevant: z.boolean().optional(),
+  nis2Relevant: z.boolean().optional(),
+  securityRequirements: z.record(z.any()).optional(),
+  certifications: z.array(z.string()).optional(),
+  exitStrategy: z.string().max(2000).optional(),
+  assessmentScore: z.number().int().min(0).max(100).nullable().optional(),
+  assessmentRating: z.string().max(50).nullable().optional(),
+  nextReviewDate: z.coerce.date().optional(),
+  status: z.enum(['active', 'inactive', 'archived']).optional(),
+});
+
+export type SupplierUpdateDTO = z.infer<typeof SupplierUpdateSchema>;
+
+// --- Supplier Assessment schemas ---
+export const SupplierAssessmentCreateSchema = z.object({
+  supplierId: z.string().uuid('Invalid supplier ID'),
+  assessmentType: z.enum(['initial', 'periodic', 'triggered']).default('initial'),
+  questionnaire: z.record(z.any()).default({}),
+  assessorId: z.string().min(1, 'Assessor is required'),
+});
+
+export type SupplierAssessmentCreateDTO = z.infer<typeof SupplierAssessmentCreateSchema>;
+
+// --- BIA (Business Impact Analysis) schemas ---
+export const BiACreateSchema = z.object({
+  title: z.string().min(1).max(255),
+  processId: z.string().uuid('Invalid process ID').optional(),
+  serviceId: z.string().uuid('Invalid service ID').optional(),
+  ownerId: z.string().min(1, 'Owner is required'),
+  mtpdMinutes: z.number().int().positive('MTPD must be a positive integer'),
+  rtoMinutes: z.number().int().positive('RTO must be a positive integer'),
+  rpoMinutes: z.number().int().nonnegative('RPO must be non-negative'),
+  impactCategories: z.array(z.string()).default([]),
+  timeDependentImpacts: z.record(z.any()).default({}),
+  minimumOperatingLevel: z.string().max(500).optional(),
+  requiredResources: z.record(z.any()).default({}),
+}).refine((data) => data.mtpdMinutes >= data.rtoMinutes, {
+  message: 'MTPD must be greater than or equal to RTO',
+  path: ['mtpdMinutes'],
+});
+
+export type BiACreateDTO = z.infer<typeof BiACreateSchema>;
+
+export const BIAUpdateSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  processId: z.string().uuid('Invalid process ID').optional(),
+  serviceId: z.string().uuid('Invalid service ID').optional(),
+  mtpdMinutes: z.number().int().positive().optional(),
+  rtoMinutes: z.number().int().positive().optional(),
+  rpoMinutes: z.number().int().nonnegative().optional(),
+  impactCategories: z.array(z.string()).optional(),
+  timeDependentImpacts: z.record(z.any()).optional(),
+  minimumOperatingLevel: z.string().max(500).optional(),
+  requiredResources: z.record(z.any()).optional(),
+  status: z.enum(['draft', 'under_review', 'approved', 'rejected', 'archived']).optional(),
+}).refine((data) => {
+  if (data.mtpdMinutes !== undefined && data.rtoMinutes !== undefined && data.mtpdMinutes < data.rtoMinutes) return false;
+  return true;
+}, {
+  message: 'MTPD must be greater than or equal to RTO',
+  path: ['mtpdMinutes'],
+});
+
+export type BIAUpdateDTO = z.infer<typeof BIAUpdateSchema>;
+
+// --- BCP (Business Continuity Plan) schemas ---
+export const BCPCreateSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  biaId: z.string().uuid('Invalid BIA ID').optional(),
+  scope: z.string().max(500).optional(),
+  ownerId: z.string().min(1, 'Owner is required'),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  nextTestDate: z.coerce.date().optional(),
+});
+
+export type BCPCreateDTO = z.infer<typeof BCPCreateSchema>;
+
+export const BCPUpdateSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  biaId: z.string().uuid('Invalid BIA ID').optional(),
+  scope: z.string().max(500).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  nextTestDate: z.coerce.date().optional(),
+  status: z.enum(['draft', 'under_review', 'approved', 'rejected', 'archived']).optional(),
+});
+
+export type BCPUpdateDTO = z.infer<typeof BCPUpdateSchema>;
+
+// --- BCP Exercise schemas ---
+export const BCPExerciseCreateSchema = z.object({
+  bcpId: z.string().uuid('Invalid BCP ID'),
+  exerciseType: z.enum(['tabletop', 'simulation', 'full_scale', 'functional']).default('tabletop'),
+  plannedAt: z.coerce.date(),
+  ownerId: z.string().min(1, 'Owner is required'),
+  title: z.string().min(1).max(255),
+});
+
+export type BCPExerciseCreateDTO = z.infer<typeof BCPExerciseCreateSchema>;
+
+// --- Audit Finding schemas ---
+export const AuditFindingUpdateSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  status: z.enum(['open', 'in_progress', 'deferred', 'completed', 'cancelled']).optional(),
+  dueDate: z.coerce.date().optional(),
+  ownerId: z.string().uuid('Invalid owner ID').optional(),
+  correctiveActionId: z.string().uuid('Invalid CAPA ID').nullable().optional(),
+});
+
+export type AuditFindingUpdateDTO = z.infer<typeof AuditFindingUpdateSchema>;
+
+// --- Corrective Action schemas ---
+export const CapaUpdateSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  ownerId: z.string().uuid('Invalid owner ID').optional(),
+  dueDate: z.coerce.date().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  status: z.enum(['open', 'in_progress', 'deferred', 'completed', 'closed', 'reopened', 'cancelled']).optional(),
+  rootCause: z.string().max(2000).optional(),
+  containmentActions: z.array(z.record(z.any())).optional(),
+  correctiveActions: z.array(z.record(z.any())).optional(),
+  effectivenessCriteria: z.string().max(2000).optional(),
+  effectivenessReview: z.string().max(2000).optional(),
+  effectivenessStatus: z.enum(['not_reviewed', 'effective', 'partially_effective', 'ineffective']).optional(),
+  effectivenessReviewedAt: z.coerce.date().optional(),
+});
+
+export type CapaUpdateDTO = z.infer<typeof CapaUpdateSchema>;
+
+// CAPA transition-specific schema (requires justification for certain transitions)
+export const CapaTransitionSchema = z.object({
+  status: z.enum(['open', 'in_progress', 'deferred', 'completed', 'closed', 'reopened', 'cancelled']),
+  justification: z.string().max(2000).optional(),
+});
+
+export type CapaTransitionDTO = z.infer<typeof CapaTransitionSchema>;
+
+// Effectiveness review schema
+export const CapaEffectivenessReviewSchema = z.object({
+  effectivenessStatus: z.enum(['effective', 'partially_effective', 'ineffective']),
+  effectivenessReview: z.string().min(1, 'Effectiveness review requires a comment').max(2000),
+  effectivenessCriteria: z.string().max(2000).optional(),
+});
+
+export type CapaEffectivenessReviewDTO = z.infer<typeof CapaEffectivenessReviewSchema>;
+
+// --- Training schemas ---
+export const TrainingCourseUpdateSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  category: z.enum(['security_awareness', 'compliance', 'technical', 'process', 'other']).optional(),
+  mandatory: z.boolean().optional(),
+  validityMonths: z.number().int().positive().nullable().optional(),
+  acknowledgementRequired: z.boolean().optional(),
+  status: z.enum(['draft', 'active', 'archived']).optional(),
+});
+
+export type TrainingCourseUpdateDTO = z.infer<typeof TrainingCourseUpdateSchema>;
+
+export const TrainingAssignmentCreateSchema = z.object({
+  courseId: z.string().uuid('Invalid course ID'),
+  userId: z.string().uuid('Invalid user ID'),
+  dueDate: z.coerce.date(),
+});
+
+export type TrainingAssignmentCreateDTO = z.infer<typeof TrainingAssignmentCreateSchema>;
+
+export const TrainingAssignmentUpdateSchema = z.object({
+  status: z.enum(['assigned', 'in_progress', 'overdue', 'completed', 'expired', 'cancelled']).optional(),
+  dueDate: z.coerce.date().optional(),
+});
+
+export type TrainingAssignmentUpdateDTO = z.infer<typeof TrainingAssignmentUpdateSchema>;
+
+// Training completion schema
+export const TrainingCompletionCreateSchema = z.object({
+  assignmentId: z.string().uuid('Invalid assignment ID'),
+  courseId: z.string().uuid('Invalid course ID').optional(),
+  userId: z.string().uuid('Invalid user ID').optional(),
+  score: z.number().min(0).max(100).optional(),
+  result: z.enum(['passed', 'failed', 'waived']).default('passed'),
+  certificateUrl: z.string().url().nullable().optional(),
+  evidenceId: z.string().uuid('Invalid evidence ID').optional(),
+  expiresAt: z.coerce.date().optional(),
+});
+
+export type TrainingCompletionCreateDTO = z.infer<typeof TrainingCompletionCreateSchema>;
+
+// Training acknowledgement schema
+export const TrainingAcknowledgementCreateSchema = z.object({
+  courseId: z.string().uuid('Invalid course ID'),
+  userId: z.string().min(1, 'User is required'),
+  comment: z.string().max(2000).optional(),
+});
+
+export type TrainingAcknowledgementCreateDTO = z.infer<typeof TrainingAcknowledgementCreateSchema>;
+
+// --- Management Review schemas ---
+export const ManagementReviewCreateSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().optional(),
+  scheduledDate: z.coerce.date(),
+  ownerId: z.string().min(1, 'Owner is required'),
+  nextReviewDate: z.coerce.date().optional(),
+});
+
+export type ManagementReviewCreateDTO = z.infer<typeof ManagementReviewCreateSchema>;
+
+// --- Security Objective schemas ---
+export const SecurityObjectiveCreateSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().optional(),
+  ownerId: z.string().min(1, 'Owner is required'),
+  targetDate: z.coerce.date().optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+});
+
+export type SecurityObjectiveCreateDTO = z.infer<typeof SecurityObjectiveCreateSchema>;
+
+// --- Metric Definition schemas ---
+export const MetricDefinitionCreateSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().optional(),
+  metricType: z.enum(['count', 'percentage', 'ratio', 'datetime']).default('count'),
+  ownerId: z.string().min(1, 'Owner is required'),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'yearly']).default('monthly'),
+  status: z.enum(['draft', 'active', 'deprecated']).default('draft'),
+  thresholds: z.record(z.any()).optional(),
+});
+
+export type MetricDefinitionCreateDTO = z.infer<typeof MetricDefinitionCreateSchema>;
+
+// --- Status Transition Schemas (cross-cutting) ---
+export const StatusTransitionSchema = z.object({
+  status: z.string().min(1, 'Target status is required'),
+  reason: z.string().max(500).optional(),
+});
+
+export type StatusTransitionDTO = z.infer<typeof StatusTransitionSchema>;
+
+// --- Phase 7 resource enum (subset of Phase6ResourceSchema) ---
+export const Phase7DomainResourceSchema = z.enum([
+  'suppliers', 'supplierAssessments',
+  'bias', 'bcps', 'bcpExercises',
+  'auditFindings',
+  'correctiveActions',
+  'trainingCourses', 'trainingAssignments', 'trainingCompletions', 'trainingAcknowledgements',
+  'managementReviews', 'managementReviewActions',
+  'securityObjectives', 'metricDefinitions',
+]);
+
+export type Phase7DomainResourceDTO = z.infer<typeof Phase7DomainResourceSchema>;

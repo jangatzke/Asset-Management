@@ -4,7 +4,12 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireMappedReadPermission, requireMappedWritePermission } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { phase6Service, PHASE6_MODEL_MAP } from '../services/phase6.service';
+import { supplierService } from '../services/supplier.service';
+import { bcmService } from '../services/bcm.service';
+import { correctiveActionService } from '../services/correctiveaction.service';
+import { trainingService } from '../services/training.service';
 import { AppError } from '../middleware/errorHandler';
+
 
 export const phase6Router = Router();
 
@@ -93,6 +98,128 @@ phase6Router.post('/reports/run', authenticate, requireMappedWritePermission('au
     res.status(201).json(result);
   } catch (error) { next(error); }
 });
+
+// ===========================================================================
+// Phase 7 — Explicit domain routes (before generic catch-all)
+// ===========================================================================
+
+// --- Supplier routes ---
+phase6Router.get('/suppliers', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.list(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/suppliers', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await supplierService.create(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/suppliers/:id', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.update(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.post('/suppliers/:id/archive', authenticate, requireMappedWritePermission('suppliers'), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.archive(req.params.id, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- Supplier Assessment routes ---
+phase6Router.get('/suppliers/:supplierId/assessments', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.listAssessments(req.params.supplierId, req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/suppliers/:supplierId/assessments', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await supplierService.createAssessment(req.params.supplierId, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/supplier-assessments/:id', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.updateAssessment(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- BIA routes ---
+phase6Router.get('/bias', authenticate, requireMappedReadPermission('bias'), async (req: AuthRequest, res, next) => {
+  try { res.json(await bcmService.listBia(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/bias', authenticate, requireMappedWritePermission('bias'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await bcmService.createBia(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/bias/:id', authenticate, requireMappedWritePermission('bias'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await bcmService.updateBia(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- BCP routes ---
+phase6Router.get('/bcps', authenticate, requireMappedReadPermission('bcps'), async (req: AuthRequest, res, next) => {
+  try { res.json(await bcmService.listBcp(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/bcps', authenticate, requireMappedWritePermission('bcps'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await bcmService.createBcp(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/bcps/:id', authenticate, requireMappedWritePermission('bcps'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await bcmService.updateBcp(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- BCP Exercise routes ---
+phase6Router.get('/bcp-exercises', authenticate, requireMappedReadPermission('bcps'), async (req: AuthRequest, res, next) => {
+  try { res.json(await bcmService.listExercises(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/bcp-exercises', authenticate, requireMappedWritePermission('bcps'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await bcmService.createExercise(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/bcp-exercises/:id', authenticate, requireMappedWritePermission('bcps'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await bcmService.updateExercise(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- Corrective Action routes ---
+phase6Router.get('/corrective-actions', authenticate, requireMappedReadPermission('correctiveActions'), async (req: AuthRequest, res, next) => {
+  try { res.json(await correctiveActionService.list(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/corrective-actions', authenticate, requireMappedWritePermission('correctiveActions'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await correctiveActionService.create(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/corrective-actions/:id', authenticate, requireMappedWritePermission('correctiveActions'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await correctiveActionService.update(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.post('/corrective-actions/:id/effectiveness', authenticate, requireMappedWritePermission('correctiveActions'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await correctiveActionService.reviewEffectiveness(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.post('/corrective-actions/:id/close', authenticate, requireMappedWritePermission('correctiveActions'), async (req: AuthRequest, res, next) => {
+  try { res.json(await correctiveActionService.close(req.params.id, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.post('/corrective-actions/:id/reopen', authenticate, requireMappedWritePermission('correctiveActions'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await correctiveActionService.reopen(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- Training Course routes ---
+phase6Router.get('/training-courses', authenticate, requireMappedReadPermission('trainingAssignments'), async (req: AuthRequest, res, next) => {
+  try { res.json(await trainingService.listCourses(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/training-courses', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await trainingService.createCourse(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/training-courses/:id', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await trainingService.updateCourse(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- Training Assignment routes ---
+phase6Router.get('/training-assignments', authenticate, requireMappedReadPermission('trainingAssignments'), async (req: AuthRequest, res, next) => {
+  try { res.json(await trainingService.listAssignments(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/training-assignments', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await trainingService.createAssignment(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+phase6Router.patch('/training-assignments/:id', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await trainingService.updateAssignment(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- Training Completion routes ---
+phase6Router.get('/training-completions', authenticate, requireMappedReadPermission('trainingAssignments'), async (req: AuthRequest, res, next) => {
+  try { res.json(await trainingService.listCompletions(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/training-completions', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await trainingService.createCompletion(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// --- Training Acknowledgement routes ---
+phase6Router.get('/training-acknowledgements', authenticate, requireMappedReadPermission('trainingAssignments'), async (req: AuthRequest, res, next) => {
+  try { res.json(await trainingService.listAcknowledgements(req.query)); } catch (error) { next(error); }
+});
+phase6Router.post('/training-acknowledgements', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await trainingService.createAcknowledgement(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
+});
+
+// ===========================================================================
 
 phase6Router.post('/:resource/reminders/run', authenticate, requireResourceWrite, async (req: AuthRequest, res, next) => {
   try {
