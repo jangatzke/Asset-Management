@@ -8,7 +8,7 @@ var mockPrisma: any = {
   fieldLock: { findMany: jest.fn(), upsert: jest.fn(), update: jest.fn() },
   fieldProvenance: { findUnique: jest.fn(), upsert: jest.fn() },
   sourcePriority: { findMany: jest.fn(), upsert: jest.fn() },
-  auditLog: { create: jest.fn() },
+  auditLog: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) }, // Phase 9: hash-chain lookup
   $transaction: jest.fn((fn: any) => fn(mockPrisma)),
 };
 

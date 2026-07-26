@@ -13,6 +13,7 @@ import crypto from 'crypto';
 const mockPrismaClient: any = {
   auditLog: {
     create: jest.fn(),
+    findFirst: jest.fn().mockResolvedValue(null), // Phase 9: hash-chain lookup
   },
   user: {
     findUnique: jest.fn(),

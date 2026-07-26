@@ -1,5 +1,4 @@
 /// <reference types="vitest" />
-import { setAccessToken } from '../store/accessToken';
 
 declare const vi: typeof import('vitest').vi;
 

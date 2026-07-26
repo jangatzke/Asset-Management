@@ -6,7 +6,7 @@ const mockPrisma: any = {
   asset: { findMany: jest.fn() },
   license: { findMany: jest.fn() },
   contract: { findMany: jest.fn() },
-  auditLog: { create: jest.fn() },
+  auditLog: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) }, // Phase 9: hash-chain lookup
   $transaction: jest.fn(),
 };
 

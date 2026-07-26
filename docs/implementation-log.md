@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 9: Audit Log Hash-Chain Integrity
+
+| Field | Value |
+|-------|-------|
+| Phase | 9 — tamper-evident audit log with hash-chain fields (sequence, previousHash, entryHash) and integrity verification service |
+| Commit | Pending; target commit message: `Phase 9: harden audit log integrity` |
+| Requirements | AUD-601 (tamper detection), P0-08 (audit trail enhancement) |
+| changed files | `backend/prisma/schema.prisma`, `backend/src/services/audit.service.ts`, `backend/src/routes/admin.routes.ts`, `backend/src/__tests__/admin.service.test.ts`, `backend/src/__tests__/audit.service.test.ts`, `backend/src/__tests__/auth.service.test.ts`, `backend/src/__tests__/costPlanning.service.test.ts`, `backend/src/__tests__/import.service.test.ts`, `backend/src/__tests__/oidc.security.test.ts`, `backend/src/__tests__/phase4.service.test.ts`, `backend/src/__tests__/phase5.service.test.ts`, `backend/src/__tests__/risktreatment.service.test.ts` |
+| new files | `backend/prisma/migrations/20260726190000_phase9_audit_integrity/migration.sql`, `backend/src/services/auditIntegrity.service.ts`, `backend/src/__tests__/audit.integrity.test.ts`, `docs/phase9-audit-integrity-plan.md` |
+| schema changes | Added `sequence Int @default(0)`, `previousHash String? @db.Text`, `entryHash String @default("") @db.Text` to AuditLog model. Added new `AuditCheckpoint` model with sequence, hash, createdAt, externalReference fields. Migration: `20260726190000_phase9_audit_integrity`. |
+| API changes | Added `GET /admin/audit-integrity?fromSequence=0` route in admin.routes.ts for integrity status checks without leaking secrets. Audit log create now includes sequence, previousHash, entryHash fields. |
+| service changes | New `auditIntegrity.service.ts` with: `canonicalize()` (deterministic JSON with sorted keys), `buildCanonicalString()`, `computeEntryHash()` (SHA-256 hex digest), `verifyIntegrity()` (full chain walk with tamper detection), `createCheckpoint()`, `verifyFromCheckpoint()`, and `AuditIntegrityService` class wrapper. |
+| new tests | `backend/src/__tests__/audit.integrity.test.ts` — 31 tests covering: hash determinism, canonicalization stability, chain continuity, tamper detection (entryHash/previousHash modification), missing sequence gap detection, verify valid chain, audit creation integration with hash-chain fields, edge cases (long strings, special characters, Unicode, JSON arrays, nested objects). |
+| regression fixes | Added `findFirst: jest.fn().mockResolvedValue(null)` mock to 9 existing test files that were broken by Phase 9's `auditLog.findFirst()` call in audit.service.ts for hash-chain previous entry lookup. Updated audit.service.test.ts expectation to include new hash-chain fields (sequence, previousHash, entryHash) in create call data. |
+| verification | Backend build PASS; shared build PASS; Prisma validate PASS; Prisma migrate deploy PASS (migration marked applied after schema columns already exist from partial execution); full backend Jest PASS (38 suites, 545 tests); workspace lint PASS with warnings only (TypeScript 6.0 deprecation warnings). Frontend build has pre-existing unrelated TypeScript errors in test files. |
+| known baseline failures | Lint reports TypeScript 6.0 deprecation warnings for `moduleResolution` and `baseUrl`; these do not fail the gate. Frontend build fails with pre-existing `vi` redeclaration errors in test files (unrelated to Phase 9). |
+
 ## 2026-07-26 — Phase 8: UI Consolidation & Entity Selection
 
 | Field | Value |

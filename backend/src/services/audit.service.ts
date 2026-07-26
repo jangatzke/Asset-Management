@@ -4,16 +4,20 @@
  * Provides immutable audit logging for all security-relevant operations.
  * Audit entries are written within the same DB transaction as business data,
  * ensuring consistency and preventing orphaned audit records.
+ *
+ * Phase 9: Hash-chain integrity — each entry carries a monotonically
+ * increasing `sequence`, a SHA-256 `previousHash`, and its own self-contained
+ * `entryHash` for tamper-evident verification.
  */
 
 import { PrismaClient } from '@prisma/client';
-
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-import { Request } from 'express';
+import type { Request } from 'express';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 export type AuditAction =
   | 'LOGIN'
@@ -126,18 +130,114 @@ export interface AuditEventParams {
 }
 
 // ---------------------------------------------------------------------------
+// Hash-chain helpers (Phase 9)
+// ---------------------------------------------------------------------------
+
+/** Stable JSON canonicalization for hash computation. */
+function canonicalize(value: unknown): string {
+  if (value === undefined) return 'null';
+  if (Buffer.isBuffer(value)) value = JSON.parse(value.toString());
+  return JSON.stringify(value, (_key, val) =>
+    typeof val === 'bigint' ? val.toString() : val
+  );
+}
+
+/** Build deterministic canonical string for SHA-256. */
+function buildCanonicalString(
+  sequence: number,
+  timestampISO: string,
+  userId: string,
+  userName: string | null,
+  action: string,
+  entityType: string,
+  entityId: string,
+  details: string | null,
+  oldValue: unknown,
+  newValue: unknown,
+  previousHash: string
+): string {
+  return [
+    String(sequence),
+    timestampISO,
+    userId,
+    userName ?? '',
+    action,
+    entityType,
+    entityId,
+    details ?? '',
+    canonicalize(oldValue),
+    canonicalize(newValue),
+    previousHash,
+  ].join('|');
+}
+
+/** Compute SHA-256 hex digest. */
+function sha256hex(input: string): string {
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(input, 'utf8').digest('hex');
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
 export class AuditService {
   /**
+   * Compute the entry hash for a given audit event and previous chain link.
+   */
+  public static computeEntryHash(
+    sequence: number,
+    timestampISO: string,
+    userId: string,
+    userName: string | null,
+    action: string,
+    entityType: string,
+    entityId: string,
+    details: string | null,
+    oldValue: unknown,
+    newValue: unknown,
+    previousHash: string
+  ): string {
+    const canonical = buildCanonicalString(
+      sequence, timestampISO, userId, userName, action,
+      entityType, entityId, details, oldValue, newValue, previousHash
+    );
+    return sha256hex(canonical);
+  }
+
+  /**
    * Log an audit event within a Prisma transaction.
    * This is the primary method for writing immutable audit records.
+   * Phase 9: Computes and stores sequence, previousHash, entryHash.
    */
   public async logEvent(
     tx: any, // Prisma transaction client (Omit<PrismaClient, ...>)
     params: AuditEventParams & { ipAddress?: string; userAgent?: string },
   ): Promise<void> {
+    const prevEntry = await tx.auditLog.findFirst({
+      orderBy: { sequence: 'desc' },
+      select: { entryHash: true, sequence: true },
+    });
+
+    const sequence = (prevEntry?.sequence ?? 0) + 1;
+    const previousHash = prevEntry?.entryHash ?? '';
+    const timestampISO = new Date().toISOString();
+
+    // Compute hash before creating the record
+    const entryHash = AuditService.computeEntryHash(
+      sequence,
+      timestampISO,
+      params.userId,
+      params.userName ?? null,
+      params.action,
+      params.entityType,
+      params.entityId,
+      params.details ?? null,
+      params.oldValue ?? null,
+      params.newValue ?? null,
+      previousHash
+    );
+
     await tx.auditLog.create({
       data: {
         userId: params.userId,
@@ -150,17 +250,45 @@ export class AuditService {
         newValue: (params.newValue as any) ?? undefined,
         ipAddress: params.ipAddress ?? undefined,
         userAgent: params.userAgent ?? undefined,
+        sequence,
+        previousHash: previousHash || null,
+        entryHash,
       },
     });
   }
 
   /**
    * Log an audit event outside a transaction (standalone).
+   * Phase 9: Computes and stores sequence, previousHash, entryHash.
    */
   public async logEventStandalone(
     prisma: PrismaClient,
     params: AuditEventParams & { ipAddress?: string; userAgent?: string },
   ): Promise<void> {
+    const prevEntry = await prisma.auditLog.findFirst({
+      orderBy: { sequence: 'desc' },
+      select: { entryHash: true, sequence: true },
+    });
+
+    const sequence = (prevEntry?.sequence ?? 0) + 1;
+    const previousHash = prevEntry?.entryHash ?? '';
+    const timestampISO = new Date().toISOString();
+
+    // Compute hash before creating the record
+    const entryHash = AuditService.computeEntryHash(
+      sequence,
+      timestampISO,
+      params.userId,
+      params.userName ?? null,
+      params.action,
+      params.entityType,
+      params.entityId,
+      params.details ?? null,
+      params.oldValue ?? null,
+      params.newValue ?? null,
+      previousHash
+    );
+
     await prisma.auditLog.create({
       data: {
         userId: params.userId,
@@ -173,6 +301,9 @@ export class AuditService {
         newValue: (params.newValue as any) ?? undefined,
         ipAddress: params.ipAddress ?? undefined,
         userAgent: params.userAgent ?? undefined,
+        sequence,
+        previousHash: previousHash || null,
+        entryHash,
       },
     });
   }

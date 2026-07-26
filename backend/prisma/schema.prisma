@@ -1863,24 +1863,40 @@ model EvidenceLink {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  timestamp  DateTime @default(now())
-  userId     String
-  userName   String?
-  action     String
-  entityType String
-  entityId   String
-  details    String?
-  oldValue   Json?
-  newValue   Json?
-  ipAddress  String?
-  userAgent  String?
+  id           String   @id @default(uuid())
+  timestamp    DateTime @default(now())
+  userId       String
+  userName     String?
+  action       String
+  entityType   String
+  entityId     String
+  details      String?
+  oldValue     Json?
+  newValue     Json?
+  ipAddress    String?
+  userAgent    String?
+  // Hash-chain fields for tamper-evident audit logging (Phase 9)
+  sequence     Int      @default(0)
+  previousHash String?  @db.Text
+  entryHash    String   @default("") @db.Text
 
   @@index([timestamp])
   @@index([userId])
   @@index([entityType, entityId])
   @@index([action])
+  @@index([sequence])
   @@map("audit_logs")
+}
+
+// Audit checkpoint for periodic hash-chain verification anchors (Phase 9)
+model AuditCheckpoint {
+  id                String   @id @default(uuid())
+  sequence          Int      @unique
+  hash              String   @db.Text
+  createdAt         DateTime @default(now())
+  externalReference String?  @db.VarChar(255)
+
+  @@map("audit_checkpoints")
 }
 
 // Counter table for generating sequential display IDs per entity type

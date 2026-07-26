@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Response, Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { adminService } from '../services/admin.service';
@@ -7,6 +7,7 @@ import { getReminderScheduler } from '../services/reminder.scheduler';
 import { fiscalYearService } from '../services/fiscalYear.service';
 import { prisma } from '../config/database';
 import { auditService, AuditService } from '../services/audit.service';
+import { auditIntegrityService } from '../services/auditIntegrity.service';
 
 export const adminRouter = Router();
 
@@ -380,6 +381,28 @@ adminRouter.delete('/business-processes/:id', authenticate, requireAdminAccess, 
   try {
     const result = await adminService.deleteBusinessProcess(req.params.id);
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- Audit Log Integrity Check (Phase 9) ----
+
+/**
+ * GET /admin/audit-integrity?fromSequence=0
+ * Returns hash-chain integrity status without leaking secrets.
+ */
+adminRouter.get('/audit-integrity', authenticate, requireAdminAccess, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const fromSeq = Number(req.query.fromSequence ?? 1);
+    const result = await auditIntegrityService.verify(prisma, { fromSequence: isNaN(fromSeq) ? 1 : fromSeq });
+    // Only return safe fields — no hashes or raw data
+    res.json({
+      valid: result.valid,
+      totalEntries: result.totalEntries,
+      lastVerifiedSequence: result.lastVerifiedSequence,
+      details: result.details ?? undefined,
+    });
   } catch (error) {
     next(error);
   }

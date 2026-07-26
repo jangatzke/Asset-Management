@@ -1,10 +1,10 @@
-import { PrismaClient } from '@prisma/client';
 import { AuditService, AuditEventParams } from '../services/audit.service';
 
 // Mock Prisma Client
 const mockPrisma = {
   auditLog: {
     create: jest.fn(),
+    findFirst: jest.fn().mockResolvedValue(null), // Phase 9: hash-chain previous entry lookup
     findMany: jest.fn(),
     count: jest.fn(),
   },
@@ -45,12 +45,21 @@ describe('AuditService', () => {
 
       await auditService.logEventStandalone(mockPrisma as any, event);
 
-      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
-        data: {
-          ...event,
-          timestamp: undefined, // logEventStandalone does not set timestamp explicitly (DB default)
-        },
-      });
+      // Phase 9: expect hash-chain fields (sequence=1, previousHash='', entryHash computed)
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'user-123',
+            action: 'LOGIN',
+            entityType: 'User',
+            entityId: 'user-123',
+            details: 'Successful login',
+            sequence: 1, // first entry (prevEntry is null)
+            previousHash: null, // genesis entry has no previous hash
+            entryHash: expect.stringMatching(/^[a-f0-9]{64}$/), // SHA-256 hex digest
+          }),
+        })
+      );
     });
 
     it('should create an audit log entry with full data', async () => {

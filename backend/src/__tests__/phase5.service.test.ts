@@ -15,7 +15,7 @@ const mockPrismaClient: any = {
   frameworkVersion: { create: jest.fn(), findFirst: jest.fn() },
   control: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   controlRequirementMapping: { createMany: jest.fn() },
-  auditLog: { create: jest.fn() },
+  auditLog: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) }, // Phase 9: hash-chain lookup
   $transaction: jest.fn(async (cb: any) => cb(mockPrismaClient)),
 };
 

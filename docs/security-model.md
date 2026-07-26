@@ -164,11 +164,29 @@ model AuditLog {
 }
 ```
 
-### 4.3 Schutzmaßnahmen
+### 4.3 Hash-Kette (Phase 9)
+
+Ab Phase 9 enthält jede AuditLog-Zeile drei zusätzliche Felder für eine kryptografisch gesicherte Hash-Kette:
+
+| Feld | Typ | Beschreibung |
+|------|-----|--------------|
+| `sequence` | `Int` | Monoton steigende globale Sequenznummer (startend bei 1) |
+| `previousHash` | `String?` | SHA-256 Hex-Digest des `entryHash` der vorherigen Entry (`null` oder leer für ersten Eintrag) |
+| `entryHash` | `String` | SHA-256 Hex-Digest über kanonisierte Felder: `sequence|timestampISO|userId|userName|action|entityType|entityId|details|canonicalize(oldValue)|canonicalize(newValue)|previousHash` |
+
+**Integritätsprüfung:**
+- `AuditIntegrityService.verify()` lädt alle Einträge sortiert nach `sequence`, geht die Kette sequentiell durch und vergleicht jeden gespeicherten `entryHash` mit dem neu berechneten Wert.
+- Bei Hash-Mismatch, vorherigem `previousHash`-Mismatch oder fehlender Sequenzlücke wird `{ valid: false, brokenAtSequence: N, details }` zurückgegeben.
+- Periodische Checkpoints (`AuditCheckpoint` Modell) speichern einen Ankerpunkt für effiziente partielle Verifikation.
+
+**Admin API:** `GET /admin/audit-integrity?fromSequence=0` gibt den Integritätsstatus ohne Exposition sensibler Daten zurück.
+
+### 4.4 Schutzmaßnahmen
 
 - **Kein DELETE:** Audit-Einträge sind unveränderlich (keine Update/Delete-API)
 - **Soft-Delete nur auf Anwendungsebene:** Datenbank-Einträge bleiben erhalten
 - **Export-Funktion:** Für Compliance-Berichte und Audits
+- **Hash-Kette Tamper-Detection:** Jeder Versuch, einen Eintrag nachträglich zu modifizieren, führt zu einem Hash-Mismatch und wird von `verify()` erkannt.
 
 ---
 

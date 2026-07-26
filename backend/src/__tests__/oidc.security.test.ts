@@ -5,7 +5,7 @@ const mockPrismaClient: any = {
   user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   userRole: { findMany: jest.fn(), create: jest.fn() },
   displayIdCounter: { upsert: jest.fn() },
-  auditLog: { create: jest.fn() },
+  auditLog: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) }, // Phase 9: hash-chain lookup
 };
 
 jest.mock('../config/database', () => ({ prisma: mockPrismaClient }));
