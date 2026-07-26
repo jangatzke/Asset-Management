@@ -598,6 +598,43 @@ curl -X POST https://api.example.com/webhooks/{id}/test \
 | `control.verified` | ControlVerification object | 3 retries |
 | `incident.created` | Incident object | 5 retries (P0 event) |
 
+## 14. Background Jobs
+
+### 14.1 Overview
+Background jobs use PostgreSQL advisory locks for cluster-safety. When multiple backend instances run simultaneously, only one instance acquires the advisory lock per job type and executes the handler; others are skipped and tracked as `skipped` in the `job_runs` table.
+
+### 14.2 Job Types
+| Job Type | Scheduler File | Schedule | Description |
+|----------|---------------|----------|-------------|
+| `intune_sync` | `backend/src/services/intune.scheduler.ts` | Configurable interval | Syncs devices from Microsoft Intune/Graph API |
+| `reminder_send` | `backend/src/services/reminder.scheduler.ts` | Configurable interval | Sends due reminders (e.g., due-date, risk treatment) |
+
+### 14.3 Advisory Lock Mechanism
+- **Lock acquisition**: `SELECT pg_try_advisory_lock(hashtext('phase10_lock_<jobId>')) AS acquired`
+- **Lock release**: `SELECT pg_advisory_unlock(hashtext('phase10_lock_<jobId>')) AS released` (in finally block)
+- **Key format**: `phase10_lock_<jobId>` — deterministic per job, ensuring same jobId always maps to same lock
+
+### 14.4 JobRun Tracking
+Every job execution attempt is recorded in the `job_runs` table:
+| Field | Description |
+|-------|-------------|
+| `status` | `pending` → `running` → `completed` / `failed` / `skipped` |
+| `workerId` | Identifier of the worker instance that executed (or null if skipped) |
+| `attempt` | Number of execution attempts for this jobId |
+| `error` | Error message on failure, null otherwise |
+
+### 14.5 Monitoring & Troubleshooting
+```sql
+-- Recent job runs
+SELECT * FROM job_runs ORDER BY scheduledAt DESC LIMIT 50;
+
+-- Failed jobs
+SELECT * FROM job_runs WHERE status = 'failed' ORDER BY finishedAt DESC;
+
+-- Skipped jobs (lock contention)
+SELECT * FROM job_runs WHERE status = 'skipped' ORDER BY scheduledAt DESC;
+```
+
 ## Appendix C: Compliance Mapping
 
 | Requirement ID | Feature | Implementation | Test Reference |

@@ -19,7 +19,12 @@
 | WFL-601 | P1 | OPS | Eine generische Workflowengine muss Definitionen, Instanzen, Tasks, Transitions und Approvals unterstützen. | Workflow kann definiert, instanziiert und über validierte Transitionen fortgeschrieben werden. |
 | RPT-601 | P1 | AUD | Reporting und Exporte müssen persistiert, filterbar und auditierbar sein. | ReportRuns und ExportJobs speichern Filter, Format, Payload, RowCount und Auditlog. |
 
-## Phase 7 – Intune-/Microsoft-Graph-Anbindung
+## Phase 10 – Background Jobs Cluster-Safety
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| JOB-1001 | P0 | OPS | Hintergrund-Jobs (Intune Sync, Reminder Scheduler) müssen über PostgreSQL advisory locks cluster-sicher sein. Nur ein Worker pro Job-Typ führt die Logik aus; konkurrierende Instanzen werden als `skipped` getrackt. | `pg_try_advisory_lock` wird vor Job-Start erworben; Lock wird in `finally` freigegeben; `JobRun` Tabelle protokolliert status/workerId/error/attempt für jeden Durchlauf. |
+| JOB-1002 | P1 | OPS | Jeder Job-Durchlauf muss in einer `JobRun` Tabelle mit jobId, jobType, scheduledAt, startedAt, finishedAt, status (pending/running/completed/failed/skipped), workerId, error und attempt protokolliert werden. | Migration erstellt `job_runs` Table mit Indizes auf jobType+status und scheduledAt; Prisma model verfügbar. |
 
 | ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
 |----|-----------|-----------|--------------|--------------------|

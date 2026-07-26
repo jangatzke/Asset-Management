@@ -3581,3 +3581,26 @@ model ControlCatalogItem {
   @@index([catalogId])
   @@map("control_catalog_items")
 }
+
+// ==========================================
+// Phase 10: Background Jobs Cluster-Safety
+// ==========================================
+
+model JobRun {
+  id          String   @id @default(uuid())
+  jobId       String                               // logical job identifier, e.g. "intune-full-sync"
+  jobType     String                               // category: "sync", "reminder", "webhook-retry", "import"
+  status      String   @default("pending")         // pending | running | completed | failed | skipped
+  workerId    String?                              // hostname + pid or container id
+  scheduledAt DateTime   @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  error       String?    @db.Text
+  attempt     Int        @default(1)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([jobType, status])
+  @@index([scheduledAt])
+  @@map("job_runs")
+}

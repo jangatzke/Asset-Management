@@ -1,5 +1,21 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 10: Background Jobs Cluster-Safety
+
+| Field | Value |
+|-------|-------|
+| Phase | 10 — PostgreSQL advisory locks for cluster-safe background jobs + JobRun tracking table |
+| Commit | Pending; target commit message: `Phase 10: make background jobs cluster-safe` |
+| Requirements | JOB-1001 (advisory lock cluster-safety), JOB-1002 (JobRun tracking) |
+| changed files | `backend/src/services/intune.scheduler.ts`, `backend/src/services/reminder.scheduler.ts`, `docs/requirements.md`, `docs/compliance-matrix.yml` |
+| new files | `backend/src/services/jobLock.service.ts`, `backend/src/services/jobRunner.service.ts`, `backend/src/__tests__/phase10.job-cluster-safety.test.ts`, `docs/phase10-background-jobs-plan.md` |
+| schema changes | Added `JobRun` model to Prisma schema with fields: `id UUID`, `jobId VARCHAR`, `jobType VARCHAR`, `status VARCHAR`, `workerId VARCHAR?`, `scheduledAt DateTime(3)`, `startedAt DateTime(3)?`, `finishedAt DateTime(3)?`, `error String? @db.Text`, `attempt Int`. Migration: `20260726231700_phase10_job_tracking`. |
+| API changes | None. Advisory locks and job tracking are internal to scheduled/background jobs (no new REST endpoints). |
+| service changes | New `jobLock.service.ts` with `tryAcquireAdvisoryLock()`, `releaseAdvisoryLock()`, `getLockKey()` using PostgreSQL `pg_try_advisory_lock(hashtext(...))`. New `jobRunner.service.ts` with `executeTrackedJob()` that creates JobRun, acquires lock, runs handler, updates status (completed/failed/skipped), and releases lock in finally. Existing schedulers (`intune.scheduler.ts`, `reminder.scheduler.ts`) wired to use `executeTrackedJob()`. |
+| new tests | `backend/src/__tests__/phase10.job-cluster-safety.test.ts` — 12 tests covering: advisory lock acquire/release, job runs with lock acquired, job skipped when lock unavailable, lock released on success/failure in finally block, error/attempt recorded on failure, two simulated workers do not both execute. |
+| verification | Backend build PASS; shared build PASS; Prisma validate PASS; Prisma migrate deploy PASS (migration `20260726231700_phase10_job_tracking` applied); full backend Jest PASS (39 suites, 557 tests including 12 new Phase 10 tests); workspace lint PASS with warnings only. Frontend build has pre-existing unrelated TypeScript errors in test files (`vi` redeclaration). |
+| known baseline failures | Lint reports TypeScript 6.0 deprecation warnings for `moduleResolution` and `baseUrl`; these do not fail the gate. Frontend build fails with pre-existing `vi` redeclaration errors in test files (unrelated to Phase 10). |
+
 ## 2026-07-26 — Phase 9: Audit Log Hash-Chain Integrity
 
 | Field | Value |

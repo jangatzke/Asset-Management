@@ -1,4 +1,5 @@
 import { reminderService } from './reminder.service';
+import { executeTrackedJob } from './jobRunner.service';
 
 export class ReminderScheduler {
   private timer: NodeJS.Timeout | null = null;
@@ -34,8 +35,15 @@ export class ReminderScheduler {
     if (this.running) return;
     this.running = true;
     try {
-      const result = await reminderService.runAllDue('system');
-      console.log('[ReminderScheduler] Reminder run completed:', result);
+      // Wrap reminder execution with tracked job runner for cluster-safety.
+      await executeTrackedJob({
+        jobId: 'reminder-scheduler',
+        jobType: 'reminder',
+        handler: async () => {
+          const result = await reminderService.runAllDue('system');
+          console.log('[ReminderScheduler] Reminder run completed:', result);
+        },
+      });
     } catch (error) {
       console.error('[ReminderScheduler] Reminder run failed:', error);
     } finally {

@@ -10,6 +10,7 @@ import { initializeSyncService, getSyncService } from './intune.service';
 import { initializeAuthService, getAuthService } from './intune.auth';
 import { initializeHttpClient } from './intune.client';
 import { prisma } from '../config/database';
+import { executeTrackedJob } from './jobRunner.service';
 
 export class IntuneSyncScheduler {
   private fullSyncTimer: NodeJS.Timeout | null = null;
@@ -96,30 +97,24 @@ export class IntuneSyncScheduler {
 
     this.isRunning = true;
 
-    // Run initial full sync
+    // Run initial full sync (tracked, cluster-safe)
     console.log('[IntuneScheduler] Running initial full sync...');
-    syncService.runFullSync().then((status) => {
-      console.log('[IntuneScheduler] Initial full sync completed:', status.status);
-    }).catch((error) => {
+    void this.runTrackedSync(syncService, 'full').catch((error: unknown) => {
       console.error('[IntuneScheduler] Initial full sync failed:', error);
     });
 
-    // Set up incremental sync timer
+    // Set up incremental sync timer (tracked, cluster-safe)
     this.incrementalSyncTimer = setInterval(() => {
       console.log('[IntuneScheduler] Running incremental sync...');
-      syncService.runIncrementalSync().then((status) => {
-        console.log('[IntuneScheduler] Incremental sync completed:', status.status);
-      }).catch((error) => {
+      void this.runTrackedSync(syncService, 'incremental').catch((error: unknown) => {
         console.error('[IntuneScheduler] Incremental sync failed:', error);
       });
     }, intervals.incrementalSyncMs);
 
-    // Set up full sync timer
+    // Set up full sync timer (tracked, cluster-safe)
     this.fullSyncTimer = setInterval(() => {
       console.log('[IntuneScheduler] Running full sync...');
-      syncService.runFullSync().then((status) => {
-        console.log('[IntuneScheduler] Full sync completed:', status.status);
-      }).catch((error) => {
+      void this.runTrackedSync(syncService, 'full').catch((error: unknown) => {
         console.error('[IntuneScheduler] Full sync failed:', error);
       });
     }, intervals.fullSyncMs);
@@ -164,6 +159,34 @@ export class IntuneSyncScheduler {
     }
 
     console.log('[IntuneScheduler] Scheduler stopped');
+  }
+
+  /**
+   * Run a sync job with tracked execution and advisory lock.
+   */
+  private runTrackedSync(
+    syncService: ReturnType<typeof getSyncService> | null,
+    syncType: 'full' | 'incremental',
+  ): Promise<void> {
+    const jobId = syncType === 'full' ? 'intune-full-sync' : 'intune-incremental-sync';
+
+    if (!syncService) {
+      return Promise.resolve();
+    }
+
+    return executeTrackedJob({
+      jobId,
+      jobType: 'sync',
+      handler: async () => {
+        const status = syncType === 'full'
+          ? await syncService.runFullSync()
+          : await syncService.runIncrementalSync();
+        console.log(`[IntuneScheduler] ${jobId} completed:`, status.status);
+      },
+    }).then(() => undefined).catch((error: unknown) => {
+      // executeTrackedJob rethrows; log but do not crash the timer.
+      console.error(`[IntuneScheduler] ${jobId} tracked job failed:`, error);
+    });
   }
 
   /**
