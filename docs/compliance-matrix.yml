@@ -1396,3 +1396,27 @@
     - CI workflow was inspected but not modified in Phase 0.
   evidence:
     - Baseline documents existing CI/CD jobs and known workflow concerns.
+- id: AUTHN-003
+  title: Refresh-token session management
+  priority: P0
+  status: compliant
+  phase: 2
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260726103500_phase2_refresh_token_sessions/migration.sql
+    - backend/src/services/auth.service.ts
+    - backend/src/routes/auth.routes.ts
+    - frontend/src/services/api.ts
+    - frontend/src/store/auth.ts
+    - frontend/src/store/accessToken.ts
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+    - frontend/src/services/api.test.ts
+  gaps: []
+  evidence:
+    - Access JWT payload excludes roles and uses configurable short lifetime
+    - Refresh token plaintext is never stored in the database
+    - Rotation marks old tokens used and creates replacement tokens
+    - Reuse revokes token family and logs an audit event
+    - Frontend access token is memory-only with single-flight refresh retry

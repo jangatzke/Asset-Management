@@ -290,3 +290,12 @@ flowchart LR
     D --> E[Incident Assessment]
     E --> F[Meldung an Aufsichtsbehörde wenn erforderlich]
 ```
+## Phase 2 Authentication and Session Management
+
+Phase 2 implements a database-backed refresh-token session flow without starting Phase 3+ work. Access tokens are short-lived HS256 JWTs with configurable `JWT_ACCESS_TOKEN_EXPIRES_IN` defaulting to 20 minutes. The JWT payload contains only `userId` and `email`; roles are not embedded in newly issued access tokens. Critical authorization remains database-backed through `authorizationService` and scoped permission checks.
+
+Refresh tokens are generated with 256 bits of random entropy, stored only as SHA-256 `tokenHash` values in the `RefreshToken` model, and delivered in an HttpOnly cookie with Secure and SameSite attributes. `POST /auth/refresh` authenticates only with this cookie and does not require access-token middleware. Refresh rotates tokens by marking token A used, creating token B in the same family, and returning a new access token plus replacement cookie. Reuse of an already used or revoked refresh token revokes the full family and creates an audit event. `POST /auth/logout` revokes the current refresh token and clears the cookie.
+
+Frontend session handling now stores the access token only in memory. Durable `localStorage` access-token use was removed. Axios retries an original request exactly once after a successful refresh, and concurrent 401 responses share one in-flight refresh request.
+
+Phase 1 historical context: the Phase 1 integration commit included pre-existing unrelated risk-control workflow changes according to `git show --stat`. Phase 2 did not expand or refactor those unrelated changes.

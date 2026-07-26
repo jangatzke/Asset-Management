@@ -701,3 +701,19 @@ Phase 0 intentionally did not start Phase 1 implementation, did not add ISMS fun
 ### Bekannte Restpunkte
 
 - Datenbank-Migration muss manuell angewendet werden (`prisma migrate deploy`)
+## 2026-07-26 — Phase 2: Authentication and Session Management
+
+| Feld | Wert |
+|---|---|
+| Phase | 2 — Authentication and Session Management only |
+| Commit | Pending during this log entry; target commit message: `Phase 2: implement refresh-token session flow`. |
+| Requirements | SEC-001, AUTHN-001 aspects, AUTHN-003 |
+| changed files | `backend/prisma/schema.prisma`, `backend/prisma/migrations/20260726103500_phase2_refresh_token_sessions/migration.sql`, `backend/src/services/auth.service.ts`, `backend/src/routes/auth.routes.ts`, `backend/src/middleware/auth.ts`, `backend/.env.example`, `frontend/src/services/api.ts`, `frontend/src/store/auth.ts`, `frontend/src/store/accessToken.ts`, `frontend/src/pages/Login.tsx`, backend/frontend auth tests, docs. |
+| schema changes | Reworked `RefreshToken` to include `tokenHash`, `familyId`, `issuedAt`, `expiresAt`, `usedAt`, `revokedAt`, `replacedById`, `ipAddress`, `userAgent`; linked tokens to users and replacement tokens. Legacy prototype refresh rows are truncated by the migration because they lacked rotation-family metadata. |
+| API changes | `POST /auth/login` and MFA login set refresh HttpOnly cookies and omit refresh-token plaintext from JSON. `POST /auth/refresh` uses the cookie only and is not protected by access-token middleware. `POST /auth/logout` revokes current refresh token and clears the cookie. |
+| frontend changes | Access token moved to memory-only storage; durable `localStorage` token use removed; Axios implements one retry after successful single-flight refresh. |
+| new tests | Auth service/session tests cover login session, refresh rotation, old token reuse, family revocation, disabled user rejection, expired refresh token rejection, logout revocation and JWT role omission. Auth route tests cover refresh via cookie without access middleware and logout cookie clearing. Frontend API test covers single-flight refresh and one retry. |
+| verification | Backend build PASS; Prisma validate PASS; Prisma migrate deploy/status PASS on dev DB; shared build PASS; frontend build PASS with baseline Vite chunk warning; focused backend auth/authorization tests PASS (53/53); frontend API test PASS. Full backend Jest FAIL with known baseline mock drift and port/open-handle behavior unrelated to Phase 2. Lint FAIL with known missing ESLint config. Prisma generate attempted but hit Windows EPERM on query_engine rename, likely locked by active process; build still used generated client successfully. |
+| known baseline failures | Full backend Jest remains affected by pre-existing mock drift in asset/admin/risk-treatment tests and process exit/open-handle behavior; lint lacks ESLint configuration; frontend build chunk-size warning remains. |
+| historical context | Phase 1 integration commit included pre-existing unrelated risk-control workflow changes according to `git show --stat`; Phase 2 did not expand/refactor those unrelated changes. |
+| out of scope confirmation | Phase 3 MFA/password pre-auth state machine, Phase 4 OIDC consolidation, Phase 5 risk possibleImpact bug, UI entity picker, audit hash chain, jobs, health/metrics, CI gates and new ISMS functional modules were not started. |

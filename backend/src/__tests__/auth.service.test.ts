@@ -42,6 +42,8 @@ const mockPrismaClient: any = {
   refreshToken: {
     create: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
     updateMany: jest.fn(),
   },
   displayIdCounter: {
@@ -163,6 +165,7 @@ describe('AuthService', () => {
       expect(bcrypt.compare).toHaveBeenCalledWith(credentials.password, testUser.passwordHash);
       expect(result).toHaveProperty('user');
       expect(result).toHaveProperty('token');
+      if ('mfaRequired' in result) throw new Error('MFA challenge was not expected');
       expect(result.user.email).toBe(credentials.email);
     });
 
@@ -340,40 +343,125 @@ describe('AuthService', () => {
     });
   });
 
-  describe('refreshToken', () => {
-    it('should generate a new access token and store hashed refresh token', async () => {
+  describe('login session', () => {
+    it('should return a session and store hashed refresh token on login', async () => {
+      const credentials = { email: testUser.email, password: testUserPassword };
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
       mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
       mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
-      mockPrismaClient.refreshToken.create.mockResolvedValue({});
+      mockPrismaClient.user.update.mockResolvedValue(testUser);
+      mockPrismaClient.refreshToken.create.mockResolvedValue({ id: 'refresh-1' });
 
-      const result = await authService.refreshToken(testUser.id);
+      const result = await authService.login(credentials);
 
       expect(result).toHaveProperty('token');
+      expect(result).toHaveProperty('refreshToken');
+      expect(result).toHaveProperty('refreshTokenExpiresAt');
       expect(mockPrismaClient.refreshToken.create).toHaveBeenCalled();
-      
-      // Verify the stored token is hashed (not plaintext)
       const createCall = mockPrismaClient.refreshToken.create.mock.calls[0][0];
-      expect(createCall.data.token).not.toBe(testUser.id);
-      expect(createCall.data.token).toMatch(/^\$2[aby]\$/); // bcrypt hash format
+      expect(createCall.data.tokenHash).toHaveLength(64);
+    });
+  });
+
+  describe('refreshToken', () => {
+    it('should rotate refresh tokens and return a new access token', async () => {
+      const rawRefreshToken = 'raw-refresh-token';
+      mockPrismaClient.refreshToken.findUnique.mockResolvedValue({
+        id: 'refresh-1',
+        userId: testUser.id,
+        tokenHash: authService.hashRefreshToken(rawRefreshToken),
+        familyId: 'family-1',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+        revokedAt: null,
+        replacedById: null,
+        ipAddress: null,
+        userAgent: null,
+        user: testUser,
+      });
+      mockPrismaClient.refreshToken.create.mockResolvedValue({ id: 'refresh-2' });
+      mockPrismaClient.refreshToken.update.mockResolvedValue({});
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+
+      const result = await authService.refreshToken(rawRefreshToken);
+
+      expect(result).toHaveProperty('token');
+      expect(result).toHaveProperty('refreshToken');
+      expect(mockPrismaClient.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'refresh-1' },
+        data: { usedAt: expect.any(Date), replacedById: 'refresh-2' },
+      });
     });
 
-    it('should throw error if user not found', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+    it('should reject refresh-token reuse and revoke the token family', async () => {
+      mockPrismaClient.refreshToken.findUnique.mockResolvedValue({
+        id: 'refresh-1',
+        userId: testUser.id,
+        tokenHash: authService.hashRefreshToken('old-token'),
+        familyId: 'family-1',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: new Date(),
+        revokedAt: null,
+        replacedById: 'refresh-2',
+        ipAddress: null,
+        userAgent: null,
+        user: testUser,
+      });
+      mockPrismaClient.refreshToken.updateMany.mockResolvedValue({ count: 2 });
 
-      await expect(authService.refreshToken('nonexistent')).rejects.toThrow(AppError);
-      await expect(authService.refreshToken('nonexistent')).rejects.toThrow('User not found');
+      await expect(authService.refreshToken('old-token')).rejects.toThrow('Refresh token reuse detected');
+      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { familyId: 'family-1' },
+        data: { revokedAt: expect.any(Date) },
+      });
+    });
+
+    it('should reject expired refresh tokens', async () => {
+      mockPrismaClient.refreshToken.findUnique.mockResolvedValue({
+        id: 'refresh-1',
+        userId: testUser.id,
+        familyId: 'family-1',
+        expiresAt: new Date(Date.now() - 1000),
+        usedAt: null,
+        revokedAt: null,
+        user: testUser,
+      });
+
+      await expect(authService.refreshToken('expired-token')).rejects.toThrow('Refresh token expired');
+    });
+
+    it('should reject disabled users during refresh', async () => {
+      mockPrismaClient.refreshToken.findUnique.mockResolvedValue({
+        id: 'refresh-1',
+        userId: testUser.id,
+        familyId: 'family-1',
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+        revokedAt: null,
+        user: { ...testUser, isActive: false },
+      });
+
+      await expect(authService.refreshToken('disabled-user-token')).rejects.toThrow('Account is disabled');
     });
   });
 
   describe('logout', () => {
     it('should revoke all refresh tokens for user', async () => {
-      mockPrismaClient.refreshToken.updateMany.mockResolvedValue({});
+      mockPrismaClient.refreshToken.findUnique.mockResolvedValue({
+        id: 'refresh-1',
+        userId: testUser.id,
+        revokedAt: null,
+        user: testUser,
+      });
+      mockPrismaClient.refreshToken.update.mockResolvedValue({});
 
-      await authService.logout(testUser.id);
+      await authService.logout('raw-refresh-token');
 
-      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
-        where: { userId: testUser.id },
-        data: { revoked: true },
+      expect(mockPrismaClient.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'refresh-1' },
+        data: { revokedAt: expect.any(Date) },
       });
     });
   });
@@ -392,12 +480,13 @@ describe('AuthService', () => {
       mockPrismaClient.user.update.mockResolvedValue({ ...testUser });
 
       const result = await authService.login(credentials);
+      if ('mfaRequired' in result) throw new Error('MFA challenge was not expected');
 
       // Verify token can be decoded
       const decoded = jwt.verify(result.token, process.env.JWT_SECRET!);
       expect(decoded).toHaveProperty('userId', testUser.id);
       expect(decoded).toHaveProperty('email', testUser.email);
-      expect(decoded).toHaveProperty('roles', ['employee']);
+      expect(decoded).not.toHaveProperty('roles');
     });
 
     it('should throw error if JWT_SECRET is not configured', async () => {

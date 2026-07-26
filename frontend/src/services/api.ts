@@ -1,19 +1,49 @@
 import axios from 'axios';
+import { getAccessToken, setAccessToken } from '../store/accessToken';
 
 const api = axios.create({
   baseURL: '/api/v1',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+let refreshPromise: Promise<string> | null = null;
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/refresh') || originalRequest?.url?.includes('/auth/login');
+    if (error.response?.status !== 401 || !originalRequest || originalRequest._retry || isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+    if (!refreshPromise) {
+      refreshPromise = api.post('/auth/refresh').then((response) => {
+        const token = response.data.token;
+        setAccessToken(token);
+        return token;
+      }).finally(() => {
+        refreshPromise = null;
+      });
+    }
+
+    const token = await refreshPromise;
+    originalRequest.headers.Authorization = `Bearer ${token}`;
+    return api(originalRequest);
+  },
+);
 
 export default api;
 
@@ -26,6 +56,8 @@ export const authApi = {
     api.post('/auth/create-first-admin', data),
   hasAdmin: () => api.get('/auth/has-admin'),
   me: () => api.get('/auth/me'),
+  refresh: () => api.post('/auth/refresh'),
+  logout: () => api.post('/auth/logout'),
   changeOwnPassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post('/auth/me/change-password', data),
   beginMfaSetup: () => api.post('/auth/me/mfa/setup'),

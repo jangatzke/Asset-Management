@@ -66,6 +66,7 @@ model User {
   ownedCostPlans         CostPlan[]         @relation("CostPlanOwner")
   completedCostPlanItems CostPlanItem[]     @relation("CostPlanItemCompletedBy")
   passwordHistory        PasswordHistory[]  @relation("UserPasswordHistory")
+  refreshTokens          RefreshToken[]      @relation("UserRefreshTokens")
 
   @@index([oidcId, oidcProvider])
   @@map("users")
@@ -2741,13 +2742,25 @@ model Session {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  revoked   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id           String    @id @default(uuid())
+  userId       String
+  tokenHash    String    @unique
+  familyId     String
+  issuedAt     DateTime  @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+  revokedAt    DateTime?
+  replacedById String?
+  ipAddress    String?
+  userAgent    String?
 
+  user       User            @relation("UserRefreshTokens", fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken?   @relation("RefreshTokenReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces   RefreshToken[]  @relation("RefreshTokenReplacement")
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }
 

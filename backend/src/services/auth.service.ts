@@ -8,6 +8,28 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authSettingsService } from './authSettings.service';
 
+type RefreshTokenWithUser = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  familyId: string;
+  issuedAt: Date;
+  expiresAt: Date;
+  usedAt: Date | null;
+  revokedAt: Date | null;
+  replacedById: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    isActive: boolean;
+    mustChangePasswordOnNext: boolean;
+  } | null;
+};
+
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -26,7 +48,25 @@ export interface RegisterData {
 export interface TokenPayload {
   userId: string;
   email: string;
-  roles: string[];
+}
+
+export interface SessionContext {
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface AuthSessionResult {
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    roles: string[];
+    mustChangePasswordOnNext?: boolean;
+  };
+  token: string;
+  refreshToken: string;
+  refreshTokenExpiresAt: Date;
 }
 
 interface MfaChallengePayload {
@@ -44,6 +84,8 @@ function isSelfRegistrationAllowed(): boolean {
 }
 
 export class AuthService {
+  private readonly refreshTokenBytes = 32;
+
   private getJwtSecret(): string {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
@@ -57,6 +99,56 @@ export class AuthService {
 
   private getMfaEncryptionKey(): Buffer {
     return crypto.createHash('sha256').update(process.env.MFA_ENCRYPTION_KEY || this.getJwtSecret()).digest();
+  }
+
+  private getAccessTokenLifetime(): string {
+    return process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || '20m';
+  }
+
+  private getRefreshTokenLifetimeMs(): number {
+    const raw = process.env.JWT_REFRESH_TOKEN_EXPIRES_IN || '7d';
+    const match = raw.match(/^(\d+)([smhd])$/i);
+    if (!match) return 7 * 24 * 60 * 60 * 1000;
+    const value = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    if (unit === 's') return value * 1000;
+    if (unit === 'm') return value * 60 * 1000;
+    if (unit === 'h') return value * 60 * 60 * 1000;
+    return value * 24 * 60 * 60 * 1000;
+  }
+
+  hashRefreshToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private generateOpaqueRefreshToken(): string {
+    return crypto.randomBytes(this.refreshTokenBytes).toString('base64url');
+  }
+
+  private buildUserName(user: { firstName: string; lastName: string }): string {
+    return `${user.firstName} ${user.lastName}`.trim();
+  }
+
+  private async getDirectRoles(userId: string): Promise<string[]> {
+    const userRoles = await prisma.userRole.findMany({ where: { userId } });
+    return userRoles.map((ur) => ur.roleName);
+  }
+
+  private async createRefreshSession(userId: string, context: SessionContext, familyId: string = crypto.randomUUID()) {
+    const refreshToken = this.generateOpaqueRefreshToken();
+    const expiresAt = new Date(Date.now() + this.getRefreshTokenLifetimeMs());
+    const db = prisma as any;
+    const record = await db.refreshToken.create({
+      data: {
+        userId,
+        tokenHash: this.hashRefreshToken(refreshToken),
+        familyId,
+        expiresAt,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+    return { refreshToken, expiresAt, record };
   }
 
   private encryptMfaSecret(secret: string): string {
@@ -140,7 +232,6 @@ export class AuthService {
     const token = this.generateToken({
       userId: user.id,
       email: user.email,
-      roles: [roles.roleName],
     });
 
     return {
@@ -155,7 +246,7 @@ export class AuthService {
     };
   }
 
-  async login(credentials: LoginCredentials) {
+  async login(credentials: LoginCredentials, context: SessionContext = {}): Promise<AuthSessionResult | { mfaRequired: true; challenge: string }> {
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
     });
@@ -216,8 +307,8 @@ export class AuthService {
     const token = this.generateToken({
       userId: user.id,
       email: user.email,
-      roles,
     });
+    const session = await this.createRefreshSession(user.id, context);
 
     return {
       user: {
@@ -229,6 +320,8 @@ export class AuthService {
         mustChangePasswordOnNext: user.mustChangePasswordOnNext,
       },
       token,
+      refreshToken: session.refreshToken,
+      refreshTokenExpiresAt: session.expiresAt,
     };
   }
 
@@ -327,34 +420,52 @@ export class AuthService {
     await authSettingsService.recordPasswordHash(userId, passwordHash);
   }
 
-  async refreshToken(userId: string) {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new AppError('User not found', 404);
+  async refreshToken(refreshToken: string, context: SessionContext = {}) {
+    if (!refreshToken) throw new AppError('Refresh token required', 401);
+    const tokenHash = this.hashRefreshToken(refreshToken);
+    const db = prisma as any;
+    const existing = await db.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } }) as RefreshTokenWithUser | null;
+    if (!existing) throw new AppError('Invalid refresh token', 401);
+
+    if (existing.usedAt || existing.revokedAt) {
+      await db.refreshToken.updateMany({ where: { familyId: existing.familyId }, data: { revokedAt: new Date() } });
+      await auditService.logEventStandalone(prisma, {
+        userId: existing.userId,
+        userName: existing.user ? this.buildUserName(existing.user) : undefined,
+        action: 'PERMISSION_CHANGE',
+        entityType: 'RefreshToken',
+        entityId: existing.id,
+        details: `Refresh token reuse detected for family ${existing.familyId}`,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      });
+      throw new AppError('Refresh token reuse detected', 401);
     }
 
-    const userRoles = await prisma.userRole.findMany({
-      where: { userId: user.id },
-    });
-    const roles = userRoles.map((ur) => ur.roleName);
+    if (existing.expiresAt <= new Date()) throw new AppError('Refresh token expired', 401);
+    if (!existing.user || !existing.user.isActive) throw new AppError('Account is disabled', 403);
 
-    // Generate new refresh token
-    const newRefreshToken = crypto.randomUUID();
-    const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
-
-    // Store hashed token in database
-    await prisma.refreshToken.create({
-      data: {
-        token: hashedRefreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-      }
+    const replacement = await this.createRefreshSession(existing.userId, context, existing.familyId);
+    await db.refreshToken.update({
+      where: { id: existing.id },
+      data: { usedAt: new Date(), replacedById: replacement.record.id },
     });
 
-    // Generate access token
-    const token = this.generateToken({ userId: user.id, email: user.email, roles });
-
-    return { token };
+    const token = this.generateToken({ userId: existing.user.id, email: existing.user.email });
+    const roles = await this.getDirectRoles(existing.user.id);
+    return {
+      token,
+      refreshToken: replacement.refreshToken,
+      refreshTokenExpiresAt: replacement.expiresAt,
+      user: {
+        id: existing.user.id,
+        email: existing.user.email,
+        firstName: existing.user.firstName,
+        lastName: existing.user.lastName,
+        roles,
+        mustChangePasswordOnNext: existing.user.mustChangePasswordOnNext,
+      },
+    };
   }
 
   async hasAdminUsers(): Promise<boolean> {
@@ -364,7 +475,7 @@ export class AuthService {
     return adminCount > 0;
   }
 
-  async verifyMfaLogin(challenge: string, token: string) {
+  async verifyMfaLogin(challenge: string, token: string, context: SessionContext = {}) {
     const payload = this.verifyMfaChallenge(challenge);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user || !user.isActive || !user.mfaEnabled || !user.mfaSecret) throw new AppError('Invalid MFA challenge', 401);
@@ -380,9 +491,12 @@ export class AuthService {
       entityId: user.id,
       details: `Successful MFA login: ${user.email}`,
     });
+    const session = await this.createRefreshSession(user.id, context);
     return {
       user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, roles, mustChangePasswordOnNext: user.mustChangePasswordOnNext },
-      token: this.generateToken({ userId: user.id, email: user.email, roles }),
+      token: this.generateToken({ userId: user.id, email: user.email }),
+      refreshToken: session.refreshToken,
+      refreshTokenExpiresAt: session.expiresAt,
     };
   }
 
@@ -492,7 +606,6 @@ export class AuthService {
       const token = this.generateToken({
         userId: user.id,
         email: user.email,
-        roles: ['system_admin'],
       });
 
       return {
@@ -533,93 +646,33 @@ export class AuthService {
     return updated;
   }
 
-  /**
-   * Generate a new refresh token, store its hash, and revoke all previous tokens
-   * for the given user (rotation + hashing)
-   */
-  async generateRefreshToken(userId: string): Promise<{ token: string; hashedToken: string }> {
-    // Generate new refresh token
-    const newRefreshToken = crypto.randomUUID();
-    
-    // Hash the token before storing
-    const hashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
-    
-    // Revoke all existing refresh tokens for this user
-    await this.revokeRefreshTokens(userId);
-    
-    // Store the new hashed token
-    await prisma.refreshToken.create({
-      data: {
-        token: hashedRefreshToken,
-        userId: userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        revoked: false,
-      },
-    });
-    
-    return { token: newRefreshToken, hashedToken: hashedRefreshToken };
-  }
+  async logout(refreshToken: string | null, context: SessionContext = {}): Promise<void> {
+    const db = prisma as any;
+    const record = refreshToken
+      ? await db.refreshToken.findUnique({ where: { tokenHash: this.hashRefreshToken(refreshToken) }, include: { user: true } }) as RefreshTokenWithUser | null
+      : null;
+    const user = record?.user ?? null;
 
-  /**
-   * Validate a refresh token by comparing its hash with stored hash
-   * Returns userId if valid, null otherwise
-   */
-  async validateRefreshToken(token: string): Promise<string | null> {
-    // Find the refresh token record
-    const record = await prisma.refreshToken.findFirst({
-      where: {
-        revoked: false,
-        expiresAt: { gte: new Date() },
-      },
-    });
-
-    if (!record) {
-      return null;
+    if (record && !record.revokedAt) {
+      await db.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
     }
 
-    // Compare provided token with stored hash
-    const isValid = await bcrypt.compare(token, record.token);
-    return isValid ? record.userId : null;
-  }
-
-  /**
-   * Revoke all refresh tokens for a user (used during logout and token rotation)
-   */
-  async revokeRefreshTokens(userId: string): Promise<void> {
-    await prisma.refreshToken.updateMany({
-      where: { userId: userId },
-      data: { revoked: true },
-    });
-  }
-
-  /**
-   * Revoke all tokens for a user (used during logout)
-   * Revokes both refresh tokens and invalidates access tokens
-   */
-  async logout(userId: string): Promise<void> {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-
-    // Audit log for logout
-    if (user) {
+    if (user && record) {
       await auditService.logEventStandalone(prisma, {
-        userId,
-        userName: `${user.firstName} ${user.lastName}`,
+        userId: user.id,
+        userName: this.buildUserName(user),
         action: 'LOGOUT',
-        entityType: 'User',
-        entityId: userId,
+        entityType: 'RefreshToken',
+        entityId: record.id,
         details: `Logout: ${user.email}`,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
       });
     }
-
-    // Revoke all refresh tokens
-    await this.revokeRefreshTokens(userId);
-    
-    // Note: Access tokens are stateless, but we could add additional
-    // session tracking if needed for forced logout
   }
 
   private generateToken(payload: TokenPayload): string {
-    return jwt.sign(payload, this.getJwtSecret(), { expiresIn: '1h' });
+    return jwt.sign(payload, this.getJwtSecret(), { expiresIn: this.getAccessTokenLifetime() as jwt.SignOptions['expiresIn'], algorithm: 'HS256' });
   }
 }
 

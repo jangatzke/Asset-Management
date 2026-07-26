@@ -448,3 +448,13 @@ These requirements define the ordered consolidation work. They are planning and 
 | OPS-013 | 0 | P0 | Operations | Establish reproducible technical baseline documentation before functional refactoring. | Baseline document records commit, date, build/test/lint/Prisma/CI status, counts, warnings and known errors from repository commands. |
 | OPS-014 | 5 | P1 | Operations | Stop after Phase 5 for explicit verification and decision gate before later ISMS module work. | Implementation log and refactoring plan include a mandatory stop after Phase 5 with no Phase 6+ implementation in this consolidation track. |
 | CI-003 | 0 | P0 | CI/CD | Document CI/CD workflow baseline and verification gaps before changing gates. | Existing workflow jobs and known configuration issues are recorded; missing or failing scripts are documented rather than replaced in Phase 0. |
+### AUTHN-003: Refresh-token session management
+| Feld | Wert |
+|---|---|
+| **ID** | AUTHN-003 |
+| **Phase** | 2 |
+| **Priorität** | P0 |
+| **Kategorie** | Authentication |
+| **Beschreibung** | Browser sessions must use short-lived access JWTs and rotating, database-backed refresh tokens in HttpOnly cookies. Refresh-token plaintext must never be stored server-side. |
+| **Akzeptanzkriterium** | Login creates a session, refresh works with expired access tokens via cookie only, refresh tokens rotate, reuse revokes the family and is audited, logout revokes current refresh token, disabled users cannot refresh, frontend retries once with single-flight refresh. |
+| **Status** | Implemented in Phase 2. |

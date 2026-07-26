@@ -28,10 +28,10 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
   try {
     const decoded = jwt.verify(token, getJwtSecret(), { algorithms: JWT_ALGORITHMS }) as {
       userId: string;
-      roles: string[];
+      roles?: string[];
     };
     req.userId = decoded.userId;
-    req.userRoles = decoded.roles;
+    req.userRoles = decoded.roles ?? [];
     next();
   } catch (error) {
     if (error instanceof AppError) {

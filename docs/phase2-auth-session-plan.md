@@ -1,0 +1,7 @@
+Phase 2 baseline and plan (pre-implementation):
+
+- Affected backend files: `backend/src/services/auth.service.ts`, `backend/src/routes/auth.routes.ts`, `backend/src/middleware/auth.ts`, `backend/src/index.ts`, `backend/prisma/schema.prisma`, `backend/.env.example`, backend auth tests.
+- Affected frontend files: `frontend/src/services/api.ts`, `frontend/src/store/auth.ts`, `frontend/src/pages/Login.tsx`, frontend auth/API tests.
+- Existing state: access JWT lifetime is hard-coded at 1h and carries roles; `/auth/refresh` currently requires access-token middleware and creates a weak/unused refresh record; frontend stores access token in `localStorage` and has no refresh retry interceptor.
+- Plan: add `RefreshToken` persistence with deterministic SHA-256 `tokenHash` and family metadata; issue 256-bit random refresh tokens in Secure HttpOnly SameSite cookies; shorten/configure access JWT lifetime and remove roles from JWT; keep critical authorization database-backed through `authorizationService`; rotate refresh tokens on `/auth/refresh` without access-token middleware; detect reuse and revoke token family with audit; revoke current refresh cookie on `/auth/logout`; move frontend access token to memory with single-flight refresh and one retry.
+- Historical context to document: Phase 1 integration commit included pre-existing unrelated risk-control workflow changes per `git show --stat`; Phase 2 will not expand/refactor those unrelated changes.

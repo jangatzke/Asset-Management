@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { CookieOptions, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
@@ -7,6 +7,43 @@ import { oidcService } from '../services/oidc.service';
 import crypto from 'crypto';
 
 export const authRouter = Router();
+
+const REFRESH_COOKIE_NAME = process.env.REFRESH_TOKEN_COOKIE_NAME || 'refreshToken';
+
+function requestContext(req: AuthRequest) {
+  return { ipAddress: req.ip, userAgent: req.get('user-agent') };
+}
+
+function readCookie(req: AuthRequest, name: string): string | undefined {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(';')) {
+    const [rawName, ...rawValue] = part.trim().split('=');
+    if (rawName === name) return decodeURIComponent(rawValue.join('='));
+  }
+  return undefined;
+}
+
+function refreshCookieOptions(expires?: Date): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV !== 'test',
+    sameSite: process.env.REFRESH_TOKEN_SAME_SITE === 'strict' ? 'strict' : 'lax',
+    path: '/api/v1/auth',
+    ...(expires ? { expires } : {}),
+  };
+}
+
+function attachRefreshCookie(res: Response, result: { refreshToken?: string; refreshTokenExpiresAt?: Date }) {
+  if (result.refreshToken && result.refreshTokenExpiresAt) {
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, refreshCookieOptions(result.refreshTokenExpiresAt));
+  }
+}
+
+function stripRefreshToken<T extends { refreshToken?: string; refreshTokenExpiresAt?: Date }>(result: T): Omit<T, 'refreshToken'> {
+  const { refreshToken: _refreshToken, ...safeResult } = result;
+  return safeResult;
+}
 
 const authRateLimiter = rateLimit({
   windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
@@ -51,8 +88,10 @@ authRouter.post('/login', authRateLimiter, async (req, res, next) => {
     if (!localLoginEnabled) {
       return res.status(403).json({ error: { message: 'Local login is disabled. Please use Entra ID login.' } });
     }
-    const result = await authService.login(req.body);
-    return res.json(result);
+    const result = await authService.login(req.body, requestContext(req));
+    if ('mfaRequired' in result) return res.json(result);
+    attachRefreshCookie(res, result);
+    return res.json(stripRefreshToken(result));
   } catch (error) {
     return next(error);
   }
@@ -60,8 +99,9 @@ authRouter.post('/login', authRateLimiter, async (req, res, next) => {
 
 authRouter.post('/login/mfa', authRateLimiter, async (req, res, next) => {
   try {
-    const result = await authService.verifyMfaLogin(req.body.challenge, req.body.token);
-    return res.json(result);
+    const result = await authService.verifyMfaLogin(req.body.challenge, req.body.token, requestContext(req));
+    attachRefreshCookie(res, result);
+    return res.json(stripRefreshToken(result));
   } catch (error) {
     return next(error);
   }
@@ -101,10 +141,12 @@ authRouter.get('/oidc/config', authenticate, async (_req, res, next) => {
   }
 });
 
-authRouter.post('/refresh', authenticate, async (req: AuthRequest, res, next) => {
+authRouter.post('/refresh', async (req: AuthRequest, res, next) => {
   try {
-    const result = await authService.refreshToken(req.userId!);
-    res.json(result);
+    const refreshToken = readCookie(req, REFRESH_COOKIE_NAME);
+    const result = await authService.refreshToken(refreshToken ?? '', requestContext(req));
+    attachRefreshCookie(res, result);
+    res.json(stripRefreshToken(result));
   } catch (error) {
     next(error);
   }
@@ -163,9 +205,10 @@ authRouter.post('/me/mfa/disable', authenticate, authRateLimiter, async (req: Au
   }
 });
 
-authRouter.post('/logout', authenticate, async (req: AuthRequest, res, next) => {
+authRouter.post('/logout', async (req: AuthRequest, res, next) => {
   try {
-    await authService.logout(req.userId!);
+    await authService.logout(readCookie(req, REFRESH_COOKIE_NAME) ?? null, requestContext(req));
+    res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions());
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     next(error);

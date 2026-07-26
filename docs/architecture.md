@@ -371,3 +371,10 @@ Ziel: Vollständige OpenAPI 3.1 Spezifikation in `docs/api/openapi.yaml`:
 - VMware/Proxmox Import (OPS-002, OPS-003)
 - i18n Vollständigkeit (UX-001)
 - Health Check Monitoring (OPS-004)
+## Phase 2 Authentication and Session Architecture
+
+The authentication architecture now separates short-lived bearer access tokens from persisted refresh-token sessions. Access JWTs are intentionally minimal (`userId`, `email`, HS256, configurable lifetime around 15-30 minutes). Authorization decisions for privileged and scoped resources remain database-backed and are not permanently derived from JWT role claims.
+
+The `RefreshToken` table stores `tokenHash`, `familyId`, `issuedAt`, `expiresAt`, `usedAt`, `revokedAt`, `replacedById`, `ipAddress`, and `userAgent`. Refresh-token plaintext is only sent to the browser as an HttpOnly cookie scoped to auth routes. Rotation and reuse detection are handled by the auth service; refresh works independently of expired access tokens.
+
+Frontend API calls use an in-memory access-token holder and a single-flight Axios response interceptor. On a 401 from a non-auth endpoint, one refresh request is made, the new access token is stored in memory, and the original request is retried once.

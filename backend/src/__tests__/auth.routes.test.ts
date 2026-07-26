@@ -14,6 +14,7 @@ const mockAuthService = {
   login: jest.fn<any>(),
   getCurrentUser: jest.fn<any>(),
   refreshToken: jest.fn<any>(),
+  logout: jest.fn<any>(),
   hasAdminUsers: jest.fn<any>(),
   createFirstAdmin: jest.fn<any>(),
 };
@@ -164,6 +165,8 @@ describe('Auth Routes', () => {
       mockAuthService.login.mockResolvedValue({
         user: { id: 'user-123', email: credentials.email },
         token: 'test-token',
+        refreshToken: 'refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 60_000),
       });
 
       const response = await request(app)
@@ -173,6 +176,8 @@ describe('Auth Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('token');
       expect(response.body).toHaveProperty('user');
+      expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+      expect(response.body).not.toHaveProperty('refreshToken');
     });
 
     it('should reject login when local login is disabled', async () => {
@@ -267,17 +272,36 @@ describe('Auth Routes', () => {
   });
 
   describe('POST /auth/refresh', () => {
-    it('should refresh token', async () => {
+    it('should refresh token from cookie without access-token middleware', async () => {
       mockAuthService.refreshToken.mockResolvedValue({
         token: 'new-token',
+        refreshToken: 'new-refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 60_000),
       });
 
       const response = await request(app)
         .post('/auth/refresh')
-        .send({ refreshToken: 'old-token' });
+        .set('Cookie', ['refreshToken=old-token']);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('token');
+      expect(response.body).not.toHaveProperty('refreshToken');
+      expect(mockAuthService.refreshToken).toHaveBeenCalledWith('old-token', expect.any(Object));
+      expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('should revoke current refresh token cookie', async () => {
+      mockAuthService.logout.mockResolvedValue(undefined);
+
+      const response = await request(app)
+        .post('/auth/logout')
+        .set('Cookie', ['refreshToken=logout-token']);
+
+      expect(response.status).toBe(200);
+      expect(mockAuthService.logout).toHaveBeenCalledWith('logout-token', expect.any(Object));
+      expect(response.headers['set-cookie']?.[0]).toContain('refreshToken=');
     });
   });
 

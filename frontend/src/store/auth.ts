@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi } from '../services/api';
+import { setAccessToken } from './accessToken';
 
 interface User {
   id: string;
@@ -21,7 +22,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, mfaToken?: string) => Promise<{ mfaRequired?: boolean; challenge?: string } | void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   setUser: (user: User, token: string) => void;
   updateUserPreferences: (preferences: Pick<User, 'language' | 'darkMode'>) => void;
   checkAuth: () => Promise<void>;
@@ -41,18 +42,23 @@ export const useAuthStore = create<AuthState>((set) => ({
         return { mfaRequired: true, challenge: response.data.challenge };
       }
       const { user, token } = response.data;
-      localStorage.setItem('token', token);
+      setAccessToken(token);
       set({ user, token, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
       throw error;
     }
   },
-  logout: () => {
-    localStorage.removeItem('token');
-    set({ user: null, token: null, isAuthenticated: false });
+  logout: async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      setAccessToken(null);
+      set({ user: null, token: null, isAuthenticated: false });
+    }
   },
   setUser: (user: User, token: string) => {
+    setAccessToken(token);
     set({ user, token, isAuthenticated: true });
   },
   updateUserPreferences: (preferences) => {
@@ -63,19 +69,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   checkAuth: async () => {
     console.log('[AuthStore] checkAuth started');
     set({ isLoading: true });
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.log('[AuthStore] No token found');
-      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
-      return;
-    }
     try {
+      const refreshResponse = await authApi.refresh();
+      const token = refreshResponse.data.token;
+      setAccessToken(token);
       const response = await authApi.me();
       console.log('[AuthStore] User data:', response.data);
       set({ user: response.data, token, isAuthenticated: true, isLoading: false });
     } catch (error) {
       console.log('[AuthStore] checkAuth failed:', error);
-      localStorage.removeItem('token');
+      setAccessToken(null);
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
     }
   },

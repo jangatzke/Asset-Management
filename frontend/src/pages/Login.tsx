@@ -56,7 +56,6 @@ const Login = () => {
         if (mfaChallenge) {
           const response = await authApi.verifyMfaLogin(mfaChallenge, mfaToken);
           setUser(response.data.user, response.data.token);
-          localStorage.setItem('token', response.data.token);
         } else {
           const result = await login(email, password);
           if (result?.mfaRequired && result.challenge) {
@@ -70,8 +69,9 @@ const Login = () => {
         await login(email, password);
         navigate('/');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || err.response?.data?.message || 'Request failed');
+    } catch (err: unknown) {
+      const maybeError = err as { response?: { data?: { error?: { message?: string }; message?: string } } };
+      setError(maybeError.response?.data?.error?.message || maybeError.response?.data?.message || 'Request failed');
     }
   };
 
