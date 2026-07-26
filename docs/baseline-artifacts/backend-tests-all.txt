@@ -1,0 +1,715 @@
+
+> backend@1.0.0 test
+> jest --runInBand
+
+FAIL src/__tests__/admin.service.test.ts
+  ÔùÅ AdminService ÔÇ║ createUser ÔÇ║ should create a new user with default role
+
+    TypeError: Cannot read properties of undefined (reading 'findFirst')
+
+      30 | export class AuthSettingsService {
+      31 |   async getSettings(): Promise<AuthSettingsDto> {
+    > 32 |     const existing = await (prisma as any).authSettings.findFirst({ orderBy: { createdAt: 'asc' } });
+         |                                                         ^
+      33 |     if (existing) return existing;
+      34 |     return await (prisma as any).authSettings.create({ data: DEFAULT_AUTH_SETTINGS });
+      35 |   }
+
+      at AuthSettingsService.getSettings (src/services/authSettings.service.ts:32:57)
+      at AuthSettingsService.ensurePasswordAllowedForLocalUser (src/services/authSettings.service.ts:58:33)
+      at AdminService.createUser (src/services/admin.service.ts:282:31)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:190:22)
+
+  ÔùÅ AdminService ÔÇ║ changePassword ÔÇ║ should change password successfully
+
+    TypeError: Cannot read properties of undefined (reading 'findFirst')
+
+      30 | export class AuthSettingsService {
+      31 |   async getSettings(): Promise<AuthSettingsDto> {
+    > 32 |     const existing = await (prisma as any).authSettings.findFirst({ orderBy: { createdAt: 'asc' } });
+         |                                                         ^
+      33 |     if (existing) return existing;
+      34 |     return await (prisma as any).authSettings.create({ data: DEFAULT_AUTH_SETTINGS });
+      35 |   }
+
+      at AuthSettingsService.getSettings (src/services/authSettings.service.ts:32:57)
+      at AuthSettingsService.ensurePasswordAllowedForLocalUser (src/services/authSettings.service.ts:58:33)
+      at AdminService.changePassword (src/services/admin.service.ts:449:31)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:651:7)
+
+  ÔùÅ AdminService ÔÇ║ changePassword ÔÇ║ should reject weak passwords during password change
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected constructor: AppError
+    Received constructor: TypeError
+
+    Received message: "Cannot read properties of undefined (reading 'findFirst')"
+
+          30 | export class AuthSettingsService {
+          31 |   async getSettings(): Promise<AuthSettingsDto> {
+        > 32 |     const existing = await (prisma as any).authSettings.findFirst({ orderBy: { createdAt: 'asc' } });
+             |                                                         ^
+          33 |     if (existing) return existing;
+          34 |     return await (prisma as any).authSettings.create({ data: DEFAULT_AUTH_SETTINGS });
+          35 |   }
+
+      at AuthSettingsService.getSettings (src/services/authSettings.service.ts:32:57)
+      at AuthSettingsService.ensurePasswordAllowedForLocalUser (src/services/authSettings.service.ts:58:33)
+      at AdminService.changePassword (src/services/admin.service.ts:449:31)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:665:7)
+      at Object.toThrow (../node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:665:90)
+
+FAIL src/__tests__/asset.crud.test.ts
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create an asset with sequential display ID (ASSET-0001)
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:127:22)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create network addresses when provided
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:145:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for processIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:164:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for serviceIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:180:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for contractIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:196:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for licenseIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:212:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should log initial lifecycle status in transaction
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:222:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create audit log entry for asset creation
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:237:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should set isArchived to false for new assets
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:253:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should handle complianceRelevance field
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:268:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ displayId integration ÔÇ║ should use sequential display ID (ASSET-0001) instead of timestamp-based
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:718:7)
+
+FAIL src/__tests__/risktreatment.service.test.ts
+  ÔùÅ RiskTreatmentService ÔÇ║ effectiveness review and completion ÔÇ║ should complete mitigation with effectiveness review and create target assessment
+
+    TypeError: Cannot read properties of undefined (reading 'updateMany')
+
+      549 |       }
+      550 |
+    > 551 |       await tx.treatmentAction.updateMany({
+          |                                ^
+      552 |         where: { treatmentId: id, status: { not: 'completed' } },
+      553 |         data: { status: 'completed', completedAt: new Date(), completedBy: userId },
+      554 |       });
+
+      at src/services/risktreatment.service.ts:551:32
+      at RiskTreatmentService.complete (src/services/risktreatment.service.ts:508:20)
+      at Object.<anonymous> (src/__tests__/risktreatment.service.test.ts:394:22)
+
+PASS src/__tests__/asset.graph.test.ts (72.713 s)
+PASS src/__tests__/phase8.webhook.test.ts
+PASS src/__tests__/auth.routes.test.ts
+PASS src/__tests__/auth.service.test.ts
+PASS src/__tests__/phase4.service.test.ts
+PASS src/__tests__/validation.middleware.test.ts
+PASS src/__tests__/riskmethod.service.test.ts
+PASS src/__tests__/phase6.service.test.ts
+PASS src/__tests__/placeholder.endpoints.test.ts
+PASS src/__tests__/intune.phase7.test.ts
+PASS src/__tests__/phase5.service.test.ts
+PASS src/__tests__/import.service.test.ts
+PASS src/__tests__/route.order.test.ts
+PASS src/__tests__/phase8.idempotency.test.ts
+PASS src/__tests__/normalized-risk-control-asset-overhaul.test.ts
+PASS src/__tests__/phase8.health.test.ts
+PASS src/__tests__/risk.assessment.test.ts
+PASS src/__tests__/oidc.security.test.ts
+PASS src/__tests__/phase8.correlation-id.test.ts
+PASS src/__tests__/risk.aggregation.test.ts
+PASS src/__tests__/authorization.integration.test.ts
+PASS src/__tests__/businessprocess.service.test.ts
+PASS src/__tests__/costPlanning.service.test.ts
+PASS src/__tests__/fiscalYear.service.test.ts
+PASS src/__tests__/contract.service.test.ts
+PASS src/__tests__/license.service.test.ts
+PASS src/__tests__/phase8.etag.test.ts
+PASS src/__tests__/audit.service.test.ts
+PASS src/__tests__/cors.config.test.ts
+PASS src/__tests__/phase6.routes.test.ts
+  ÔùÅ Console
+
+    console.log
+      Server running on http://0.0.0.0:3001
+
+      at Server.<anonymous> (src/index.ts:201:13)
+
+    console.log
+      Backend health endpoint: http://127.0.0.1:3001/health
+
+      at Server.<anonymous> (src/index.ts:202:13)
+
+    console.log
+      Expected Vite proxy target: http://127.0.0.1:3001
+
+      at Server.<anonymous> (src/index.ts:203:13)
+
+    console.log
+      Environment: test
+
+      at Server.<anonymous> (src/index.ts:204:13)
+
+    console.log
+      Phase 8 features enabled: correlation-id, json-logging, metrics, health-checks
+
+      at Server.<anonymous> (src/index.ts:205:13)
+
+    console.log
+      {"level":"info","timestamp":"2026-07-26T08:44:19.499Z","correlationId":"5a7f0918-82a2-4e35-af8a-74d94865084a","method":"GET","path":"/api/v1/phase6/suppliers","statusCode":200,"durationMs":1,"ipAddress":"::ffff:127.0.0.1","requestSize":0,"responseSize":36}
+
+      at logRequest (src/middleware/jsonLogger.ts:124:11)
+
+    console.log
+      {"level":"info","timestamp":"2026-07-26T08:44:19.510Z","correlationId":"5a7f0918-82a2-4e35-af8a-74d94865084a","method":"GET","path":"/api/v1/phase6/suppliers","statusCode":200,"durationMs":12,"ipAddress":"::ffff:127.0.0.1","requestSize":0,"responseSize":36}
+
+      at logRequest (src/middleware/jsonLogger.ts:124:11)
+
+    console.log
+      {"level":"warn","timestamp":"2026-07-26T08:44:19.515Z","correlationId":"c8438fa6-a19d-4b5f-bcc0-c256f4aae18f","method":"GET","path":"/api/v1/phase6/phase7","statusCode":404,"durationMs":1,"ipAddress":"::ffff:127.0.0.1","requestSize":0,"responseSize":88}
+
+      at logRequest (src/middleware/jsonLogger.ts:124:11)
+
+    console.log
+      {"level":"warn","timestamp":"2026-07-26T08:44:19.536Z","correlationId":"c8438fa6-a19d-4b5f-bcc0-c256f4aae18f","method":"GET","path":"/api/v1/phase6/phase7","statusCode":404,"durationMs":22,"ipAddress":"::ffff:127.0.0.1","requestSize":0,"responseSize":88}
+
+      at logRequest (src/middleware/jsonLogger.ts:124:11)
+
+    console.log
+      {"level":"info","timestamp":"2026-07-26T08:44:19.542Z","correlationId":"bc2fba3f-0ee6-4c77-aad5-1545fe472003","method":"POST","path":"/api/v1/phase6/corrective-actions/from-source","statusCode":201,"durationMs":0,"ipAddress":"::ffff:127.0.0.1","requestSize":68,"responseSize":15}
+
+      at logRequest (src/middleware/jsonLogger.ts:124:11)
+
+    console.log
+      {"level":"info","timestamp":"2026-07-26T08:44:19.542Z","correlationId":"bc2fba3f-0ee6-4c77-aad5-1545fe472003","method":"POST","path":"/api/v1/phase6/corrective-actions/from-source","statusCode":201,"durationMs":0,"ipAddress":"::ffff:127.0.0.1","requestSize":68,"responseSize":15}
+
+      at logRequest (src/middleware/jsonLogger.ts:124:11)
+
+
+Summary of all failing tests
+FAIL src/__tests__/admin.service.test.ts
+  ÔùÅ AdminService ÔÇ║ createUser ÔÇ║ should create a new user with default role
+
+    TypeError: Cannot read properties of undefined (reading 'findFirst')
+
+      30 | export class AuthSettingsService {
+      31 |   async getSettings(): Promise<AuthSettingsDto> {
+    > 32 |     const existing = await (prisma as any).authSettings.findFirst({ orderBy: { createdAt: 'asc' } });
+         |                                                         ^
+      33 |     if (existing) return existing;
+      34 |     return await (prisma as any).authSettings.create({ data: DEFAULT_AUTH_SETTINGS });
+      35 |   }
+
+      at AuthSettingsService.getSettings (src/services/authSettings.service.ts:32:57)
+      at AuthSettingsService.ensurePasswordAllowedForLocalUser (src/services/authSettings.service.ts:58:33)
+      at AdminService.createUser (src/services/admin.service.ts:282:31)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:190:22)
+
+  ÔùÅ AdminService ÔÇ║ changePassword ÔÇ║ should change password successfully
+
+    TypeError: Cannot read properties of undefined (reading 'findFirst')
+
+      30 | export class AuthSettingsService {
+      31 |   async getSettings(): Promise<AuthSettingsDto> {
+    > 32 |     const existing = await (prisma as any).authSettings.findFirst({ orderBy: { createdAt: 'asc' } });
+         |                                                         ^
+      33 |     if (existing) return existing;
+      34 |     return await (prisma as any).authSettings.create({ data: DEFAULT_AUTH_SETTINGS });
+      35 |   }
+
+      at AuthSettingsService.getSettings (src/services/authSettings.service.ts:32:57)
+      at AuthSettingsService.ensurePasswordAllowedForLocalUser (src/services/authSettings.service.ts:58:33)
+      at AdminService.changePassword (src/services/admin.service.ts:449:31)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:651:7)
+
+  ÔùÅ AdminService ÔÇ║ changePassword ÔÇ║ should reject weak passwords during password change
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected constructor: AppError
+    Received constructor: TypeError
+
+    Received message: "Cannot read properties of undefined (reading 'findFirst')"
+
+          30 | export class AuthSettingsService {
+          31 |   async getSettings(): Promise<AuthSettingsDto> {
+        > 32 |     const existing = await (prisma as any).authSettings.findFirst({ orderBy: { createdAt: 'asc' } });
+             |                                                         ^
+          33 |     if (existing) return existing;
+          34 |     return await (prisma as any).authSettings.create({ data: DEFAULT_AUTH_SETTINGS });
+          35 |   }
+
+      at AuthSettingsService.getSettings (src/services/authSettings.service.ts:32:57)
+      at AuthSettingsService.ensurePasswordAllowedForLocalUser (src/services/authSettings.service.ts:58:33)
+      at AdminService.changePassword (src/services/admin.service.ts:449:31)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:665:7)
+      at Object.toThrow (../node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (src/__tests__/admin.service.test.ts:665:90)
+
+FAIL src/__tests__/asset.crud.test.ts
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create an asset with sequential display ID (ASSET-0001)
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:127:22)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create network addresses when provided
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:145:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for processIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:164:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for serviceIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:180:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for contractIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:196:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create junction table entries for licenseIds
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:212:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should log initial lifecycle status in transaction
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:222:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should create audit log entry for asset creation
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:237:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should set isArchived to false for new assets
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:253:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ create ÔÇ║ should handle complianceRelevance field
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:268:7)
+
+  ÔùÅ AssetService - CRUD Operations ÔÇ║ displayId integration ÔÇ║ should use sequential display ID (ASSET-0001) instead of timestamp-based
+
+    TypeError: Cannot read properties of undefined (reading 'findUnique')
+
+       95 | export class AssetService {
+       96 |   private async resolveInventoryConfig(tx: any, assetTypeId: string, assetSubtypeId?: string) {
+    >  97 |     const assetType = await tx.assetType.findUnique({ where: { id: assetTypeId } });
+          |                                          ^
+       98 |     if (!assetType) throw new AppError('Asset type not found', 404);
+       99 |     if (!assetSubtypeId) return { assetType, subtype: null, enabled: assetType.inventoryEnabled, pattern: assetType.inventoryPattern, owner: 'type' as const };
+      100 |
+
+      at AssetService.resolveInventoryConfig (src/services/asset.service.ts:97:42)
+      at AssetService.allocateInventoryNumber (src/services/asset.service.ts:119:31)
+      at src/services/asset.service.ts:258:42
+      at AssetService.create (src/services/asset.service.ts:255:19)
+      at Object.<anonymous> (src/__tests__/asset.crud.test.ts:718:7)
+
+FAIL src/__tests__/risktreatment.service.test.ts
+  ÔùÅ RiskTreatmentService ÔÇ║ effectiveness review and completion ÔÇ║ should complete mitigation with effectiveness review and create target assessment
+
+    TypeError: Cannot read properties of undefined (reading 'updateMany')
+
+      549 |       }
+      550 |
+    > 551 |       await tx.treatmentAction.updateMany({
+          |                                ^
+      552 |         where: { treatmentId: id, status: { not: 'completed' } },
+      553 |         data: { status: 'completed', completedAt: new Date(), completedBy: userId },
+      554 |       });
+
+      at src/services/risktreatment.service.ts:551:32
+      at RiskTreatmentService.complete (src/services/risktreatment.service.ts:508:20)
+      at Object.<anonymous> (src/__tests__/risktreatment.service.test.ts:394:22)
+
+
+Test Suites: 3 failed, 30 passed, 33 total
+Tests:       15 failed, 454 passed, 469 total
+Snapshots:   0 total
+Time:        85.534 s, estimated 113 s
+Ran all test suites.
+
+  ÔùÅ  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "Standard ISO27001 asset types ensured".
+
+      210 |     try {
+      211 |       await ensureStandardAssetTypes(prisma);
+    > 212 |       console.log('Standard ISO27001 asset types ensured');
+          |               ^
+      213 |     } catch (error) {
+      214 |       console.error('Failed to ensure standard ISO27001 asset types:', error);
+      215 |     }
+
+      at console.log (../node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at Server.<anonymous> (src/index.ts:212:15)
+
+
+  ÔùÅ  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[ReminderScheduler] Reminder automation is disabled.".
+
+      25 |       console.log('[ReminderScheduler] Reminder automation is disabled.');
+      26 |       return;
+    > 27 |     }
+         |      ^
+      28 |     const delayMs = Math.max(60_000, (config.intervalMinutes ?? 1440) * 60_000);
+      29 |     console.log(`[ReminderScheduler] Next reminder run in ${Math.round(delayMs / 60000)} minutes`);
+      30 |     this.timer = setTimeout(() => this.runOnce(), delayMs);
+
+      at console.log (../node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at ReminderScheduler.scheduleNext (src/services/reminder.scheduler.ts:27:21)
+      at ReminderScheduler.start (src/services/reminder.scheduler.ts:13:9)
+      at Server.<anonymous> (src/index.ts:222:7)
+
+
+  ÔùÅ  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "Background services initialized".
+
+      221 |       const reminderScheduler = initializeReminderScheduler();
+      222 |       await reminderScheduler.start();
+    > 223 |       console.log('Background services initialized');
+          |               ^
+      224 |     } catch (error) {
+      225 |       console.error('Failed to initialize background services:', error);
+      226 |     }
+
+      at console.log (../node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at Server.<anonymous> (src/index.ts:223:15)
+
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.
+
+  ÔùÅ  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "Server is READY".
+
+      229 |     setTimeout(() => {
+      230 |       setReady(true);
+    > 231 |       console.log('Server is READY');
+          |               ^
+      232 |     }, 2000);
+      233 |   });
+      234 |
+
+      at console.log (../node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at Timeout._onTimeout (src/index.ts:231:15)
+
+EXIT_CODE=-1

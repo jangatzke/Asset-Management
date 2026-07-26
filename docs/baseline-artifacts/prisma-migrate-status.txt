@@ -1,0 +1,8 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "asset_management", schema "public" at "192.168.66.222:5432"
+
+18 migrations found in prisma/migrations
+
+Database schema is up to date!
+EXIT_CODE=0

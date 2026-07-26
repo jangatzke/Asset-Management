@@ -1,5 +1,24 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 0: establish refactoring baseline
+
+| Feld | Wert |
+|---|---|
+| Phase | 0 — Reproducible technical baseline |
+| Commit | Pending during this log entry; target commit message: `Phase 0: establish refactoring baseline`. |
+| Requirements | AUTHZ-001, AUTHZ-002, AUTHN-001, AUTHN-002, OIDC-001, AUD-001, DTO-001, UI-001, OPS-013, OPS-014, CI-003 |
+| changed files | `docs/refactoring-plan.md`, `docs/refactoring-baseline.md`, `docs/requirements.md`, `docs/compliance-matrix.yml`, `docs/implementation-log.md`, `backend/src/__tests__/phase0.docs-consistency.test.ts`, `docs/baseline-artifacts/*.txt` |
+| schema changes | None. |
+| API changes | None. |
+| UI changes | None. |
+| new tests | `backend/src/__tests__/phase0.docs-consistency.test.ts` validates Phase 0 documentation and requirement/matrix consistency. |
+| test results | Baseline: backend build PASS, frontend build PASS with chunk warning, shared build PASS, Prisma validate PASS, Prisma migration status PASS against configured development DB, backend full Jest FAIL with 33 suites/469 tests including 15 failing tests, backend integration PASS with 27 tests, frontend tests PASS with 4 tests, lint FAIL due missing ESLint configuration. Phase 0 consistency test result is recorded in the final Phase 0 verification artifacts. |
+| breaking changes | None. |
+| known remaining items | Backend unit-test mock drift remains in admin, asset CRUD and risk treatment tests; backend Jest leaves open handles/logs after completion; lint scripts lack ESLint config; frontend build chunk-size warning remains; CI workflow concerns are documented but not changed in Phase 0. |
+| next phase | Phase 1 — authorization consolidation only after Phase 0 commit/review. |
+
+Phase 0 intentionally did not start Phase 1 implementation, did not add ISMS functional modules and did not treat placeholders or documentation as implemented requirements.
+
 ## 2026-07-26 — Normalized risk-control and asset inventory integration validation
 
 ### Änderungen

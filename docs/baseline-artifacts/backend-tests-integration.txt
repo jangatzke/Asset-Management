@@ -1,0 +1,43 @@
+
+> backend@1.0.0 test
+> jest --runInBand --testPathPattern=integration
+
+PASS src/__tests__/authorization.integration.test.ts
+  AuthorizationService - Integration Tests
+    P0-01: Admin Access Protection
+      ÔêÜ should allow admin access when role.canAccessAdmin is true from DB (2 ms)
+      ÔêÜ should deny admin access when role.canAccessAdmin is false from DB
+      ÔêÜ should deny admin access for employee role (403 expected) (6 ms)
+      ÔêÜ should allow admin access when ANY role has canAccessAdmin=true
+      ÔêÜ should deny admin access when role is expired (validUntil in past) (1 ms)
+      ÔêÜ should allow admin access when role expires in the future
+      ÔêÜ should allow admin access when role has no expiry (validUntil is null)
+      ÔêÜ should deny admin access when user has no roles (1 ms)
+      ÔêÜ should grant admin access via group-assigned roles
+    P0-02: Entity-Level Authorization
+      ÔêÜ should allow read access for readonly permission level
+      ÔêÜ should deny write access for readonly permission level
+      ÔêÜ should deny delete access for readonly permission level
+      ÔêÜ should allow write access for readwrite permission level (1 ms)
+      ÔêÜ should allow delete access for readwrite permission level
+      ÔêÜ should deny all access for "none" permission level
+      ÔêÜ should aggregate permissions from multiple roles (max wins)
+      ÔêÜ should deny access when expired role is the only one granting permission
+      ÔêÜ should deny access when user has no active roles
+      ÔêÜ should throw error when requireEntityPermission fails
+      ÔêÜ should check entity permissions for risks entity type (1 ms)
+      ÔêÜ should check entity permissions for controls entity type
+      ÔêÜ should check entity permissions for incidents entity type (1 ms)
+      ÔêÜ should deny cross-entity write (risk role cannot modify assets)
+    canPerformWriteAction
+      ÔêÜ should return true if any entity has readwrite permission
+      ÔêÜ should return false if only readonly permissions exist
+      ÔêÜ should return true for admin even without entity permissions
+      ÔêÜ should return false when role is expired
+
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        0.875 s, estimated 1 s
+Ran all test suites matching /integration/i.
+EXIT_CODE=0

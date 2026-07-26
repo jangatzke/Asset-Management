@@ -408,3 +408,23 @@
 | **ID** | Eindeutige Anforderungs-ID (Kategorie-Nummer) |
 | **Priorität** | P0 = sicherheitskritisch, P1 = hoch |
 | **Kategorie** | API = API-Funktionalität, SEC = Sicherheit, OPS = Betrieb, CI/CD = Continuous Integration/Delivery |
+
+---
+
+## Phase 0-5 Technical Consolidation and Hardening Work Packages
+
+These requirements define the ordered consolidation work. They are planning and traceability requirements only; Phase 0 does not claim functional implementation for later phases.
+
+| ID | Phase | Priority | Category | Description | Acceptance criterion |
+|----|-------|----------|----------|-------------|----------------------|
+| AUTHZ-001 | 1 | P0 | Authorization | Consolidate route-level authorization so administrative APIs depend on role capability flags and not legacy role-name checks. | Admin-only requests are denied with 403 unless an active role grants the required administrative capability; automated tests cover allow and deny paths. |
+| AUTHZ-002 | 1 | P0 | Authorization | Consolidate entity-level permissions for assets, risks, controls and incidents. | Read, write and delete actions use one shared permission decision path with tests for none, readonly and readwrite roles. |
+| AUTHN-001 | 2 | P0 | Authentication | Harden local authentication bootstrap, self-registration and auth endpoint rate limiting. | Self-registration is disabled by default, first-admin creation is single-use, and login/register/bootstrap endpoints are rate limited. |
+| AUTHN-002 | 3 | P0 | Authentication | Add MFA and password pre-authentication hardening for local authentication before privileged access. | MFA setup/enforcement and password pre-auth checks are specified and verified before enabling privileged operations; weak passwords are rejected before persistence. |
+| OIDC-001 | 2 | P0 | OIDC | Harden OIDC state, nonce and PKCE handling. | Authorization requests use PKCE S256, state and nonce are stored and validated, and callback failures are audited without leaking tokens. |
+| AUD-001 | 4 | P0 | Audit | Consolidate audit logging for security-relevant authentication, authorization, admin and configuration events. | Audit entries include actor, action, object type/id, timestamp and before/after values where applicable; audit records are append-only through the API. |
+| DTO-001 | 4 | P1 | DTO/API | Consolidate shared DTO and validation contracts across backend and frontend boundaries. | Request and response schemas are defined in the shared package or documented exceptions; backend validation rejects invalid payloads consistently. |
+| UI-001 | 5 | P1 | UI | Align frontend security-sensitive flows with consolidated auth/authz/DTO behavior without adding new product modules. | UI handles 401/403/429/validation errors consistently and does not expose controls for operations the current user cannot perform. |
+| OPS-013 | 0 | P0 | Operations | Establish reproducible technical baseline documentation before functional refactoring. | Baseline document records commit, date, build/test/lint/Prisma/CI status, counts, warnings and known errors from repository commands. |
+| OPS-014 | 5 | P1 | Operations | Stop after Phase 5 for explicit verification and decision gate before later ISMS module work. | Implementation log and refactoring plan include a mandatory stop after Phase 5 with no Phase 6+ implementation in this consolidation track. |
+| CI-003 | 0 | P0 | CI/CD | Document CI/CD workflow baseline and verification gaps before changing gates. | Existing workflow jobs and known configuration issues are recorded; missing or failing scripts are documented rather than replaced in Phase 0. |

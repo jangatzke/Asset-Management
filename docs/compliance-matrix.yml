@@ -1233,3 +1233,143 @@
     - 15+ checks, 2x approver, semver tagging specifications definiert
   evidence:
     - Operations manual enthält release gate checklist (G1-G11)
+
+- id: AUTHZ-001
+  title: Consolidated administrative authorization
+  priority: P0
+  status: planned
+  phase: 1
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 1.
+  evidence:
+    - docs/refactoring-plan.md
+    - docs/refactoring-baseline.md
+
+- id: AUTHZ-002
+  title: Consolidated entity-level authorization
+  priority: P0
+  status: planned
+  phase: 1
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 1.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: AUTHN-001
+  title: Local authentication bootstrap and rate-limit hardening
+  priority: P0
+  status: planned
+  phase: 2
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 2.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: AUTHN-002
+  title: MFA and password pre-authentication hardening
+  priority: P0
+  status: planned
+  phase: 3
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 3.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: OIDC-001
+  title: OIDC state nonce and PKCE hardening
+  priority: P0
+  status: planned
+  phase: 2
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 2.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: AUD-001
+  title: Consolidated audit logging
+  priority: P0
+  status: planned
+  phase: 4
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 4.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: DTO-001
+  title: Shared DTO and validation contract consolidation
+  priority: P1
+  status: planned
+  phase: 4
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 4.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: UI-001
+  title: Frontend security-flow alignment
+  priority: P1
+  status: planned
+  phase: 5
+  implementation: []
+  tests: []
+  gaps:
+    - Phase 0 documents this requirement only; implementation is reserved for Phase 5.
+  evidence:
+    - docs/refactoring-plan.md
+
+- id: OPS-013
+  title: Reproducible technical baseline
+  priority: P0
+  status: compliant
+  phase: 0
+  implementation:
+    - docs/refactoring-plan.md
+    - docs/refactoring-baseline.md
+    - docs/implementation-log.md
+  tests:
+    - backend/src/__tests__/phase0.docs-consistency.test.ts
+  gaps: []
+  evidence:
+    - Baseline captures build, test, lint, Prisma and CI/CD workflow status before functional refactoring.
+
+- id: OPS-014
+  title: Stop after Phase 5 consolidation gate
+  priority: P1
+  status: compliant
+  phase: 5
+  implementation:
+    - docs/refactoring-plan.md
+  tests:
+    - backend/src/__tests__/phase0.docs-consistency.test.ts
+  gaps: []
+  evidence:
+    - Refactoring plan contains an explicit mandatory stop after Phase 5.
+
+- id: CI-003
+  title: CI/CD baseline inspection before gate changes
+  priority: P0
+  status: compliant
+  phase: 0
+  implementation:
+    - docs/refactoring-baseline.md
+    - .github/workflows/ci.yml
+  tests:
+    - backend/src/__tests__/phase0.docs-consistency.test.ts
+  gaps:
+    - CI workflow was inspected but not modified in Phase 0.
+  evidence:
+    - Baseline documents existing CI/CD jobs and known workflow concerns.

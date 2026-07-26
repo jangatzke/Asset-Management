@@ -1,0 +1,51 @@
+
+> backend@1.0.0 lint
+> eslint src --ext .ts
+
+
+Oops! Something went wrong! :(
+
+ESLint: 8.57.1
+
+ESLint couldn't find a configuration file. To set up a configuration file for this project, please run:
+
+    npm init @eslint/config
+
+ESLint looked for configuration files in C:\Users\jan\Documents\Visual Studio Code\Asset Management\backend\src\config and its ancestors. If it found none, it then looked in your home directory.
+
+If you think you already have a configuration file or if you need more help, please stop by the ESLint Discord server: https://eslint.org/chat
+
+npm error Lifecycle script `lint` failed with error:
+npm error code 2
+npm error path C:\Users\jan\Documents\Visual Studio Code\Asset Management\backend
+npm error workspace backend@1.0.0
+npm error location C:\Users\jan\Documents\Visual Studio Code\Asset Management\backend
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c eslint src --ext .ts
+
+
+> frontend@1.0.0 lint
+> eslint src --ext .ts,.tsx
+
+
+Oops! Something went wrong! :(
+
+ESLint: 8.57.1
+
+ESLint couldn't find a configuration file. To set up a configuration file for this project, please run:
+
+    npm init @eslint/config
+
+ESLint looked for configuration files in C:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src and its ancestors. If it found none, it then looked in your home directory.
+
+If you think you already have a configuration file or if you need more help, please stop by the ESLint Discord server: https://eslint.org/chat
+
+npm error Lifecycle script `lint` failed with error:
+npm error code 2
+npm error path C:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend
+npm error workspace frontend@1.0.0
+npm error location C:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c eslint src --ext .ts,.tsx
+
+EXIT_CODE=2
