@@ -6,6 +6,7 @@ import { riskService } from '../services/risk.service';
 import { riskAggregationService } from '../services/risk.aggregation';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
+import { z } from 'zod';
 import {
   CreateNestedRiskControlAssessmentSchema,
   CreateNestedRiskControlSchema,
@@ -20,6 +21,35 @@ import {
 
 
 export const riskRouter = Router();
+
+const CreateRiskRouteSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  possibleImpact: z.string().min(1),
+  organizationUnitId: z.string().uuid().optional(),
+  scenarioId: z.string().uuid().optional(),
+  threatId: z.string().uuid().optional(),
+  vulnerabilityId: z.string().uuid().optional(),
+  causeIds: z.array(z.string().uuid()).optional(),
+  impactIds: z.array(z.string().uuid()).optional(),
+  assetIds: z.array(z.string().uuid()).optional(),
+  processIds: z.array(z.string().uuid()).optional(),
+  serviceIds: z.array(z.string().uuid()).optional(),
+  riskMethodVersionId: z.string().uuid().optional(),
+  likelihood: z.coerce.number().int().min(1).max(5),
+  impact: z.coerce.number().int().min(1).max(5),
+  assessorId: z.string().min(1),
+  riskOwnerId: z.string().min(1),
+  nextReviewDate: z.coerce.date(),
+  justification: z.string().min(1),
+  residualRisk: z.string().optional(),
+  targetRisk: z.string().optional(),
+});
+
+const UpdateRiskRouteSchema = CreateRiskRouteSchema.partial().extend({
+  status: z.string().optional(),
+  assessmentType: z.enum(['inherent', 'current', 'target']).optional(),
+});
 
 const parseAggregationFilters = (query: any) => ({
   from: query.from ? new Date(String(query.from)) : undefined,
@@ -46,7 +76,7 @@ riskRouter.get('/', authenticate, requirePermission('risks.read'), async (req: A
   }
 });
 
-riskRouter.post('/', authenticate, requirePermission('risks.write'), async (req: AuthRequest, res, next) => {
+riskRouter.post('/', authenticate, requirePermission('risks.write'), validateBody(CreateRiskRouteSchema), async (req: AuthRequest, res, next) => {
   try {
     await authorizationService.require(req.userId!, 'risks.write');
     const risk = await riskService.create(req.body, req.userId);
@@ -336,7 +366,7 @@ riskRouter.get('/:id', authenticate, requireEntityPermission('risks.read', 'risk
   }
 });
 
-riskRouter.put('/:id', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+riskRouter.put('/:id', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateRiskRouteSchema), async (req: AuthRequest, res, next) => {
   try {
     const risk = await riskService.update(req.params.id, req.body, req.userId);
     res.json(risk);

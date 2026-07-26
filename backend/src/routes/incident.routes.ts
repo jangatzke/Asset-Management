@@ -53,15 +53,6 @@ incidentRouter.get('/', authenticate, requirePermission('incidents.read'), async
   }
 });
 
-incidentRouter.get('/:id', authenticate, requireEntityPermission('incidents.read', 'incidents'), async (req, res, next) => {
-  try {
-    const incident = await incidentService.getById(req.params.id);
-    res.json(incident);
-  } catch (error) {
-    next(error);
-  }
-});
-
 incidentRouter.post('/', authenticate, authorizeEntityWrite('incidents'), validateBody(CreateIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
     const incident = await incidentService.create(req.body, req.userId);
@@ -107,6 +98,24 @@ incidentRouter.post('/escalations/run-overdue', authenticate, authorizeEntityWri
   }
 });
 
+incidentRouter.get('/reports/:reportId/export', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const report = await incidentService.exportReportPackage(req.params.reportId, req.userId ?? 'system');
+    res.json(report);
+  } catch (error) {
+    next(error);
+  }
+});
+
+incidentRouter.get('/:id', authenticate, requireEntityPermission('incidents.read', 'incidents'), async (req, res, next) => {
+  try {
+    const incident = await incidentService.getById(req.params.id);
+    res.json(incident);
+  } catch (error) {
+    next(error);
+  }
+});
+
 incidentRouter.post('/:id/assess', authenticate, authorizeEntityWrite('incidents'), validateBody(AssessIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
     const assessment = await incidentService.assessIncident(req.params.id, req.body);
@@ -138,15 +147,6 @@ incidentRouter.post('/:id/reports', authenticate, authorizeEntityWrite('incident
   try {
     const report = await incidentService.createIncidentReport(req.params.id, req.body);
     res.status(201).json(report);
-  } catch (error) {
-    next(error);
-  }
-});
-
-incidentRouter.get('/reports/:reportId/export', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const report = await incidentService.exportReportPackage(req.params.reportId, req.userId ?? 'system');
-    res.json(report);
   } catch (error) {
     next(error);
   }

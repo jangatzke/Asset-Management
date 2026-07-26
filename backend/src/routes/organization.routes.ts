@@ -1,11 +1,24 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { prisma } from '../config/database';
 
 export const orgRouter = Router();
 
-orgRouter.get('/units', authenticate, (_req, res, _next) => {
-  // TODO: Implement organization units listing
-  res.status(501).json({ error: 'Not Implemented', message: 'List org units endpoint is not yet implemented' });
+orgRouter.get('/units', authenticate, async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const limitParam = Number.parseInt(String(req.query.limit ?? '20'), 10);
+    const take = Math.min(Math.max(Number.isFinite(limitParam) ? limitParam : 20, 1), 50);
+    const units = await prisma.organizationUnit.findMany({
+      where: q ? { name: { contains: q, mode: 'insensitive' } } : undefined,
+      orderBy: { name: 'asc' },
+      take,
+      select: { id: true, name: true },
+    });
+    res.json({ data: units.map((unit) => ({ id: unit.id, label: unit.name, name: unit.name })) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 orgRouter.post('/units', authenticate, (_req, res, _next) => {

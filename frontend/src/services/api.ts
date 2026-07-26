@@ -154,6 +154,10 @@ export const userSearchApi = {
   owners: (query?: string) => api.get(`/users/owners${query ? `?q=${encodeURIComponent(query)}` : ''}`),
 };
 
+export const organizationApi = {
+  listUnits: (params?: { q?: string; limit?: number }) => api.get('/organization/units', { params }),
+};
+
 export const frameworkApi = {
   list: () => api.get('/frameworks'),
   import: (data: any) => api.post('/frameworks/import', data),

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi } from '../services/api';
+import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
@@ -190,6 +190,13 @@ const Risks = () => {
   const searchProcesses = async (q: string) => {
     try {
       const res = await processApi.list({ q, limit: 20 });
+      return res.data?.data ?? [];
+    } catch { return []; }
+  };
+
+  const searchOrganizationUnits = async (q: string) => {
+    try {
+      const res = await organizationApi.listUnits({ q, limit: 20 });
       return res.data?.data ?? [];
     } catch { return []; }
   };
@@ -556,7 +563,7 @@ const Risks = () => {
           <EntitySearchSelect label={t('risks.assessor')} searchEndpoint={searchUsers} value={form.assessorId}
             onChange={(v) => setForm({ ...form, assessorId: v })} placeholder={t('risks.searchUsers')} />
 
-          <EntitySearchSelect label={t('risks.organizationUnit')} searchEndpoint={searchUsers} value={form.organizationUnitId}
+          <EntitySearchSelect label={t('risks.organizationUnit')} searchEndpoint={searchOrganizationUnits} value={form.organizationUnitId}
             onChange={(v) => setForm({ ...form, organizationUnitId: v })} placeholder={t('risks.searchOrgUnits')} />
 
           <EntitySearchSelect label={t('risks.businessProcess')} searchEndpoint={searchProcesses} value={form.processId}

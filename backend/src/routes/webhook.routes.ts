@@ -89,6 +89,63 @@ router.post('/', requireScopes('webhooks:write'), (req: Request, res: Response) 
 });
 
 /**
+ * POST /api/v1/webhooks/broadcast - Broadcast event to all matching webhooks
+ */
+router.post('/broadcast', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+  const { eventType, data } = req.body;
+
+  if (!eventType || !data) {
+    res.status(400).json({ error: 'Validation Error', message: 'eventType and data are required' });
+    return;
+  }
+
+  // Find active webhooks that listen to this event type
+  const matchingWebhooks = Array.from(webhooks.values()).filter(w => 
+    w.isActive && !w.isArchived && w.events.includes(eventType as WebhookEvent)
+  );
+
+  const results = [];
+
+  for (const webhook of matchingWebhooks) {
+    const payload = {
+      id: crypto.randomUUID(),
+      type: eventType as WebhookEvent,
+      timestamp: new Date().toISOString(),
+      data,
+    };
+
+    try {
+      const result = await deliverWebhookWithRetry(payload, {
+        url: webhook.url,
+        secret: webhook.secret,
+        maxRetries: webhook.maxRetries,
+        timeoutMs: webhook.timeoutMs,
+      });
+
+      if (result.success) {
+        webhook.lastDeliveryStatus = 'success';
+        webhook.lastDeliveredAt = new Date();
+        webhook.failureCount = 0;
+      } else {
+        webhook.lastDeliveryStatus = 'failed';
+        webhook.failureCount++;
+      }
+
+      results.push({ webhookId: webhook.id, result });
+    } catch (error) {
+      webhook.lastDeliveryStatus = 'failed';
+      webhook.failureCount++;
+      results.push({ webhookId: webhook.id, result: { success: false, errorMessage: String(error) } });
+    }
+
+    // Update each webhook's timestamp after processing
+    webhook.updatedAt = new Date();
+  }
+
+  res.json({ data: results });
+});
+
+/**
  * GET /api/v1/webhooks/:id - Get webhook
  */
 router.get('/:id', requireScopes('webhooks:read'), (req: Request, res: Response) => {
@@ -191,63 +248,6 @@ router.post('/:id/test', requireScopes('webhooks:write'), async (req: Request, r
 
     res.status(502).json({ error: 'Webhook Delivery Failed', message: String(error) });
   }
-});
-
-/**
- * POST /api/v1/webhooks/broadcast - Broadcast event to all matching webhooks
- */
-router.post('/broadcast', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
-  const { eventType, data } = req.body;
-
-  if (!eventType || !data) {
-    res.status(400).json({ error: 'Validation Error', message: 'eventType and data are required' });
-    return;
-  }
-
-  // Find active webhooks that listen to this event type
-  const matchingWebhooks = Array.from(webhooks.values()).filter(w => 
-    w.isActive && !w.isArchived && w.events.includes(eventType as WebhookEvent)
-  );
-
-  const results = [];
-
-  for (const webhook of matchingWebhooks) {
-    const payload = {
-      id: crypto.randomUUID(),
-      type: eventType as WebhookEvent,
-      timestamp: new Date().toISOString(),
-      data,
-    };
-
-    try {
-      const result = await deliverWebhookWithRetry(payload, {
-        url: webhook.url,
-        secret: webhook.secret,
-        maxRetries: webhook.maxRetries,
-        timeoutMs: webhook.timeoutMs,
-      });
-
-      if (result.success) {
-        webhook.lastDeliveryStatus = 'success';
-        webhook.lastDeliveredAt = new Date();
-        webhook.failureCount = 0;
-      } else {
-        webhook.lastDeliveryStatus = 'failed';
-        webhook.failureCount++;
-      }
-
-      results.push({ webhookId: webhook.id, result });
-    } catch (error) {
-      webhook.lastDeliveryStatus = 'failed';
-      webhook.failureCount++;
-      results.push({ webhookId: webhook.id, result: { success: false, errorMessage: String(error) } });
-    }
-
-    // Update each webhook's timestamp after processing
-    webhook.updatedAt = new Date();
-  }
-
-  res.json({ data: results });
 });
 
 export const webhookRouter = router;

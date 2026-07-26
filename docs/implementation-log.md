@@ -1,5 +1,21 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 5: Risk impact and route consistency
+
+| Field | Value |
+|-------|-------|
+| Phase | 5 — concrete API bugs and API consistency only |
+| Commit | Pending during this log entry; target commit message: `Phase 5: fix risk impact and route consistency`. |
+| Requirements | API-501, API-502, UI-501, IAM-003, RSK-005, OPS-014 |
+| changed files | `docs/phase5-api-bugs-plan.md`, `backend/src/services/risk.service.ts`, `backend/src/routes/risk.routes.ts`, `backend/src/routes/auditLog.routes.ts`, `backend/src/routes/user.routes.ts`, `backend/src/routes/serviceAccount.routes.ts`, `backend/src/routes/webhook.routes.ts`, `backend/src/routes/incident.routes.ts`, `backend/src/routes/riskmethod.routes.ts`, `backend/src/routes/organization.routes.ts`, `backend/src/__tests__/phase5.api-bugs.test.ts`, `frontend/src/services/api.ts`, `frontend/src/services/phase5-api-bugs.test.ts`, `frontend/src/pages/Risks.tsx`, `shared/src/dtos/index.ts`, requirements/compliance docs. |
+| schema changes | None. `Risk.possibleImpact` already existed in Prisma and is now used directly instead of being populated from `description`; no migration was added. |
+| API changes | Risk create/update validation includes `possibleImpact`; Risk service persists/updates it independently. Static route ordering was corrected for audit export and comparable static routes in user, service-account, webhook, incident, risk-method and risk review-task paths. Organization units now have a minimal real `GET /api/v1/organization/units` endpoint returning picker options. |
+| frontend changes | Risk form organization-unit picker uses `organizationApi.listUnits()` instead of user search. Risk form already submitted/read distinct `description` and `possibleImpact`; backend now preserves that contract. |
+| new tests | `backend/src/__tests__/phase5.api-bugs.test.ts` covers Risk `description`/`possibleImpact` create/read persistence, audit export route ordering, comparable route collisions and organization-unit listing. `frontend/src/services/phase5-api-bugs.test.ts` documents the organization endpoint helper, but current Vitest baseline reports no suites for frontend service tests. |
+| verification | Backend build PASS; shared build PASS; frontend build PASS with known Vite chunk-size warning; Prisma validate PASS; focused backend Phase 5/route tests PASS (14/14). Frontend focused Vitest attempts FAIL with current baseline `No test suite found` behavior also reproduced on existing `frontend/src/services/api.test.ts`. Backend lint FAIL and frontend lint FAIL due known missing ESLint config. No migration was added, so Prisma migrate deploy/status was not run for Phase 5. |
+| known baseline failures | Full backend Jest may still fail from known mock drift/open handles; lint still fails because no ESLint config exists; frontend build chunk-size warning remains; frontend Vitest service-test discovery/collection currently reports no test suite. |
+| out of scope confirmation | Phase 6 shared DTO overhaul/services, universal entity picker, audit hash chain, jobs, health/metrics, CI gates, broad code-quality refactors and new ISMS functional modules were not started. |
+
 ## 2026-07-26 — Phase 4: OIDC authorization code flow consolidation
 
 | Feld | Wert |

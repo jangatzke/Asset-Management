@@ -36,27 +36,6 @@ auditLogRouter.get('/', adminGuard, async (req: AuthRequest, res: Response, next
 });
 
 /**
- * GET /audit-log/:id
- * Get a single audit log entry by ID.
- */
-auditLogRouter.get('/:id', adminGuard, async (_req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const entry = await prisma.auditLog.findUnique({
-      where: { id: _req.params.id },
-    });
-
-    if (!entry) {
-      res.status(404).json({ error: 'Audit log entry not found' });
-      return;
-    }
-
-    res.json(entry);
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
  * GET /audit-log/export?format=json|csv
  * Export audit log entries as JSON or CSV.
  */
@@ -83,6 +62,27 @@ auditLogRouter.get('/export', adminGuard, async (req: AuthRequest, res: Response
     // Default: JSON export
     const entries = await auditService.exportAuditLog(prisma, filters);
     res.json(entries);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /audit-log/:id
+ * Get a single audit log entry by ID.
+ */
+auditLogRouter.get('/:id', adminGuard, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const entry = await prisma.auditLog.findUnique({
+      where: { id: _req.params.id },
+    });
+
+    if (!entry) {
+      res.status(404).json({ error: 'Audit log entry not found' });
+      return;
+    }
+
+    res.json(entry);
   } catch (error) {
     next(error);
   }

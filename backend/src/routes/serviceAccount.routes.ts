@@ -114,6 +114,45 @@ router.post('/', requireScopes('serviceaccounts:write'), (req: Request, res: Res
 });
 
 /**
+ * POST /api/v1/service-accounts/auth - Authenticate service account (for testing)
+ */
+router.post('/auth', (req: Request, res: Response) => {
+  const { accessToken } = req.body;
+
+  if (!accessToken) {
+    res.status(400).json({ error: 'Validation Error', message: 'accessToken is required' });
+    return;
+  }
+
+  // Find matching service account
+  for (const account of serviceAccounts.values()) {
+    if (!account.isActive || account.isArchived) continue;
+
+    // Check expiration
+    if (account.expiresAt && new Date() > account.expiresAt) {
+      continue;
+    }
+
+    if (validateAccessToken(accessToken, account.accessTokenSalt, account.accessTokenHash)) {
+      account.lastUsedAt = new Date();
+      
+      res.json({ 
+        success: true,
+        data: {
+          id: account.id,
+          displayId: account.displayId,
+          name: account.name,
+          scopes: account.scopes,
+        }
+      });
+      return;
+    }
+  }
+
+  res.status(401).json({ error: 'Authentication Failed', message: 'Invalid access token' });
+});
+
+/**
  * GET /api/v1/service-accounts/:id - Get service account
  */
 router.get('/:id', requireScopes('serviceaccounts:read'), (req: Request, res: Response) => {
@@ -217,45 +256,6 @@ router.get('/:id/tokens', requireScopes('serviceaccounts:read'), (req: Request, 
       scopes: account.scopes,
     }
   });
-});
-
-/**
- * POST /api/v1/service-accounts/auth - Authenticate service account (for testing)
- */
-router.post('/auth', (req: Request, res: Response) => {
-  const { accessToken } = req.body;
-
-  if (!accessToken) {
-    res.status(400).json({ error: 'Validation Error', message: 'accessToken is required' });
-    return;
-  }
-
-  // Find matching service account
-  for (const account of serviceAccounts.values()) {
-    if (!account.isActive || account.isArchived) continue;
-
-    // Check expiration
-    if (account.expiresAt && new Date() > account.expiresAt) {
-      continue;
-    }
-
-    if (validateAccessToken(accessToken, account.accessTokenSalt, account.accessTokenHash)) {
-      account.lastUsedAt = new Date();
-      
-      res.json({ 
-        success: true,
-        data: {
-          id: account.id,
-          displayId: account.displayId,
-          name: account.name,
-          scopes: account.scopes,
-        }
-      });
-      return;
-    }
-  }
-
-  res.status(401).json({ error: 'Authentication Failed', message: 'Invalid access token' });
 });
 
 export const serviceAccountRouter = router;

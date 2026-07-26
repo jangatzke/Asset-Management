@@ -14,15 +14,6 @@ userRouter.get('/', authenticate, async (_req, res, next) => {
   }
 });
 
-// Get user by ID
-userRouter.get('/:id', authenticate, async (req, res, next) => {
-  try {
-    res.json(await userService.getUserById(req.params.id));
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Search users (for owner dropdown)
 userRouter.get('/search', authenticate, async (req, res, next) => {
   try {
@@ -39,6 +30,15 @@ userRouter.get('/owners', authenticate, async (req, res, next) => {
   try {
     const q = (req.query.q as string) || undefined;
     res.json(await userService.getOwnersForSelect(q));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get user by ID
+userRouter.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    res.json(await userService.getUserById(req.params.id));
   } catch (error) {
     next(error);
   }

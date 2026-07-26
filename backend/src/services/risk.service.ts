@@ -27,6 +27,7 @@ async function resolveOrgUnitScope(organizationUnitId: string) {
 export interface CreateRiskData {
   title: string;
   description: string;
+  possibleImpact: string;
   organizationUnitId?: string;
   // Relational building blocks
   scenarioId?: string;
@@ -361,7 +362,7 @@ export class RiskService {
           scenarioId: data.scenarioId,
           threatId: data.threatId,
           vulnerabilityId: data.vulnerabilityId,
-          possibleImpact: data.description,
+          possibleImpact: data.possibleImpact,
           likelihood: data.likelihood,
           impact: data.impact,
           inherentRisk,
@@ -507,6 +508,7 @@ export class RiskService {
       const updateData: Prisma.RiskUpdateInput = {
         ...(data.title !== undefined && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
+        ...(data.possibleImpact !== undefined && { possibleImpact: data.possibleImpact }),
         ...(data.organizationUnitId !== undefined && { organizationUnitId: data.organizationUnitId }),
         ...(data.scenarioId !== undefined && { scenarioId: data.scenarioId }),
         ...(data.threatId !== undefined && { threatId: data.threatId }),

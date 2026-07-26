@@ -458,14 +458,22 @@
     - backend/src/routes/asset.routes.ts
     - backend/src/routes/risk.routes.ts
     - backend/src/routes/control.routes.ts
+    - backend/src/routes/auditLog.routes.ts
+    - backend/src/routes/user.routes.ts
+    - backend/src/routes/serviceAccount.routes.ts
+    - backend/src/routes/webhook.routes.ts
+    - backend/src/routes/incident.routes.ts
+    - backend/src/routes/riskmethod.routes.ts
   tests:
     - backend/src/__tests__/auth.routes.test.ts
     - backend/src/__tests__/route.order.test.ts
+    - backend/src/__tests__/phase5.api-bugs.test.ts
   gaps: []
   evidence:
     - Statische Routen (/types, /graph, /incomplete, /import) VOR parametrisierten Routes (/:id) in asset.routes.ts
     - Aggregierte Routes (/aggregated/*, /dashboard-summary, /check-unplanned-review) VOR /:id in risk.routes.ts
     - Statische Route /soa VOR /:id in control.routes.ts
+    - Phase 5 verifies /audit-log/export, /users/search, /users/owners, /service-accounts/auth, /webhooks/broadcast, /incidents/reports/:reportId/export, /methods/versions/:versionId and /risks/review-tasks/:taskId before parameter routes
     - Admin-Sub-Routern (/admin/vmware, /admin/proxmox) werden nach /admin gemountet - Reihenfolge korrekt
     - Integrationstest für Route-Konflikte (route.order.test.ts)
 
@@ -853,6 +861,7 @@
     - shared/src/dtos/index.ts
   tests:
     - backend/src/__tests__/risk.assessment.test.ts
+    - backend/src/__tests__/phase5.api-bugs.test.ts
   gaps: []
   evidence:
     - RiskScenario-Modell verbindet Threat + Vulnerability relational
@@ -862,6 +871,7 @@
     - assessmentType unterscheidet inherent, current, target
     - Historisierung: neue Bewertung erzeugt neuen RiskAssessment-Eintrag, alter bleibt unverändert
     - checkUnplannedReviewTrigger erzeugt konkrete ReviewTask-Instanzen
+    - Phase 5 preserves Risk.description and Risk.possibleImpact as distinct API/database fields on create/read
 
 - id: RSK-003
   title: Risiko-Behandlung und Risiko-Akzeptanz

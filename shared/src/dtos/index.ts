@@ -242,12 +242,27 @@ export type ExportQueryDTO = z.infer<typeof ExportQuerySchema>;
 // ==========================================
 
 export const CreateRiskSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  likelihood: z.enum(['low', 'medium', 'high']).default('medium'),
-  impact: z.enum(['low', 'medium', 'high']).default('medium'),
-  status: z.string().default('identified'),
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().min(1, 'Description is required'),
+  possibleImpact: z.string().min(1, 'Possible impact is required'),
+  organizationUnitId: z.string().uuid('Invalid organization unit ID').optional(),
+  scenarioId: z.string().uuid('Invalid scenario ID').optional(),
+  threatId: z.string().uuid('Invalid threat ID').optional(),
+  vulnerabilityId: z.string().uuid('Invalid vulnerability ID').optional(),
+  causeIds: z.array(z.string().uuid()).optional(),
+  impactIds: z.array(z.string().uuid()).optional(),
+  assetIds: z.array(z.string().uuid()).optional(),
+  processIds: z.array(z.string().uuid()).optional(),
+  serviceIds: z.array(z.string().uuid()).optional(),
+  riskMethodVersionId: z.string().uuid('Invalid risk method version ID').optional(),
+  likelihood: z.coerce.number().int().min(1).max(5),
+  impact: z.coerce.number().int().min(1).max(5),
+  assessorId: z.string().min(1, 'Assessor is required'),
+  riskOwnerId: z.string().min(1, 'Risk owner is required'),
+  nextReviewDate: z.coerce.date(),
+  justification: z.string().min(1, 'Justification is required'),
+  residualRisk: z.string().optional(),
+  targetRisk: z.string().optional(),
 });
 
 export type CreateRiskDTO = z.infer<typeof CreateRiskSchema>;
