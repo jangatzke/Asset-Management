@@ -1334,14 +1334,25 @@
 - id: OIDC-001
   title: OIDC state nonce and PKCE hardening
   priority: P0
-  status: planned
-  phase: 2
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 2.
+  status: compliant
+  phase: 4
+  implementation:
+    - backend/src/services/oidc.service.ts
+    - backend/src/routes/auth.routes.ts
+    - backend/src/services/auth.service.ts
+    - backend/src/services/audit.service.ts
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260726111500_phase4_oidc_consolidation/migration.sql
+  tests:
+    - backend/src/__tests__/oidc.security.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
+    - Authorization URL uses backend-generated PKCE S256, state and nonce via openid-client.
+    - OidcLoginState stores only hashed state with nonce/verifier, TTL and usedAt single-use tracking.
+    - Callback calls openid-client authorizationCodeGrant with expected state, nonce and PKCE verifier, then enforces Entra tenant claim matching.
+    - OidcAccountLink prevents email-only auto-linking for existing local users and audits rejected attempts.
+    - OIDC client secret can be resolved through env-backed clientSecretRef; legacy clientSecret is deprecated compatibility data.
 
 - id: AUD-001
   title: Consolidated audit logging

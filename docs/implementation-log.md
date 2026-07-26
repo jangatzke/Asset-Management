@@ -1,5 +1,20 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 4: OIDC authorization code flow consolidation
+
+| Feld | Wert |
+|---|---|
+| Phase | 4 — OIDC consolidation only |
+| Commit | Pending during this log entry; target commit message: `Phase 4: consolidate OIDC authorization code flow`. |
+| Requirements | OIDC-001, AUTHN-001/AUTHN-003 session issuance aspects, AUD-001 OIDC auth-event aspects |
+| changed files | `docs/phase4-oidc-plan.md`, `backend/prisma/schema.prisma`, `backend/prisma/migrations/20260726111500_phase4_oidc_consolidation/migration.sql`, `backend/src/services/oidc.service.ts`, `backend/src/services/auth.service.ts`, `backend/src/services/audit.service.ts`, `backend/src/routes/auth.routes.ts`, OIDC/auth tests and Prisma test mocks, security/architecture/requirements/compliance docs. |
+| schema changes | Added `OidcLoginState` for hashed state, nonce, verifier, TTL, and single-use tracking; added `OidcAccountLink` for provider/config subject-to-user links; added `OidcConfig.clientSecretRef` and `autoProvisioningRequiresApproval`. Legacy `clientSecret` remains deprecated compatibility data. |
+| API changes | `GET /api/v1/auth/oidc/authorize` now returns a backend-generated authorization URL and state; `POST /api/v1/auth/oidc/callback` no longer trusts a client-supplied code verifier and sets the normal refresh-token cookie after successful OIDC validation. |
+| new tests | `backend/src/__tests__/oidc.security.test.ts` covers PKCE S256/state/nonce URL, hashed TTL state, missing/expired/reused state rejection, openid-client expected state/nonce/verifier checks, no email-only linking, pre-linked session issuance, tenant mismatch rejection, and env secret-reference resolution. Auth routes were adjusted for the new response/session behavior. |
+| verification | Backend build PASS; shared build PASS; frontend build PASS with known Vite chunk-size warning; Prisma validate PASS; Prisma migrate status initially reported pending Phase 4 migration, then Prisma migrate deploy PASS and status PASS; focused OIDC/auth route tests PASS (29/29); impacted auth service tests PASS (24/24); lint FAIL due known missing ESLint configuration. Prisma generate was attempted but failed with Windows EPERM renaming the Prisma query engine while active processes held it; backend build still passed using existing generated client plus guarded Prisma access. |
+| known baseline failures | Full backend Jest may still fail from known mock drift/open handles; lint still fails because no ESLint config exists; frontend build chunk-size warning remains; active frontend Vitest terminals were not interrupted. |
+| out of scope confirmation | Phase 5 risk `possibleImpact`, UI entity picker, audit hash chain, jobs, health/metrics, CI gates, code-quality refactors and new ISMS functional modules were not started. |
+
 ## 2026-07-26 — Phase 3: pre-auth MFA and password flows
 
 | Feld | Wert |

@@ -41,6 +41,10 @@ Das System schützt vertrauliche ISMS-Daten gemäß ISO/IEC 27001:2022 und erfü
 | PKCE | `code_challenge_method=S256`, `code_verifier` im Token-Exchange |
 | E-Mail-Domain-Filter | Konfigurierbar via `OidcConfig.allowedEmailDomains` |
 
+Phase 4 consolidates OIDC protocol validation in `openid-client`. The backend generates `state`, `nonce`, and PKCE verifier values, stores only a SHA-256 `stateHash` in `OidcLoginState`, and enforces a ten-minute TTL plus single callback use through `usedAt`. `openid-client.authorizationCodeGrant` validates the callback with expected `state`, expected `nonce`, and the server-side PKCE verifier; ID-token signature, issuer, audience, and expiry checks are handled by the library. Tenant validation is enforced in `backend/src/services/oidc.service.ts` after library validation: for Entra tenant IDs, the ID-token `tid` claim must equal `OidcConfig.tenantId`.
+
+Existing local accounts are never linked by email alone. `OidcAccountLink` binds provider/config subject to `userId`; an existing matching email without that link is rejected and audited as `OIDC_EMAIL_LINK_REJECTED`. OIDC client secrets should be configured via `OidcConfig.clientSecretRef` such as `env:OIDC_CLIENT_SECRET`; legacy `clientSecret` remains deprecated compatibility data and is not required for the secure flow.
+
 ### 2.3 JWT-Spezifikation (Ziel)
 
 ```json

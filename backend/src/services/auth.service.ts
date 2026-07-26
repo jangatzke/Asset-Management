@@ -110,6 +110,8 @@ type LocalAuthUser = {
   mfaPendingSecret: string | null;
 };
 
+export type ExternalAuthUser = Omit<LocalAuthUser, 'passwordHash'> & { passwordHash?: string };
+
 /**
  * Check if self-registration is allowed.
  * Default: disabled (SEC-006). Only admin can create users or OIDC auto-provisioning.
@@ -297,7 +299,7 @@ export class AuthService {
     return { state, preAuthToken: this.generatePreAuthToken(userId, purpose), expiresInSeconds: this.getPreAuthLifetimeSeconds() };
   }
 
-  private async issueAuthenticatedSession(user: LocalAuthUser, context: SessionContext, action: 'LOGIN' | 'MFA_LOGIN' = 'LOGIN'): Promise<AuthLoginResult> {
+  private async issueAuthenticatedSession(user: LocalAuthUser, context: SessionContext, action: 'LOGIN' | 'MFA_LOGIN' | 'OIDC_LOGIN' = 'LOGIN'): Promise<AuthLoginResult> {
     const userRoles = await prisma.userRole.findMany({ where: { userId: user.id } });
     const roles = userRoles.map((ur) => ur.roleName);
 
@@ -307,7 +309,7 @@ export class AuthService {
       action,
       entityType: 'User',
       entityId: user.id,
-      details: action === 'MFA_LOGIN' ? `Successful MFA login: ${user.email}` : `Successful login: ${user.email}`,
+      details: action === 'MFA_LOGIN' ? `Successful MFA login: ${user.email}` : action === 'OIDC_LOGIN' ? `Successful OIDC login: ${user.email}` : `Successful login: ${user.email}`,
     });
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -319,6 +321,13 @@ export class AuthService {
       refreshToken: session.refreshToken,
       refreshTokenExpiresAt: session.expiresAt,
     };
+  }
+
+  async issueExternalSession(user: ExternalAuthUser, context: SessionContext, action: 'OIDC_LOGIN' = 'OIDC_LOGIN'): Promise<AuthLoginResult> {
+    return this.issueAuthenticatedSession({
+      ...user,
+      passwordHash: user.passwordHash ?? '',
+    }, context, action);
   }
 
   private async nextStateAfterPassword(user: LocalAuthUser, context: SessionContext): Promise<AuthFlowResult> {

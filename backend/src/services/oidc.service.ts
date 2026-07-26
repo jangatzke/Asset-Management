@@ -1,13 +1,17 @@
+import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
+import { auditService } from './audit.service';
+import { AuthSessionResult, SessionContext, authService } from './auth.service';
+
+type OpenIdClientModule = typeof import('openid-client');
 
 export interface OidcConfigData {
   enabled?: boolean;
   providerName?: string;
   tenantId?: string;
   clientId?: string;
+  clientSecretRef?: string;
   clientSecret?: string;
   redirectUri?: string;
   allowedEmailDomains?: string[];
@@ -21,29 +25,102 @@ export interface OidcConfigData {
 
 export interface OidcUserInfo {
   sub: string;
-  email: string;
+  email?: string;
   given_name?: string;
   family_name?: string;
   name?: string;
   groups?: string[];
+  tid?: string;
 }
 
-export class OidcService {
-  // In-memory store for state/nonce and PKCE code verifier
-  private stateNonceStore = new Map<string, { nonce: string; codeVerifier: string; codeChallenge: string }>();
+type OidcRuntimeConfig = {
+  id: string;
+  enabled: boolean;
+  providerName: string;
+  tenantId: string | null;
+  clientId: string | null;
+  clientSecretRef?: string | null;
+  clientSecret?: string | null;
+  redirectUri: string | null;
+  allowedEmailDomains: unknown;
+  autoProvisioning: boolean;
+  defaultRoleForNewUsers: string;
+  enableGroupMapping: boolean;
+  groupClaimToRoleMapping: unknown;
+  enableLocalLogin: boolean;
+  autoProvisioningRequiresApproval?: boolean;
+};
 
-  // Helper to base64url encode a buffer
-  private base64urlEncode(buffer: Buffer): string {
-    return buffer
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+type OidcLinkedUser = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  mustChangePasswordOnNext: boolean;
+  passwordChangedAt: Date;
+  oidcId: string | null;
+  oidcProvider: string | null;
+  mfaEnabled: boolean;
+  mfaSecret: string | null;
+  mfaPendingSecret: string | null;
+};
+
+type AuthorizationResult = { authorizeUrl: string; state: string };
+
+export class OidcService {
+  private readonly stateTtlMs = 10 * 60 * 1000;
+  private openidClientForTest?: OpenIdClientModule;
+
+  setOpenIdClientForTest(openidClient: OpenIdClientModule | undefined): void {
+    if (process.env.NODE_ENV !== 'test') throw new AppError('Test OpenID client injection is not available', 500);
+    this.openidClientForTest = openidClient;
   }
 
-  // Helper to compute SHA256 hash
-  private sha256(message: string): Buffer {
-    return crypto.createHash('sha256').update(message).digest();
+  private async openidClient(): Promise<OpenIdClientModule> {
+    if (this.openidClientForTest) return this.openidClientForTest;
+    return import('openid-client');
+  }
+
+  private stateHash(state: string): string {
+    return crypto.createHash('sha256').update(state).digest('hex');
+  }
+
+  private jsonArray(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  }
+
+  private jsonRecord(value: unknown): Record<string, string> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+  }
+
+  private issuerUrl(config: OidcRuntimeConfig): URL {
+    if (!config.tenantId) throw new AppError('OIDC not configured', 400);
+    if (config.tenantId.startsWith('https://')) return new URL(config.tenantId);
+    return new URL(`https://login.microsoftonline.com/${config.tenantId}/v2.0`);
+  }
+
+  resolveClientSecret(config: Pick<OidcRuntimeConfig, 'clientSecretRef' | 'clientSecret'>): string | undefined {
+    if (config.clientSecretRef) {
+      if (!config.clientSecretRef.startsWith('env:')) throw new AppError('Unsupported OIDC client secret reference', 500);
+      const envName = config.clientSecretRef.slice('env:'.length);
+      const value = process.env[envName];
+      if (!value) throw new AppError('OIDC client secret reference could not be resolved', 500);
+      return value;
+    }
+    return config.clientSecret || undefined;
+  }
+
+  private async clientConfiguration(config: OidcRuntimeConfig) {
+    if (!config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
+    const client = await this.openidClient();
+    const clientSecret = this.resolveClientSecret(config);
+    const metadata = { redirect_uris: [config.redirectUri], response_types: ['code'] };
+    if (clientSecret) {
+      return client.discovery(this.issuerUrl(config), config.clientId, metadata, client.ClientSecretBasic(clientSecret));
+    }
+    return client.discovery(this.issuerUrl(config), config.clientId, metadata);
   }
 
   async getConfig(): Promise<any> {
@@ -59,6 +136,7 @@ export class OidcService {
           enableGroupMapping: false,
           groupClaimToRoleMapping: {},
           enableLocalLogin: true,
+          autoProvisioningRequiresApproval: false,
         },
       });
     }
@@ -67,15 +145,14 @@ export class OidcService {
 
   async updateConfig(data: OidcConfigData): Promise<any> {
     let config = await prisma.oidcConfig.findFirst();
-    if (!config) {
-      config = await this.getConfig();
-    }
+    if (!config) config = await this.getConfig();
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (data.enabled !== undefined) updateData.enabled = data.enabled;
     if (data.providerName) updateData.providerName = data.providerName;
     if (data.tenantId !== undefined) updateData.tenantId = data.tenantId;
     if (data.clientId !== undefined) updateData.clientId = data.clientId;
+    if (data.clientSecretRef !== undefined) updateData.clientSecretRef = data.clientSecretRef;
     if (data.clientSecret !== undefined) updateData.clientSecret = data.clientSecret;
     if (data.redirectUri !== undefined) updateData.redirectUri = data.redirectUri;
     if (data.allowedEmailDomains !== undefined) updateData.allowedEmailDomains = data.allowedEmailDomains;
@@ -87,10 +164,7 @@ export class OidcService {
     if (data.autoProvisioningRequiresApproval !== undefined) updateData.autoProvisioningRequiresApproval = data.autoProvisioningRequiresApproval;
 
     if (!config) throw new AppError('OIDC config not found', 404);
-    return await prisma.oidcConfig.update({
-      where: { id: config!.id },
-      data: updateData,
-    });
+    return prisma.oidcConfig.update({ where: { id: config.id }, data: updateData as any });
   }
 
   async isEnabled(): Promise<boolean> {
@@ -103,27 +177,25 @@ export class OidcService {
     return config.enableLocalLogin;
   }
 
-  async getAuthorizationUrl(state: string): Promise<string> {
-    const config = await this.getConfig();
-    if (!config.enabled || !config.tenantId || !config.clientId) {
-      throw new AppError('OIDC not configured', 400);
-    }
+  async getAuthorizationUrl(_legacyState?: string): Promise<AuthorizationResult> {
+    const config = await this.getConfig() as OidcRuntimeConfig;
+    if (!config.enabled || !config.tenantId || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
 
-    // Generate PKCE code verifier and challenge
-    const codeVerifier = crypto.randomBytes(32).toString('hex');
-    const codeChallenge = this.base64urlEncode(this.sha256(codeVerifier));
-    
-    // Generate nonce
-    const nonce = crypto.randomUUID();
-    
-    // Store state, nonce, and codeVerifier for later validation
-    this.stateNonceStore.set(state, { nonce, codeVerifier, codeChallenge });
+    const client = await this.openidClient();
+    const oidcConfig = await this.clientConfiguration(config);
+    const state = client.randomState();
+    const nonce = client.randomNonce();
+    const codeVerifier = client.randomPKCECodeVerifier();
+    const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
+    const expiresAt = new Date(Date.now() + this.stateTtlMs);
 
-    const baseUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`;
-    const params = new URLSearchParams({
-      client_id: config.clientId,
-      response_type: 'code',
-      redirect_uri: config.redirectUri || '',
+    const db = prisma as any;
+    await db.oidcLoginState.create({
+      data: { oidcConfigId: config.id, stateHash: this.stateHash(state), nonce, codeVerifier, expiresAt },
+    });
+
+    const authorizeUrl = client.buildAuthorizationUrl(oidcConfig, {
+      redirect_uri: config.redirectUri,
       scope: 'openid profile email',
       state,
       nonce,
@@ -131,206 +203,168 @@ export class OidcService {
       code_challenge_method: 'S256',
     });
 
-    return `${baseUrl}?${params.toString()}`;
+    return { authorizeUrl: authorizeUrl.href, state };
   }
 
-  async handleCallback(code: string, state: string, codeVerifier: string): Promise<any> {
-    const config = await this.getConfig();
-    if (!config.enabled || !config.clientId || !config.clientSecret || !config.redirectUri || !config.tenantId) {
-      throw new AppError('OIDC not configured', 400);
+  private async consumeState(configId: string, state: string) {
+    const stateHash = this.stateHash(state);
+    const db = prisma as any;
+    const stored = await db.oidcLoginState.findUnique({ where: { stateHash } });
+    if (!stored || stored.oidcConfigId !== configId) throw new AppError('Invalid state', 401);
+    if (stored.usedAt) throw new AppError('OIDC state has already been used', 401);
+    if (stored.expiresAt.getTime() <= Date.now()) throw new AppError('OIDC state has expired', 401);
+    await db.oidcLoginState.updateMany({ where: { id: stored.id, usedAt: null }, data: { usedAt: new Date() } });
+    const consumed = await db.oidcLoginState.findUnique({ where: { id: stored.id } });
+    if (!consumed?.usedAt) throw new AppError('OIDC state has already been used', 401);
+    return stored;
+  }
+
+  private callbackUrl(config: OidcRuntimeConfig, code: string, state: string): URL {
+    if (!config.redirectUri) throw new AppError('OIDC not configured', 400);
+    const url = new URL(config.redirectUri);
+    url.searchParams.set('code', code);
+    url.searchParams.set('state', state);
+    return url;
+  }
+
+  private claimsToUserInfo(claims: Record<string, unknown>): OidcUserInfo {
+    const sub = typeof claims.sub === 'string' ? claims.sub : '';
+    if (!sub) throw new AppError('OIDC subject missing', 401);
+    return {
+      sub,
+      email: typeof claims.email === 'string' ? claims.email : typeof claims.preferred_username === 'string' ? claims.preferred_username : undefined,
+      given_name: typeof claims.given_name === 'string' ? claims.given_name : undefined,
+      family_name: typeof claims.family_name === 'string' ? claims.family_name : undefined,
+      name: typeof claims.name === 'string' ? claims.name : undefined,
+      groups: this.jsonArray(claims.groups),
+      tid: typeof claims.tid === 'string' ? claims.tid : undefined,
+    };
+  }
+
+  private enforceTenant(config: OidcRuntimeConfig, userInfo: OidcUserInfo): void {
+    if (config.tenantId && !config.tenantId.startsWith('https://') && userInfo.tid && userInfo.tid !== config.tenantId) {
+      throw new AppError('OIDC tenant mismatch', 401);
     }
+  }
 
-    // Retrieve stored state, nonce, and codeVerifier
-    const stored = this.stateNonceStore.get(state);
-    if (!stored) {
-      throw new AppError('Invalid state', 401);
-    }
-    const { codeChallenge: storedCodeChallenge } = stored;
+  private enforceEmailDomain(config: OidcRuntimeConfig, email: string): void {
+    const allowedDomains = this.jsonArray(config.allowedEmailDomains).map((domain) => domain.toLowerCase());
+    if (allowedDomains.length === 0) return;
+    const emailDomain = email.split('@')[1]?.toLowerCase();
+    if (!emailDomain || !allowedDomains.includes(emailDomain)) throw new AppError('Email domain not allowed', 403);
+  }
 
-    // Remove the entry to prevent reuse
-    this.stateNonceStore.delete(state);
-
-    // Validate code_verifier matches stored challenge
-    const computedChallenge = this.base64urlEncode(this.sha256(codeVerifier));
-    if (computedChallenge !== storedCodeChallenge) {
-      throw new AppError('Invalid code verifier', 401);
-    }
-
-    // Exchange code for tokens
-    const tokenResponse = await fetch(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        code,
-        redirect_uri: config.redirectUri,
-        grant_type: 'authorization_code',
-        code_verifier: codeVerifier,
-      }),
+  private async auditRejectedEmailLink(email: string, subject: string, context: SessionContext): Promise<void> {
+    await auditService.logEventStandalone(prisma, {
+      userId: 'system',
+      action: 'OIDC_EMAIL_LINK_REJECTED',
+      entityType: 'User',
+      entityId: 'unknown',
+      details: `Rejected OIDC login for existing local account without provider-subject link: ${email} (${subject})`,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
     });
+  }
 
-    if (!tokenResponse.ok) {
-      throw new AppError('OIDC token exchange failed', 401);
-    }
-
-    const tokens: any = await tokenResponse.json();
-
-    // Get user info from Microsoft Graph
-    const userResponse = await fetch('https://graph.microsoft.com/oidc/userinfo', {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
+  private async linkedUser(config: OidcRuntimeConfig, subject: string): Promise<OidcLinkedUser | null> {
+    const db = prisma as any;
+    const link = await db.oidcAccountLink.findUnique({
+      where: { oidcConfigId_subject: { oidcConfigId: config.id, subject } },
+      include: { user: true },
     });
+    return (link?.user ?? null) as OidcLinkedUser | null;
+  }
 
-    if (!userResponse.ok) {
-      throw new AppError('Failed to fetch user info from OIDC', 401);
-    }
+  private async provisionExternalUser(config: OidcRuntimeConfig, userInfo: OidcUserInfo): Promise<OidcLinkedUser> {
+    if (!config.autoProvisioning) throw new AppError('Auto-provisioning is disabled. User not found.', 403);
+    if (config.autoProvisioningRequiresApproval) throw new AppError('Auto-provisioning requires approval. Please contact your administrator.', 403);
+    if (!userInfo.email) throw new AppError('OIDC email claim missing', 401);
 
-    const userInfo: OidcUserInfo = await userResponse.json() as OidcUserInfo;
+    const existing = await prisma.user.findUnique({ where: { email: userInfo.email } });
+    if (existing) throw new AppError('OIDC account is not linked to this existing local user', 403);
 
-    // Validate email domain
-    if (config.allowedEmailDomains && config.allowedEmailDomains.length > 0) {
-      const emailDomain = userInfo.email.split('@')[1]?.toLowerCase();
-      const allowed = config.allowedEmailDomains.map((d: string) => d.toLowerCase());
-      if (!allowed.includes(emailDomain)) {
-        throw new AppError('Email domain not allowed', 403);
-      }
-    }
-
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { email: userInfo.email },
-      include: { userRoles: true },
+    const counter = await prisma.displayIdCounter.upsert({
+      where: { entityType: 'User' },
+      create: { entityType: 'User', sequence: 1 },
+      update: { sequence: { increment: 1 } },
     });
+    const userDisplayId = `USR-${String(counter.sequence).padStart(4, '0')}`;
+    const firstName = userInfo.given_name || userInfo.name || 'User';
+    const lastName = userInfo.family_name || '';
 
-    if (user) {
-      // Link existing user to OIDC
-      if (!user.oidcId) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            oidcId: userInfo.sub,
-            oidcProvider: config.providerName,
-          },
-        });
-      }
-      // Update last login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() },
-      });
-
-      const roles = await prisma.userRole.findMany({ where: { userId: user.id } });
-      const groupRoles = await this.getGroupRolesForUser(user.id);
-
-      return {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          roles: [...new Set([...roles.map((r) => r.roleName), ...groupRoles])],
-        },
-        token: this.generateToken(user.id, [...new Set([...roles.map((r) => r.roleName), ...groupRoles])]),
-      };
-    } else if (config.autoProvisioning) {
-      // Check if auto-provisioning requires approval
-      if (config.autoProvisioningRequiresApproval) {
-        throw new AppError('Auto-provisioning requires approval. Please contact your administrator.', 403);
-      }
-      
-      // Auto-provision new user
-      const firstName = userInfo.given_name || userInfo.name || 'User';
-      const lastName = userInfo.family_name || '';
-      const defaultRole = config.defaultRoleForNewUsers || 'employee';
-
-      // IAM-004: Use sequential display ID instead of Date.now()
-      const counter = await prisma.displayIdCounter.upsert({
-        where: { entityType: 'User' },
-        create: { entityType: 'User', sequence: 1 },
-        update: { sequence: { increment: 1 } },
-      });
-      const sequence = counter.sequence;
-      const padded = String(sequence).padStart(4, '0');
-      const userDisplayId = `USR-${padded}`;
-
-      const newUser = await prisma.user.create({
-        data: {
-          displayId: userDisplayId,
-          email: userInfo.email,
-          passwordHash: crypto.randomUUID(), // Placeholder, OIDC user won't use local password
-          firstName,
-          lastName,
-          oidcId: userInfo.sub,
-          oidcProvider: config.providerName,
-        },
-      });
-
-      await prisma.userRole.create({
-        data: {
-          userId: newUser.id,
-          roleName: defaultRole,
-        },
-      });
-
-      // Handle group mapping if enabled
-      if (config.enableGroupMapping && userInfo.groups && config.groupClaimToRoleMapping) {
-        const mapping = config.groupClaimToRoleMapping as Record<string, string>;
-        for (const group of userInfo.groups) {
-          if (mapping[group]) {
-            try {
-              await prisma.userRole.create({
-                data: {
-                  userId: newUser.id,
-                  roleName: mapping[group],
-                },
-              });
-            } catch {
-              // Skip if role doesn't exist
-            }
+    const db = prisma as any;
+    const user = await db.user.create({
+      data: {
+        displayId: userDisplayId,
+        email: userInfo.email,
+        passwordHash: crypto.randomBytes(32).toString('hex'),
+        firstName,
+        lastName,
+        oidcId: userInfo.sub,
+        oidcProvider: config.providerName,
+        oidcAccountLinks: { create: { oidcConfigId: config.id, providerName: config.providerName, subject: userInfo.sub } },
+      },
+    });
+    await prisma.userRole.create({ data: { userId: user.id, roleName: config.defaultRoleForNewUsers || 'employee' } });
+    if (config.enableGroupMapping && userInfo.groups) {
+      const mapping = this.jsonRecord(config.groupClaimToRoleMapping);
+      for (const group of userInfo.groups) {
+        if (mapping[group]) {
+          try {
+            await prisma.userRole.create({ data: { userId: user.id, roleName: mapping[group] } });
+          } catch (error) {
+            await auditService.logEventStandalone(prisma, {
+              userId: user.id,
+              userName: `${user.firstName} ${user.lastName}`,
+              action: 'OIDC_GROUP_ROLE_MAPPING_SKIPPED',
+              entityType: 'User',
+              entityId: user.id,
+              details: `Skipped duplicate or invalid OIDC group role mapping for group ${group}: ${error instanceof Error ? error.message : 'unknown error'}`,
+            });
           }
         }
       }
-
-      const roles = await prisma.userRole.findMany({ where: { userId: newUser.id } });
-
-      return {
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
-          roles: roles.map((r) => r.roleName),
-        },
-        token: this.generateToken(newUser.id, roles.map((r) => r.roleName)),
-      };
-    } else {
-      throw new AppError('Auto-provisioning is disabled. User not found.', 403);
     }
+    return user as OidcLinkedUser;
   }
 
-  async getGroupRolesForUser(userId: string): Promise<string[]> {
-    const userGroups = await prisma.userGroup.findMany({
-      where: { userId },
-      include: { group: { include: { groupRoles: true } } },
+  async handleCallback(code: string, state: string, _legacyCodeVerifier?: string, context: SessionContext = {}): Promise<AuthSessionResult & { state: 'authenticated' }> {
+    if (!code || !state) throw new AppError('OIDC callback missing code or state', 400);
+    const config = await this.getConfig() as OidcRuntimeConfig;
+    if (!config.enabled || !config.tenantId || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
+
+    const stored = await this.consumeState(config.id, state);
+    const oidcConfig = await this.clientConfiguration(config);
+    const client = await this.openidClient();
+    const tokens = await client.authorizationCodeGrant(oidcConfig, this.callbackUrl(config, code, state), {
+      pkceCodeVerifier: stored.codeVerifier,
+      expectedState: state,
+      expectedNonce: stored.nonce,
+      idTokenExpected: true,
     });
+    const claims = tokens.claims();
+    if (!claims) throw new AppError('OIDC ID token claims missing', 401);
+    const userInfo = this.claimsToUserInfo(claims as Record<string, unknown>);
+    this.enforceTenant(config, userInfo);
+    if (!userInfo.email) throw new AppError('OIDC email claim missing', 401);
+    this.enforceEmailDomain(config, userInfo.email);
 
-    const roles: string[] = [];
-    for (const ug of userGroups) {
-      for (const gr of ug.group.groupRoles) {
-        if (!roles.includes(gr.roleName)) {
-          roles.push(gr.roleName);
-        }
+    let user = await this.linkedUser(config, userInfo.sub);
+    if (!user) {
+      const existingByEmail = await prisma.user.findUnique({ where: { email: userInfo.email } });
+      if (existingByEmail) {
+        await this.auditRejectedEmailLink(userInfo.email, userInfo.sub, context);
+        throw new AppError('OIDC account is not linked to this existing local user', 403);
       }
+      user = await this.provisionExternalUser(config, userInfo);
     }
-    return roles;
-  }
 
-  private generateToken(userId: string, roles: string[]): string {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new AppError('JWT_SECRET is not configured', 500);
+    if (!user.isActive) throw new AppError('User account is disabled', 403);
+    if (!user.oidcId || user.oidcId !== userInfo.sub || user.oidcProvider !== config.providerName) {
+      await prisma.user.update({ where: { id: user.id }, data: { oidcId: userInfo.sub, oidcProvider: config.providerName } });
+      user = { ...user, oidcId: userInfo.sub };
     }
-    return jwt.sign({ userId, roles }, secret, { expiresIn: '1h' });
+    return authService.issueExternalSession(user, context, 'OIDC_LOGIN');
   }
 }
 

@@ -37,6 +37,8 @@ export const createMockPrismaClient = () => {
     groupRole: createMockModel(),
     role: createMockModel(),
     oidcConfig: createMockModel(),
+    oidcLoginState: createMockModel(),
+    oidcAccountLink: createMockModel(),
     authSettings: createMockModel(),
     passwordHistory: createMockModel(),
 

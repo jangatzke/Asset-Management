@@ -247,12 +247,13 @@ describe('Auth Routes', () => {
 
   describe('GET /auth/oidc/authorize', () => {
     it('should return OIDC authorization URL', async () => {
-      mockOidcService.getAuthorizationUrl.mockResolvedValue('https://oidc.example.com/authorize?state=test');
+      mockOidcService.getAuthorizationUrl.mockResolvedValue({ authorizeUrl: 'https://oidc.example.com/authorize?state=test', state: 'test' });
 
       const response = await request(app).get('/auth/oidc/authorize');
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('authorizeUrl');
+      expect(response.body).toHaveProperty('state');
     });
   });
 

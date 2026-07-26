@@ -4,7 +4,6 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { authService } from '../services/auth.service';
 import { oidcService } from '../services/oidc.service';
-import crypto from 'crypto';
 
 export const authRouter = Router();
 
@@ -147,11 +146,7 @@ authRouter.post('/preauth/password/change', authRateLimiter, async (req, res, ne
 // OIDC endpoints
 authRouter.get('/oidc/authorize', authRateLimiter, async (_req, res, next) => {
   try {
-    const state = crypto.randomUUID();
-    // Store state in session or cache - for now use query param approach
-    const authorizeUrl = await oidcService.getAuthorizationUrl(state);
-    // Redirect with state stored
-    res.json({ authorizeUrl, state });
+    res.json(await oidcService.getAuthorizationUrl());
   } catch (error) {
     next(error);
   }
@@ -159,9 +154,10 @@ authRouter.get('/oidc/authorize', authRateLimiter, async (_req, res, next) => {
 
 authRouter.post('/oidc/callback', authRateLimiter, async (req, res, next) => {
   try {
-    const { code, state, code_verifier } = req.body;
-    const result = await oidcService.handleCallback(code, state, code_verifier);
-    res.json(result);
+    const { code, state } = req.body;
+    const result = await oidcService.handleCallback(code, state, undefined, requestContext(req));
+    attachRefreshCookie(res, result);
+    res.json(stripRefreshToken(result));
   } catch (error) {
     next(error);
   }

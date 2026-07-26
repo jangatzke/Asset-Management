@@ -67,6 +67,7 @@ model User {
   completedCostPlanItems CostPlanItem[]     @relation("CostPlanItemCompletedBy")
   passwordHistory        PasswordHistory[]  @relation("UserPasswordHistory")
   refreshTokens          RefreshToken[]      @relation("UserRefreshTokens")
+  oidcAccountLinks       OidcAccountLink[]   @relation("UserOidcAccountLinks")
 
   @@index([oidcId, oidcProvider])
   @@map("users")
@@ -229,6 +230,7 @@ model OidcConfig {
   providerName            String   @default("entra_id")
   tenantId                String?
   clientId                String?
+  clientSecretRef         String?
   clientSecret            String?
   redirectUri             String?
   allowedEmailDomains     Json
@@ -237,10 +239,49 @@ model OidcConfig {
   enableGroupMapping      Boolean  @default(false)
   groupClaimToRoleMapping Json
   enableLocalLogin        Boolean  @default(true)
+  autoProvisioningRequiresApproval Boolean @default(false)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
+  loginStates  OidcLoginState[]  @relation("OidcConfigLoginStates")
+  accountLinks OidcAccountLink[] @relation("OidcConfigAccountLinks")
+
   @@map("oidc_configs")
+}
+
+model OidcLoginState {
+  id           String    @id @default(uuid())
+  oidcConfigId String
+  stateHash    String    @unique
+  nonce        String
+  codeVerifier String
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+
+  oidcConfig OidcConfig @relation("OidcConfigLoginStates", fields: [oidcConfigId], references: [id], onDelete: Cascade)
+
+  @@index([oidcConfigId, expiresAt])
+  @@index([usedAt])
+  @@map("oidc_login_states")
+}
+
+model OidcAccountLink {
+  id           String   @id @default(uuid())
+  oidcConfigId String
+  providerName String
+  subject      String
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  oidcConfig OidcConfig @relation("OidcConfigAccountLinks", fields: [oidcConfigId], references: [id], onDelete: Cascade)
+  user       User       @relation("UserOidcAccountLinks", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([oidcConfigId, subject])
+  @@unique([providerName, subject])
+  @@index([userId])
+  @@map("oidc_account_links")
 }
 
 // ==========================================

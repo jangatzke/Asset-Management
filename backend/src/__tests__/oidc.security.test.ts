@@ -1,58 +1,41 @@
-import crypto from 'crypto';
-
-jest.mock('crypto', () => {
-  const original = jest.requireActual('crypto');
-  return {
-    ...original,
-    randomBytes: jest.fn(),
-    randomUUID: jest.fn(),
-  };
-});
-
-const { randomBytes, randomUUID } = require('crypto');
-
 const mockPrismaClient: any = {
-  oidcConfig: {
-    findFirst: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-  },
-  user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-  },
-  userRole: {
-    findMany: jest.fn(),
-    create: jest.fn(),
-  },
-  userGroup: {
-    findMany: jest.fn(),
-  },
+  oidcConfig: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+  oidcLoginState: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
+  oidcAccountLink: { findUnique: jest.fn() },
+  user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+  userRole: { findMany: jest.fn(), create: jest.fn() },
+  displayIdCounter: { upsert: jest.fn() },
+  auditLog: { create: jest.fn() },
 };
 
-jest.mock('../config/database', () => ({
-  prisma: mockPrismaClient,
+jest.mock('../config/database', () => ({ prisma: mockPrismaClient }));
+
+jest.mock('../services/auth.service', () => ({
+  authService: {
+    issueExternalSession: jest.fn(async (user) => ({
+      state: 'authenticated',
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, roles: ['employee'] },
+      token: 'access-token',
+      refreshToken: 'refresh-token',
+      refreshTokenExpiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    })),
+  },
 }));
 
-global.fetch = jest.fn() as any;
-
 import { OidcService } from '../services/oidc.service';
-import { AppError } from '../middleware/errorHandler';
+import { authService } from '../services/auth.service';
 
-describe('OidcService Security', () => {
+describe('OidcService Phase 4 security', () => {
   let oidcService: OidcService;
-  
-  const FIXED_VERIFIER = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-  const FIXED_NONCE = 'fixed-nonce-uuid';
-
+  const now = new Date('2026-07-26T11:00:00.000Z');
   const mockConfig = {
     id: 'config-1',
     enabled: true,
     providerName: 'entra_id',
     tenantId: 'tenant-123',
     clientId: 'client-123',
-    clientSecret: 'secret-123',
+    clientSecret: null,
+    clientSecretRef: 'env:OIDC_CLIENT_SECRET_TEST',
     redirectUri: 'http://localhost:3000/callback',
     allowedEmailDomains: [],
     autoProvisioning: false,
@@ -63,171 +46,127 @@ describe('OidcService Security', () => {
     autoProvisioningRequiresApproval: false,
   };
 
+  const openidClient: any = {
+    discovery: jest.fn(async () => ({ issuer: 'issuer-config' })),
+    ClientSecretBasic: jest.fn((secret: string) => ({ method: 'client_secret_basic', secret })),
+    randomState: jest.fn(() => 'plain-state'),
+    randomNonce: jest.fn(() => 'nonce-123'),
+    randomPKCECodeVerifier: jest.fn(() => 'verifier-123'),
+    calculatePKCECodeChallenge: jest.fn(async () => 'challenge-123'),
+    buildAuthorizationUrl: jest.fn((_config: unknown, params: Record<string, string>) => new URL(`https://issuer.example/authorize?${new URLSearchParams(params)}`)),
+    authorizationCodeGrant: jest.fn(async () => ({
+      claims: () => ({ sub: 'subject-123', email: 'linked@example.com', given_name: 'Linked', family_name: 'User', tid: 'tenant-123' }),
+    })),
+  };
+
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(now);
     jest.clearAllMocks();
+    process.env.NODE_ENV = 'test';
+    process.env.OIDC_CLIENT_SECRET_TEST = 'resolved-secret';
     oidcService = new OidcService();
-    process.env.JWT_SECRET = 'test-secret-key';
+    oidcService.setOpenIdClientForTest(openidClient);
     mockPrismaClient.oidcConfig.findFirst.mockResolvedValue(mockConfig);
-    
-    // Mock crypto functions to return fixed values
-    (randomBytes as jest.Mock).mockReturnValue(Buffer.from(FIXED_VERIFIER, 'hex'));
-    (randomUUID as jest.Mock).mockReturnValue(FIXED_NONCE);
-  });
-
-  describe('getAuthorizationUrl', () => {
-    it('should include state, nonce, and PKCE code_challenge in URL', async () => {
-      const state = 'test-state-123';
-      const url = await oidcService.getAuthorizationUrl(state);
-
-      expect(url).toContain('state=test-state-123');
-      expect(url).toContain('nonce=');
-      expect(url).toContain('code_challenge=');
-      expect(url).toContain('code_challenge_method=S256');
-    });
-
-    it('should throw error if OIDC not configured', async () => {
-      mockPrismaClient.oidcConfig.findFirst.mockResolvedValue({
-        ...mockConfig,
-        enabled: false,
-      });
-
-      await expect(oidcService.getAuthorizationUrl('state')).rejects.toThrow(AppError);
-      await expect(oidcService.getAuthorizationUrl('state')).rejects.toThrow('OIDC not configured');
-    });
-  });
-
-  describe('handleCallback', () => {
-    it('should throw error for invalid state', async () => {
-      const code = 'auth-code-123';
-      const state = 'invalid-state';
-      const codeVerifier = 'verifier-123';
-
-      await expect(oidcService.handleCallback(code, state, codeVerifier)).rejects.toThrow(
-        new AppError('Invalid state', 401)
-      );
-    });
-
-    it('should throw error for invalid code_verifier', async () => {
-      const state = 'valid-state';
-      const code = 'auth-code-123';
-
-      await oidcService.getAuthorizationUrl(state);
-
-      const wrongVerifier = 'wrong-verifier-that-does-not-match';
-
-      await expect(oidcService.handleCallback(code, state, wrongVerifier)).rejects.toThrow(
-        new AppError('Invalid code verifier', 401)
-      );
-    });
-
-    it('should successfully handle callback with valid state and PKCE', async () => {
-      const state = 'valid-state-2';
-      const code = 'auth-code-456';
-
-      // Store the state by calling getAuthorizationUrl first
-      await oidcService.getAuthorizationUrl(state);
-
-      // Use the same verifier that was stored
-      const codeVerifier = FIXED_VERIFIER;
-
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: 'token-123' }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            sub: 'user-sub-123',
-            email: 'existing@example.com',
-            given_name: 'Existing',
-            family_name: 'User',
-          }),
-        });
-
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
-        email: 'existing@example.com',
-        firstName: 'Existing',
+    mockPrismaClient.oidcLoginState.create.mockResolvedValue({});
+    mockPrismaClient.oidcLoginState.updateMany.mockResolvedValue({ count: 1 });
+    mockPrismaClient.oidcLoginState.findUnique.mockImplementation(async ({ where }: any) => ({
+      id: where.id ?? 'state-id',
+      oidcConfigId: 'config-1',
+      stateHash: where.stateHash ?? 'hash',
+      nonce: 'nonce-123',
+      codeVerifier: 'verifier-123',
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+      usedAt: where.id ? now : null,
+    }));
+    mockPrismaClient.oidcAccountLink.findUnique.mockResolvedValue({
+      user: {
+        id: 'user-1',
+        email: 'linked@example.com',
+        firstName: 'Linked',
         lastName: 'User',
-        oidcId: null,
-        oidcProvider: null,
-      });
-      mockPrismaClient.user.update.mockResolvedValue({});
-      mockPrismaClient.userRole.findMany.mockResolvedValue([{ roleName: 'employee' }]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await oidcService.handleCallback(code, state, codeVerifier);
-
-      expect(result).toHaveProperty('user');
-      expect(result).toHaveProperty('token');
-      expect(result.user.email).toBe('existing@example.com');
+        isActive: true,
+        mustChangePasswordOnNext: false,
+        passwordChangedAt: now,
+        oidcId: 'subject-123',
+        oidcProvider: 'entra_id',
+        mfaEnabled: false,
+        mfaSecret: null,
+        mfaPendingSecret: null,
+      },
     });
+  });
 
-    it('should throw error if auto-provisioning is disabled and user does not exist', async () => {
-      const state = 'valid-state-3';
-      const code = 'auth-code-789';
+  afterEach(() => jest.useRealTimers());
 
-      await oidcService.getAuthorizationUrl(state);
+  it('builds an authorization URL with PKCE S256, state, and nonce', async () => {
+    const result = await oidcService.getAuthorizationUrl();
 
-      const codeVerifier = FIXED_VERIFIER;
+    expect(result.authorizeUrl).toContain('code_challenge=challenge-123');
+    expect(result.authorizeUrl).toContain('code_challenge_method=S256');
+    expect(result.authorizeUrl).toContain('state=plain-state');
+    expect(result.authorizeUrl).toContain('nonce=nonce-123');
+    expect(result.state).toBe('plain-state');
+  });
 
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: 'token-456' }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            sub: 'new-user-sub',
-            email: 'newuser@example.com',
-            given_name: 'New',
-            family_name: 'User',
-          }),
-        });
+  it('stores only hashed state with nonce, verifier, and a 10 minute TTL', async () => {
+    await oidcService.getAuthorizationUrl();
+    const data = mockPrismaClient.oidcLoginState.create.mock.calls[0][0].data;
 
-      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+    expect(data.stateHash).not.toBe('plain-state');
+    expect(data.stateHash).toHaveLength(64);
+    expect(data.nonce).toBe('nonce-123');
+    expect(data.codeVerifier).toBe('verifier-123');
+    expect(data.expiresAt).toEqual(new Date(now.getTime() + 10 * 60 * 1000));
+  });
 
-      await expect(oidcService.handleCallback(code, state, codeVerifier)).rejects.toThrow(
-        new AppError('Auto-provisioning is disabled. User not found.', 403)
-      );
-    });
+  it('rejects missing, expired, and reused state', async () => {
+    mockPrismaClient.oidcLoginState.findUnique.mockResolvedValueOnce(null);
+    await expect(oidcService.handleCallback('code', 'missing')).rejects.toThrow('Invalid state');
 
-    it('should throw error if auto-provisioning requires approval', async () => {
-      mockPrismaClient.oidcConfig.findFirst.mockResolvedValue({
-        ...mockConfig,
-        autoProvisioning: true,
-        autoProvisioningRequiresApproval: true,
-      });
+    mockPrismaClient.oidcLoginState.findUnique.mockResolvedValueOnce({ id: 'state-id', oidcConfigId: 'config-1', expiresAt: new Date(now.getTime() - 1), usedAt: null });
+    await expect(oidcService.handleCallback('code', 'expired')).rejects.toThrow('OIDC state has expired');
 
-      const state = 'valid-state-4';
-      const code = 'auth-code-abc';
+    mockPrismaClient.oidcLoginState.findUnique.mockResolvedValueOnce({ id: 'state-id', oidcConfigId: 'config-1', expiresAt: new Date(now.getTime() + 1), usedAt: now });
+    await expect(oidcService.handleCallback('code', 'reused')).rejects.toThrow('OIDC state has already been used');
+  });
 
-      await oidcService.getAuthorizationUrl(state);
+  it('uses openid-client grant checks with expected state, nonce, and PKCE verifier', async () => {
+    await oidcService.handleCallback('auth-code', 'plain-state');
 
-      const codeVerifier = FIXED_VERIFIER;
+    expect(openidClient.authorizationCodeGrant).toHaveBeenCalledWith(expect.anything(), expect.any(URL), expect.objectContaining({
+      pkceCodeVerifier: 'verifier-123',
+      expectedState: 'plain-state',
+      expectedNonce: 'nonce-123',
+      idTokenExpected: true,
+    }));
+  });
 
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: 'token-789' }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            sub: 'new-user-sub-2',
-            email: 'newuser2@example.com',
-            given_name: 'New',
-            family_name: 'User',
-          }),
-        });
+  it('does not auto-link an existing local account by email alone', async () => {
+    mockPrismaClient.oidcAccountLink.findUnique.mockResolvedValue(null);
+    mockPrismaClient.user.findUnique.mockResolvedValue({ id: 'local-1', email: 'linked@example.com' });
 
-      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+    await expect(oidcService.handleCallback('auth-code', 'plain-state', undefined, { ipAddress: '127.0.0.1' })).rejects.toThrow('OIDC account is not linked');
+    expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'OIDC_EMAIL_LINK_REJECTED' }) }));
+  });
 
-      await expect(oidcService.handleCallback(code, state, codeVerifier)).rejects.toThrow(
-        new AppError('Auto-provisioning requires approval. Please contact your administrator.', 403)
-      );
-    });
+  it('allows a pre-linked account to receive the normal session', async () => {
+    const result = await oidcService.handleCallback('auth-code', 'plain-state');
+
+    expect(result.refreshToken).toBe('refresh-token');
+    expect(authService.issueExternalSession).toHaveBeenCalled();
+  });
+
+  it('rejects tenant mismatch when tenant configuration exists', async () => {
+    openidClient.authorizationCodeGrant.mockResolvedValueOnce({ claims: () => ({ sub: 'subject-123', email: 'linked@example.com', tid: 'other-tenant' }) });
+
+    await expect(oidcService.handleCallback('auth-code', 'plain-state')).rejects.toThrow('OIDC tenant mismatch');
+  });
+
+  it('resolves client secret from environment reference without plaintext config secret', async () => {
+    await oidcService.getAuthorizationUrl();
+
+    expect(openidClient.ClientSecretBasic).toHaveBeenCalledWith('resolved-secret');
+    expect(mockConfig.clientSecret).toBeNull();
   });
 });
