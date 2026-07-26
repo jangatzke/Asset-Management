@@ -93,7 +93,7 @@ export class ControlService {
       throw new AppError(`Deprecated direct control-risk/evidence fields are not accepted: ${forbidden.join(', ')}. Use RiskControl and EvidenceLink.`, 400);
     }
   }
-  async list(query: ListControlsQuery) {
+  async list(query: ListControlsQuery, authzWhere: Prisma.ControlWhereInput = {}) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
     const offset = (page - 1) * limit;
@@ -119,9 +119,11 @@ export class ControlService {
       where.catalogId = query.catalogId;
     }
 
+    const effectiveWhere: Prisma.ControlWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
+
     const [controls, total] = await Promise.all([
       prisma.control.findMany({
-        where,
+        where: effectiveWhere,
         skip: offset,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -130,7 +132,7 @@ export class ControlService {
           implementations: true,
         } as Prisma.ControlInclude,
       }),
-      prisma.control.count({ where }),
+      prisma.control.count({ where: effectiveWhere }),
     ]);
 
     return {
@@ -158,6 +160,45 @@ export class ControlService {
     }
 
     return control;
+  }
+
+  async listImplementationRisks(implementationId: string) {
+    const implementation = await db.controlImplementation.findUnique({
+      where: { id: implementationId },
+      include: {
+        control: true,
+        riskControls: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            risk: { select: { id: true, displayId: true, title: true, status: true, inherentRisk: true, residualRisk: true } },
+            assessments: {
+              orderBy: { assessedAt: 'desc' },
+              take: 1,
+              include: { riskAssessmentVersion: true, evidenceLinks: true },
+            },
+          },
+        },
+      },
+    });
+    if (!implementation) throw new AppError('Control implementation not found', 404);
+    return {
+      implementationId,
+      control: implementation.control,
+      risks: implementation.riskControls.map((riskControl: any) => ({
+        riskControlId: riskControl.id,
+        riskId: riskControl.riskId,
+        displayId: riskControl.risk?.displayId,
+        title: riskControl.risk?.title,
+        status: riskControl.risk?.status,
+        inherentRisk: riskControl.risk?.inherentRisk,
+        residualRisk: riskControl.risk?.residualRisk,
+        role: riskControl.role,
+        mitigationDimension: riskControl.mitigationDimension,
+        isKeyControl: riskControl.isKeyControl,
+        relationshipStatus: riskControl.status,
+        latestAssessment: riskControl.assessments?.[0] ?? null,
+      })),
+    };
   }
 
   async create(data: CreateControlData, createdBy?: string) {

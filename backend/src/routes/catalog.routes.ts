@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireAdminAccess } from '../middleware/entityAuth';
-import { requireWritePermission } from '../middleware/entityAuth';
+import { requirePermission } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { CatalogService } from '../services/catalog.service';
 import { z } from 'zod';
@@ -29,7 +28,7 @@ const CreateCatalogItemSchema = z.object({
 });
 
 // List all catalogs
-catalogRouter.get('/catalogs', authenticate, async (req, res, next) => {
+catalogRouter.get('/catalogs', authenticate, requirePermission('controls.read'), async (req, res, next) => {
   try {
     res.json(await catalogService.listCatalogs(req.query));
   } catch (error) {
@@ -38,7 +37,7 @@ catalogRouter.get('/catalogs', authenticate, async (req, res, next) => {
 });
 
 // Get catalog by ID
-catalogRouter.get('/catalogs/:id', authenticate, async (req, res, next) => {
+catalogRouter.get('/catalogs/:id', authenticate, requirePermission('controls.read'), async (req, res, next) => {
   try {
     res.json(await catalogService.getCatalog(req.params.id));
   } catch (error) {
@@ -47,7 +46,7 @@ catalogRouter.get('/catalogs/:id', authenticate, async (req, res, next) => {
 });
 
 // Create catalog
-catalogRouter.post('/catalogs', authenticate, requireWritePermission, validateBody(CreateCatalogSchema), async (req: AuthRequest, res, next) => {
+catalogRouter.post('/catalogs', authenticate, requirePermission('controls.write'), validateBody(CreateCatalogSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await catalogService.createCatalog(req.body));
   } catch (error) {
@@ -56,7 +55,7 @@ catalogRouter.post('/catalogs', authenticate, requireWritePermission, validateBo
 });
 
 // Update catalog
-catalogRouter.patch('/catalogs/:id', authenticate, requireWritePermission, validateBody(CreateCatalogSchema.partial()), async (req: AuthRequest, res, next) => {
+catalogRouter.patch('/catalogs/:id', authenticate, requirePermission('controls.write'), validateBody(CreateCatalogSchema.partial()), async (req: AuthRequest, res, next) => {
   try {
     res.json(await catalogService.updateCatalog(req.params.id, req.body));
   } catch (error) {
@@ -65,7 +64,7 @@ catalogRouter.patch('/catalogs/:id', authenticate, requireWritePermission, valid
 });
 
 // Delete catalog
-catalogRouter.delete('/catalogs/:id', authenticate, requireWritePermission, async (req, res, next) => {
+catalogRouter.delete('/catalogs/:id', authenticate, requirePermission('controls.write'), async (req, res, next) => {
   try {
     res.json({ message: 'Catalog deleted' });
     await catalogService.deleteCatalog(req.params.id);
@@ -75,7 +74,7 @@ catalogRouter.delete('/catalogs/:id', authenticate, requireWritePermission, asyn
 });
 
 // List catalog items
-catalogRouter.get('/catalogs/items', authenticate, async (req, res, next) => {
+catalogRouter.get('/catalogs/items', authenticate, requirePermission('controls.read'), async (req, res, next) => {
   try {
     res.json(await catalogService.listCatalogItems(req.query));
   } catch (error) {
@@ -84,7 +83,7 @@ catalogRouter.get('/catalogs/items', authenticate, async (req, res, next) => {
 });
 
 // Get catalog item by catalogId + controlId
-catalogRouter.get('/catalogs/items/:catalogId/:controlId', authenticate, async (req, res, next) => {
+catalogRouter.get('/catalogs/items/:catalogId/:controlId', authenticate, requirePermission('controls.read'), async (req, res, next) => {
   try {
     res.json(await catalogService.getCatalogItem(req.params.catalogId, req.params.controlId));
   } catch (error) {
@@ -93,7 +92,7 @@ catalogRouter.get('/catalogs/items/:catalogId/:controlId', authenticate, async (
 });
 
 // Create catalog item
-catalogRouter.post('/catalogs/items', authenticate, requireWritePermission, validateBody(CreateCatalogItemSchema), async (req: AuthRequest, res, next) => {
+catalogRouter.post('/catalogs/items', authenticate, requirePermission('controls.write'), validateBody(CreateCatalogItemSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await catalogService.createCatalogItem(req.body));
   } catch (error) {
@@ -102,7 +101,7 @@ catalogRouter.post('/catalogs/items', authenticate, requireWritePermission, vali
 });
 
 // Update catalog item
-catalogRouter.patch('/catalogs/items/:catalogId/:controlId', authenticate, requireWritePermission, validateBody(CreateCatalogItemSchema.partial()), async (req: AuthRequest, res, next) => {
+catalogRouter.patch('/catalogs/items/:catalogId/:controlId', authenticate, requirePermission('controls.write'), validateBody(CreateCatalogItemSchema.partial()), async (req: AuthRequest, res, next) => {
   try {
     res.json(await catalogService.updateCatalogItem(req.params.catalogId, req.params.controlId, req.body));
   } catch (error) {
@@ -111,7 +110,7 @@ catalogRouter.patch('/catalogs/items/:catalogId/:controlId', authenticate, requi
 });
 
 // Delete catalog item
-catalogRouter.delete('/catalogs/items/:catalogId/:controlId', authenticate, requireWritePermission, async (req, res, next) => {
+catalogRouter.delete('/catalogs/items/:catalogId/:controlId', authenticate, requirePermission('controls.write'), async (req, res, next) => {
   try {
     res.json({ message: 'Catalog item deleted' });
     await catalogService.deleteCatalogItem(req.params.catalogId, req.params.controlId);

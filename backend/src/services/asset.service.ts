@@ -143,7 +143,7 @@ export class AssetService {
   // List / Read
   // ==========================================
 
-  async list(query: ListAssetsQuery) {
+  async list(query: ListAssetsQuery, authzWhere: Prisma.AssetWhereInput = {}) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
     const offset = (page - 1) * limit;
@@ -186,9 +186,11 @@ export class AssetService {
       where.organizationUnitId = query.organizationUnitId;
     }
 
+    const effectiveWhere: Prisma.AssetWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
+
     const [assets, total] = await Promise.all([
       prisma.asset.findMany({
-        where,
+        where: effectiveWhere,
         skip: offset,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -204,7 +206,7 @@ export class AssetService {
           licenseLinks: { include: { license: true } },
         } as any,
       }),
-      prisma.asset.count({ where }),
+      prisma.asset.count({ where: effectiveWhere }),
     ]);
 
     return {

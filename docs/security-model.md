@@ -80,43 +80,48 @@ graph TD
     E -->|1:n| F[GroupRole]
     F -->|n:1| C
 
-    C --> G{canAccessAdmin}
-    C --> H{entityPermissions}
+    C --> G{administration.access}
+    C --> H[RolePermission]
+    H --> I[Permission]
+    B --> J[LegalEntity/OrganizationUnit/IsmsScope/Site scope]
+    F --> J
 ```
 
 **Standardrollen:**
 
-| Rolle | canAccessAdmin | entityPermissions | Beschreibung |
-|-------|---------------|-------------------|-------------|
-| `system_admin` | true | alle: readwrite | Vollzugriff auf System und Admin-Bereich |
-| `ism_manager` | true | alle: readwrite | ISMS-Verantwortlicher, Admin-Zugriff |
-| `auditor` | false | alle: readonly | Externer Auditor – Leserecht auf alles |
-| `employee` | false | assets: readonly, risks: readonly, controls: readonly, incidents: readonly | Standard-Mitarbeiter |
+| Rolle | Granulare Permissions | Beschreibung |
+|-------|-----------------------|-------------|
+| `system_admin` | alle Permissions inklusive `administration.access` | Vollzugriff auf System und Admin-Bereich |
+| `ism_manager` | alle Permissions inklusive `administration.access` | ISMS-Verantwortlicher, Admin-Zugriff |
+| `auditor` | Leserechte auf ISMS-/Kernmodule | Externer Auditor – Leserecht auf relevante Objekte |
+| `employee` | Basis-Leserechte auf Assets, Risiken, Controls, Incidents, Training und Dokumente | Standard-Mitarbeiter |
+
+Phase 1 ersetzt das grobe `entityPermissions`-Modell durch `Permission` und `RolePermission`. Bestehende JSON-Felder bleiben nur als Kompatibilitätspfad für Altrollen erhalten. Der Mindestkatalog umfasst `assets.read`, `assets.write`, `assets.archive`, granulare Risiko-/Control-/Incident-Aktionsrechte, ISMS-Modulrechte und `administration.access`.
+
+Rollen können direkt über `UserRole` oder indirekt über `GroupRole` zugewiesen werden. Jede Zuweisung darf optional auf `LegalEntity`, `OrganizationUnit`, `IsmsScope` und/oder `Site` begrenzt sein. Benutzer erhalten den Vereinigungsbereich aller aktiven direkten und gruppenbasierten Zuweisungen; abgelaufene Zuweisungen sind unwirksam.
 
 ### 3.2 Entity-Level Authorization Middleware
 
-Jede CRUD-Operation prüft die `entityPermissions` der Benutzerrolle:
+Jede relevante Operation prüft explizite Permissions über den zentralen `AuthorizationService`:
 
 ```typescript
-// Pseudocode für EntityAuthMiddleware
-async function entityAuthorize(req, entity_type): void {
-  const userRoles = await getUserRolesWithPermissions(req.userId);
-  const maxPermission = calculateMaxEntityPermission(userRoles, entity_type);
-
-  if (maxPermission === 'none') throw 403;
-  if (maxPermission === 'readonly' && ['POST','PUT','DELETE'].includes(req.method)) throw 403;
+// Pseudocode für AuthorizationService
+async function canForEntity(userId, permission, entityType, entityId): Promise<boolean> {
+  const assignments = await getActiveDirectAndGroupAssignments(userId, permission);
+  const entityScope = await resolveScopeViaDomainRelations(entityType, entityId);
+  return assignments.some((assignment) => assignment.isUnrestricted || assignment.matches(entityScope));
 }
 ```
 
-**Priorität bei mehreren Rollen:** Höchste erlaubte Permission gewinnt.
+List-/Suchendpunkte müssen `buildReadFilter(userId, entityType)` in dieselbe Prisma-Where-Klausel einbetten, die auch für `count` und Pagination verwendet wird. Detailendpunkte außerhalb des erlaubten Scopes geben konsistent `403` zurück. ISMS-Scope-Prüfungen vergleichen niemals Objekt-IDs direkt mit Scope-IDs, sondern lösen den Fachpfad auf, z.B. Risiko → Organisationseinheit → Legal Entity → ISMS-Scope-Mitgliedschaft.
 
 ### 3.3 Admin-Bereichsschutz
 
-Alle Routen unter `/api/v1/admin/*` erfordern mindestens eine Rolle mit `canAccessAdmin = true`. Die Middleware:
+Alle Routen unter `/api/v1/admin/*` erfordern `administration.access`. Die Middleware:
 
 1. Lädt alle UserRole-Zuordnungen des Benutzers
-2. Folgt zur Role-Tabelle und prüft `canAccessAdmin` Flag
-3. Legt auch GroupRole-Zuordnungen berücksichtigt
+2. Folgt zur RolePermission-/Permission-Tabelle und prüft `administration.access`
+3. Berücksichtigt auch GroupRole-Zuordnungen und Ablaufdaten
 
 ---
 

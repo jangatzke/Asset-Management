@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
-import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
+import { authorizeEntityRead, authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { controlService } from '../services/control.service';
+import { authorizationService } from '../services/authorization.service';
+import { validateParams } from '../middleware/validation';
+import { ControlImplementationRiskParamsSchema } from 'shared';
 
 export const controlRouter = Router();
 
@@ -10,9 +13,9 @@ export const controlRouter = Router();
 // Static routes MUST come BEFORE parametric routes (/id)
 // ==========================================
 
-controlRouter.get('/', authenticate, async (req, res, next) => {
+controlRouter.get('/', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
   try {
-    const result = await controlService.list(req.query);
+    const result = await controlService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'controls') as any);
     res.json(result);
   } catch (error) {
     next(error);
@@ -79,6 +82,14 @@ controlRouter.post('/implementations', authenticate, authorizeEntityWrite('contr
   }
 });
 
+controlRouter.get('/implementations/:implementationId/risks', authenticate, authorizeEntityRead('controls'), validateParams(ControlImplementationRiskParamsSchema), async (req, res, next) => {
+  try {
+    res.json(await controlService.listImplementationRisks(req.params.implementationId));
+  } catch (error) {
+    next(error);
+  }
+});
+
 controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createControlTest(req.body, req.userId));
@@ -91,7 +102,7 @@ controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), asy
 // Parametric routes - /:id must come AFTER all static routes
 // ==========================================
 
-controlRouter.get('/:id', authenticate, async (req, res, next) => {
+controlRouter.get('/:id', authenticate, requireEntityPermission('controls.read', 'controls'), async (req, res, next) => {
   try {
     const control = await controlService.getById(req.params.id);
     res.json(control);

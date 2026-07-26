@@ -1,690 +1,110 @@
-/**
- * Authorization Integration Tests
- *
- * Tests for Paket 1.1 - Zugriffskontrolle (P0-01, P0-02):
- * - Admin access protection via role.canAccessAdmin from database
- * - Entity-level authorization (assets, risks, controls, incidents)
- * - Role expiry validation (expired roles are ineffective)
- * - Read-only role cannot modify entities
- * - Employee gets 403 on admin routes
- */
-
-// ---- Mock Prisma Client (must be before imports) ----
-
 const mockPrismaClient: any = {
-  userRole: {
-    findMany: jest.fn(),
-  },
-  userGroup: {
-    findMany: jest.fn(),
-  },
+  userRole: { findMany: jest.fn() },
+  userGroup: { findMany: jest.fn() },
+  risk: { findUnique: jest.fn(), count: jest.fn() },
+  asset: { findUnique: jest.fn() },
+  controlImplementation: { findFirst: jest.fn() },
+  incidentAsset: { findFirst: jest.fn() },
+  ismsScopeLegalEntity: { findFirst: jest.fn() },
 };
 
-jest.mock('../config/database', () => ({
-  prisma: mockPrismaClient,
-}));
+jest.mock('../config/database', () => ({ prisma: mockPrismaClient }));
 
 import { AuthorizationService } from '../services/authorization.service';
-import { AppError } from '../middleware/errorHandler';
 
-describe('AuthorizationService - Integration Tests', () => {
-  let authorizationService: AuthorizationService;
+const role = (name: string, permissions: string[], scope: Record<string, string | null> = {}, validUntil: Date | null = null) => ({
+  roleName: name,
+  validUntil,
+  legalEntityId: scope.legalEntityId ?? null,
+  organizationUnitId: scope.organizationUnitId ?? null,
+  scopeId: scope.scopeId ?? null,
+  siteId: scope.siteId ?? null,
+  role: {
+    canAccessAdmin: permissions.includes('administration.access'),
+    entityPermissions: null,
+    rolePermissions: permissions.map((permission) => ({ permission: { name: permission } })),
+  },
+});
+
+describe('AuthorizationService Phase 1 granular scoped authorization', () => {
+  let service: AuthorizationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    authorizationService = new AuthorizationService();
+    service = new AuthorizationService();
+    mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
+    mockPrismaClient.ismsScopeLegalEntity.findFirst.mockResolvedValue(null);
   });
 
-  // ==========================================
-  // P0-01: Administrationsschutz
-  // ==========================================
-
-  describe('P0-01: Admin Access Protection', () => {
-
-    it('should allow admin access when role.canAccessAdmin is true from DB', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('admin-user-123');
-
-      expect(result).toBe(true);
-    });
-
-    it('should deny admin access when role.canAccessAdmin is false from DB', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('employee-user-123');
-
-      expect(result).toBe(false);
-    });
-
-    it('should deny admin access for employee role (403 expected)', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      await expect(
-        authorizationService.requireAdminAccess('employee-user-123')
-      ).rejects.toThrow('Administration access required');
-    });
-
-    it('should allow admin access when ANY role has canAccessAdmin=true', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: null,
-          },
-        },
-        {
-          roleName: 'security_admin',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: { risks: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('multi-role-user');
-
-      expect(result).toBe(true);
-    });
-
-    it('should deny admin access when role is expired (validUntil in past)', async () => {
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 30); // 30 days ago
-
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: pastDate,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('expired-admin-user');
-
-      expect(result).toBe(false);
-    });
-
-    it('should allow admin access when role expires in the future', async () => {
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 30); // 30 days from now
-
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: futureDate,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: null,
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('valid-admin-user');
-
-      expect(result).toBe(true);
-    });
-
-    it('should allow admin access when role has no expiry (validUntil is null)', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: null,
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('permanent-admin-user');
-
-      expect(result).toBe(true);
-    });
-
-    it('should deny admin access when user has no roles', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canAccessAdmin('no-role-user');
-
-      expect(result).toBe(false);
-    });
-
-    it('should grant admin access via group-assigned roles', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([
-        {
-          userId: 'group-user-123',
-          group: {
-            groupRoles: [
-              {
-                roleName: 'system_admin',
-                role: {
-                  canAccessAdmin: true,
-                  entityPermissions: null,
-                },
-              },
-            ],
-          },
-        },
-      ]);
-
-      const result = await authorizationService.canAccessAdmin('group-user-123');
-
-      expect(result).toBe(true);
-    });
+  it('user without risks.read sees no risks', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('asset-reader', ['assets.read'])]);
+    await expect(service.can('u1', 'risks.read')).resolves.toBe(false);
+    await expect(service.buildReadFilter('u1', 'risks')).resolves.toEqual({ id: { equals: '__phase1_no_permission__' } });
   });
 
-  // ==========================================
-  // P0-02: Entity Authorization
-  // ==========================================
-
-  describe('P0-02: Entity-Level Authorization', () => {
-
-    it('should allow read access for readonly permission level', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'employee-user',
-        'assets',
-        'read'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should deny write access for readonly permission level', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'employee-user',
-        'assets',
-        'write'
-      );
-
-      expect(result.allowed).toBe(false);
-      expect(result.reason).toContain('Insufficient permission');
-    });
-
-    it('should deny delete access for readonly permission level', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'employee-user',
-        'assets',
-        'delete'
-      );
-
-      expect(result.allowed).toBe(false);
-    });
-
-    it('should allow write access for readwrite permission level', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'admin-user',
-        'assets',
-        'write'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should allow delete access for readwrite permission level', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'admin-user',
-        'assets',
-        'delete'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should deny all access for "none" permission level', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'auditor',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'none' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const readResult = await authorizationService.checkEntityPermission(
-        'auditor-user',
-        'assets',
-        'read'
-      );
-      expect(readResult.allowed).toBe(false);
-
-      const writeResult = await authorizationService.checkEntityPermission(
-        'auditor-user',
-        'assets',
-        'write'
-      );
-      expect(writeResult.allowed).toBe(false);
-    });
-
-    it('should aggregate permissions from multiple roles (max wins)', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-        {
-          roleName: 'asset_manager',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'multi-role-user',
-        'assets',
-        'write'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should deny access when expired role is the only one granting permission', async () => {
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 30);
-
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-        {
-          roleName: 'asset_manager',
-          validUntil: pastDate, // Expired!
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      // Write should fail because asset_manager is expired
-      const writeResult = await authorizationService.checkEntityPermission(
-        'expired-role-user',
-        'assets',
-        'write'
-      );
-      expect(writeResult.allowed).toBe(false);
-
-      // Read should still work via employee role
-      const readResult = await authorizationService.checkEntityPermission(
-        'expired-role-user',
-        'assets',
-        'read'
-      );
-      expect(readResult.allowed).toBe(true);
-    });
-
-    it('should deny access when user has no active roles', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'no-role-user',
-        'assets',
-        'read'
-      );
-
-      expect(result.allowed).toBe(false);
-      expect(result.reason).toContain('No active roles');
-    });
-
-    it('should throw error when requireEntityPermission fails', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      await expect(
-        authorizationService.requireEntityPermission('employee-user', 'assets', 'write')
-      ).rejects.toThrow('Authorization denied');
-    });
-
-    it('should check entity permissions for risks entity type', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'risk_analyst',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { risks: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'analyst-user',
-        'risks',
-        'write'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should check entity permissions for controls entity type', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'compliance_officer',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { controls: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'compliance-user',
-        'controls',
-        'delete'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should check entity permissions for incidents entity type', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'incident_manager',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { incidents: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'incident-user',
-        'incidents',
-        'write'
-      );
-
-      expect(result.allowed).toBe(true);
-    });
-
-    it('should deny cross-entity write (risk role cannot modify assets)', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'risk_analyst',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { risks: 'readwrite', assets: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.checkEntityPermission(
-        'analyst-user',
-        'assets',
-        'write'
-      );
-
-      expect(result.allowed).toBe(false);
-    });
+  it('risk read-only can read but not write', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('risk-reader', ['risks.read'])]);
+    await expect(service.can('u1', 'risks.read')).resolves.toBe(true);
+    await expect(service.can('u1', 'risks.write')).resolves.toBe(false);
   });
 
-  // ==========================================
-  // canPerformWriteAction Tests
-  // ==========================================
+  it('asset write cannot modify suppliers', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('asset-writer', ['assets.read', 'assets.write'])]);
+    await expect(service.can('u1', 'assets.write')).resolves.toBe(true);
+    await expect(service.can('u1', 'suppliers.write')).resolves.toBe(false);
+  });
 
-  describe('canPerformWriteAction', () => {
+  it('IT-scoped user cannot see production risk', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('it-risk-reader', ['risks.read'], { organizationUnitId: 'ou-it' })]);
+    mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-prod', organizationUnitId: 'ou-prod', organizationUnit: { legalEntityId: 'le-prod' } });
+    await expect(service.canForEntity('u1', 'risks.read', 'risks', 'risk-prod')).resolves.toBe(false);
+  });
 
-    it('should return true if any entity has readwrite permission', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'risk_analyst',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { risks: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
+  it('IT-scoped user cannot create production risk', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('it-risk-writer', ['risks.write'], { organizationUnitId: 'ou-it' })]);
+    await expect(service.requireForScope('u1', 'risks.write', { organizationUnitId: 'ou-prod', legalEntityId: 'le-prod', scopeId: null, siteId: null })).rejects.toThrow('Authorization denied');
+  });
 
-      const result = await authorizationService.canPerformWriteAction('analyst-user');
+  it('multiple scoped roles result in union access', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([
+      role('it-risk-reader', ['risks.read'], { organizationUnitId: 'ou-it' }),
+      role('prod-risk-reader', ['risks.read'], { organizationUnitId: 'ou-prod' }),
+    ]);
+    mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-prod', organizationUnitId: 'ou-prod', organizationUnit: { legalEntityId: 'le-prod' } });
+    await expect(service.canForEntity('u1', 'risks.read', 'risks', 'risk-prod')).resolves.toBe(true);
+  });
 
-      expect(result).toBe(true);
-    });
+  it('expired role assignment is ineffective', async () => {
+    const expired = new Date(Date.now() - 60_000);
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('expired-risk-writer', ['risks.write'], {}, expired)]);
+    await expect(service.can('u1', 'risks.write')).resolves.toBe(false);
+  });
 
-    it('should return false if only readonly permissions exist', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'employee',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readonly', risks: 'readonly' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
+  it('group-based roles work', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([]);
+    mockPrismaClient.userGroup.findMany.mockResolvedValue([{ group: { groupRoles: [role('group-risk-reader', ['risks.read'])] } }]);
+    await expect(service.can('u1', 'risks.read')).resolves.toBe(true);
+  });
 
-      const result = await authorizationService.canPerformWriteAction('employee-user');
+  it('unrestricted admin role works', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('system_admin', ['administration.access'])]);
+    await expect(service.can('admin', 'suppliers.approve')).resolves.toBe(true);
+    await expect(service.canAccessAdmin('admin')).resolves.toBe(true);
+  });
 
-      expect(result).toBe(false);
-    });
+  it('list filters prevent pagination/count leakage', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('it-risk-reader', ['risks.read'], { organizationUnitId: 'ou-it' })]);
+    await expect(service.buildReadFilter('u1', 'risks')).resolves.toEqual({ OR: [{ organizationUnitId: 'ou-it' }] });
+  });
 
-    it('should return true for admin even without entity permissions', async () => {
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'system_admin',
-          validUntil: null,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: true,
-            entityPermissions: null,
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
+  it('detail endpoint outside scope uses documented 403 behavior', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('it-risk-reader', ['risks.read'], { organizationUnitId: 'ou-it' })]);
+    mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-prod', organizationUnitId: 'ou-prod', organizationUnit: { legalEntityId: 'le-prod' } });
+    await expect(service.requireForEntity('u1', 'risks.read', 'risks', 'risk-prod')).rejects.toThrow('Authorization denied');
+  });
 
-      const result = await authorizationService.canPerformWriteAction('admin-user');
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when role is expired', async () => {
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 30);
-
-      mockPrismaClient.userRole.findMany.mockResolvedValue([
-        {
-          roleName: 'asset_manager',
-          validUntil: pastDate,
-          scopeId: null,
-          organizationUnitId: null,
-          role: {
-            canAccessAdmin: false,
-            entityPermissions: { assets: 'readwrite' },
-          },
-        },
-      ]);
-      mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
-
-      const result = await authorizationService.canPerformWriteAction('expired-user');
-
-      expect(result).toBe(false);
-    });
+  it('search endpoints respect the same rights through buildReadFilter', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('risk-reader', ['risks.read'], { legalEntityId: 'le-1' })]);
+    await expect(service.buildReadFilter('u1', 'risks')).resolves.toEqual({ OR: [{ organizationUnit: { legalEntityId: 'le-1' } }] });
   });
 });

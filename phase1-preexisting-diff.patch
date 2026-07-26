@@ -1,0 +1,1019 @@
+diff --git a/backend/prisma/schema.prisma b/backend/prisma/schema.prisma
+index 8e37b06..0f66353 100644
+--- a/backend/prisma/schema.prisma
++++ b/backend/prisma/schema.prisma
+@@ -58,29 +58,29 @@ model User {
+   language String?  @default("en")
+   darkMode Boolean?
+ 
+-  organizationUnit OrganizationUnit? @relation("UserOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
+-  userRoles        UserRole[]        @relation("UserRoles")
+-  userGroups       UserGroup[]       @relation("UserGroups")
+-  ServiceAccount   ServiceAccount[]
+-  fiscalYearUpdates FiscalYearConfig[] @relation("FiscalYearConfigUpdatedBy")
+-  ownedCostPlans CostPlan[] @relation("CostPlanOwner")
+-  completedCostPlanItems CostPlanItem[] @relation("CostPlanItemCompletedBy")
+-  passwordHistory PasswordHistory[] @relation("UserPasswordHistory")
++  organizationUnit       OrganizationUnit?  @relation("UserOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
++  userRoles              UserRole[]         @relation("UserRoles")
++  userGroups             UserGroup[]        @relation("UserGroups")
++  ServiceAccount         ServiceAccount[]
++  fiscalYearUpdates      FiscalYearConfig[] @relation("FiscalYearConfigUpdatedBy")
++  ownedCostPlans         CostPlan[]         @relation("CostPlanOwner")
++  completedCostPlanItems CostPlanItem[]     @relation("CostPlanItemCompletedBy")
++  passwordHistory        PasswordHistory[]  @relation("UserPasswordHistory")
+ 
+   @@index([oidcId, oidcProvider])
+   @@map("users")
+ }
+ 
+ model AuthSettings {
+-  id                         String   @id @default(uuid())
+-  passwordComplexityEnabled  Boolean  @default(true)
+-  minPasswordLength          Int      @default(12)
+-  passwordHistoryCount       Int      @default(0)
+-  passwordValidityDays       Int      @default(0)
+-  forceMfa                   Boolean  @default(false)
+-  createdAt                  DateTime @default(now())
+-  updatedAt                  DateTime @updatedAt
+-  updatedBy                  String?
++  id                        String   @id @default(uuid())
++  passwordComplexityEnabled Boolean  @default(true)
++  minPasswordLength         Int      @default(12)
++  passwordHistoryCount      Int      @default(0)
++  passwordValidityDays      Int      @default(0)
++  forceMfa                  Boolean  @default(false)
++  createdAt                 DateTime @default(now())
++  updatedAt                 DateTime @updatedAt
++  updatedBy                 String?
+ 
+   @@map("auth_settings")
+ }
+@@ -303,16 +303,16 @@ model InterestedParty {
+ // ==========================================
+ 
+ model AssetType {
+-  id                      String   @id @default(uuid())
+-  name                    String   @unique
+-  description             String?
+-  category                String
+-  inventoryEnabled        Boolean  @default(false)
+-  inventoryPattern        String?
+-  inventoryNextSequence   Int      @default(1)
+-  isArchived              Boolean  @default(false)
+-  createdAt               DateTime @default(now())
+-  updatedAt               DateTime @updatedAt
++  id                    String   @id @default(uuid())
++  name                  String   @unique
++  description           String?
++  category              String
++  inventoryEnabled      Boolean  @default(false)
++  inventoryPattern      String?
++  inventoryNextSequence Int      @default(1)
++  isArchived            Boolean  @default(false)
++  createdAt             DateTime @default(now())
++  updatedAt             DateTime @updatedAt
+ 
+   assets   Asset[]        @relation("AssetTypeRelation")
+   subtypes AssetSubtype[]
+@@ -676,9 +676,9 @@ model RiskMethodVersion {
+   createdAt         DateTime @default(now())
+   isImmutable       Boolean  @default(false) // set to true once first assessment references this version
+ 
+-  riskMethod     RiskMethod       @relation(fields: [riskMethodId], references: [id], onDelete: Cascade)
+-  Risk           Risk[]
+-  RiskAssessment RiskAssessment[]
++  riskMethod             RiskMethod              @relation(fields: [riskMethodId], references: [id], onDelete: Cascade)
++  Risk                   Risk[]
++  RiskAssessment         RiskAssessment[]
+   riskAssessmentVersions RiskAssessmentVersion[]
+ 
+   @@index([riskMethodId])
+@@ -735,9 +735,9 @@ model Risk {
+   reviewTasks   ReviewTask[]
+ 
+   // Junction table links for M:N relationships (replaces ID arrays)
+-  processLinks   RiskProcess[]
+-  serviceLinks   RiskService[]
+-  RiskAssessment RiskAssessment[]
++  processLinks           RiskProcess[]
++  serviceLinks           RiskService[]
++  RiskAssessment         RiskAssessment[]
+   riskAssessmentVersions RiskAssessmentVersion[]
+ 
+   @@index([riskMethodVersionId])
+@@ -746,11 +746,11 @@ model Risk {
+ }
+ 
+ model RiskAssessmentVersion {
+-  id                  String   @id @default(uuid())
++  id                  String    @id @default(uuid())
+   riskId              String
+   riskMethodVersionId String
+-  versionNumber       Int      @default(1)
+-  assessmentType      String   @default("current")
++  versionNumber       Int       @default(1)
++  assessmentType      String    @default("current")
+   likelihood          Int
+   impact              Int
+   inherentRisk        String
+@@ -758,14 +758,14 @@ model RiskAssessmentVersion {
+   targetRisk          String
+   score               Int?
+   assessorId          String
+-  assessedAt          DateTime @default(now())
++  assessedAt          DateTime  @default(now())
+   nextReviewDate      DateTime
+   justification       String
+-  status              String   @default("draft")
+-  isCurrent           Boolean  @default(true)
+-  isClosed            Boolean  @default(false)
++  status              String    @default("draft")
++  isCurrent           Boolean   @default(true)
++  isClosed            Boolean   @default(false)
+   closedAt            DateTime?
+-  createdAt           DateTime @default(now())
++  createdAt           DateTime  @default(now())
+ 
+   risk                   Risk                    @relation(fields: [riskId], references: [id], onDelete: Cascade)
+   riskMethodVersionIdRef RiskMethodVersion       @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+@@ -778,18 +778,18 @@ model RiskAssessmentVersion {
+ }
+ 
+ model RiskControl {
+-  id                         String                         @id @default(uuid())
+-  riskId                     String
+-  controlImplementationId    String
+-  role                       RiskControlRole
+-  mitigationDimension        RiskControlMitigationDimension
+-  isKeyControl               Boolean                        @default(false)
+-  status                     String                         @default("active")
+-  createdAt                  DateTime                       @default(now())
+-  createdBy                  String?
++  id                      String                         @id @default(uuid())
++  riskId                  String
++  controlImplementationId String
++  role                    RiskControlRole
++  mitigationDimension     RiskControlMitigationDimension
++  isKeyControl            Boolean                        @default(false)
++  status                  String                         @default("active")
++  createdAt               DateTime                       @default(now())
++  createdBy               String?
+ 
+-  risk                  Risk                  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+-  controlImplementation ControlImplementation @relation(fields: [controlImplementationId], references: [id], onDelete: Cascade)
++  risk                  Risk                    @relation(fields: [riskId], references: [id], onDelete: Cascade)
++  controlImplementation ControlImplementation   @relation(fields: [controlImplementationId], references: [id], onDelete: Cascade)
+   assessments           RiskControlAssessment[]
+ 
+   @@unique([riskId, controlImplementationId])
+@@ -799,7 +799,7 @@ model RiskControl {
+ }
+ 
+ model RiskControlAssessment {
+-  id                      String   @id @default(uuid())
++  id                      String    @id @default(uuid())
+   riskControlId           String
+   riskAssessmentVersionId String
+   effectivenessStatus     String
+@@ -808,9 +808,9 @@ model RiskControlAssessment {
+   impactReduction         Int?
+   justification           String
+   assessedBy              String
+-  assessedAt              DateTime @default(now())
+-  status                  String   @default("draft")
+-  isClosed                Boolean  @default(false)
++  assessedAt              DateTime  @default(now())
++  status                  String    @default("draft")
++  isClosed                Boolean   @default(false)
+   closedAt                DateTime?
+ 
+   riskControl           RiskControl           @relation(fields: [riskControlId], references: [id], onDelete: Cascade)
+@@ -892,20 +892,20 @@ model RiskTreatment {
+ }
+ 
+ model TreatmentAction {
+-  id                              String    @id @default(uuid())
+-  treatmentId                     String
+-  controlImplementationId         String?
+-  actionType                      String
+-  title                           String
+-  description                     String?
+-  responsibleUserId               String?
+-  targetDate                      DateTime?
+-  status                          String    @default("planned")
+-  completedAt                     DateTime?
+-  completedBy                     String?
+-  createdAt                       DateTime  @default(now())
+-  updatedAt                       DateTime  @updatedAt
+-  createdBy                       String?
++  id                      String    @id @default(uuid())
++  treatmentId             String
++  controlImplementationId String?
++  actionType              String
++  title                   String
++  description             String?
++  responsibleUserId       String?
++  targetDate              DateTime?
++  status                  String    @default("planned")
++  completedAt             DateTime?
++  completedBy             String?
++  createdAt               DateTime  @default(now())
++  updatedAt               DateTime  @updatedAt
++  createdBy               String?
+ 
+   treatment             RiskTreatment          @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+   controlImplementation ControlImplementation? @relation(fields: [controlImplementationId], references: [id], onDelete: SetNull)
+@@ -1317,12 +1317,12 @@ model ControlImplementation {
+   createdBy                 String?
+   updatedBy                 String?
+ 
+-  control      Control                            @relation(fields: [controlId], references: [id], onDelete: Cascade)
+-  requirements ControlImplementationRequirement[]
+-  findings     ControlFinding[]
+-  actions      ControlAction[]
+-  riskControls RiskControl[]
+-  controlTests ControlTest[]
++  control          Control                            @relation(fields: [controlId], references: [id], onDelete: Cascade)
++  requirements     ControlImplementationRequirement[]
++  findings         ControlFinding[]
++  actions          ControlAction[]
++  riskControls     RiskControl[]
++  controlTests     ControlTest[]
+   treatmentActions TreatmentAction[]
+ 
+   @@index([controlId])
+@@ -1437,22 +1437,22 @@ model StatementOfApplicability {
+ }
+ 
+ model SoAItem {
+-  id                       String   @id @default(uuid())
+-  soaId                    String
+-  requirementId            String?
+-  controlId                String?
+-  applicability            String   @default("under_review")
+-  justification            String
+-  implementationStatus     String   @default("planned")
+-  version                  Int      @default(1)
+-  isImmutable              Boolean  @default(false)
+-  createdAt                DateTime @default(now())
+-  updatedAt                DateTime @updatedAt
+-  createdBy                String?
+-  updatedBy                String?
++  id                   String   @id @default(uuid())
++  soaId                String
++  requirementId        String?
++  controlId            String?
++  applicability        String   @default("under_review")
++  justification        String
++  implementationStatus String   @default("planned")
++  version              Int      @default(1)
++  isImmutable          Boolean  @default(false)
++  createdAt            DateTime @default(now())
++  updatedAt            DateTime @updatedAt
++  createdBy            String?
++  updatedBy            String?
+ 
+-  soa     StatementOfApplicability @relation(fields: [soaId], references: [id], onDelete: Cascade)
+-  control Control?                 @relation(fields: [controlId], references: [id], onDelete: SetNull)
++  soa                 StatementOfApplicability       @relation(fields: [soaId], references: [id], onDelete: Cascade)
++  control             Control?                       @relation(fields: [controlId], references: [id], onDelete: SetNull)
+   implementationLinks SoAItemControlImplementation[]
+ 
+   @@index([soaId])
+@@ -1684,32 +1684,32 @@ model IncidentEscalation {
+ }
+ 
+ model Evidence {
+-  id                 String    @id @default(uuid())
+-  title              String
+-  description        String?
+-  evidenceType       String
+-  source             String?
+-  createdAt          DateTime  @default(now())
+-  createdBy          String
+-  validFrom          DateTime  @default(now())
+-  validUntil         DateTime?
+-  classification     String?
+-  responsibleId      String
+-  fileHash           String?
+-  hashAlgorithm      String    @default("sha256")
+-  fileName           String?
+-  mimeType           String?
+-  fileSize           Int?
+-  retentionPeriod    String?
+-  retentionUntil     DateTime?
+-  expiresAt          DateTime?
+-  deleteProtected    Boolean   @default(false)
+-  status             String    @default("active")
+-  isArchived         Boolean   @default(false)
+-  updatedAt          DateTime  @updatedAt
+-  updatedBy          String?
++  id              String    @id @default(uuid())
++  title           String
++  description     String?
++  evidenceType    String
++  source          String?
++  createdAt       DateTime  @default(now())
++  createdBy       String
++  validFrom       DateTime  @default(now())
++  validUntil      DateTime?
++  classification  String?
++  responsibleId   String
++  fileHash        String?
++  hashAlgorithm   String    @default("sha256")
++  fileName        String?
++  mimeType        String?
++  fileSize        Int?
++  retentionPeriod String?
++  retentionUntil  DateTime?
++  expiresAt       DateTime?
++  deleteProtected Boolean   @default(false)
++  status          String    @default("active")
++  isArchived      Boolean   @default(false)
++  updatedAt       DateTime  @updatedAt
++  updatedBy       String?
+ 
+-  links     EvidenceLink[]
++  links EvidenceLink[]
+ 
+   @@map("evidence")
+ }
+@@ -1723,11 +1723,11 @@ model EvidenceLink {
+   createdAt    DateTime @default(now())
+   createdBy    String?
+ 
+-  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+-  riskControlAssessment RiskControlAssessment? @relation(fields: [riskControlAssessmentId], references: [id])
++  evidence                Evidence               @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
++  riskControlAssessment   RiskControlAssessment? @relation(fields: [riskControlAssessmentId], references: [id])
+   riskControlAssessmentId String?
+-  controlTest ControlTest? @relation(fields: [controlTestId], references: [id])
+-  controlTestId String?
++  controlTest             ControlTest?           @relation(fields: [controlTestId], references: [id])
++  controlTestId           String?
+ 
+   @@unique([evidenceId, entityType, entityId])
+   @@index([entityType, entityId])
+@@ -1796,7 +1796,7 @@ model CostPlan {
+   createdByUserId String?
+   updatedByUserId String?
+ 
+-  owner User? @relation("CostPlanOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
++  owner User?          @relation("CostPlanOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+   items CostPlanItem[]
+ 
+   @@index([periodStart, periodEnd])
+@@ -2783,43 +2783,43 @@ model IntuneSyncConfig {
+ }
+ 
+ model ReminderConfig {
+-  id                      String    @id @default(uuid())
+-  enabled                 Boolean   @default(false)
+-  intervalMinutes         Int       @default(1440)
+-  lookAheadDays           Int       @default(0)
+-  reminderFromEmail       String?
+-  reminderSubjectPrefix   String    @default("[ISMS Reminder]")
+-  smtpHost                String?
+-  smtpPort                Int       @default(587)
+-  smtpSecure              Boolean   @default(false)
+-  smtpUser                String?
+-  smtpPassword            String?
+-  smtpRejectUnauthorized  Boolean   @default(true)
+-  lastRunAt               DateTime?
+-  nextRunAt               DateTime?
+-  lastRunStatus           String?
+-  lastRunMessage          String?
+-  createdAt               DateTime  @default(now())
+-  updatedAt               DateTime  @updatedAt
+-  updatedBy               String?
++  id                     String    @id @default(uuid())
++  enabled                Boolean   @default(false)
++  intervalMinutes        Int       @default(1440)
++  lookAheadDays          Int       @default(0)
++  reminderFromEmail      String?
++  reminderSubjectPrefix  String    @default("[ISMS Reminder]")
++  smtpHost               String?
++  smtpPort               Int       @default(587)
++  smtpSecure             Boolean   @default(false)
++  smtpUser               String?
++  smtpPassword           String?
++  smtpRejectUnauthorized Boolean   @default(true)
++  lastRunAt              DateTime?
++  nextRunAt              DateTime?
++  lastRunStatus          String?
++  lastRunMessage         String?
++  createdAt              DateTime  @default(now())
++  updatedAt              DateTime  @updatedAt
++  updatedBy              String?
+ 
+   @@map("reminder_config")
+ }
+ 
+ model ReminderDeliveryLog {
+-  id             String   @id @default(uuid())
+-  runId          String
+-  resource       String
+-  entityType     String
+-  entityId       String
+-  recipientEmail String?
++  id              String    @id @default(uuid())
++  runId           String
++  resource        String
++  entityType      String
++  entityId        String
++  recipientEmail  String?
+   recipientUserId String?
+-  subject        String?
+-  status         String   @default("pending")
+-  errorMessage   String?
+-  dueDate        DateTime?
+-  sentAt         DateTime?
+-  createdAt      DateTime @default(now())
++  subject         String?
++  status          String    @default("pending")
++  errorMessage    String?
++  dueDate         DateTime?
++  sentAt          DateTime?
++  createdAt       DateTime  @default(now())
+ 
+   @@index([runId])
+   @@index([resource, entityId])
+@@ -2870,8 +2870,8 @@ model Contract {
+   createdBy    String?
+   updatedBy    String?
+ 
+-  assetLinks   AssetContract[]
+-  licenseLinks ContractLicense[]
++  assetLinks    AssetContract[]
++  licenseLinks  ContractLicense[]
+   costPlanItems CostPlanItem[]
+ 
+   @@map("contracts")
+@@ -3389,6 +3389,7 @@ model ApiScope {
+ 
+   @@map("api_scopes")
+ }
++
+ model ControlCatalog {
+   id          String   @id @default(uuid())
+   name        String   @unique
+diff --git a/backend/src/routes/control.routes.ts b/backend/src/routes/control.routes.ts
+index d3f9a2f..dce9ac4 100644
+--- a/backend/src/routes/control.routes.ts
++++ b/backend/src/routes/control.routes.ts
+@@ -1,8 +1,10 @@
+ import { Router } from 'express';
+ import { authenticate, AuthRequest } from '../middleware/auth';
+ import { requireAdminAccess } from '../middleware/entityAuth';
+-import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
++import { authorizeEntityRead, authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
+ import { controlService } from '../services/control.service';
++import { validateParams } from '../middleware/validation';
++import { ControlImplementationRiskParamsSchema } from 'shared';
+ 
+ export const controlRouter = Router();
+ 
+@@ -79,6 +81,14 @@ controlRouter.post('/implementations', authenticate, authorizeEntityWrite('contr
+   }
+ });
+ 
++controlRouter.get('/implementations/:implementationId/risks', authenticate, authorizeEntityRead('controls'), validateParams(ControlImplementationRiskParamsSchema), async (req, res, next) => {
++  try {
++    res.json(await controlService.listImplementationRisks(req.params.implementationId));
++  } catch (error) {
++    next(error);
++  }
++});
++
+ controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+   try {
+     res.status(201).json(await controlService.createControlTest(req.body, req.userId));
+diff --git a/backend/src/routes/risk.routes.ts b/backend/src/routes/risk.routes.ts
+index a0eea01..bfe6082 100644
+--- a/backend/src/routes/risk.routes.ts
++++ b/backend/src/routes/risk.routes.ts
+@@ -1,9 +1,20 @@
+ import { Router } from 'express';
+ import { authenticate, AuthRequest } from '../middleware/auth';
+ import { requireAdminAccess } from '../middleware/entityAuth';
+-import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
++import { authorizeEntityRead, authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
+ import { riskService } from '../services/risk.service';
+ import { riskAggregationService } from '../services/risk.aggregation';
++import { validateBody, validateParams, validateQuery } from '../middleware/validation';
++import {
++  CreateNestedRiskControlAssessmentSchema,
++  CreateNestedRiskControlSchema,
++  CreateRiskControlAssessmentSchema,
++  CreateRiskControlSchema,
++  RiskControlAssessmentListQuerySchema,
++  RiskControlListQuerySchema,
++  RiskControlNestedParamsSchema,
++  UpdateRiskControlSchema,
++} from 'shared';
+ 
+ 
+ 
+@@ -56,7 +67,7 @@ riskRouter.post('/assessments', authenticate, authorizeEntityWrite('risks'), asy
+   }
+ });
+ 
+-riskRouter.post('/risk-controls', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
++riskRouter.post('/risk-controls', authenticate, authorizeEntityWrite('risks'), validateBody(CreateRiskControlSchema), async (req: AuthRequest, res, next) => {
+   try {
+     const link = await riskService.linkRiskControl(req.body, req.userId);
+     res.status(201).json(link);
+@@ -65,7 +76,7 @@ riskRouter.post('/risk-controls', authenticate, authorizeEntityWrite('risks'), a
+   }
+ });
+ 
+-riskRouter.post('/risk-control-assessments', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
++riskRouter.post('/risk-control-assessments', authenticate, authorizeEntityWrite('risks'), validateBody(CreateRiskControlAssessmentSchema), async (req: AuthRequest, res, next) => {
+   try {
+     const assessment = await riskService.assessRiskControl(req.body, req.userId);
+     res.status(201).json(assessment);
+@@ -74,6 +85,79 @@ riskRouter.post('/risk-control-assessments', authenticate, authorizeEntityWrite(
+   }
+ });
+ 
++// Canonical nested RiskControl workflow routes.
++riskRouter.get('/:riskId/controls', authenticate, authorizeEntityRead('risks'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlListQuerySchema), async (req, res, next) => {
++  try {
++    res.json(await riskService.listRiskControls(req.params.riskId, req.query as any));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.post('/:riskId/controls', authenticate, authorizeEntityWrite('risks'), validateParams(RiskControlNestedParamsSchema), validateBody(CreateNestedRiskControlSchema), async (req: AuthRequest, res, next) => {
++  try {
++    res.status(201).json(await riskService.createRiskControl(req.params.riskId, req.body, req.userId));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.get('/:riskId/control-assessments', authenticate, authorizeEntityRead('risks'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
++  try {
++    res.json(await riskService.listControlAssessmentsForRisk(req.params.riskId, req.query as any));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.get('/:riskId/controls/:riskControlId', authenticate, authorizeEntityRead('risks'), validateParams(RiskControlNestedParamsSchema), async (req, res, next) => {
++  try {
++    res.json(await riskService.getRiskControl(req.params.riskId, req.params.riskControlId));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.patch('/:riskId/controls/:riskControlId', authenticate, authorizeEntityWrite('risks'), validateParams(RiskControlNestedParamsSchema), validateBody(UpdateRiskControlSchema), async (req: AuthRequest, res, next) => {
++  try {
++    res.json(await riskService.updateRiskControl(req.params.riskId, req.params.riskControlId, req.body, req.userId));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.delete('/:riskId/controls/:riskControlId', authenticate, authorizeEntityWrite('risks'), validateParams(RiskControlNestedParamsSchema), async (req: AuthRequest, res, next) => {
++  try {
++    res.json(await riskService.removeRiskControl(req.params.riskId, req.params.riskControlId, req.userId));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.get('/:riskId/controls/:riskControlId/assessments', authenticate, authorizeEntityRead('risks'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
++  try {
++    res.json(await riskService.listRiskControlAssessments(req.params.riskId, req.params.riskControlId, req.query as any));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.post('/:riskId/controls/:riskControlId/assessments', authenticate, authorizeEntityWrite('risks'), validateParams(RiskControlNestedParamsSchema), validateBody(CreateNestedRiskControlAssessmentSchema), async (req: AuthRequest, res, next) => {
++  try {
++    res.status(201).json(await riskService.createRiskControlAssessment(req.params.riskId, req.params.riskControlId, req.body, req.userId));
++  } catch (error) {
++    next(error);
++  }
++});
++
++riskRouter.get('/:riskId/controls/:riskControlId/assessments/:assessmentId', authenticate, authorizeEntityRead('risks'), validateParams(RiskControlNestedParamsSchema), async (req, res, next) => {
++  try {
++    res.json(await riskService.getRiskControlAssessment(req.params.riskId, req.params.riskControlId, req.params.assessmentId));
++  } catch (error) {
++    next(error);
++  }
++});
++
+ riskRouter.post('/assessment-versions/:id/close', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+   try {
+     res.json(await riskService.closeAssessmentVersion(req.params.id, req.userId));
+diff --git a/backend/src/services/control.service.ts b/backend/src/services/control.service.ts
+index 7c1e64f..9e47272 100644
+--- a/backend/src/services/control.service.ts
++++ b/backend/src/services/control.service.ts
+@@ -160,6 +160,45 @@ export class ControlService {
+     return control;
+   }
+ 
++  async listImplementationRisks(implementationId: string) {
++    const implementation = await db.controlImplementation.findUnique({
++      where: { id: implementationId },
++      include: {
++        control: true,
++        riskControls: {
++          orderBy: { createdAt: 'desc' },
++          include: {
++            risk: { select: { id: true, displayId: true, title: true, status: true, inherentRisk: true, residualRisk: true } },
++            assessments: {
++              orderBy: { assessedAt: 'desc' },
++              take: 1,
++              include: { riskAssessmentVersion: true, evidenceLinks: true },
++            },
++          },
++        },
++      },
++    });
++    if (!implementation) throw new AppError('Control implementation not found', 404);
++    return {
++      implementationId,
++      control: implementation.control,
++      risks: implementation.riskControls.map((riskControl: any) => ({
++        riskControlId: riskControl.id,
++        riskId: riskControl.riskId,
++        displayId: riskControl.risk?.displayId,
++        title: riskControl.risk?.title,
++        status: riskControl.risk?.status,
++        inherentRisk: riskControl.risk?.inherentRisk,
++        residualRisk: riskControl.risk?.residualRisk,
++        role: riskControl.role,
++        mitigationDimension: riskControl.mitigationDimension,
++        isKeyControl: riskControl.isKeyControl,
++        relationshipStatus: riskControl.status,
++        latestAssessment: riskControl.assessments?.[0] ?? null,
++      })),
++    };
++  }
++
+   async create(data: CreateControlData, createdBy?: string) {
+     this.rejectDeprecatedPayload(data as unknown as Record<string, unknown>);
+     const { affectedAssetIds, affectedProcessIds, affectedSiteIds, ...controlData } = data;
+diff --git a/backend/src/services/risk.service.ts b/backend/src/services/risk.service.ts
+index 99696e1..b12c0d4 100644
+--- a/backend/src/services/risk.service.ts
++++ b/backend/src/services/risk.service.ts
+@@ -9,6 +9,8 @@ const db = prisma as any;
+ const DEPRECATED_RISK_CONTROL_FIELDS = ['existingControls', 'controls', 'controlIds', 'relatedRiskIds', 'riskIds'];
+ const RISK_CONTROL_ROLES = ['preventive', 'detective', 'corrective', 'recovery', 'compensating'];
+ const MITIGATION_DIMENSIONS = ['likelihood', 'impact', 'both'];
++const EFFECTIVENESS_STATUSES = ['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable'];
++const ACTIVE_CONTROL_IMPLEMENTATION_STATUSES = ['active', 'planned', 'implemented', 'in_progress', 'tested', 'effective'];
+ 
+ // ==========================================
+ // Interfaces
+@@ -80,7 +82,7 @@ export interface CreateAssessmentData {
+ }
+ 
+ export interface CreateRiskControlData {
+-  riskId: string;
++  riskId?: string;
+   controlImplementationId: string;
+   role: 'preventive' | 'detective' | 'corrective' | 'recovery' | 'compensating';
+   mitigationDimension: 'likelihood' | 'impact' | 'both';
+@@ -89,7 +91,7 @@ export interface CreateRiskControlData {
+ }
+ 
+ export interface CreateRiskControlAssessmentData {
+-  riskControlId: string;
++  riskControlId?: string;
+   riskAssessmentVersionId: string;
+   effectivenessStatus: string;
+   effectivenessRating?: number;
+@@ -112,6 +114,8 @@ export interface CreateReviewTaskData {
+   notes?: string;
+ }
+ 
++export type UpdateRiskControlData = Partial<Pick<CreateRiskControlData, 'role' | 'mitigationDimension' | 'isKeyControl' | 'status'>>;
++
+ type ReviewTaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'cancelled';
+ 
+ // ==========================================
+@@ -119,6 +123,18 @@ type ReviewTaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'c
+ // ==========================================
+ 
+ export class RiskService {
++  private riskControlInclude: any = {
++    risk: { select: { id: true, displayId: true, title: true, status: true } },
++    controlImplementation: { include: { control: true } },
++    assessments: {
++      orderBy: { assessedAt: 'desc' },
++      include: {
++        riskAssessmentVersion: true,
++        evidenceLinks: { include: { evidence: true } },
++      },
++    },
++  };
++
+   private rejectDeprecatedRiskControlPayload(data: Record<string, unknown>) {
+     const forbidden = DEPRECATED_RISK_CONTROL_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(data, field));
+     if (forbidden.length) {
+@@ -133,6 +149,21 @@ export class RiskService {
+     }
+   }
+ 
++  private validateRiskControlPayload(data: { role?: string; mitigationDimension?: string }) {
++    if (data.role && !RISK_CONTROL_ROLES.includes(data.role)) throw new AppError('Invalid risk-control role', 400);
++    if (data.mitigationDimension && !MITIGATION_DIMENSIONS.includes(data.mitigationDimension)) throw new AppError('Invalid mitigation dimension', 400);
++  }
++
++  private validateRiskControlAssessmentPayload(data: CreateRiskControlAssessmentData, mitigationDimension: string) {
++    if (!data.justification?.trim()) throw new AppError('Risk-control assessment justification is required', 400);
++    if (!EFFECTIVENESS_STATUSES.includes(data.effectivenessStatus)) throw new AppError('Invalid risk-control effectiveness status', 400);
++    if (data.effectivenessRating !== undefined && (data.effectivenessRating < 0 || data.effectivenessRating > 100)) throw new AppError('Effectiveness rating must be between 0 and 100', 400);
++    if (data.likelihoodReduction !== undefined && (data.likelihoodReduction < 0 || data.likelihoodReduction > 100)) throw new AppError('Likelihood reduction must be between 0 and 100', 400);
++    if (data.impactReduction !== undefined && (data.impactReduction < 0 || data.impactReduction > 100)) throw new AppError('Impact reduction must be between 0 and 100', 400);
++    if (mitigationDimension === 'likelihood' && (data.impactReduction ?? 0) > 0) throw new AppError('Impact reduction is only allowed for impact or both mitigation dimensions', 400);
++    if (mitigationDimension === 'impact' && (data.likelihoodReduction ?? 0) > 0) throw new AppError('Likelihood reduction is only allowed for likelihood or both mitigation dimensions', 400);
++  }
++
+   /**
+    * List risks with pagination and filters.
+    */
+@@ -220,7 +251,10 @@ export class RiskService {
+         riskAssets: { include: { asset: true } },
+         processLinks: { include: { process: true } },
+         serviceLinks: { include: { service: true } },
+-        evidenceLinks: { include: { evidence: true } },
++        riskControls: {
++          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
++          include: this.riskControlInclude,
++        },
+         treatments: true,
+         reviewTasks: true,
+         RiskAssessment: {
+@@ -787,73 +821,218 @@ export class RiskService {
+     return db.riskAssessmentVersion.findFirst({
+       where,
+       include: {
+-        controlAssessments: { include: { riskControl: true, evidenceLinks: true } },
++        controlAssessments: { include: { riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: true } },
+       },
+     });
+   }
+ 
+-  async linkRiskControl(data: CreateRiskControlData, createdBy?: string) {
+-    if (!RISK_CONTROL_ROLES.includes(data.role)) throw new AppError('Invalid risk-control role', 400);
+-    if (!MITIGATION_DIMENSIONS.includes(data.mitigationDimension)) throw new AppError('Invalid mitigation dimension', 400);
++  async listRiskControls(riskId: string, query?: { status?: string; includeInactive?: boolean }) {
++    const risk = await db.risk.findUnique({ where: { id: riskId }, select: { id: true } });
++    if (!risk) throw new AppError('Risk not found', 404);
++    const where: any = { riskId };
++    if (query?.status) where.status = query.status;
++    if (!query?.includeInactive && !query?.status) where.status = { not: 'inactive' };
++    return db.riskControl.findMany({ where, orderBy: { createdAt: 'desc' }, include: this.riskControlInclude });
++  }
++
++  async getRiskControl(riskId: string, riskControlId: string) {
++    const riskControl = await db.riskControl.findFirst({ where: { id: riskControlId, riskId }, include: this.riskControlInclude });
++    if (!riskControl) throw new AppError('Risk control link not found', 404);
++    return riskControl;
++  }
++
++  async createRiskControl(riskId: string, data: CreateRiskControlData, createdBy?: string) {
++    this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
++    this.validateRiskControlPayload(data);
+     const [risk, implementation] = await Promise.all([
+-      db.risk.findUnique({ where: { id: data.riskId } }),
++      db.risk.findUnique({ where: { id: riskId } }),
+       db.controlImplementation.findUnique({ where: { id: data.controlImplementationId } }),
+     ]);
+     if (!risk) throw new AppError('Risk not found', 404);
+     if (!implementation) throw new AppError('Control implementation not found', 404);
++    if (implementation.isArchived || implementation.status === 'archived' || implementation.status === 'inactive') throw new AppError('Archived or inactive control implementations cannot be linked to risks', 400);
++    if (implementation.status && !ACTIVE_CONTROL_IMPLEMENTATION_STATUSES.includes(implementation.status)) throw new AppError('Control implementation is not linkable in its current status', 400);
++
++    const duplicate = await db.riskControl.findFirst({ where: { riskId, controlImplementationId: data.controlImplementationId } });
++    if (duplicate) throw new AppError('Risk is already linked to this control implementation', 409);
+ 
+-    return db.riskControl.create({
++    try {
++      const created = await db.riskControl.create({
++        data: {
++          riskId,
++          controlImplementationId: data.controlImplementationId,
++          role: data.role,
++          mitigationDimension: data.mitigationDimension,
++          isKeyControl: data.isKeyControl ?? false,
++          status: data.status ?? 'active',
++          createdBy,
++        },
++        include: this.riskControlInclude,
++      });
++      if (createdBy) {
++        await auditService.logEventStandalone(prisma, {
++          userId: createdBy,
++          action: 'RISK_CONTROL_CREATE',
++          entityType: 'RiskControl',
++          entityId: created.id,
++          details: `Linked risk ${risk.displayId ?? riskId} to control implementation ${data.controlImplementationId}`,
++          newValue: {
++            riskId,
++            controlImplementationId: data.controlImplementationId,
++            role: data.role,
++            mitigationDimension: data.mitigationDimension,
++            isKeyControl: data.isKeyControl ?? false,
++            status: data.status ?? 'active',
++          },
++        });
++      }
++      return created;
++    } catch (error: any) {
++      if (error?.code === 'P2002') throw new AppError('Risk is already linked to this control implementation', 409);
++      throw error;
++    }
++  }
++
++  async linkRiskControl(data: CreateRiskControlData, createdBy?: string) {
++    if (!data.riskId) throw new AppError('Risk ID is required', 400);
++    return this.createRiskControl(data.riskId, data, createdBy);
++  }
++
++  async updateRiskControl(riskId: string, riskControlId: string, data: UpdateRiskControlData, updatedBy?: string) {
++    this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
++    this.validateRiskControlPayload(data);
++    const existing = await db.riskControl.findFirst({ where: { id: riskControlId, riskId } });
++    if (!existing) throw new AppError('Risk control link not found', 404);
++
++    const updated = await db.riskControl.update({
++      where: { id: riskControlId },
+       data: {
+-        riskId: data.riskId,
+-        controlImplementationId: data.controlImplementationId,
+-        role: data.role,
+-        mitigationDimension: data.mitigationDimension,
+-        isKeyControl: data.isKeyControl ?? false,
+-        status: data.status ?? 'active',
+-        createdBy,
++        ...(data.role !== undefined && { role: data.role }),
++        ...(data.mitigationDimension !== undefined && { mitigationDimension: data.mitigationDimension }),
++        ...(data.isKeyControl !== undefined && { isKeyControl: data.isKeyControl }),
++        ...(data.status !== undefined && { status: data.status }),
+       },
+-      include: { risk: true, controlImplementation: { include: { control: true } } },
++      include: this.riskControlInclude,
+     });
++    if (updatedBy) {
++      await auditService.logEventStandalone(prisma, { userId: updatedBy, action: 'RISK_CONTROL_UPDATE', entityType: 'RiskControl', entityId: riskControlId, details: 'Updated risk control relationship', oldValue: existing, newValue: updated });
++    }
++    return updated;
+   }
+ 
+-  async assessRiskControl(data: CreateRiskControlAssessmentData, userId?: string) {
+-    if (!data.justification?.trim()) throw new AppError('Risk-control assessment justification is required', 400);
++  async removeRiskControl(riskId: string, riskControlId: string, userId?: string) {
++    const existing = await db.riskControl.findFirst({ where: { id: riskControlId, riskId }, include: { assessments: true } });
++    if (!existing) throw new AppError('Risk control link not found', 404);
++    const updated = await db.riskControl.update({ where: { id: riskControlId }, data: { status: 'inactive' }, include: this.riskControlInclude });
++    if (userId) {
++      await auditService.logEventStandalone(prisma, {
++        userId,
++        action: 'RISK_CONTROL_DEACTIVATE',
++        entityType: 'RiskControl',
++        entityId: riskControlId,
++        details: existing.assessments?.length ? 'Deactivated risk control relationship with assessment history' : 'Deactivated risk control relationship',
++        oldValue: existing,
++        newValue: { ...existing, status: 'inactive' },
++      });
++    }
++    return updated;
++  }
++
++  async listControlAssessmentsForRisk(riskId: string, query?: { riskAssessmentVersionId?: string; status?: string }) {
++    const risk = await db.risk.findUnique({ where: { id: riskId }, select: { id: true } });
++    if (!risk) throw new AppError('Risk not found', 404);
++    const where: any = { riskControl: { riskId } };
++    if (query?.riskAssessmentVersionId) where.riskAssessmentVersionId = query.riskAssessmentVersionId;
++    if (query?.status) where.status = query.status;
++    return db.riskControlAssessment.findMany({
++      where,
++      orderBy: { assessedAt: 'desc' },
++      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
++    });
++  }
++
++  async listRiskControlAssessments(riskId: string, riskControlId: string, query?: { riskAssessmentVersionId?: string; status?: string }) {
++    await this.getRiskControl(riskId, riskControlId);
++    const where: any = { riskControlId };
++    if (query?.riskAssessmentVersionId) where.riskAssessmentVersionId = query.riskAssessmentVersionId;
++    if (query?.status) where.status = query.status;
++    return db.riskControlAssessment.findMany({
++      where,
++      orderBy: { assessedAt: 'desc' },
++      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
++    });
++  }
++
++  async getRiskControlAssessment(riskId: string, riskControlId: string, assessmentId: string) {
++    const assessment = await db.riskControlAssessment.findFirst({
++      where: { id: assessmentId, riskControlId, riskControl: { riskId } },
++      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
++    });
++    if (!assessment) throw new AppError('Risk-control assessment not found', 404);
++    return assessment;
++  }
++
++  async createRiskControlAssessment(riskId: string, riskControlId: string, data: CreateRiskControlAssessmentData, userId?: string) {
+     const [riskControl, version] = await Promise.all([
+-      db.riskControl.findUnique({ where: { id: data.riskControlId } }),
++      db.riskControl.findFirst({ where: { id: riskControlId, riskId } }),
+       db.riskAssessmentVersion.findUnique({ where: { id: data.riskAssessmentVersionId } }),
+     ]);
+     if (!riskControl) throw new AppError('Risk control link not found', 404);
++    this.validateRiskControlAssessmentPayload(data, riskControl.mitigationDimension);
+     this.validateAssessmentMutability(version);
+     if (version.riskId !== riskControl.riskId) throw new AppError('Risk-control assessment version must belong to the same risk', 400);
+ 
+-    return db.$transaction(async (tx: any) => {
+-      const created = await tx.riskControlAssessment.create({
+-        data: {
+-          riskControlId: data.riskControlId,
+-          riskAssessmentVersionId: data.riskAssessmentVersionId,
+-          effectivenessStatus: data.effectivenessStatus,
+-          effectivenessRating: data.effectivenessRating,
+-          likelihoodReduction: data.likelihoodReduction,
+-          impactReduction: data.impactReduction,
+-          justification: data.justification,
+-          assessedBy: userId ?? data.assessedBy,
+-        },
++    try {
++      const assessment = await db.$transaction(async (tx: any) => {
++        const created = await tx.riskControlAssessment.create({
++          data: {
++            riskControlId,
++            riskAssessmentVersionId: data.riskAssessmentVersionId,
++            effectivenessStatus: data.effectivenessStatus,
++            effectivenessRating: data.effectivenessRating,
++            likelihoodReduction: riskControl.mitigationDimension === 'impact' ? undefined : data.likelihoodReduction,
++            impactReduction: riskControl.mitigationDimension === 'likelihood' ? undefined : data.impactReduction,
++            justification: data.justification,
++            assessedBy: userId ?? data.assessedBy,
++          },
++        });
++        if (data.evidenceLinks?.length) {
++          await tx.evidenceLink.createMany({
++            data: data.evidenceLinks.map((link) => ({
++              evidenceId: link.evidenceId,
++              entityType: 'RiskControlAssessment',
++              entityId: created.id,
++              relationType: link.relationType ?? 'supports',
++              riskControlAssessmentId: created.id,
++              createdBy: userId,
++            })),
++            skipDuplicates: true,
++          });
++        }
++        return tx.riskControlAssessment.findUnique({ where: { id: created.id }, include: { evidenceLinks: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, riskAssessmentVersion: true } });
+       });
+-      if (data.evidenceLinks?.length) {
+-        await tx.evidenceLink.createMany({
+-          data: data.evidenceLinks.map((link) => ({
+-            evidenceId: link.evidenceId,
+-            entityType: 'RiskControlAssessment',
+-            entityId: created.id,
+-            relationType: link.relationType ?? 'supports',
+-            riskControlAssessmentId: created.id,
+-            createdBy: userId,
+-          })),
+-          skipDuplicates: true,
++      if (userId && assessment) {
++        await auditService.logEventStandalone(prisma, {
++          userId,
++          action: 'RISK_CONTROL_ASSESSMENT_CREATE',
++          entityType: 'RiskControlAssessment',
++          entityId: assessment.id,
++          details: `Created risk-control assessment for risk ${riskId}`,
++          newValue: assessment,
+         });
+       }
+-      return tx.riskControlAssessment.findUnique({ where: { id: created.id }, include: { evidenceLinks: true, riskControl: true } });
+-    });
++      return assessment;
++    } catch (error: any) {
++      if (error?.code === 'P2002') throw new AppError('Risk-control assessment already exists for this assessment version', 409);
++      throw error;
++    }
++  }
++
++  async assessRiskControl(data: CreateRiskControlAssessmentData, userId?: string) {
++    if (!data.riskControlId) throw new AppError('Risk control ID is required', 400);
++    const riskControl = await db.riskControl.findUnique({ where: { id: data.riskControlId } });
++    if (!riskControl) throw new AppError('Risk control link not found', 404);
++    return this.createRiskControlAssessment(riskControl.riskId, data.riskControlId, data, userId);
+   }
+ 
+   async closeAssessmentVersion(id: string, userId?: string) {

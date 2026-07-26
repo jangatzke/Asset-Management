@@ -106,7 +106,7 @@ export class IncidentService {
     return created;
   }
 
-  async list(query: ListIncidentsQuery) {
+  async list(query: ListIncidentsQuery, authzWhere: Prisma.IncidentWhereInput = {}) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
     const offset = (page - 1) * limit;
@@ -128,15 +128,17 @@ export class IncidentService {
       where.severity = query.severity;
     }
 
+    const effectiveWhere: Prisma.IncidentWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
+
     const [incidents, total] = await Promise.all([
       prisma.incident.findMany({
-        where,
+        where: effectiveWhere,
         skip: offset,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: { reports: true, escalations: true } as Prisma.IncidentInclude,
       }),
-      prisma.incident.count({ where }),
+      prisma.incident.count({ where: effectiveWhere }),
     ]);
 
     return {

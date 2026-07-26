@@ -1237,27 +1237,50 @@
 - id: AUTHZ-001
   title: Consolidated administrative authorization
   priority: P0
-  status: planned
+  status: compliant
   phase: 1
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 1.
+  implementation:
+    - backend/src/services/authorization.service.ts
+    - backend/src/middleware/entityAuth.ts
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260726090000_phase1_scoped_authorization/migration.sql
+    - backend/prisma/seed.ts
+  tests:
+    - backend/src/__tests__/authorization.integration.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
-    - docs/refactoring-baseline.md
+    - administration.access permission replaces implicit admin authorization
+    - Direct and group role assignments are resolved centrally
+    - Expired assignments are ignored
 
 - id: AUTHZ-002
   title: Consolidated entity-level authorization
   priority: P0
-  status: planned
+  status: partial
   phase: 1
-  implementation: []
-  tests: []
+  implementation:
+    - backend/src/services/authorization.service.ts
+    - backend/src/middleware/entityAuth.ts
+    - backend/src/routes/asset.routes.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/routes/control.routes.ts
+    - backend/src/routes/incident.routes.ts
+    - backend/src/routes/phase6.routes.ts
+    - backend/src/routes/catalog.routes.ts
+    - backend/src/services/asset.service.ts
+    - backend/src/services/risk.service.ts
+    - backend/src/services/control.service.ts
+    - backend/src/services/incident.service.ts
+    - backend/prisma/schema.prisma
+  tests:
+    - backend/src/__tests__/authorization.integration.test.ts
   gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 1.
+    - Some legacy/non-core endpoints still require follow-up hardening beyond Phase 1 scope review; core assets/risks/controls/incidents and Phase 6 generic resources are covered.
   evidence:
-    - docs/refactoring-plan.md
+    - Granular permission catalog and RolePermission table added
+    - Scoped role assignments include LegalEntity, OrganizationUnit, IsmsScope and Site constraints
+    - buildReadFilter is merged into list/search where and count queries for core entities
+    - Detail outside scope returns 403
 
 - id: AUTHN-001
   title: Local authentication bootstrap and rate-limit hardening

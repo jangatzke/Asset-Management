@@ -100,6 +100,14 @@ backend/src/
 └── __tests__/                # Unit/Integration Tests
 ```
 
+### 1.3 Phase-1 Authorization Boundary
+
+Phase 1 centralizes authorization in `backend/src/services/authorization.service.ts`. Routes must not rely on `authenticate` alone for business objects. The service exposes `can`, `canForEntity`, `buildReadFilter`, `require`, and `requireForEntity`; route middleware is a thin adapter around those calls.
+
+The authorization data model is now relational: `Permission` defines the granular permission catalog, `RolePermission` connects roles to permissions, and direct/group role assignments carry optional `LegalEntity`, `OrganizationUnit`, `IsmsScope`, and `Site` constraints. Scoped checks resolve through domain relations (for example Risk → OrganizationUnit → LegalEntity → IsmsScope membership) instead of comparing unrelated IDs.
+
+List and search endpoints merge the authorization filter into the Prisma `where` used for both result rows and counts, preventing pagination/count side channels. Detail endpoints outside scope return `403` consistently.
+
 ### 1.3 Datenmodell (Prisma)
 
 Das Schema umfasst **40+ Modelle** in folgenden Bereichen. Der aktuelle Risiko-/Kontroll- und Asset-Inventory-Stand ist normalisiert und trennt Katalog-, Implementierungs-, Bewertungs- und Nachweisobjekte.

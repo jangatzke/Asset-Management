@@ -39,6 +39,7 @@ describe('normalized risk-control and asset inventory overhaul', () => {
   it('creates canonical RiskControl with allowed role and mitigation dimension', async () => {
     mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-1' });
     mockPrismaClient.controlImplementation.findUnique.mockResolvedValue({ id: 'ci-1' });
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue(null);
     mockPrismaClient.riskControl.create.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', controlImplementationId: 'ci-1' });
 
     await riskService.linkRiskControl({ riskId: 'risk-1', controlImplementationId: 'ci-1', role: 'preventive', mitigationDimension: 'likelihood' }, 'user-1');
@@ -50,8 +51,24 @@ describe('normalized risk-control and asset inventory overhaul', () => {
     await expect(riskService.linkRiskControl({ riskId: 'risk-1', controlImplementationId: 'ci-1', role: 'advisory' as any, mitigationDimension: 'both' })).rejects.toThrow('Invalid risk-control role');
   });
 
+  it('rejects duplicate RiskControl links as conflicts', async () => {
+    mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-1' });
+    mockPrismaClient.controlImplementation.findUnique.mockResolvedValue({ id: 'ci-1', status: 'active', isArchived: false });
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue({ id: 'existing' });
+    await expect(riskService.createRiskControl('risk-1', { controlImplementationId: 'ci-1', role: 'preventive', mitigationDimension: 'both' }, 'user-1')).rejects.toThrow('already linked');
+  });
+
+  it('updates and deactivates RiskControl instead of hard deleting', async () => {
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', assessments: [{ id: 'a-1' }], role: 'preventive' });
+    mockPrismaClient.riskControl.update.mockResolvedValue({ id: 'rc-1', status: 'inactive' });
+    await riskService.removeRiskControl('risk-1', 'rc-1', 'user-1');
+    expect(mockPrismaClient.riskControl.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'inactive' } }));
+    expect(mockPrismaClient.riskControl.delete).not.toHaveBeenCalled();
+  });
+
   it('creates versioned RiskControlAssessment with generic evidence links', async () => {
-    mockPrismaClient.riskControl.findUnique.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1' });
+    mockPrismaClient.riskControl.findUnique.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'likelihood' });
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'likelihood' });
     mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({ id: 'rav-1', riskId: 'risk-1', status: 'draft', isClosed: false });
     mockPrismaClient.riskControlAssessment.create.mockResolvedValue({ id: 'rca-1' });
     mockPrismaClient.riskControlAssessment.findUnique.mockResolvedValue({ id: 'rca-1', evidenceLinks: [] });
@@ -62,9 +79,24 @@ describe('normalized risk-control and asset inventory overhaul', () => {
   });
 
   it('does not overwrite closed assessment versions', async () => {
-    mockPrismaClient.riskControl.findUnique.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1' });
+    mockPrismaClient.riskControl.findUnique.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'both' });
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'both' });
     mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({ id: 'rav-1', riskId: 'risk-1', status: 'closed', isClosed: true });
     await expect(riskService.assessRiskControl({ riskControlId: 'rc-1', riskAssessmentVersionId: 'rav-1', effectivenessStatus: 'effective', justification: 'x', assessedBy: 'u1' })).rejects.toThrow('immutable');
+  });
+
+  it('rejects risk-control assessment reductions incompatible with mitigation dimension', async () => {
+    mockPrismaClient.riskControl.findUnique.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'likelihood' });
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'likelihood' });
+    mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({ id: 'rav-1', riskId: 'risk-1', status: 'draft', isClosed: false });
+    await expect(riskService.assessRiskControl({ riskControlId: 'rc-1', riskAssessmentVersionId: 'rav-1', effectivenessStatus: 'effective', impactReduction: 10, justification: 'x', assessedBy: 'u1' })).rejects.toThrow('Impact reduction');
+  });
+
+  it('rejects assessment version belonging to another risk', async () => {
+    mockPrismaClient.riskControl.findUnique.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'both' });
+    mockPrismaClient.riskControl.findFirst.mockResolvedValue({ id: 'rc-1', riskId: 'risk-1', mitigationDimension: 'both' });
+    mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({ id: 'rav-1', riskId: 'risk-2', status: 'draft', isClosed: false });
+    await expect(riskService.assessRiskControl({ riskControlId: 'rc-1', riskAssessmentVersionId: 'rav-1', effectivenessStatus: 'effective', justification: 'x', assessedBy: 'u1' })).rejects.toThrow('same risk');
   });
 
   it('creates RiskAssessmentVersion using assessor-entered residual and target values', async () => {

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
-import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
+import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';
+import { authorizationService } from '../services/authorization.service';
 import { z } from 'zod';
 
 export const incidentRouter = Router();
@@ -43,16 +44,16 @@ const CreateIncidentCommunicationSchema = z.object({ channel: z.string().min(1),
 const CloseIncidentSchema = z.object({ rootCause: z.string().min(1).optional(), lessonsLearned: z.string().optional(), measuresEvaluation: z.string().min(1).optional(), closureSummary: z.string().optional() });
 const CreateSignificanceRuleVersionSchema = z.object({ version: z.string().min(1), rules: z.array(z.record(z.any())).min(1), effectiveFrom: z.coerce.date().optional() });
 
-incidentRouter.get('/', authenticate, async (req, res, next) => {
+incidentRouter.get('/', authenticate, requirePermission('incidents.read'), async (req: AuthRequest, res, next) => {
   try {
-    const result = await incidentService.list(req.query);
+    const result = await incidentService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'incidents') as any);
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-incidentRouter.get('/:id', authenticate, async (req, res, next) => {
+incidentRouter.get('/:id', authenticate, requireEntityPermission('incidents.read', 'incidents'), async (req, res, next) => {
   try {
     const incident = await incidentService.getById(req.params.id);
     res.json(incident);

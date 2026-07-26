@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { controlApi, frameworkApi, evidenceApi, catalogApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
+import { implementationRiskDisplayRows } from './riskControlWorkflow.utils';
 
 interface Control {
   id: string;
@@ -30,6 +31,7 @@ interface ControlImplementation {
   nextTestDate?: string;
   findings?: any[];
   actions?: any[];
+  linkedRisks?: any[];
 }
 
 interface CatalogOption {
@@ -101,6 +103,7 @@ const Controls = () => {
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
   const [implementationModalOpen, setImplementationModalOpen] = useState(false);
   const [implementationForm, setImplementationForm] = useState<ImplementationForm>(initialImplementationForm);
+  const [expandedImplementationId, setExpandedImplementationId] = useState<string | null>(null);
 
   useEffect(() => {
     loadControls();
@@ -120,7 +123,17 @@ const Controls = () => {
     try {
       setLoading(true);
       const response = await controlApi.list({ page: 1, limit: 50 });
-      setControls(response.data.data || []);
+      const listedControls = response.data.data || [];
+      const implementations = listedControls.flatMap((control: Control) => control.implementations ?? []);
+      const riskResults = await Promise.allSettled(implementations.map((impl: ControlImplementation) => controlApi.listImplementationRisks(impl.id)));
+      const risksByImplementation: Record<string, any[]> = {};
+      riskResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') risksByImplementation[implementations[index].id] = result.value.data?.risks ?? [];
+      });
+      setControls(listedControls.map((control: Control) => ({
+        ...control,
+        implementations: (control.implementations ?? []).map((impl) => ({ ...impl, linkedRisks: risksByImplementation[impl.id] ?? [] })),
+      })));
       const [frameworks, soa, evidence] = await Promise.allSettled([
         frameworkApi.list(),
         controlApi.listSoA(),
@@ -160,6 +173,10 @@ const Controls = () => {
     if (impl.implementationStatus === 'tested' || impl.implementationStatus === 'effective') return t('controls.verification.effectiveTested');
     return t(`controls.implementationStatus.${impl.implementationStatus || 'planned'}`);
   };
+
+  const implementationRiskCount = (control: Control) => (control.implementations ?? []).reduce((sum, impl) => sum + (impl.linkedRisks?.length ?? 0), 0);
+
+  const latestEffectiveness = (risk: any) => t(implementationRiskDisplayRows([risk])[0].effectivenessKey);
 
   const handleCatalogChange = (catalogId: string) => {
     setSelectedCatalogId(catalogId);
@@ -295,6 +312,24 @@ const Controls = () => {
                       {implementationSummary(control)}
                     </span>
                     <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationCount').replace('{count}', String(control.implementations?.length ?? 0))}</div>
+                    <div className="mt-1 text-xs text-purple-600 dark:text-purple-300">{t('controls.linkedRiskCount').replace('{count}', String(implementationRiskCount(control)))}</div>
+                    {(control.implementations ?? []).map((impl) => (
+                      <div key={impl.id} className="mt-2 text-xs">
+                        <button onClick={() => setExpandedImplementationId(expandedImplementationId === impl.id ? null : impl.id)} className="text-blue-600 dark:text-blue-400">
+                          {t('controls.showLinkedRisks').replace('{count}', String(impl.linkedRisks?.length ?? 0))}
+                        </button>
+                        {expandedImplementationId === impl.id && (
+                          <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded space-y-1">
+                            {(impl.linkedRisks ?? []).length === 0 ? <div className="text-gray-500">{t('controls.noLinkedRisks')}</div> : impl.linkedRisks?.map((risk: any) => (
+                              <div key={risk.riskControlId} className="border-b border-gray-200 dark:border-gray-700 pb-1 last:border-b-0">
+                                <div className="font-medium text-gray-800 dark:text-gray-100">{risk.displayId} {risk.title}</div>
+                                <div className="text-gray-500">{t(`risks.controls.roles.${risk.role}`)} · {t(`risks.controls.dimensions.${risk.mitigationDimension}`)} · {t('risks.controls.latestEffectiveness')}: {latestEffectiveness(risk)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{primaryImplementation(control)?.maturityLevel ?? control.maturityLevel ?? 0}/5</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`controls.applicability.${control.applicability}`)}</td>

@@ -323,6 +323,28 @@ const DeprecatedDirectRiskControlFields = z.object({
 
 export const RiskControlRoleSchema = z.enum(['preventive', 'detective', 'corrective', 'recovery', 'compensating']);
 export const RiskControlMitigationDimensionSchema = z.enum(['likelihood', 'impact', 'both']);
+export const RiskControlStatusSchema = z.enum(['active', 'inactive', 'planned', 'retired']);
+export const RiskControlEffectivenessStatusSchema = z.enum(['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable']);
+
+export const RiskControlNestedParamsSchema = z.object({
+  riskId: z.string().uuid(),
+  riskControlId: z.string().uuid().optional(),
+  assessmentId: z.string().uuid().optional(),
+});
+
+export const ControlImplementationRiskParamsSchema = z.object({
+  implementationId: z.string().uuid(),
+});
+
+export const RiskControlListQuerySchema = z.object({
+  status: z.string().optional(),
+  includeInactive: z.coerce.boolean().optional(),
+});
+
+export const RiskControlAssessmentListQuerySchema = z.object({
+  riskAssessmentVersionId: z.string().uuid().optional(),
+  status: z.string().optional(),
+});
 
 export const CreateRiskControlSchema = z.object({
   riskId: z.string().uuid(),
@@ -330,22 +352,100 @@ export const CreateRiskControlSchema = z.object({
   role: RiskControlRoleSchema,
   mitigationDimension: RiskControlMitigationDimensionSchema,
   isKeyControl: z.boolean().default(false),
-  status: z.string().default('active'),
+  status: RiskControlStatusSchema.default('active'),
 }).merge(DeprecatedDirectRiskControlFields);
 export type CreateRiskControlDTO = z.infer<typeof CreateRiskControlSchema>;
+
+export const CreateNestedRiskControlSchema = CreateRiskControlSchema.omit({ riskId: true });
+export type CreateNestedRiskControlDTO = z.infer<typeof CreateNestedRiskControlSchema>;
+
+export const UpdateRiskControlSchema = z.object({
+  role: RiskControlRoleSchema.optional(),
+  mitigationDimension: RiskControlMitigationDimensionSchema.optional(),
+  isKeyControl: z.boolean().optional(),
+  status: RiskControlStatusSchema.optional(),
+}).merge(DeprecatedDirectRiskControlFields).refine((data) => Object.keys(data).length > 0, { message: 'At least one field is required' });
+export type UpdateRiskControlDTO = z.infer<typeof UpdateRiskControlSchema>;
 
 export const CreateRiskControlAssessmentSchema = z.object({
   riskControlId: z.string().uuid(),
   riskAssessmentVersionId: z.string().uuid(),
-  effectivenessStatus: z.string().min(1),
+  effectivenessStatus: RiskControlEffectivenessStatusSchema,
   effectivenessRating: z.number().int().min(0).max(100).optional(),
-  likelihoodReduction: z.number().int().min(0).optional(),
-  impactReduction: z.number().int().min(0).optional(),
+  likelihoodReduction: z.number().int().min(0).max(100).optional(),
+  impactReduction: z.number().int().min(0).max(100).optional(),
   justification: z.string().min(1),
   assessedBy: z.string().min(1),
   evidenceLinks: z.array(z.object({ evidenceId: z.string().uuid(), relationType: z.string().optional() })).default([]),
 });
 export type CreateRiskControlAssessmentDTO = z.infer<typeof CreateRiskControlAssessmentSchema>;
+
+export const CreateNestedRiskControlAssessmentSchema = CreateRiskControlAssessmentSchema.omit({ riskControlId: true, assessedBy: true }).extend({
+  assessedBy: z.string().min(1).optional(),
+});
+export type CreateNestedRiskControlAssessmentDTO = z.infer<typeof CreateNestedRiskControlAssessmentSchema>;
+
+export interface ControlImplementationDto {
+  id: string;
+  controlId: string;
+  implementationStatus: string;
+  status: string;
+  isArchived?: boolean;
+  control?: { id: string; title: string; description?: string | null };
+}
+
+export interface RiskAssessmentVersionDto {
+  id: string;
+  riskId: string;
+  versionNumber: number;
+  assessmentType: string;
+  status: string;
+  isCurrent: boolean;
+  isClosed: boolean;
+}
+
+export interface RiskControlAssessmentDto {
+  id: string;
+  riskControlId: string;
+  riskAssessmentVersionId: string;
+  effectivenessStatus: string;
+  effectivenessRating?: number | null;
+  likelihoodReduction?: number | null;
+  impactReduction?: number | null;
+  justification: string;
+  assessedBy: string;
+  assessedAt: string | Date;
+  status: string;
+  isClosed: boolean;
+  riskAssessmentVersion?: RiskAssessmentVersionDto;
+}
+
+export interface RiskControlDto {
+  id: string;
+  riskId: string;
+  controlImplementationId: string;
+  role: string;
+  mitigationDimension: string;
+  isKeyControl: boolean;
+  status: string;
+  createdAt: string | Date;
+  createdBy?: string | null;
+  controlImplementation?: ControlImplementationDto;
+  assessments?: RiskControlAssessmentDto[];
+}
+
+export interface ControlImplementationRiskDto {
+  riskControlId: string;
+  riskId: string;
+  displayId?: string | null;
+  title: string;
+  status: string;
+  role: string;
+  mitigationDimension: string;
+  isKeyControl: boolean;
+  relationshipStatus: string;
+  latestAssessment?: RiskControlAssessmentDto | null;
+}
 
 export const CreateControlTestSchema = z.object({
   controlImplementationId: z.string().uuid(),

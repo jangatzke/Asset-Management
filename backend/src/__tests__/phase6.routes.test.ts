@@ -5,6 +5,10 @@ import { phase6Service } from '../services/phase6.service';
 jest.mock('../middleware/auth', () => ({ authenticate: (req: any, _res: any, next: any) => { req.userId = 'u1'; next(); }, authorize: () => (_req: any, _res: any, next: any) => next() }));
 jest.mock('../middleware/entityAuth', () => ({
   requireWritePermission: (_req: any, _res: any, next: any) => next(),
+  requirePermission: () => (_req: any, _res: any, next: any) => next(),
+  requireEntityPermission: () => (_req: any, _res: any, next: any) => next(),
+  requireMappedReadPermission: () => (_req: any, _res: any, next: any) => next(),
+  requireMappedWritePermission: () => (_req: any, _res: any, next: any) => next(),
   authorizeEntityWrite: () => (_req: any, _res: any, next: any) => next(),
   authorizeEntityRead: () => (_req: any, _res: any, next: any) => next(),
   authorizeEntityDelete: () => (_req: any, _res: any, next: any) => next(),

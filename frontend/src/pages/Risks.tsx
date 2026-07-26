@@ -4,6 +4,7 @@ import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi } fro
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
+import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
 
 interface Risk {
   id: string;
@@ -42,6 +43,18 @@ interface RiskControlLink {
   isKeyControl: boolean;
   status: string;
   controlImplementation?: { id: string; implementationStatus?: string; control?: { title: string } };
+  assessments?: RiskControlAssessment[];
+}
+
+interface RiskControlAssessment {
+  id: string;
+  effectivenessStatus: string;
+  effectivenessRating?: number;
+  likelihoodReduction?: number;
+  impactReduction?: number;
+  justification: string;
+  assessedAt?: string;
+  riskAssessmentVersion?: { id: string; versionNumber: number; status: string; isClosed?: boolean };
 }
 
 interface EntityOption {
@@ -73,6 +86,23 @@ interface TreatmentForm {
   targetDate: string;
 }
 
+interface RiskControlForm {
+  controlImplementationId: string;
+  role: string;
+  mitigationDimension: string;
+  isKeyControl: boolean;
+  status: string;
+}
+
+interface RiskControlAssessmentForm {
+  riskAssessmentVersionId: string;
+  effectivenessStatus: string;
+  effectivenessRating: number;
+  likelihoodReduction: number;
+  impactReduction: number;
+  justification: string;
+}
+
 const initialForm: CreateRiskForm = {
   title: '',
   description: '',
@@ -92,6 +122,9 @@ const initialTreatmentForm: TreatmentForm = {
   targetDate: '',
 };
 
+const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: false, status: 'active' };
+const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { riskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
+
 const Risks = () => {
   const { t } = useI18n();
   const [risks, setRisks] = useState<Risk[]>([]);
@@ -110,6 +143,11 @@ const Risks = () => {
   const [riskDetails, setRiskDetails] = useState<Record<string, any>>({});
   const [controlImplementations, setControlImplementations] = useState<any[]>([]);
   const [treatmentForm, setTreatmentForm] = useState<TreatmentForm>(initialTreatmentForm);
+  const [controlsModalOpen, setControlsModalOpen] = useState(false);
+  const [selectedRiskForControls, setSelectedRiskForControls] = useState<Risk | null>(null);
+  const [riskControlForm, setRiskControlForm] = useState<RiskControlForm>(initialRiskControlForm);
+  const [assessmentForm, setAssessmentForm] = useState<RiskControlAssessmentForm>(initialRiskControlAssessmentForm);
+  const [assessingRiskControlId, setAssessingRiskControlId] = useState<string | null>(null);
 
   useEffect(() => { loadRisks(); }, []);
 
@@ -172,10 +210,67 @@ const Risks = () => {
   const riskControls = (risk: Risk): RiskControlLink[] => riskDetails[risk.id]?.riskControls ?? risk.riskControls ?? [];
 
   const controlVerificationLabel = (link: RiskControlLink) => {
-    const status = link.controlImplementation?.implementationStatus;
-    if (status === 'effective' || status === 'tested') return t('risks.controls.effectiveTested');
-    if (status === 'implemented') return t('risks.controls.notVerified');
-    return t('risks.controls.plannedNoResidualReduction');
+    return t(riskControlEffectivenessTranslationKey(link));
+  };
+
+  const handleOpenControls = async (risk: Risk) => {
+    setSelectedRiskForControls(risk);
+    setControlsModalOpen(true);
+    setRiskControlForm(initialRiskControlForm);
+    setAssessmentForm(initialRiskControlAssessmentForm);
+    setAssessingRiskControlId(null);
+    await loadControlImplementations();
+    try {
+      const [detail, controls] = await Promise.all([riskApi.getById(risk.id), riskApi.listControls(risk.id, { includeInactive: true })]);
+      setRiskDetails((prev) => ({ ...prev, [risk.id]: { ...detail.data, riskControls: controls.data } }));
+    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.loadError')); }
+  };
+
+  const refreshSelectedRiskControls = async () => {
+    if (!selectedRiskForControls) return;
+    const controls = await riskApi.listControls(selectedRiskForControls.id, { includeInactive: true });
+    setRiskDetails((prev) => ({ ...prev, [selectedRiskForControls.id]: { ...(prev[selectedRiskForControls.id] ?? selectedRiskForControls), riskControls: controls.data } }));
+  };
+
+  const handleLinkControl = async () => {
+    if (!selectedRiskForControls || !riskControlForm.controlImplementationId) return setError(t('common.requiredField'));
+    try {
+      await riskApi.linkControl(selectedRiskForControls.id, riskControlForm);
+      setRiskControlForm(initialRiskControlForm);
+      await refreshSelectedRiskControls();
+    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.linkError')); }
+  };
+
+  const handleUpdateRiskControl = async (link: RiskControlLink, data: Partial<RiskControlForm>) => {
+    if (!selectedRiskForControls) return;
+    try {
+      await riskApi.updateControl(selectedRiskForControls.id, link.id, data);
+      await refreshSelectedRiskControls();
+    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.updateError')); }
+  };
+
+  const handleRemoveRiskControl = async (link: RiskControlLink) => {
+    if (!selectedRiskForControls || !confirm(t('risks.controls.removeConfirm'))) return;
+    try {
+      await riskApi.removeControl(selectedRiskForControls.id, link.id);
+      await refreshSelectedRiskControls();
+    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.removeError')); }
+  };
+
+  const handleAssessRiskControl = async (link: RiskControlLink) => {
+    if (!selectedRiskForControls || !assessmentForm.riskAssessmentVersionId || !assessmentForm.justification) return setError(t('common.requiredField'));
+    const payload: any = {
+      ...assessmentForm,
+      effectivenessRating: Number(assessmentForm.effectivenessRating),
+      likelihoodReduction: link.mitigationDimension === 'impact' ? undefined : Number(assessmentForm.likelihoodReduction),
+      impactReduction: link.mitigationDimension === 'likelihood' ? undefined : Number(assessmentForm.impactReduction),
+    };
+    try {
+      await riskApi.assessRiskControl(selectedRiskForControls.id, link.id, payload);
+      setAssessmentForm(initialRiskControlAssessmentForm);
+      setAssessingRiskControlId(null);
+      await refreshSelectedRiskControls();
+    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.assessmentError')); }
   };
 
   const filteredRisks = risks.filter((risk) =>
@@ -380,6 +475,7 @@ const Risks = () => {
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`risks.status.${risk.status}`)}</td>
                 <td className="px-6 py-4 text-sm">
                   <button onClick={() => handleEdit(risk)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
+                  <button onClick={() => handleOpenControls(risk)} className="text-purple-600 hover:text-purple-800 mr-3">{t('risks.controls.manage')}</button>
                   <button onClick={() => handleOpenTreatment(risk)} className="text-green-600 hover:text-green-800 mr-3">{t('common.treatment')}</button>
                   <button onClick={() => handleDelete(risk.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
                 </td>
@@ -480,6 +576,64 @@ const Risks = () => {
               {saving ? t('common.loading') : (editingId ? t('common.update') : t('risks.createRisk'))}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={controlsModalOpen} onClose={() => setControlsModalOpen(false)} title={t('risks.controls.modalTitle').replace('{title}', selectedRiskForControls?.title || '')}>
+        <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
+          <p className="text-sm text-amber-700 dark:text-amber-300">{t('risks.controls.separationNotice')}</p>
+          {selectedRiskForControls && currentAssessment(selectedRiskForControls, 'current') && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded text-sm text-blue-800 dark:text-blue-200">
+              {t('risks.controls.assessmentContext')}: {t('risks.columns.residualRisk')} {currentAssessment(selectedRiskForControls, 'current')?.residualRisk}. {t('risks.controls.noAutoResidual')}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2 border-b pb-4">
+            <select value={riskControlForm.controlImplementationId} onChange={(e) => setRiskControlForm({ ...riskControlForm, controlImplementationId: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white md:col-span-2">
+              <option value="">{t('risks.controls.selectImplementation')}</option>
+              {controlImplementations.filter((impl) => !impl.isArchived).map((impl) => <option key={impl.id} value={impl.id}>{impl.control?.title ?? impl.controlId} - {impl.implementationStatus}</option>)}
+            </select>
+            <select value={riskControlForm.role} onChange={(e) => setRiskControlForm({ ...riskControlForm, role: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              {['preventive', 'detective', 'corrective', 'recovery', 'compensating'].map((role) => <option key={role} value={role}>{t(`risks.controls.roles.${role}`)}</option>)}
+            </select>
+            <select value={riskControlForm.mitigationDimension} onChange={(e) => setRiskControlForm({ ...riskControlForm, mitigationDimension: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              {['likelihood', 'impact', 'both'].map((dimension) => <option key={dimension} value={dimension}>{t(`risks.controls.dimensions.${dimension}`)}</option>)}
+            </select>
+            <button onClick={handleLinkControl} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">{t('risks.controls.add')}</button>
+          </div>
+          {(selectedRiskForControls ? riskControls(selectedRiskForControls) : []).length === 0 ? <p className="text-sm text-gray-500">{t('risks.controls.empty')}</p> : (selectedRiskForControls ? riskControls(selectedRiskForControls) : []).map((link) => (
+            <div key={link.id} className="p-3 border dark:border-gray-700 rounded-md space-y-2">
+              <div className="flex justify-between gap-2">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">{link.controlImplementation?.control?.title ?? link.controlImplementationId}</div>
+                  <div className="text-xs text-gray-500">{t(`risks.controls.roles.${link.role}`)} · {t(`risks.controls.dimensions.${link.mitigationDimension}`)} · {t('risks.controls.implementationReadiness')}: {link.controlImplementation?.implementationStatus ?? '-'}</div>
+                  <div className="text-xs font-semibold text-purple-700 dark:text-purple-300">{t('risks.controls.latestEffectiveness')}: {controlVerificationLabel(link)}</div>
+                </div>
+                <div className="space-x-2 whitespace-nowrap">
+                  <button onClick={() => handleUpdateRiskControl(link, { status: link.status === 'active' ? 'inactive' : 'active' })} className="text-blue-600 text-sm">{link.status === 'active' ? t('risks.controls.deactivate') : t('risks.controls.activate')}</button>
+                  <button onClick={() => setAssessingRiskControlId(assessingRiskControlId === link.id ? null : link.id)} className="text-green-600 text-sm">{t('risks.controls.assess')}</button>
+                  <button onClick={() => handleRemoveRiskControl(link)} className="text-red-600 text-sm">{t('common.delete')}</button>
+                </div>
+              </div>
+              {(link.assessments ?? []).slice(0, 3).map((assessment) => <div key={assessment.id} className="text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">{new Date(assessment.assessedAt ?? '').toLocaleDateString()} · {t(`risks.controls.effectiveness.${assessment.effectivenessStatus}`)} · {assessment.effectivenessRating ?? '-'}% · {assessment.justification}</div>)}
+              {assessingRiskControlId === link.id && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-900 p-3 rounded">
+                  <select value={assessmentForm.riskAssessmentVersionId} onChange={(e) => setAssessmentForm({ ...assessmentForm, riskAssessmentVersionId: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">{t('risks.controls.selectAssessmentVersion')}</option>
+                    {(riskDetails[selectedRiskForControls?.id ?? '']?.RiskAssessment ?? []).filter((v: RiskAssessmentVersion) => !v.status || !['closed', 'completed', 'approved'].includes(v.status)).map((v: any) => <option key={v.id} value={v.id}>{v.assessmentType} #{v.versionNumber ?? v.assessmentNumber ?? ''} ({v.status ?? 'draft'})</option>)}
+                  </select>
+                  <select value={assessmentForm.effectivenessStatus} onChange={(e) => setAssessmentForm({ ...assessmentForm, effectivenessStatus: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    {['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable'].map((status) => <option key={status} value={status}>{t(`risks.controls.effectiveness.${status}`)}</option>)}
+                  </select>
+                  <input type="number" min="0" max="100" value={assessmentForm.effectivenessRating} onChange={(e) => setAssessmentForm({ ...assessmentForm, effectivenessRating: Number(e.target.value) })} placeholder={t('risks.controls.rating')} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                  {link.mitigationDimension !== 'impact' && <input type="number" min="0" max="100" value={assessmentForm.likelihoodReduction} onChange={(e) => setAssessmentForm({ ...assessmentForm, likelihoodReduction: Number(e.target.value) })} placeholder={t('risks.controls.likelihoodReduction')} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />}
+                  {link.mitigationDimension !== 'likelihood' && <input type="number" min="0" max="100" value={assessmentForm.impactReduction} onChange={(e) => setAssessmentForm({ ...assessmentForm, impactReduction: Number(e.target.value) })} placeholder={t('risks.controls.impactReduction')} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />}
+                  <input value={assessmentForm.justification} onChange={(e) => setAssessmentForm({ ...assessmentForm, justification: e.target.value })} placeholder={t('risks.controls.justification')} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white md:col-span-2" />
+                  <button onClick={() => handleAssessRiskControl(link)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">{t('risks.controls.saveAssessment')}</button>
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="flex justify-end pt-4"><button onClick={() => setControlsModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">{t('common.close')}</button></div>
         </div>
       </Modal>
 

@@ -10,8 +10,16 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { ISO27001_STANDARD_ASSET_TYPES } from '../src/services/bootstrap.service';
+import { GRANULAR_PERMISSIONS } from '../src/services/authorization.service';
 
 const prisma = new PrismaClient();
+
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  system_admin: [...GRANULAR_PERMISSIONS],
+  ism_manager: [...GRANULAR_PERMISSIONS],
+  auditor: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'suppliers.read', 'bcm.read', 'audits.read', 'correctiveActions.read', 'training.read', 'documents.read', 'evidence.read', 'nis2.read'],
+  employee: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'training.read', 'documents.read'],
+};
 
 // ---------------------------------------------------------------------------
 // Helper – upsert by unique field, log what was created
@@ -112,6 +120,27 @@ async function seedRoles(): Promise<void> {
     {},
     'Role: employee',
   );
+
+  for (const permission of GRANULAR_PERMISSIONS) {
+    await (prisma as any).permission.upsert({
+      where: { name: permission },
+      create: { name: permission, description: `Phase 1 permission ${permission}` },
+      update: { description: `Phase 1 permission ${permission}` },
+    });
+  }
+
+  for (const [roleName, permissions] of Object.entries(ROLE_PERMISSIONS)) {
+    const existingRole = await prisma.role.findUnique({ where: { name: roleName } });
+    if (!existingRole) continue;
+    for (const permissionName of permissions) {
+      const permission = await (prisma as any).permission.findUnique({ where: { name: permissionName } });
+      await (prisma as any).rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: existingRole.id, permissionId: permission.id } },
+        create: { roleId: existingRole.id, permissionId: permission.id },
+        update: {},
+      });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,22 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 1: authorization and scoped permissions
+
+| Feld | Wert |
+|---|---|
+| Phase | 1 — Authorization and Scope Model only |
+| Commit | Pending during this log entry; target commit message: `Phase 1: harden authorization and scoped permissions`. |
+| Requirements | AUTHZ-001, AUTHZ-002 |
+| changed files | `backend/prisma/schema.prisma`, `backend/prisma/migrations/20260726090000_phase1_scoped_authorization/migration.sql`, `backend/prisma/seed.ts`, `backend/src/services/authorization.service.ts`, `backend/src/middleware/entityAuth.ts`, core asset/risk/control/incident routes/services, Phase-6/catalog routes, `backend/src/__tests__/authorization.integration.test.ts`, `docs/*` authorization docs. |
+| schema changes | Added `Permission`, `RolePermission`, scoped role assignment columns for `LegalEntity`, `OrganizationUnit`, `IsmsScope`, `Site`, and `IsmsScopeLegalEntity` membership. |
+| API changes | Core list/search endpoints merge authorization read filters into row and count queries. Core detail endpoints outside scope return 403. Generic Phase-6 write guard replaced with explicit resource-to-permission mapping. |
+| new tests | `backend/src/__tests__/authorization.integration.test.ts` covers all 12 requested Phase-1 authorization scenarios. |
+| verification | Backend build PASS; shared build PASS; frontend build PASS with baseline Vite chunk-size warning; Prisma validate PASS; Prisma migrate deploy PASS on configured development DB; Prisma migrate status PASS after deploy; focused authorization integration test PASS (12/12); frontend tests PASS with `vitest --run`; backend full Jest FAIL with known baseline mock drift plus two route test mocks adjusted for new middleware exports; lint FAIL because ESLint configuration is still missing. |
+| known baseline failures | Phase 0 known backend Jest mock drift remains in admin, asset CRUD and risk treatment tests; lint still fails due missing ESLint config; frontend build chunk-size warning remains. Frontend `npm test -- --runInBand` failed because Vitest does not support the Jest-only flag, then passed with `--run`. |
+| out of scope confirmation | Phase 2+ authentication/session, MFA pre-auth, OIDC hardening, UI/entity picker, audit hash chain, jobs, health/metrics, CI gates and new ISMS functional modules were not started. |
+
+Phase 1 touched some files that already had pre-existing unrelated working-tree changes before implementation (`backend/prisma/schema.prisma`, `backend/src/routes/risk.routes.ts`, `backend/src/routes/control.routes.ts`, `backend/src/services/risk.service.ts`, `backend/src/services/control.service.ts`, plus other unrelated modified files in the tree). A pre-change diff snapshot was saved locally as `phase1-preexisting-diff.patch` for review; unrelated frontend/shared changes were not intentionally modified for Phase 1. Final commit is blocked unless Phase-1 hunks are separated from these pre-existing unrelated edits without staging unrelated changes.
+
 ## 2026-07-26 — Phase 0: establish refactoring baseline
 
 | Feld | Wert |

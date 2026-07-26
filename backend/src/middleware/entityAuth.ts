@@ -8,8 +8,8 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import { AppError } from './errorHandler';
-import { authorizationService } from '../services/authorization.service';
-import type { EntityType, EntityAction } from '../services/authorization.service';
+import { authorizationService, READ_PERMISSION_BY_RESOURCE, WRITE_PERMISSION_BY_RESOURCE } from '../services/authorization.service';
+import type { EntityType, EntityAction, PermissionName } from '../services/authorization.service';
 
 /**
  * Middleware factory for entity-level authorization.
@@ -109,3 +109,30 @@ export const requireWritePermission = async (req: AuthRequest, _res: Response, n
     return next(new AppError('Authorization check failed', 500));
   }
 };
+
+export const requirePermission = (permission: PermissionName) => {
+  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) return next(new AppError('Authentication required', 401));
+    try {
+      await authorizationService.require(req.userId, permission);
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
+};
+
+export const requireEntityPermission = (permission: PermissionName, entityType: EntityType, paramName = 'id') => {
+  return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
+    if (!req.userId) return next(new AppError('Authentication required', 401));
+    try {
+      await authorizationService.requireForEntity(req.userId, permission, entityType, req.params[paramName]);
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
+};
+
+export const requireMappedReadPermission = (resource: keyof typeof READ_PERMISSION_BY_RESOURCE) => requirePermission(READ_PERMISSION_BY_RESOURCE[resource]);
+export const requireMappedWritePermission = (resource: keyof typeof WRITE_PERMISSION_BY_RESOURCE) => requirePermission(WRITE_PERMISSION_BY_RESOURCE[resource]);

@@ -80,6 +80,26 @@
 
 ## P0 – Sicherheitskritisch
 
+### AUTHZ-001: Granulare administrative Autorisierung
+| Feld | Wert |
+|------|------|
+| **ID** | AUTHZ-001 |
+| **Priorität** | P0 |
+| **Kategorie** | IAM |
+| **Status** | Implementiert in Phase 1 |
+| **Beschreibung** | Administrative Zugriffe müssen über granulare Berechtigungen statt impliziter Rollennamen geschützt werden. |
+| **Akzeptanzkriterium** | 1. `administration.access` ist als Permission modelliert. 2. Direkte und gruppenbasierte Rollen werden berücksichtigt. 3. Abgelaufene Rollen sind unwirksam. 4. Tests decken Admin- und Group-Role-Verhalten ab. |
+
+### AUTHZ-002: Granulare scoped Entity-Autorisierung
+| Feld | Wert |
+|------|------|
+| **ID** | AUTHZ-002 |
+| **Priorität** | P0 |
+| **Kategorie** | IAM |
+| **Status** | Implementiert in Phase 1 |
+| **Beschreibung** | Assets, Risiken, Controls, Incidents und bestehende ISMS-Module müssen explizite granulare Permissions und optionale Scope-Grenzen über Legal Entity, Organization Unit, ISMS Scope und Site verwenden. |
+| **Akzeptanzkriterium** | 1. Permission-Katalog enthält die Phase-1-Mindestpermissions. 2. `AuthorizationService` bietet `can`, `canForEntity`, `buildReadFilter`, `require` und `requireForEntity`. 3. Listen/Suchen filtern Zeilen und Counts mit demselben Authz-Filter. 4. Create/Detail/Write außerhalb Scope ergibt konsistent 403. 5. Tests decken die 12 geforderten Szenarien ab. |
+
 ### IAM-001: Administrationsschutz
 | Feld | Wert |
 |------|------|

@@ -3,12 +3,22 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { displayIdService } from './displayId.service';
+import { authorizationService } from './authorization.service';
 
 const db = prisma as any;
 
 const DEPRECATED_RISK_CONTROL_FIELDS = ['existingControls', 'controls', 'controlIds', 'relatedRiskIds', 'riskIds'];
 const RISK_CONTROL_ROLES = ['preventive', 'detective', 'corrective', 'recovery', 'compensating'];
 const MITIGATION_DIMENSIONS = ['likelihood', 'impact', 'both'];
+const EFFECTIVENESS_STATUSES = ['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable'];
+const ACTIVE_CONTROL_IMPLEMENTATION_STATUSES = ['active', 'planned', 'implemented', 'in_progress', 'tested', 'effective'];
+
+async function resolveOrgUnitScope(organizationUnitId: string) {
+  const organizationUnit = await prisma.organizationUnit.findUnique({ where: { id: organizationUnitId }, select: { id: true, legalEntityId: true } });
+  if (!organizationUnit) throw new AppError('Organization unit not found', 404);
+  const membership = organizationUnit.legalEntityId ? await (prisma as any).ismsScopeLegalEntity.findFirst({ where: { legalEntityId: organizationUnit.legalEntityId }, select: { scopeId: true } }) : null;
+  return { legalEntityId: organizationUnit.legalEntityId ?? null, organizationUnitId, siteId: null, scopeId: membership?.scopeId ?? null };
+}
 
 // ==========================================
 // Interfaces
@@ -80,7 +90,7 @@ export interface CreateAssessmentData {
 }
 
 export interface CreateRiskControlData {
-  riskId: string;
+  riskId?: string;
   controlImplementationId: string;
   role: 'preventive' | 'detective' | 'corrective' | 'recovery' | 'compensating';
   mitigationDimension: 'likelihood' | 'impact' | 'both';
@@ -89,7 +99,7 @@ export interface CreateRiskControlData {
 }
 
 export interface CreateRiskControlAssessmentData {
-  riskControlId: string;
+  riskControlId?: string;
   riskAssessmentVersionId: string;
   effectivenessStatus: string;
   effectivenessRating?: number;
@@ -112,6 +122,8 @@ export interface CreateReviewTaskData {
   notes?: string;
 }
 
+export type UpdateRiskControlData = Partial<Pick<CreateRiskControlData, 'role' | 'mitigationDimension' | 'isKeyControl' | 'status'>>;
+
 type ReviewTaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'cancelled';
 
 // ==========================================
@@ -119,6 +131,18 @@ type ReviewTaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'c
 // ==========================================
 
 export class RiskService {
+  private riskControlInclude: any = {
+    risk: { select: { id: true, displayId: true, title: true, status: true } },
+    controlImplementation: { include: { control: true } },
+    assessments: {
+      orderBy: { assessedAt: 'desc' },
+      include: {
+        riskAssessmentVersion: true,
+        evidenceLinks: { include: { evidence: true } },
+      },
+    },
+  };
+
   private rejectDeprecatedRiskControlPayload(data: Record<string, unknown>) {
     const forbidden = DEPRECATED_RISK_CONTROL_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(data, field));
     if (forbidden.length) {
@@ -133,10 +157,25 @@ export class RiskService {
     }
   }
 
+  private validateRiskControlPayload(data: { role?: string; mitigationDimension?: string }) {
+    if (data.role && !RISK_CONTROL_ROLES.includes(data.role)) throw new AppError('Invalid risk-control role', 400);
+    if (data.mitigationDimension && !MITIGATION_DIMENSIONS.includes(data.mitigationDimension)) throw new AppError('Invalid mitigation dimension', 400);
+  }
+
+  private validateRiskControlAssessmentPayload(data: CreateRiskControlAssessmentData, mitigationDimension: string) {
+    if (!data.justification?.trim()) throw new AppError('Risk-control assessment justification is required', 400);
+    if (!EFFECTIVENESS_STATUSES.includes(data.effectivenessStatus)) throw new AppError('Invalid risk-control effectiveness status', 400);
+    if (data.effectivenessRating !== undefined && (data.effectivenessRating < 0 || data.effectivenessRating > 100)) throw new AppError('Effectiveness rating must be between 0 and 100', 400);
+    if (data.likelihoodReduction !== undefined && (data.likelihoodReduction < 0 || data.likelihoodReduction > 100)) throw new AppError('Likelihood reduction must be between 0 and 100', 400);
+    if (data.impactReduction !== undefined && (data.impactReduction < 0 || data.impactReduction > 100)) throw new AppError('Impact reduction must be between 0 and 100', 400);
+    if (mitigationDimension === 'likelihood' && (data.impactReduction ?? 0) > 0) throw new AppError('Impact reduction is only allowed for impact or both mitigation dimensions', 400);
+    if (mitigationDimension === 'impact' && (data.likelihoodReduction ?? 0) > 0) throw new AppError('Likelihood reduction is only allowed for likelihood or both mitigation dimensions', 400);
+  }
+
   /**
    * List risks with pagination and filters.
    */
-  async list(query: ListRisksQuery) {
+  async list(query: ListRisksQuery, authzWhere: Prisma.RiskWhereInput = {}) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
     const offset = (page - 1) * limit;
@@ -162,9 +201,11 @@ export class RiskService {
       where.riskOwnerId = query.riskOwnerId;
     }
 
+    const effectiveWhere: Prisma.RiskWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
+
     const [risks, total] = await Promise.all([
       prisma.risk.findMany({
-        where,
+        where: effectiveWhere,
         skip: offset,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -185,7 +226,7 @@ export class RiskService {
           serviceLinks: { include: { service: true } },
         },
       }),
-      prisma.risk.count({ where }),
+      prisma.risk.count({ where: effectiveWhere }),
     ]);
 
     return {
@@ -220,7 +261,10 @@ export class RiskService {
         riskAssets: { include: { asset: true } },
         processLinks: { include: { process: true } },
         serviceLinks: { include: { service: true } },
-        evidenceLinks: { include: { evidence: true } },
+        riskControls: {
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          include: this.riskControlInclude,
+        },
         treatments: true,
         reviewTasks: true,
         RiskAssessment: {
@@ -243,6 +287,9 @@ export class RiskService {
    */
   async create(data: CreateRiskData, createdBy?: string) {
     this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
+    if (createdBy && data.organizationUnitId) {
+      await authorizationService.requireForScope(createdBy, 'risks.write', await resolveOrgUnitScope(data.organizationUnitId));
+    }
     const displayId = await displayIdService.nextDisplayIdStandalone(prisma, 'Risk');
     const inherentRisk = this.calculateRiskLevel(data.likelihood, data.impact);
     const residualRisk = data.residualRisk ?? inherentRisk;
@@ -787,73 +834,218 @@ export class RiskService {
     return db.riskAssessmentVersion.findFirst({
       where,
       include: {
-        controlAssessments: { include: { riskControl: true, evidenceLinks: true } },
+        controlAssessments: { include: { riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: true } },
       },
     });
   }
 
-  async linkRiskControl(data: CreateRiskControlData, createdBy?: string) {
-    if (!RISK_CONTROL_ROLES.includes(data.role)) throw new AppError('Invalid risk-control role', 400);
-    if (!MITIGATION_DIMENSIONS.includes(data.mitigationDimension)) throw new AppError('Invalid mitigation dimension', 400);
+  async listRiskControls(riskId: string, query?: { status?: string; includeInactive?: boolean }) {
+    const risk = await db.risk.findUnique({ where: { id: riskId }, select: { id: true } });
+    if (!risk) throw new AppError('Risk not found', 404);
+    const where: any = { riskId };
+    if (query?.status) where.status = query.status;
+    if (!query?.includeInactive && !query?.status) where.status = { not: 'inactive' };
+    return db.riskControl.findMany({ where, orderBy: { createdAt: 'desc' }, include: this.riskControlInclude });
+  }
+
+  async getRiskControl(riskId: string, riskControlId: string) {
+    const riskControl = await db.riskControl.findFirst({ where: { id: riskControlId, riskId }, include: this.riskControlInclude });
+    if (!riskControl) throw new AppError('Risk control link not found', 404);
+    return riskControl;
+  }
+
+  async createRiskControl(riskId: string, data: CreateRiskControlData, createdBy?: string) {
+    this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
+    this.validateRiskControlPayload(data);
     const [risk, implementation] = await Promise.all([
-      db.risk.findUnique({ where: { id: data.riskId } }),
+      db.risk.findUnique({ where: { id: riskId } }),
       db.controlImplementation.findUnique({ where: { id: data.controlImplementationId } }),
     ]);
     if (!risk) throw new AppError('Risk not found', 404);
     if (!implementation) throw new AppError('Control implementation not found', 404);
+    if (implementation.isArchived || implementation.status === 'archived' || implementation.status === 'inactive') throw new AppError('Archived or inactive control implementations cannot be linked to risks', 400);
+    if (implementation.status && !ACTIVE_CONTROL_IMPLEMENTATION_STATUSES.includes(implementation.status)) throw new AppError('Control implementation is not linkable in its current status', 400);
 
-    return db.riskControl.create({
+    const duplicate = await db.riskControl.findFirst({ where: { riskId, controlImplementationId: data.controlImplementationId } });
+    if (duplicate) throw new AppError('Risk is already linked to this control implementation', 409);
+
+    try {
+      const created = await db.riskControl.create({
+        data: {
+          riskId,
+          controlImplementationId: data.controlImplementationId,
+          role: data.role,
+          mitigationDimension: data.mitigationDimension,
+          isKeyControl: data.isKeyControl ?? false,
+          status: data.status ?? 'active',
+          createdBy,
+        },
+        include: this.riskControlInclude,
+      });
+      if (createdBy) {
+        await auditService.logEventStandalone(prisma, {
+          userId: createdBy,
+          action: 'RISK_CONTROL_CREATE',
+          entityType: 'RiskControl',
+          entityId: created.id,
+          details: `Linked risk ${risk.displayId ?? riskId} to control implementation ${data.controlImplementationId}`,
+          newValue: {
+            riskId,
+            controlImplementationId: data.controlImplementationId,
+            role: data.role,
+            mitigationDimension: data.mitigationDimension,
+            isKeyControl: data.isKeyControl ?? false,
+            status: data.status ?? 'active',
+          },
+        });
+      }
+      return created;
+    } catch (error: any) {
+      if (error?.code === 'P2002') throw new AppError('Risk is already linked to this control implementation', 409);
+      throw error;
+    }
+  }
+
+  async linkRiskControl(data: CreateRiskControlData, createdBy?: string) {
+    if (!data.riskId) throw new AppError('Risk ID is required', 400);
+    return this.createRiskControl(data.riskId, data, createdBy);
+  }
+
+  async updateRiskControl(riskId: string, riskControlId: string, data: UpdateRiskControlData, updatedBy?: string) {
+    this.rejectDeprecatedRiskControlPayload(data as unknown as Record<string, unknown>);
+    this.validateRiskControlPayload(data);
+    const existing = await db.riskControl.findFirst({ where: { id: riskControlId, riskId } });
+    if (!existing) throw new AppError('Risk control link not found', 404);
+
+    const updated = await db.riskControl.update({
+      where: { id: riskControlId },
       data: {
-        riskId: data.riskId,
-        controlImplementationId: data.controlImplementationId,
-        role: data.role,
-        mitigationDimension: data.mitigationDimension,
-        isKeyControl: data.isKeyControl ?? false,
-        status: data.status ?? 'active',
-        createdBy,
+        ...(data.role !== undefined && { role: data.role }),
+        ...(data.mitigationDimension !== undefined && { mitigationDimension: data.mitigationDimension }),
+        ...(data.isKeyControl !== undefined && { isKeyControl: data.isKeyControl }),
+        ...(data.status !== undefined && { status: data.status }),
       },
-      include: { risk: true, controlImplementation: { include: { control: true } } },
+      include: this.riskControlInclude,
+    });
+    if (updatedBy) {
+      await auditService.logEventStandalone(prisma, { userId: updatedBy, action: 'RISK_CONTROL_UPDATE', entityType: 'RiskControl', entityId: riskControlId, details: 'Updated risk control relationship', oldValue: existing, newValue: updated });
+    }
+    return updated;
+  }
+
+  async removeRiskControl(riskId: string, riskControlId: string, userId?: string) {
+    const existing = await db.riskControl.findFirst({ where: { id: riskControlId, riskId }, include: { assessments: true } });
+    if (!existing) throw new AppError('Risk control link not found', 404);
+    const updated = await db.riskControl.update({ where: { id: riskControlId }, data: { status: 'inactive' }, include: this.riskControlInclude });
+    if (userId) {
+      await auditService.logEventStandalone(prisma, {
+        userId,
+        action: 'RISK_CONTROL_DEACTIVATE',
+        entityType: 'RiskControl',
+        entityId: riskControlId,
+        details: existing.assessments?.length ? 'Deactivated risk control relationship with assessment history' : 'Deactivated risk control relationship',
+        oldValue: existing,
+        newValue: { ...existing, status: 'inactive' },
+      });
+    }
+    return updated;
+  }
+
+  async listControlAssessmentsForRisk(riskId: string, query?: { riskAssessmentVersionId?: string; status?: string }) {
+    const risk = await db.risk.findUnique({ where: { id: riskId }, select: { id: true } });
+    if (!risk) throw new AppError('Risk not found', 404);
+    const where: any = { riskControl: { riskId } };
+    if (query?.riskAssessmentVersionId) where.riskAssessmentVersionId = query.riskAssessmentVersionId;
+    if (query?.status) where.status = query.status;
+    return db.riskControlAssessment.findMany({
+      where,
+      orderBy: { assessedAt: 'desc' },
+      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
     });
   }
 
-  async assessRiskControl(data: CreateRiskControlAssessmentData, userId?: string) {
-    if (!data.justification?.trim()) throw new AppError('Risk-control assessment justification is required', 400);
+  async listRiskControlAssessments(riskId: string, riskControlId: string, query?: { riskAssessmentVersionId?: string; status?: string }) {
+    await this.getRiskControl(riskId, riskControlId);
+    const where: any = { riskControlId };
+    if (query?.riskAssessmentVersionId) where.riskAssessmentVersionId = query.riskAssessmentVersionId;
+    if (query?.status) where.status = query.status;
+    return db.riskControlAssessment.findMany({
+      where,
+      orderBy: { assessedAt: 'desc' },
+      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
+    });
+  }
+
+  async getRiskControlAssessment(riskId: string, riskControlId: string, assessmentId: string) {
+    const assessment = await db.riskControlAssessment.findFirst({
+      where: { id: assessmentId, riskControlId, riskControl: { riskId } },
+      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
+    });
+    if (!assessment) throw new AppError('Risk-control assessment not found', 404);
+    return assessment;
+  }
+
+  async createRiskControlAssessment(riskId: string, riskControlId: string, data: CreateRiskControlAssessmentData, userId?: string) {
     const [riskControl, version] = await Promise.all([
-      db.riskControl.findUnique({ where: { id: data.riskControlId } }),
+      db.riskControl.findFirst({ where: { id: riskControlId, riskId } }),
       db.riskAssessmentVersion.findUnique({ where: { id: data.riskAssessmentVersionId } }),
     ]);
     if (!riskControl) throw new AppError('Risk control link not found', 404);
+    this.validateRiskControlAssessmentPayload(data, riskControl.mitigationDimension);
     this.validateAssessmentMutability(version);
     if (version.riskId !== riskControl.riskId) throw new AppError('Risk-control assessment version must belong to the same risk', 400);
 
-    return db.$transaction(async (tx: any) => {
-      const created = await tx.riskControlAssessment.create({
-        data: {
-          riskControlId: data.riskControlId,
-          riskAssessmentVersionId: data.riskAssessmentVersionId,
-          effectivenessStatus: data.effectivenessStatus,
-          effectivenessRating: data.effectivenessRating,
-          likelihoodReduction: data.likelihoodReduction,
-          impactReduction: data.impactReduction,
-          justification: data.justification,
-          assessedBy: userId ?? data.assessedBy,
-        },
+    try {
+      const assessment = await db.$transaction(async (tx: any) => {
+        const created = await tx.riskControlAssessment.create({
+          data: {
+            riskControlId,
+            riskAssessmentVersionId: data.riskAssessmentVersionId,
+            effectivenessStatus: data.effectivenessStatus,
+            effectivenessRating: data.effectivenessRating,
+            likelihoodReduction: riskControl.mitigationDimension === 'impact' ? undefined : data.likelihoodReduction,
+            impactReduction: riskControl.mitigationDimension === 'likelihood' ? undefined : data.impactReduction,
+            justification: data.justification,
+            assessedBy: userId ?? data.assessedBy,
+          },
+        });
+        if (data.evidenceLinks?.length) {
+          await tx.evidenceLink.createMany({
+            data: data.evidenceLinks.map((link) => ({
+              evidenceId: link.evidenceId,
+              entityType: 'RiskControlAssessment',
+              entityId: created.id,
+              relationType: link.relationType ?? 'supports',
+              riskControlAssessmentId: created.id,
+              createdBy: userId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+        return tx.riskControlAssessment.findUnique({ where: { id: created.id }, include: { evidenceLinks: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, riskAssessmentVersion: true } });
       });
-      if (data.evidenceLinks?.length) {
-        await tx.evidenceLink.createMany({
-          data: data.evidenceLinks.map((link) => ({
-            evidenceId: link.evidenceId,
-            entityType: 'RiskControlAssessment',
-            entityId: created.id,
-            relationType: link.relationType ?? 'supports',
-            riskControlAssessmentId: created.id,
-            createdBy: userId,
-          })),
-          skipDuplicates: true,
+      if (userId && assessment) {
+        await auditService.logEventStandalone(prisma, {
+          userId,
+          action: 'RISK_CONTROL_ASSESSMENT_CREATE',
+          entityType: 'RiskControlAssessment',
+          entityId: assessment.id,
+          details: `Created risk-control assessment for risk ${riskId}`,
+          newValue: assessment,
         });
       }
-      return tx.riskControlAssessment.findUnique({ where: { id: created.id }, include: { evidenceLinks: true, riskControl: true } });
-    });
+      return assessment;
+    } catch (error: any) {
+      if (error?.code === 'P2002') throw new AppError('Risk-control assessment already exists for this assessment version', 409);
+      throw error;
+    }
+  }
+
+  async assessRiskControl(data: CreateRiskControlAssessmentData, userId?: string) {
+    if (!data.riskControlId) throw new AppError('Risk control ID is required', 400);
+    const riskControl = await db.riskControl.findUnique({ where: { id: data.riskControlId } });
+    if (!riskControl) throw new AppError('Risk control link not found', 404);
+    return this.createRiskControlAssessment(riskControl.riskId, data.riskControlId, data, userId);
   }
 
   async closeAssessmentVersion(id: string, userId?: string) {

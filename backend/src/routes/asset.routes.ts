@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
-import { authorizeEntityWrite, authorizeEntityDelete } from '../middleware/entityAuth';
+import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
+import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 
 const IdParamSchema = z.object({ id: z.string().uuid('Invalid UUID format') });
@@ -91,9 +92,9 @@ export const assetRouter = Router();
 // to avoid Express matching 'types', 'graph', etc. as :id
 // ==========================================
 
-assetRouter.get('/', authenticate, validateQuery(AssetQuerySchema), async (req, res, next) => {
+assetRouter.get('/', authenticate, requirePermission('assets.read'), validateQuery(AssetQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const result = await assetService.list(req.query);
+    const result = await assetService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'assets') as any);
     res.json(result);
   } catch (error) {
     next(error);
@@ -164,7 +165,7 @@ assetRouter.get('/incomplete', authenticate, requireAdminAccess, async (_req, re
 // Parametric routes - /:id must come AFTER all static routes
 // ==========================================
 
-assetRouter.get('/:id', authenticate, validateParams(IdParamSchema), async (req, res, next) => {
+assetRouter.get('/:id', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), async (req, res, next) => {
   try {
     const asset = await assetService.getById(req.params.id);
     res.json(asset);
@@ -197,7 +198,7 @@ assetRouter.delete('/:id', authenticate, authorizeEntityDelete('assets'), valida
 // ==========================================
 
 // Archive an asset (soft-delete with lifecycle change to decommissioned)
-assetRouter.post('/:id/archive', authenticate, requireAdminAccess, validateParams(IdParamSchema), validateBody(ArchiveAssetSchema), async (req: AuthRequest, res, next) => {
+assetRouter.post('/:id/archive', authenticate, requireEntityPermission('assets.archive', 'assets'), validateParams(IdParamSchema), validateBody(ArchiveAssetSchema), async (req: AuthRequest, res, next) => {
   try {
     const { reason } = req.body;
     const result = await assetService.archive(req.params.id, req.userId, reason);

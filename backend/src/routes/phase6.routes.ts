@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireAdminAccess } from '../middleware/entityAuth';
-import { requireWritePermission } from '../middleware/entityAuth';
+import { requireMappedReadPermission, requireMappedWritePermission } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { phase6Service, PHASE6_MODEL_MAP } from '../services/phase6.service';
 import { AppError } from '../middleware/errorHandler';
@@ -18,46 +17,84 @@ function ensureResource(resource: string) {
   if (!PHASE6_MODEL_MAP[resource]) throw new AppError(`Unknown Phase 6 resource ${resource}`, 404);
 }
 
+const RESOURCE_PERMISSION_ALIAS: Record<string, string> = {
+  supplierAssessments: 'suppliers',
+  bias: 'bias',
+  bcps: 'bcps',
+  bcpExercises: 'bcps',
+  auditPrograms: 'auditPlans',
+  auditPlans: 'auditPlans',
+  auditFindings: 'auditPlans',
+  correctiveActions: 'correctiveActions',
+  trainingCourses: 'trainingAssignments',
+  trainingAssignments: 'trainingAssignments',
+  trainingCompletions: 'trainingAssignments',
+  trainingAcknowledgements: 'trainingAssignments',
+  managementReviews: 'auditPlans',
+  managementReviewActions: 'correctiveActions',
+  securityObjectives: 'auditPlans',
+  metricDefinitions: 'auditPlans',
+  metricValues: 'auditPlans',
+  workflowDefinitions: 'auditPlans',
+  workflowInstances: 'auditPlans',
+  workflowTasks: 'auditPlans',
+  reportDefinitions: 'auditPlans',
+  reportRuns: 'auditPlans',
+  exportJobs: 'evidence',
+};
+
+function permissionResource(resource: string) {
+  return RESOURCE_PERMISSION_ALIAS[resource] ?? resource;
+}
+
+async function requireResourceRead(req: AuthRequest, _res: any, next: any) {
+  try { ensureResource(req.params.resource); return requireMappedReadPermission(permissionResource(req.params.resource) as any)(req, _res, next); } catch (error) { return next(error); }
+}
+
+async function requireResourceWrite(req: AuthRequest, _res: any, next: any) {
+  try { ensureResource(req.params.resource); return requireMappedWritePermission(permissionResource(req.params.resource) as any)(req, _res, next); } catch (error) { return next(error); }
+}
+
 phase6Router.get('/resources', authenticate, (_req, res) => {
   res.json({ resources: Object.keys(PHASE6_MODEL_MAP) });
 });
 
-phase6Router.post('/corrective-actions/from-source', authenticate, requireWritePermission, validateBody(SourceCapaSchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/corrective-actions/from-source', authenticate, requireMappedWritePermission('correctiveActions'), validateBody(SourceCapaSchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await phase6Service.createCorrectiveActionFromSource(req.body.sourceType, req.body.sourceId, req.body.data, req.userId ?? 'system');
     res.status(201).json(result);
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/training-assignments/:id/complete', authenticate, requireWritePermission, validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/training-assignments/:id/complete', authenticate, requireMappedWritePermission('trainingAssignments'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await phase6Service.completeTrainingAssignment(req.params.id, req.body, req.userId ?? 'system');
     res.status(201).json(result);
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/workflows/start', authenticate, requireWritePermission, validateBody(WorkflowStartSchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/workflows/start', authenticate, requireMappedWritePermission('auditPlans'), validateBody(WorkflowStartSchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await phase6Service.startWorkflow(req.body.definitionId, req.body, req.userId ?? 'system');
     res.status(201).json(result);
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/workflows/:id/transition', authenticate, requireWritePermission, validateBody(WorkflowTransitionSchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/workflows/:id/transition', authenticate, requireMappedWritePermission('auditPlans'), validateBody(WorkflowTransitionSchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await phase6Service.transitionWorkflow(req.params.id, req.body.transition, req.body, req.userId ?? 'system');
     res.json(result);
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/reports/run', authenticate, requireWritePermission, validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/reports/run', authenticate, requireMappedWritePermission('auditPlans'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await phase6Service.createReportRun(req.body, req.userId ?? 'system');
     res.status(201).json(result);
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/:resource/reminders/run', authenticate, requireWritePermission, async (req: AuthRequest, res, next) => {
+phase6Router.post('/:resource/reminders/run', authenticate, requireResourceWrite, async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     const result = await phase6Service.runReminders(req.params.resource, req.userId ?? 'system');
@@ -65,7 +102,7 @@ phase6Router.post('/:resource/reminders/run', authenticate, requireWritePermissi
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/reminders/:resource', authenticate, requireWritePermission, async (req: AuthRequest, res, next) => {
+phase6Router.post('/reminders/:resource', authenticate, requireResourceWrite, async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     const result = await phase6Service.runReminders(req.params.resource, req.userId ?? 'system');
@@ -73,7 +110,7 @@ phase6Router.post('/reminders/:resource', authenticate, requireWritePermission, 
   } catch (error) { next(error); }
 });
 
-phase6Router.get('/:resource/export', authenticate, async (req: AuthRequest, res, next) => {
+phase6Router.get('/:resource/export', authenticate, requireResourceRead, async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     const result = await phase6Service.export(req.params.resource, req.query, req.userId ?? 'system');
@@ -81,35 +118,35 @@ phase6Router.get('/:resource/export', authenticate, async (req: AuthRequest, res
   } catch (error) { next(error); }
 });
 
-phase6Router.get('/:resource', authenticate, async (req, res, next) => {
+phase6Router.get('/:resource', authenticate, requireResourceRead, async (req, res, next) => {
   try {
     ensureResource(req.params.resource);
     res.json(await phase6Service.list(req.params.resource, req.query));
   } catch (error) { next(error); }
 });
 
-phase6Router.get('/:resource/:id', authenticate, async (req, res, next) => {
+phase6Router.get('/:resource/:id', authenticate, requireResourceRead, async (req, res, next) => {
   try {
     ensureResource(req.params.resource);
     res.json(await phase6Service.get(req.params.resource, req.params.id));
   } catch (error) { next(error); }
 });
 
-phase6Router.post('/:resource', authenticate, requireWritePermission, validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/:resource', authenticate, requireResourceWrite, validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     res.status(201).json(await phase6Service.create(req.params.resource, req.body, req.userId ?? 'system'));
   } catch (error) { next(error); }
 });
 
-phase6Router.patch('/:resource/:id', authenticate, requireWritePermission, validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+phase6Router.patch('/:resource/:id', authenticate, requireResourceWrite, validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     res.json(await phase6Service.update(req.params.resource, req.params.id, req.body, req.userId ?? 'system'));
   } catch (error) { next(error); }
 });
 
-phase6Router.delete('/:resource/:id', authenticate, requireWritePermission, async (req: AuthRequest, res, next) => {
+phase6Router.delete('/:resource/:id', authenticate, requireResourceWrite, async (req: AuthRequest, res, next) => {
   try {
     ensureResource(req.params.resource);
     res.json(await phase6Service.remove(req.params.resource, req.params.id, req.userId ?? 'system'));

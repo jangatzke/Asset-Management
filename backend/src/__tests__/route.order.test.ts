@@ -42,6 +42,10 @@ jest.mock('../middleware/entityAuth', () => ({
   authorizeEntityWrite: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   authorizeEntityDelete: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   authorizeEntityRead: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
+  requirePermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
+  requireEntityPermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
+  requireMappedReadPermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
+  requireMappedWritePermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   requireAdminAccess: jest.fn((req: any, _res: any, next: any) => next()),
 }));
 
