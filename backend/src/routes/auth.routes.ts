@@ -1,7 +1,6 @@
 import { CookieOptions, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireAdminAccess } from '../middleware/entityAuth';
 import { authService } from '../services/auth.service';
 import { oidcService } from '../services/oidc.service';
 

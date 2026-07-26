@@ -1,4 +1,5 @@
-import { vi, beforeEach } from 'vitest';
+/// <reference types="vitest" />
+declare const vi: typeof import('vitest').vi;
 
 function installAxiosMock() {
   const instance: any = vi.fn(async (config: any) => ({ status: 200, config }));
@@ -13,12 +14,13 @@ function installAxiosMock() {
   return instance;
 }
 
-beforeEach(() => {
+function resetApiTestState() {
   vi.resetModules();
   vi.clearAllMocks();
-});
+}
 
 test('Phase 5 API bug fixes use organization unit endpoint for organization picker API', async () => {
+  resetApiTestState();
   const mockedApi = installAxiosMock();
   const { organizationApi } = await import('./api');
 
@@ -29,6 +31,7 @@ test('Phase 5 API bug fixes use organization unit endpoint for organization pick
 });
 
 test('Phase 5 API bug fixes keep user search API separate from organization unit API', async () => {
+  resetApiTestState();
   const mockedApi = installAxiosMock();
   const { userSearchApi } = await import('./api');
 

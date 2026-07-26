@@ -780,3 +780,12 @@ Phase 0 intentionally did not start Phase 1 implementation, did not add ISMS fun
 | known baseline failures | Full backend Jest remains affected by pre-existing mock drift in asset/admin/risk-treatment tests and process exit/open-handle behavior; lint lacks ESLint configuration; frontend build chunk-size warning remains. |
 | historical context | Phase 1 integration commit included pre-existing unrelated risk-control workflow changes according to `git show --stat`; Phase 2 did not expand/refactor those unrelated changes. |
 | out of scope confirmation | Phase 3 MFA/password pre-auth state machine, Phase 4 OIDC consolidation, Phase 5 risk possibleImpact bug, UI entity picker, audit hash chain, jobs, health/metrics, CI gates and new ISMS functional modules were not started. |
+
+## Phase 6: Shared DTOs and API Contracts
+
+- Aligned target resource schemas around shared Zod DTOs for Asset, Risk, Control, ControlImplementation, RiskControl, RiskAssessment, and Incident.
+- Replaced duplicated backend route schemas with shared validation where practical and added missing validation to target POST/PATCH/PUT endpoints.
+- Typed frontend API client request payloads and query params for touched target endpoints against shared DTOs where practical.
+- Restored backend noUnusedLocals and removed newly exposed unused imports/constants.
+- Added Phase 6 DTO/backend validation contract tests.
+- Updated OpenAPI request schemas for Risk and Control and corrected RiskControlAssessment effectiveness enum.

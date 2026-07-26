@@ -1,5 +1,57 @@
 import axios from 'axios';
 import { getAccessToken, setAccessToken } from '../store/accessToken';
+import type {
+  ArchiveAssetDTO,
+  AssetQueryDTO,
+  AssessIncidentDTO,
+  ChangeKnowledgeTimeDTO,
+  CloseIncidentDTO,
+  ControlImplementationDTO,
+  CreateAssetDTO,
+  CreateAssetSubtypeDTO,
+  CreateControlDTO,
+  CreateControlTestDTO,
+  CreateIncidentCommunicationDTO,
+  CreateIncidentDTO,
+  CreateIncidentReportDTO,
+  CreateNestedRiskControlAssessmentDTO,
+  CreateNestedRiskControlDTO,
+  CreateRiskAssessmentDTO,
+  CreateRiskControlAssessmentDTO,
+  CreateRiskControlDTO,
+  CreateRiskDTO,
+  CreateSoADTO,
+  DisposalProofDTO,
+  JsonValue,
+  LifecycleTransitionDTO,
+  RiskAggregationQueryDTO,
+  RiskControlAssessmentListQueryDTO,
+  RiskControlDto,
+  RiskControlListQueryDTO,
+  UpdateAssetDTO,
+  UpdateControlDTO,
+  UpdateIncidentDTO,
+  UpdateRiskControlDTO,
+  UpdateRiskDTO,
+} from '../../../shared/src';
+
+export interface PaginatedApiResponse<T> {
+  data: T[];
+  pagination?: { page: number; limit: number; total: number; totalPages: number };
+  total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+}
+
+export type ApiEntity = Record<string, JsonValue | undefined>;
+export type AssetResponse = Record<string, unknown>;
+export type RiskResponse = Record<string, unknown>;
+export type ControlResponse = Record<string, unknown>;
+export type IncidentResponse = Record<string, unknown>;
+export type DeleteResponse = { success: boolean };
+export type AssetGraphParams = { depth?: number; maxDepth?: number; direction?: string; relationTypes?: string };
+export type AssetImpactParams = { depth?: number; includeProcesses?: boolean; includeServices?: boolean };
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -73,62 +125,66 @@ export const authApi = {
 };
 
 export const assetApi = {
-  list: (params?: any) => api.get('/assets', { params }),
+  list: (params?: Partial<AssetQueryDTO> & { q?: string }) => api.get('/assets', { params }),
   getById: (id: string) => api.get(`/assets/${id}`),
-  create: (data: any) => api.post('/assets', data),
-  update: (id: string, data: any) => api.put(`/assets/${id}`, data),
-  delete: (id: string) => api.delete(`/assets/${id}`),
+  create: (data: CreateAssetDTO) => api.post('/assets', data),
+  update: (id: string, data: UpdateAssetDTO) => api.put(`/assets/${id}`, data),
+  delete: (id: string) => api.delete<DeleteResponse>(`/assets/${id}`),
   getTypes: () => api.get('/assets/types'),
-  createSubtype: (typeId: string, data: any) => api.post(`/assets/types/${typeId}/subtypes`, data),
+  createSubtype: (typeId: string, data: CreateAssetSubtypeDTO) => api.post(`/assets/types/${typeId}/subtypes`, data),
   previewInventoryNumber: (assetTypeId: string, assetSubtypeId?: string) => api.get('/assets/inventory/preview', { params: { assetTypeId, assetSubtypeId } }),
   // AST-011: Graph & dependencies
-  getGraph: (id?: string, params?: any) => id
+  getGraph: (id?: string, params?: AssetGraphParams) => id
     ? api.get(`/assets/${id}/graph`, { params })
     : api.get('/assets/graph', { params }),
-  getImpactAnalysis: (id: string, params?: any) => api.get(`/assets/${id}/impact-analysis`, { params }),
+  getImpactAnalysis: (id: string, params?: AssetImpactParams) => api.get(`/assets/${id}/impact-analysis`, { params }),
   getDependencies: (id: string) => api.get(`/assets/${id}/dependencies`),
   getDownstream: (id: string) => api.get(`/assets/${id}/downstream`),
   getUpstream: (id: string) => api.get(`/assets/${id}/upstream`),
   getLifecycleLogs: (id: string) => api.get(`/assets/${id}/lifecycle-logs`),
   getRelations: (id: string) => api.get(`/assets/${id}/relations`),
-  createRelation: (id: string, data: any) => api.post(`/assets/${id}/relations`, data),
+  createRelation: (id: string, data: { targetAssetId: string; relationshipType?: string; relationType?: string; description?: string }) => api.post(`/assets/${id}/relations`, { ...data, relationshipType: data.relationshipType ?? data.relationType }),
   findIncomplete: () => api.get('/assets/incomplete'),
   confirmResponsibility: (id: string, data: { role?: string }) => api.post(`/assets/${id}/confirm-responsibility`, data),
+  archive: (id: string, data: ArchiveAssetDTO) => api.post(`/assets/${id}/archive`, data),
+  restore: (id: string, data: ArchiveAssetDTO) => api.post(`/assets/${id}/restore`, data),
+  transitionLifecycle: (id: string, data: LifecycleTransitionDTO) => api.post(`/assets/${id}/lifecycle-transition`, data),
+  setDisposalProof: (id: string, data: DisposalProofDTO) => api.post(`/assets/${id}/disposal-proof`, data),
 };
 
 export const riskApi = {
-  list: (params?: any) => api.get('/risks', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; status?: string; organizationUnitId?: string; riskOwnerId?: string }) => api.get('/risks', { params }),
   getById: (id: string) => api.get(`/risks/${id}`),
-  create: (data: any) => api.post('/risks', data),
-  update: (id: string, data: any) => api.put(`/risks/${id}`, data),
-  delete: (id: string) => api.delete(`/risks/${id}`),
+  create: (data: CreateRiskDTO) => api.post('/risks', data),
+  update: (id: string, data: UpdateRiskDTO) => api.put(`/risks/${id}`, data),
+  delete: (id: string) => api.delete<DeleteResponse>(`/risks/${id}`),
   createTreatmentPlan: (riskId: string, data: any) => api.post(`/risks/${riskId}/treatment`, data),
-  createAssessment: (data: any) => api.post('/risks/assessments', data),
+  createAssessment: (data: CreateRiskAssessmentDTO) => api.post('/risks/assessments', data),
   listAssessments: (riskId: string) => api.get(`/risks/${riskId}/assessments`),
   getCurrentAssessment: (riskId: string, type?: 'inherent' | 'current' | 'target') => api.get(`/risks/${riskId}/assessments/current`, { params: { type } }),
-  listControls: (riskId: string, params?: any) => api.get(`/risks/${riskId}/controls`, { params }),
-  linkControl: (riskId: string, data: any) => api.post(`/risks/${riskId}/controls`, data),
-  updateControl: (riskId: string, riskControlId: string, data: any) => api.patch(`/risks/${riskId}/controls/${riskControlId}`, data),
+  listControls: (riskId: string, params?: RiskControlListQueryDTO) => api.get<RiskControlDto[]>(`/risks/${riskId}/controls`, { params }),
+  linkControl: (riskId: string, data: CreateNestedRiskControlDTO | { controlImplementationId: string; role: string; mitigationDimension: string; isKeyControl?: boolean; status?: string }) => api.post<RiskControlDto>(`/risks/${riskId}/controls`, data),
+  updateControl: (riskId: string, riskControlId: string, data: UpdateRiskControlDTO | { role?: string; mitigationDimension?: string; isKeyControl?: boolean; status?: string }) => api.patch<RiskControlDto>(`/risks/${riskId}/controls/${riskControlId}`, data),
   removeControl: (riskId: string, riskControlId: string) => api.delete(`/risks/${riskId}/controls/${riskControlId}`),
-  listControlAssessments: (riskId: string, params?: any) => api.get(`/risks/${riskId}/control-assessments`, { params }),
-  listRiskControlAssessments: (riskId: string, riskControlId: string, params?: any) => api.get(`/risks/${riskId}/controls/${riskControlId}/assessments`, { params }),
-  assessRiskControl: (riskId: string, riskControlId: string, data: any) => api.post(`/risks/${riskId}/controls/${riskControlId}/assessments`, data),
-  linkRiskControl: (data: any) => api.post('/risks/risk-controls', data),
-  assessRiskControlFlat: (data: any) => api.post('/risks/risk-control-assessments', data),
+  listControlAssessments: (riskId: string, params?: RiskControlAssessmentListQueryDTO) => api.get(`/risks/${riskId}/control-assessments`, { params }),
+  listRiskControlAssessments: (riskId: string, riskControlId: string, params?: RiskControlAssessmentListQueryDTO) => api.get(`/risks/${riskId}/controls/${riskControlId}/assessments`, { params }),
+  assessRiskControl: (riskId: string, riskControlId: string, data: CreateNestedRiskControlAssessmentDTO) => api.post(`/risks/${riskId}/controls/${riskControlId}/assessments`, data),
+  linkRiskControl: (data: CreateRiskControlDTO) => api.post('/risks/risk-controls', data),
+  assessRiskControlFlat: (data: CreateRiskControlAssessmentDTO) => api.post('/risks/risk-control-assessments', data),
   closeAssessmentVersion: (id: string) => api.post(`/risks/assessment-versions/${id}/close`),
 };
 
 export const controlApi = {
-  list: (params?: any) => api.get('/controls', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; status?: string; implementationStatus?: string; catalogId?: string }) => api.get('/controls', { params }),
   getById: (id: string) => api.get(`/controls/${id}`),
-  create: (data: any) => api.post('/controls', data),
-  update: (id: string, data: any) => api.put(`/controls/${id}`, data),
-  delete: (id: string) => api.delete(`/controls/${id}`),
-  createImplementation: (data: any) => api.post('/controls/implementations', data),
-  listImplementationRisks: (implementationId: string, params?: any) => api.get(`/controls/implementations/${implementationId}/risks`, { params }),
-  createTest: (data: any) => api.post('/controls/tests', data),
+  create: (data: CreateControlDTO | { catalogId: string; catalogVersion: string; title: string; description: string; controlGoal: string; applicability?: string }) => api.post('/controls', data),
+  update: (id: string, data: UpdateControlDTO) => api.put(`/controls/${id}`, data),
+  delete: (id: string) => api.delete<DeleteResponse>(`/controls/${id}`),
+  createImplementation: (data: ControlImplementationDTO) => api.post('/controls/implementations', data),
+  listImplementationRisks: (implementationId: string, params?: RiskControlAssessmentListQueryDTO) => api.get(`/controls/implementations/${implementationId}/risks`, { params }),
+  createTest: (data: CreateControlTestDTO) => api.post('/controls/tests', data),
   listSoA: (params?: any) => api.get('/controls/soa', { params }),
-  createSoA: (data: any) => api.post('/controls/soa', data),
+  createSoA: (data: CreateSoADTO) => api.post('/controls/soa', data),
   submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
 };
@@ -184,17 +240,17 @@ export const documentApi = {
 };
 
 export const incidentApi = {
-  list: (params?: any) => api.get('/incidents', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; status?: string; severity?: string }) => api.get('/incidents', { params }),
   getById: (id: string) => api.get(`/incidents/${id}`),
-  create: (data: any) => api.post('/incidents', data),
-  update: (id: string, data: any) => api.put(`/incidents/${id}`, data),
-  delete: (id: string) => api.delete(`/incidents/${id}`),
-  assess: (id: string, data: any) => api.post(`/incidents/${id}/assess`, data),
-  changeKnowledgeTime: (id: string, data: any) => api.post(`/incidents/${id}/knowledge-time`, data),
-  createReport: (id: string, data: any) => api.post(`/incidents/${id}/reports`, data),
+  create: (data: CreateIncidentDTO) => api.post('/incidents', data),
+  update: (id: string, data: UpdateIncidentDTO) => api.put(`/incidents/${id}`, data),
+  delete: (id: string) => api.delete<DeleteResponse>(`/incidents/${id}`),
+  assess: (id: string, data: AssessIncidentDTO) => api.post(`/incidents/${id}/assess`, data),
+  changeKnowledgeTime: (id: string, data: ChangeKnowledgeTimeDTO) => api.post(`/incidents/${id}/knowledge-time`, data),
+  createReport: (id: string, data: CreateIncidentReportDTO) => api.post(`/incidents/${id}/reports`, data),
   exportReport: (reportId: string) => api.get(`/incidents/reports/${reportId}/export`),
-  createCommunication: (id: string, data: any) => api.post(`/incidents/${id}/communications`, data),
-  close: (id: string, data: any) => api.post(`/incidents/${id}/close`, data),
+  createCommunication: (id: string, data: CreateIncidentCommunicationDTO) => api.post(`/incidents/${id}/communications`, data),
+  close: (id: string, data: CloseIncidentDTO) => api.post(`/incidents/${id}/close`, data),
 };
 
 export const nis2Api = {
@@ -352,12 +408,12 @@ export const methodApi = {
 
 // Risk Aggregation API (RSK-011)
 export const riskAggregationApi = {
-  byOrgUnit: () => api.get('/risks/aggregated/by-org-unit'),
-  byLocation: () => api.get('/risks/aggregated/by-location'),
-  byAssetType: () => api.get('/risks/aggregated/by-asset-type'),
-  byProcess: () => api.get('/risks/aggregated/by-process'),
-  byScope: () => api.get('/risks/aggregated/by-scope'),
-  dashboardSummary: () => api.get('/risks/dashboard-summary'),
+  byOrgUnit: (params?: RiskAggregationQueryDTO) => api.get('/risks/aggregated/by-org-unit', { params }),
+  byLocation: (params?: RiskAggregationQueryDTO) => api.get('/risks/aggregated/by-location', { params }),
+  byAssetType: (params?: RiskAggregationQueryDTO) => api.get('/risks/aggregated/by-asset-type', { params }),
+  byProcess: (params?: RiskAggregationQueryDTO) => api.get('/risks/aggregated/by-process', { params }),
+  byScope: (params?: RiskAggregationQueryDTO) => api.get('/risks/aggregated/by-scope', { params }),
+  dashboardSummary: (params?: RiskAggregationQueryDTO) => api.get('/risks/dashboard-summary', { params }),
 };
 
 // ISMS operations API; /phase6 remains a backend compatibility alias.

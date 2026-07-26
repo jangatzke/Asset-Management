@@ -4,7 +4,6 @@ import { AppError } from '../middleware/errorHandler';
 import { nextDisplayId } from './displayId.service';
 import { fiscalYearService } from './fiscalYear.service';
 
-const ACTIVE_ITEM_STATUSES = ['candidate', 'planned', 'approved', 'ordered', 'acquired', 'done'];
 const COMMITTED_STATUSES = ['approved', 'ordered', 'acquired', 'done'];
 
 export class CostPlanningService {

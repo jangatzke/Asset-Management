@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityRead, authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { controlService } from '../services/control.service';
 import { authorizationService } from '../services/authorization.service';
-import { validateParams } from '../middleware/validation';
-import { ControlImplementationRiskParamsSchema } from 'shared';
+import { validateBody, validateParams } from '../middleware/validation';
+import { ApproveRiskTreatmentSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
 
 export const controlRouter = Router();
 
@@ -22,7 +21,7 @@ controlRouter.get('/', authenticate, requirePermission('controls.read'), async (
   }
 });
 
-controlRouter.post('/', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.post('/', authenticate, authorizeEntityWrite('controls'), validateBody(CreateControlSchema), async (req: AuthRequest, res, next) => {
   try {
     const control = await controlService.create(req.body, req.userId);
     res.status(201).json(control);
@@ -41,7 +40,7 @@ controlRouter.get('/soa', authenticate, async (req, res, next) => {
   }
 });
 
-controlRouter.post('/soa', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.post('/soa', authenticate, authorizeEntityWrite('controls'), validateBody(CreateSoASchema), async (req: AuthRequest, res, next) => {
   try {
     const soa = await controlService.createSOA(req.body, req.userId);
     res.status(201).json(soa);
@@ -50,7 +49,7 @@ controlRouter.post('/soa', authenticate, authorizeEntityWrite('controls'), async
   }
 });
 
-controlRouter.patch('/soa/items/:itemId', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.patch('/soa/items/:itemId', authenticate, authorizeEntityWrite('controls'), validateBody(UpdateSoAItemSchema), async (req: AuthRequest, res, next) => {
   try {
     res.json(await controlService.updateSOAItem(req.params.itemId, req.body, req.userId));
   } catch (error) {
@@ -66,7 +65,7 @@ controlRouter.post('/soa/:id/submit', authenticate, authorizeEntityWrite('contro
   }
 });
 
-controlRouter.post('/soa/:id/approve', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.post('/soa/:id/approve', authenticate, authorizeEntityWrite('controls'), validateBody(ApproveRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
   try {
     res.json(await controlService.approveSOA(req.params.id, req.userId!, req.body.decision ?? 'approved', req.body.comment));
   } catch (error) {
@@ -74,7 +73,7 @@ controlRouter.post('/soa/:id/approve', authenticate, authorizeEntityWrite('contr
   }
 });
 
-controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), validateBody(ControlImplementationSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createImplementation(req.body, req.userId));
   } catch (error) {
@@ -90,7 +89,7 @@ controlRouter.get('/implementations/:implementationId/risks', authenticate, auth
   }
 });
 
-controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), validateBody(CreateControlTestSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createControlTest(req.body, req.userId));
   } catch (error) {
@@ -111,7 +110,7 @@ controlRouter.get('/:id', authenticate, requireEntityPermission('controls.read',
   }
 });
 
-controlRouter.put('/:id', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.put('/:id', authenticate, authorizeEntityWrite('controls'), validateBody(UpdateControlSchema), async (req: AuthRequest, res, next) => {
   try {
     const control = await controlService.update(req.params.id, req.body, req.userId);
     res.json(control);

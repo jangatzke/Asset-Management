@@ -946,6 +946,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      summary: Create risk with shared DTO validation
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RiskInput' }
+      responses:
+        '201': { description: Created }
 
   # ==================== Controls ====================
   /controls:
@@ -959,6 +970,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      summary: Create control with shared DTO validation
+      tags: [Controls]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ControlInput' }
+      responses:
+        '201': { description: Created }
 
   # ==================== Incidents ====================
   /incidents:
@@ -1598,6 +1620,27 @@ components:
         testFrequency: { type: string }
         nextTestDate: { type: string, format: date-time }
         requirementIds: { type: array, items: { type: string, format: uuid } }
+    ControlInput:
+      type: object
+      required: [catalogId, catalogVersion, title, description, controlGoal]
+      description: Canonical control input; direct risk/evidence mirror fields are rejected in favor of RiskControl and EvidenceLink.
+      properties:
+        catalogId: { type: string }
+        catalogVersion: { type: string }
+        title: { type: string }
+        description: { type: string }
+        controlGoal: { type: string }
+        responsibleId: { type: string }
+        applicability: { type: string, enum: [applicable, not_applicable, under_review], default: under_review }
+        applicabilityJustification: { type: string }
+        implementationStatus: { type: string, default: planned }
+        maturityLevel: { type: integer, minimum: 0, maximum: 5, default: 0 }
+        implementationDescription: { type: string }
+        affectedAssetIds: { type: array, items: { type: string, format: uuid } }
+        affectedProcessIds: { type: array, items: { type: string, format: uuid } }
+        affectedSiteIds: { type: array, items: { type: string, format: uuid } }
+        testMethod: { type: string }
+        testFrequency: { type: string }
     RiskControlInput:
       type: object
       required: [riskId, controlImplementationId, role, mitigationDimension]
@@ -1615,7 +1658,7 @@ components:
       properties:
         riskControlId: { type: string, format: uuid }
         riskAssessmentVersionId: { type: string, format: uuid }
-        effectivenessStatus: { type: string, enum: [not_verified, ineffective, partially_effective, effective] }
+        effectivenessStatus: { type: string, enum: [effective, partially_effective, ineffective, not_tested, not_applicable] }
         effectivenessRating: { type: integer, minimum: 0, maximum: 100 }
         likelihoodReduction: { type: integer }
         impactReduction: { type: integer }
@@ -1699,6 +1742,31 @@ components:
         personalDataImpact: { type: boolean }
         hasCrossBorderImpact: { type: boolean }
         incidentManagerId: { type: string }
+    RiskInput:
+      type: object
+      required: [title, description, possibleImpact, likelihood, impact, assessorId, riskOwnerId, nextReviewDate, justification]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        possibleImpact: { type: string }
+        organizationUnitId: { type: string, format: uuid }
+        scenarioId: { type: string, format: uuid }
+        threatId: { type: string, format: uuid }
+        vulnerabilityId: { type: string, format: uuid }
+        causeIds: { type: array, items: { type: string, format: uuid } }
+        impactIds: { type: array, items: { type: string, format: uuid } }
+        assetIds: { type: array, items: { type: string, format: uuid } }
+        processIds: { type: array, items: { type: string, format: uuid } }
+        serviceIds: { type: array, items: { type: string, format: uuid } }
+        riskMethodVersionId: { type: string, format: uuid }
+        likelihood: { type: integer, minimum: 1, maximum: 5 }
+        impact: { type: integer, minimum: 1, maximum: 5 }
+        assessorId: { type: string }
+        riskOwnerId: { type: string }
+        nextReviewDate: { type: string, format: date-time }
+        justification: { type: string }
+        residualRisk: { type: string }
+        targetRisk: { type: string }
     KnowledgeTimeChangeInput:
       type: object
       required: [knowledgeTime, reason]

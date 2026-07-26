@@ -6,15 +6,21 @@ import { riskService } from '../services/risk.service';
 import { riskAggregationService } from '../services/risk.aggregation';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
-import { z } from 'zod';
 import {
+  CreateReviewTaskSchema,
+  CreateRiskSchema,
+  CreateRiskAssessmentSchema,
   CreateNestedRiskControlAssessmentSchema,
   CreateNestedRiskControlSchema,
   CreateRiskControlAssessmentSchema,
   CreateRiskControlSchema,
+  RiskAggregationQuerySchema,
   RiskControlAssessmentListQuerySchema,
   RiskControlListQuerySchema,
   RiskControlNestedParamsSchema,
+  UnplannedReviewEventSchema,
+  UpdateReviewTaskSchema,
+  UpdateRiskSchema,
   UpdateRiskControlSchema,
 } from 'shared';
 
@@ -22,46 +28,7 @@ import {
 
 export const riskRouter = Router();
 
-const CreateRiskRouteSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
-  possibleImpact: z.string().min(1),
-  organizationUnitId: z.string().uuid().optional(),
-  scenarioId: z.string().uuid().optional(),
-  threatId: z.string().uuid().optional(),
-  vulnerabilityId: z.string().uuid().optional(),
-  causeIds: z.array(z.string().uuid()).optional(),
-  impactIds: z.array(z.string().uuid()).optional(),
-  assetIds: z.array(z.string().uuid()).optional(),
-  processIds: z.array(z.string().uuid()).optional(),
-  serviceIds: z.array(z.string().uuid()).optional(),
-  riskMethodVersionId: z.string().uuid().optional(),
-  likelihood: z.coerce.number().int().min(1).max(5),
-  impact: z.coerce.number().int().min(1).max(5),
-  assessorId: z.string().min(1),
-  riskOwnerId: z.string().min(1),
-  nextReviewDate: z.coerce.date(),
-  justification: z.string().min(1),
-  residualRisk: z.string().optional(),
-  targetRisk: z.string().optional(),
-});
-
-const UpdateRiskRouteSchema = CreateRiskRouteSchema.partial().extend({
-  status: z.string().optional(),
-  assessmentType: z.enum(['inherent', 'current', 'target']).optional(),
-});
-
-const parseAggregationFilters = (query: any) => ({
-  from: query.from ? new Date(String(query.from)) : undefined,
-  to: query.to ? new Date(String(query.to)) : undefined,
-  scope: query.scope ? String(query.scope).split(',').filter(Boolean) : undefined,
-  organizationUnitId: query.organizationUnitId ? String(query.organizationUnitId) : undefined,
-  status: query.status ? String(query.status) : undefined,
-  riskClass: query.riskClass ? String(query.riskClass) : undefined,
-  assessmentType: query.assessmentType ? String(query.assessmentType) as any : undefined,
-  methodVersionId: query.methodVersionId ? String(query.methodVersionId) : undefined,
-  isCurrent: query.isCurrent === undefined ? undefined : String(query.isCurrent) !== 'false',
-});
+const parseAggregationFilters = (query: unknown) => RiskAggregationQuerySchema.parse(query);
 
 // ==========================================
 // Static routes MUST come BEFORE parametric routes (/id)
@@ -76,7 +43,7 @@ riskRouter.get('/', authenticate, requirePermission('risks.read'), async (req: A
   }
 });
 
-riskRouter.post('/', authenticate, requirePermission('risks.write'), validateBody(CreateRiskRouteSchema), async (req: AuthRequest, res, next) => {
+riskRouter.post('/', authenticate, requirePermission('risks.write'), validateBody(CreateRiskSchema), async (req: AuthRequest, res, next) => {
   try {
     await authorizationService.require(req.userId!, 'risks.write');
     const risk = await riskService.create(req.body, req.userId);
@@ -90,7 +57,7 @@ riskRouter.post('/', authenticate, requirePermission('risks.write'), validateBod
 // Assessment Routes (Paket 3.2)
 // ==========================================
 
-riskRouter.post('/assessments', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+riskRouter.post('/assessments', authenticate, authorizeEntityWrite('risks'), validateBody(CreateRiskAssessmentSchema), async (req: AuthRequest, res, next) => {
   try {
     const assessments = await riskService.createAssessment({ ...req.body, assessorId: req.userId! });
     res.status(201).json(assessments);
@@ -211,7 +178,7 @@ riskRouter.get('/review-tasks', authenticate, async (req, res, next) => {
   }
 });
 
-riskRouter.post('/review-tasks', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+riskRouter.post('/review-tasks', authenticate, authorizeEntityWrite('risks'), validateBody(CreateReviewTaskSchema), async (req: AuthRequest, res, next) => {
   try {
     const task = await riskService.createReviewTask(req.body);
     res.status(201).json(task);
@@ -224,7 +191,7 @@ riskRouter.post('/review-tasks', authenticate, authorizeEntityWrite('risks'), as
 // Aggregation Routes (existing)
 // ==========================================
 
-riskRouter.get('/aggregated/by-org-unit', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-org-unit', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByOrganizationUnit(parseAggregationFilters(req.query));
     res.json(result);
@@ -233,7 +200,7 @@ riskRouter.get('/aggregated/by-org-unit', authenticate, requireAdminAccess, asyn
   }
 });
 
-riskRouter.get('/aggregated/by-location', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-location', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByLocation(parseAggregationFilters(req.query));
     res.json(result);
@@ -242,7 +209,7 @@ riskRouter.get('/aggregated/by-location', authenticate, requireAdminAccess, asyn
   }
 });
 
-riskRouter.get('/aggregated/by-asset-type', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-asset-type', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByAssetType(parseAggregationFilters(req.query));
     res.json(result);
@@ -251,7 +218,7 @@ riskRouter.get('/aggregated/by-asset-type', authenticate, requireAdminAccess, as
   }
 });
 
-riskRouter.get('/aggregated/by-process', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-process', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByBusinessProcess(parseAggregationFilters(req.query));
     res.json(result);
@@ -260,7 +227,7 @@ riskRouter.get('/aggregated/by-process', authenticate, requireAdminAccess, async
   }
 });
 
-riskRouter.get('/aggregated/by-scope', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-scope', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByScope(parseAggregationFilters(req.query));
     res.json(result);
@@ -269,9 +236,9 @@ riskRouter.get('/aggregated/by-scope', authenticate, requireAdminAccess, async (
   }
 });
 
-riskRouter.get('/aggregated', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
-    const groupBy = String(req.query.groupBy || 'orgUnit') as any;
+    const { groupBy } = RiskAggregationQuerySchema.parse(req.query);
     const result = await riskAggregationService.getUnifiedAggregation(groupBy, parseAggregationFilters(req.query));
     res.json(result);
   } catch (error) {
@@ -279,7 +246,7 @@ riskRouter.get('/aggregated', authenticate, requireAdminAccess, async (req, res,
   }
 });
 
-riskRouter.get('/aggregated/by-service', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-service', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByService(parseAggregationFilters(req.query));
     res.json(result);
@@ -288,7 +255,7 @@ riskRouter.get('/aggregated/by-service', authenticate, requireAdminAccess, async
   }
 });
 
-riskRouter.get('/aggregated/by-risk-class', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-risk-class', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByRiskClass(parseAggregationFilters(req.query));
     res.json(result);
@@ -297,7 +264,7 @@ riskRouter.get('/aggregated/by-risk-class', authenticate, requireAdminAccess, as
   }
 });
 
-riskRouter.get('/aggregated/by-status', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/aggregated/by-status', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.aggregateByStatus(parseAggregationFilters(req.query));
     res.json(result);
@@ -306,7 +273,7 @@ riskRouter.get('/aggregated/by-status', authenticate, requireAdminAccess, async 
   }
 });
 
-riskRouter.get('/dashboard-summary', authenticate, requireAdminAccess, async (req, res, next) => {
+riskRouter.get('/dashboard-summary', authenticate, requireAdminAccess, validateQuery(RiskAggregationQuerySchema), async (req, res, next) => {
   try {
     const result = await riskAggregationService.getDashboardSummary(parseAggregationFilters(req.query));
     res.json(result);
@@ -316,7 +283,7 @@ riskRouter.get('/dashboard-summary', authenticate, requireAdminAccess, async (re
 });
 
 // RSK-024: Check if an event triggers an unplanned risk review
-riskRouter.post('/check-unplanned-review', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+riskRouter.post('/check-unplanned-review', authenticate, requireAdminAccess, validateBody(UnplannedReviewEventSchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await riskService.checkUnplannedReviewTrigger(req.body);
     res.json(result);
@@ -366,7 +333,7 @@ riskRouter.get('/:id', authenticate, requireEntityPermission('risks.read', 'risk
   }
 });
 
-riskRouter.put('/:id', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateRiskRouteSchema), async (req: AuthRequest, res, next) => {
+riskRouter.put('/:id', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateRiskSchema), async (req: AuthRequest, res, next) => {
   try {
     const risk = await riskService.update(req.params.id, req.body, req.userId);
     res.json(risk);
@@ -418,7 +385,7 @@ riskRouter.get('/:id/review-tasks', authenticate, async (req, res, next) => {
 });
 
 // Update a specific review task
-riskRouter.put('/review-tasks/:taskId', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
+riskRouter.put('/review-tasks/:taskId', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateReviewTaskSchema), async (req: AuthRequest, res, next) => {
   try {
     const task = await riskService.updateReviewTask(req.params.taskId, req.body, req.userId);
     res.json(task);

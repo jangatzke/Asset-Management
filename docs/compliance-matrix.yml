@@ -1466,3 +1466,24 @@
     - Rotation marks old tokens used and creates replacement tokens
     - Reuse revokes token family and logs an audit event
     - Frontend access token is memory-only with single-flight refresh retry
+
+- id: DTO-601
+  title: Shared DTO and API contract alignment
+  priority: P0
+  status: compliant
+  implementation:
+    - shared/src/dtos/index.ts
+    - backend/src/routes/asset.routes.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/routes/control.routes.ts
+    - backend/src/routes/incident.routes.ts
+    - frontend/src/services/api.ts
+    - docs/api/openapi.yaml
+  tests:
+    - backend/src/__tests__/phase6.dto-contract.test.ts
+    - frontend/src/services/api.test.ts
+  gaps: []
+  evidence:
+    - Shared Zod schemas validate target CRUD payloads in backend routes.
+    - Frontend target endpoints use shared DTO request types where practical.
+    - OpenAPI documents canonical target request schemas and RiskControlAssessment status enum.

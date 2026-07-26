@@ -52,9 +52,14 @@ export type CreateFirstAdminDTO = z.infer<typeof CreateFirstAdminSchema>;
 // Asset DTOs
 // ==========================================
 
-const RatingLevelSchema = z.enum(['low', 'medium', 'high']);
-const CriticalitySchema = z.enum(['low', 'medium', 'high', 'critical']);
-const CIANeedSchema = z.enum(['low', 'medium', 'high']);
+export const RatingLevelSchema = z.enum(['low', 'medium', 'high']);
+export const CriticalitySchema = z.enum(['low', 'medium', 'high', 'critical']);
+export const CIANeedSchema = z.enum(['low', 'medium', 'high']);
+export const LifecycleStatusSchema = z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']);
+export const AssessmentTypeSchema = z.enum(['inherent', 'current', 'target']);
+export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+export type JsonValue = z.infer<typeof JsonPrimitiveSchema> | JsonValue[] | { [key: string]: JsonValue };
+export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() => z.union([JsonPrimitiveSchema, z.array(JsonValueSchema), z.record(JsonValueSchema)]));
 
 export const NetworkAddressTypeSchema = z.enum(['ipv4', 'ipv6', 'cidr', 'hostname']);
 
@@ -64,7 +69,19 @@ export const NetworkAddressCreateSchema = z.object({
   primary: z.boolean().default(false),
 });
 
-export type NetworkAddressCreateDTO = z.infer<typeof NetworkAddressCreateSchema>;
+export type NetworkAddressCreateDTO = z.input<typeof NetworkAddressCreateSchema>;
+
+export const AssetRelationCreateSchema = z.object({
+  targetAssetId: z.string().uuid('Invalid target asset ID'),
+  relationshipType: z.string().min(1, 'Relationship type is required').max(100),
+  description: z.string().max(500).optional(),
+});
+export type AssetRelationCreateDTO = z.infer<typeof AssetRelationCreateSchema>;
+
+export const ConfirmAssetResponsibilitySchema = z.object({
+  role: z.string().max(100).optional(),
+});
+export type ConfirmAssetResponsibilityDTO = z.infer<typeof ConfirmAssetResponsibilitySchema>;
 
 export const CreateAssetSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -100,7 +117,7 @@ export const CreateAssetSchema = z.object({
   financialDamagePotential: RatingLevelSchema.default('low'),
   productionDowntimeImpact: RatingLevelSchema.default('low'),
 
-  lifecycleStatus: z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']).default('planned'),
+  lifecycleStatus: LifecycleStatusSchema.default('planned'),
 
   // Dates
   purchaseDate: z.coerce.date().optional(),
@@ -125,7 +142,7 @@ export const CreateAssetSchema = z.object({
   lastDetectedAt: z.coerce.date().optional(),
 });
 
-export type CreateAssetDTO = z.infer<typeof CreateAssetSchema>;
+export type CreateAssetDTO = z.input<typeof CreateAssetSchema>;
 
 export const UpdateAssetSchema = CreateAssetSchema.partial();
 
@@ -165,7 +182,7 @@ export const AssetQuerySchema = z.object({
   lifecycleStatus: z.string().optional(),
   criticality: CriticalitySchema.optional(),
   organizationUnitId: z.string().uuid().optional(),
-  archived: z.boolean().default(false), // include archived assets?
+  archived: z.coerce.boolean().default(false), // include archived assets?
 });
 
 export type AssetQueryDTO = z.infer<typeof AssetQuerySchema>;
@@ -275,14 +292,36 @@ export type UpdateRiskDTO = z.infer<typeof UpdateRiskSchema>;
 // Control DTOs
 // ==========================================
 
-export const CreateControlSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  controlType: z.string().optional(),
-  implementationStatus: z.enum(['not_started', 'in_progress', 'completed', 'not_applicable']).default('not_started'),
+const DeprecatedDirectRiskControlFields = z.object({
+  relatedRiskIds: z.never().optional(),
+  riskIds: z.never().optional(),
+  evidenceIds: z.never().optional(),
+  controls: z.never().optional(),
+  existingControls: z.never().optional(),
 });
 
-export type CreateControlDTO = z.infer<typeof CreateControlSchema>;
+export const CreateControlSchema = z.object({
+  catalogId: z.string().min(1, 'Catalog is required'),
+  catalogVersion: z.string().min(1, 'Catalog version is required'),
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().min(1, 'Description is required'),
+  controlGoal: z.string().min(1, 'Control goal is required'),
+  responsibleId: z.string().optional(),
+  applicability: z.enum(['applicable', 'not_applicable', 'under_review']).default('under_review'),
+  applicabilityJustification: z.string().optional(),
+  implementationStatus: z.string().default('planned'),
+  maturityLevel: z.number().int().min(0).max(5).default(0),
+  implementationDescription: z.string().optional(),
+  affectedAssetIds: z.array(z.string().uuid()).optional(),
+  affectedProcessIds: z.array(z.string().uuid()).optional(),
+  affectedSiteIds: z.array(z.string().uuid()).optional(),
+  testMethod: z.string().optional(),
+  testFrequency: z.string().optional(),
+}).merge(DeprecatedDirectRiskControlFields);
+
+export type CreateControlDTO = z.input<typeof CreateControlSchema>;
+export const UpdateControlSchema = CreateControlSchema.partial().extend({ status: z.string().optional() });
+export type UpdateControlDTO = z.infer<typeof UpdateControlSchema>;
 
 export const FrameworkRequirementImportSchema = z.object({
   key: z.string().min(1),
@@ -326,15 +365,7 @@ export const ControlImplementationSchema = z.object({
   findings: z.array(z.object({ title: z.string().min(1), description: z.string().optional(), severity: z.string().optional(), dueDate: z.coerce.date().optional() })).optional(),
   actions: z.array(z.object({ title: z.string().min(1), description: z.string().optional(), responsibleUserId: z.string().optional(), dueDate: z.coerce.date().optional() })).optional(),
 }).refine((data) => Boolean(data.scopeId || data.organizationUnitId || data.siteId), { message: 'Scope, organization unit, or site is required' });
-export type ControlImplementationDTO = z.infer<typeof ControlImplementationSchema>;
-
-const DeprecatedDirectRiskControlFields = z.object({
-  relatedRiskIds: z.never().optional(),
-  riskIds: z.never().optional(),
-  evidenceIds: z.never().optional(),
-  controls: z.never().optional(),
-  existingControls: z.never().optional(),
-});
+export type ControlImplementationDTO = z.input<typeof ControlImplementationSchema>;
 
 export const RiskControlRoleSchema = z.enum(['preventive', 'detective', 'corrective', 'recovery', 'compensating']);
 export const RiskControlMitigationDimensionSchema = z.enum(['likelihood', 'impact', 'both']);
@@ -355,11 +386,13 @@ export const RiskControlListQuerySchema = z.object({
   status: z.string().optional(),
   includeInactive: z.coerce.boolean().optional(),
 });
+export type RiskControlListQueryDTO = z.infer<typeof RiskControlListQuerySchema>;
 
 export const RiskControlAssessmentListQuerySchema = z.object({
   riskAssessmentVersionId: z.string().uuid().optional(),
   status: z.string().optional(),
 });
+export type RiskControlAssessmentListQueryDTO = z.infer<typeof RiskControlAssessmentListQuerySchema>;
 
 export const CreateRiskControlSchema = z.object({
   riskId: z.string().uuid(),
@@ -369,10 +402,10 @@ export const CreateRiskControlSchema = z.object({
   isKeyControl: z.boolean().default(false),
   status: RiskControlStatusSchema.default('active'),
 }).merge(DeprecatedDirectRiskControlFields);
-export type CreateRiskControlDTO = z.infer<typeof CreateRiskControlSchema>;
+export type CreateRiskControlDTO = z.input<typeof CreateRiskControlSchema>;
 
 export const CreateNestedRiskControlSchema = CreateRiskControlSchema.omit({ riskId: true });
-export type CreateNestedRiskControlDTO = z.infer<typeof CreateNestedRiskControlSchema>;
+export type CreateNestedRiskControlDTO = z.input<typeof CreateNestedRiskControlSchema>;
 
 export const UpdateRiskControlSchema = z.object({
   role: RiskControlRoleSchema.optional(),
@@ -393,12 +426,12 @@ export const CreateRiskControlAssessmentSchema = z.object({
   assessedBy: z.string().min(1),
   evidenceLinks: z.array(z.object({ evidenceId: z.string().uuid(), relationType: z.string().optional() })).default([]),
 });
-export type CreateRiskControlAssessmentDTO = z.infer<typeof CreateRiskControlAssessmentSchema>;
+export type CreateRiskControlAssessmentDTO = z.input<typeof CreateRiskControlAssessmentSchema>;
 
 export const CreateNestedRiskControlAssessmentSchema = CreateRiskControlAssessmentSchema.omit({ riskControlId: true, assessedBy: true }).extend({
   assessedBy: z.string().min(1).optional(),
 });
-export type CreateNestedRiskControlAssessmentDTO = z.infer<typeof CreateNestedRiskControlAssessmentSchema>;
+export type CreateNestedRiskControlAssessmentDTO = z.input<typeof CreateNestedRiskControlAssessmentSchema>;
 
 export interface ControlImplementationDto {
   id: string;
@@ -494,6 +527,9 @@ export const CreateSoASchema = z.object({
 });
 export type CreateSoADTO = z.infer<typeof CreateSoASchema>;
 
+export const UpdateSoAItemSchema = CreateSoAItemSchema.partial();
+export type UpdateSoAItemDTO = z.infer<typeof UpdateSoAItemSchema>;
+
 export const CreateEvidenceSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
@@ -562,7 +598,7 @@ export const CreateIncidentSchema = z.object({
   severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
 });
 
-export type CreateIncidentDTO = z.infer<typeof CreateIncidentSchema>;
+export type CreateIncidentDTO = z.input<typeof CreateIncidentSchema>;
 
 export const UpdateIncidentSchema = CreateIncidentSchema.partial().extend({
   status: z.string().optional(),
@@ -593,7 +629,7 @@ export const IncidentReportTypeSchema = z.enum(['early_warning_24h', 'incident_n
 export const CreateIncidentReportSchema = z.object({
   reportType: IncidentReportTypeSchema,
   title: z.string().optional(),
-  content: z.record(z.any()),
+  content: z.record(JsonValueSchema),
   authorId: z.string().min(1),
   recipient: z.string().optional(),
   submissionMethod: z.string().optional(),
@@ -622,7 +658,7 @@ export type CloseIncidentDTO = z.infer<typeof CloseIncidentSchema>;
 
 export const CreateSignificanceRuleVersionSchema = z.object({
   version: z.string().min(1),
-  rules: z.array(z.record(z.any())).min(1),
+  rules: z.array(z.record(JsonValueSchema)).min(1),
   effectiveFrom: z.coerce.date().optional(),
 });
 export type CreateSignificanceRuleVersionDTO = z.infer<typeof CreateSignificanceRuleVersionSchema>;
@@ -899,7 +935,7 @@ export type UpdatePreferencesDTO = z.infer<typeof UpdatePreferencesSchema>;
 // Paket 3.2 — Risikobewertung DTOs
 // ==========================================
 
-const AssessmentTypeSchema = z.enum(['inherent', 'current', 'target']);
+// AssessmentTypeSchema is exported in common DTOs for route/query reuse.
 const ReviewTaskStatusSchema = z.enum(['pending', 'in_progress', 'completed', 'overdue', 'cancelled']);
 const ReviewTaskPrioritySchema = z.enum(['low', 'medium', 'high', 'critical']);
 const ReviewTaskTriggerTypeSchema = z.enum(['scheduled', 'unplanned_event', 'ad_hoc']);

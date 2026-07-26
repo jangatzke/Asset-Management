@@ -461,3 +461,10 @@ These requirements define the ordered consolidation work. They are planning and 
 | **Beschreibung** | Browser sessions must use short-lived access JWTs and rotating, database-backed refresh tokens in HttpOnly cookies. Refresh-token plaintext must never be stored server-side. |
 | **Akzeptanzkriterium** | Login creates a session, refresh works with expired access tokens via cookie only, refresh tokens rotate, reuse revokes the family and is audited, logout revokes current refresh token, disabled users cannot refresh, frontend retries once with single-flight refresh. |
 | **Status** | Implemented in Phase 2. |
+
+## Phase 6 DTO/API Contract Requirements
+
+- Target API resources MUST use shared DTO schemas as the primary request contract source for create/update operations where practical.
+- Asset, Risk, Control, ControlImplementation, RiskControl, RiskAssessment, and Incident POST/PATCH/PUT endpoints MUST have bounded Zod validation and MUST NOT use generic record-any schemas for fachliche CRUD payloads.
+- Frontend API client methods for touched target resources MUST use concrete shared DTO request types where practical.
+- Deprecated parallel risk-control/control mirror fields MUST be rejected in favor of RiskControl and EvidenceLink relationships.

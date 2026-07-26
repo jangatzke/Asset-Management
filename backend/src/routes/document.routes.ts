@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite } from '../middleware/entityAuth';
 import { documentControlService } from '../services/document.service';
 

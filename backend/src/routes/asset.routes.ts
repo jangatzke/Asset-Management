@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
@@ -7,81 +6,7 @@ import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
-
-const IdParamSchema = z.object({ id: z.string().uuid('Invalid UUID format') });
-const RatingLevelSchema = z.enum(['low', 'medium', 'high']);
-const CriticalitySchema = z.enum(['low', 'medium', 'high', 'critical']);
-const CIANeedSchema = z.enum(['low', 'medium', 'high']);
-const NetworkAddressCreateSchema = z.object({
-  address: z.string().min(1),
-  type: z.enum(['ipv4', 'ipv6', 'cidr', 'hostname']).default('ipv4'),
-  primary: z.boolean().default(false),
-});
-const CreateAssetSchema = z.object({
-  name: z.string().min(1).max(255),
-  description: z.string().max(2000).optional(),
-  assetTypeId: z.string().uuid(),
-  assetSubtypeId: z.string().uuid().optional(),
-  inventoryNumber: z.string().max(100).optional(),
-  subType: z.string().max(100).optional(),
-  manufacturer: z.string().max(200).optional(),
-  model: z.string().max(200).optional(),
-  serialNumber: z.string().max(100).optional(),
-  externalId: z.string().max(100).optional(),
-  organizationUnitId: z.string().uuid().optional(),
-  locationId: z.string().uuid().optional(),
-  technicalOperatorId: z.string().uuid().optional(),
-  businessOwnerId: z.string().uuid().optional(),
-  informationSecurityResponsibleId: z.string().uuid().optional(),
-  processIds: z.array(z.string().uuid()).optional(),
-  serviceIds: z.array(z.string().uuid()).optional(),
-  contractIds: z.array(z.string().uuid()).optional(),
-  licenseIds: z.array(z.string().uuid()).optional(),
-  licenseInfo: z.string().max(500).optional(),
-  contractEndsAt: z.coerce.date().optional(),
-  licenseExpiresAt: z.coerce.date().optional(),
-  personnelSafetyRelevance: RatingLevelSchema.default('low'),
-  regulatoryRelevance: RatingLevelSchema.default('low'),
-  financialDamagePotential: RatingLevelSchema.default('low'),
-  productionDowntimeImpact: RatingLevelSchema.default('low'),
-  lifecycleStatus: z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']).default('planned'),
-  purchaseDate: z.coerce.date().optional(),
-  commissioningDate: z.coerce.date().optional(),
-  endOfSaleDate: z.coerce.date().optional(),
-  endOfLifeDate: z.coerce.date().optional(),
-  endOfSupportDate: z.coerce.date().optional(),
-  confidentialityNeed: CIANeedSchema.default('low'),
-  integrityNeed: CIANeedSchema.default('low'),
-  availabilityNeed: CIANeedSchema.default('low'),
-  dataProtectionRelevance: z.boolean().default(false),
-  criticality: CriticalitySchema.default('low'),
-  complianceRelevance: z.boolean().default(false),
-  networkAddresses: z.array(NetworkAddressCreateSchema).optional(),
-  dataSource: z.string().max(100).optional(),
-  lastDetectedAt: z.coerce.date().optional(),
-});
-const UpdateAssetSchema = CreateAssetSchema.partial();
-const ArchiveAssetSchema = z.object({ reason: z.string().max(500).optional() });
-const LifecycleTransitionSchema = z.object({
-  newStatus: z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']),
-  reason: z.string().max(500).optional(),
-});
-const DisposalProofSchema = z.object({
-  disposalDate: z.coerce.date(),
-  disposalMethod: z.string().min(1).max(200),
-  disposalResponsible: z.string().min(1).max(200),
-});
-const AssetQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  search: z.string().optional(),
-  assetTypeId: z.string().uuid().optional(),
-  assetSubtypeId: z.string().uuid().optional(),
-  lifecycleStatus: z.string().optional(),
-  criticality: CriticalitySchema.optional(),
-  organizationUnitId: z.string().uuid().optional(),
-  archived: z.coerce.boolean().default(false),
-});
+import { ArchiveAssetSchema, AssetQuerySchema, AssetRelationCreateSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, IdParamSchema, LifecycleTransitionSchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
 
 
 
@@ -120,7 +45,7 @@ assetRouter.get('/types', authenticate, async (_req, res, next) => {
   }
 });
 
-assetRouter.post('/types/:typeId/subtypes', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+assetRouter.post('/types/:typeId/subtypes', authenticate, requireAdminAccess, validateBody(CreateAssetSubtypeSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await assetService.createAssetSubtype(req.params.typeId, req.body, req.userId));
   } catch (error) {
@@ -268,7 +193,7 @@ assetRouter.get('/:id/relations', authenticate, async (req, res, next) => {
   }
 });
 
-assetRouter.post('/:id/relations', authenticate, async (req: AuthRequest, res, next) => {
+assetRouter.post('/:id/relations', authenticate, validateBody(AssetRelationCreateSchema), async (req: AuthRequest, res, next) => {
   try {
     const relation = await assetService.createRelation(req.params.id, req.body);
     res.status(201).json(relation);
@@ -361,7 +286,7 @@ assetRouter.get('/:id/lifecycle-logs', authenticate, async (req, res, next) => {
 // Responsibility Confirmation — AST-033
 // ==========================================
 
-assetRouter.post('/:id/confirm-responsibility', authenticate, async (req: AuthRequest, res, next) => {
+assetRouter.post('/:id/confirm-responsibility', authenticate, validateBody(ConfirmAssetResponsibilitySchema), async (req: AuthRequest, res, next) => {
   try {
     const { role } = req.body;
     const result = await assetService.confirmResponsibility(req.params.id, req.userId!, role);
