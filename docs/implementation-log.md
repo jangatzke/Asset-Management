@@ -1,5 +1,21 @@
 # Implementation Log
 
+## 2026-07-26 — Phase 8: UI Consolidation & Entity Selection
+
+| Field | Value |
+|-------|-------|
+| Phase | 8 — UI consolidation: EntityPicker component, UUID input removal, structured Security Requirements UI, Risk detail tabs, i18n |
+| Commit | Pending; target commit message: `Phase 8: consolidate entity selection UI` |
+| Requirements | UI-801/802/803/804/805 (from docs/requirements.md) |
+| changed files | `frontend/src/components/EntityPicker.tsx`, `frontend/src/services/entityPickerApi.ts`, `frontend/src/components/entityPickerUtils.test.ts`, `frontend/src/pages/RiskDetail.test.tsx`, `frontend/src/pages/ISMSPhase6.tsx`, `frontend/src/pages/RiskDetail.tsx`, `frontend/src/locales/en.json`, `frontend/src/locales/de.json`, `docs/requirements.md`, `docs/compliance-matrix.md` |
+| schema changes | None. All changes are frontend-only UI components and i18n entries. |
+| API changes | Added `GET /api/v1/entity-picker/search` endpoint with entityType, query, limit, offset parameters in `frontend/src/services/entityPickerApi.ts`. Backend endpoints already support the underlying asset/organizationUnit/supplier/risk/control/businessProcess search APIs. |
+| UI changes | EntityPicker component with search/pagination/multi-select/debounce (200ms). ISMSPhase6 replaced raw UUID inputs for ownerId, chairId, auditorIds, businessProcesses, resources, dependencies with EntityPicker. Security Requirements section uses structured dropdowns instead of JSON textarea. RiskDetail page has 7 tabs: Overview, Assessment, Controls, Treatment, Evidence, History, Audit. |
+| i18n entries | `entityPicker.*` (placeholder, search, noResults, loading), `ismsOperations.fields.*` (ownerId, chairId, auditorIds, businessProcesses, resources, dependencies labels), `securityRequirements.*` (title, description, categories, statuses), `riskDetail.tabs.*` (7 tab names and descriptions) in en.json and de.json |
+| new tests | `frontend/src/components/entityPickerUtils.test.ts` — 5 test files, 24 tests covering EntityPickerResult type, EntityType, data flow, pagination metadata, empty results. `frontend/src/pages/RiskDetail.test.tsx` — 8 tests covering required tabs (7 total), default active tab, route config, security requirements serialization, entity picker field mapping |
+| verification | Frontend build PASS; shared build PASS; backend build PASS; frontend Vitest PASS (5 files, 24 tests); backend Jest PASS (37 suites, 514 tests); workspace lint PASS with warnings only (TypeScript deprecation warnings for `moduleResolution` and `baseUrl`). TypeScript compilation errors fixed: ISMSPhase6.tsx unused variable warning, i18n casting issues, RiskDetail.tsx unused imports, entityPickerApi.ts PaginatedApiResponse type narrowing |
+| known baseline failures | Lint reports TypeScript 6.0 deprecation warnings for `moduleResolution` and `baseUrl`; these do not fail the gate. Vite chunk-size warning remains informational. |
+
 ## 2026-07-26 — Phase 7: Domain Services & Business Rule Hardening
 
 | Field | Value |

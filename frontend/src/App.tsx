@@ -23,6 +23,7 @@ import Licenses from './pages/Licenses';
 import Processes from './pages/Processes';
 import RiskAggregation from './pages/RiskAggregation';
 import ISMSPhase6 from './pages/ISMSPhase6';
+import RiskDetail from './pages/RiskDetail';
 import CostPlanning from './pages/CostPlanning';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
         <Route index element={<Dashboard />} />
         <Route path="assets" element={<Assets />} />
         <Route path="risks" element={<Risks />} />
+        <Route path="risks/:riskId" element={<RiskDetail />} />
         <Route path="controls" element={<Controls />} />
         <Route path="incidents" element={<Incidents />} />
         <Route path="contracts" element={<Contracts />} />

@@ -853,5 +853,87 @@
   "graph": {
     "noData": "Keine Graphdaten verfügbar",
     "noDependencies": "Keine Abhängigkeiten gefunden"
+  },
+  "entityPicker": {
+    "searchPlaceholder": "Suchen...",
+    "empty": "Keine Ergebnisse gefunden",
+    "scrollForMore": "Für weitere Einträge scrollen...",
+    "loading": "Wird geladen..."
+  },
+  "ismsOperations.fields": {
+    "ownerId": "Verantwortlicher",
+    "auditorIds": "Prüfer",
+    "chairId": "Vorsitz",
+    "courseId": "Kurs",
+    "businessProcesses": "Geschäftsprozesse",
+    "resources": "Ressourcen",
+    "dependencies": "Abhängigkeiten"
+  },
+  "securityRequirements": {
+    "title": "Sicherheitsanforderungen",
+    "addRequirement": "Anforderung hinzufügen",
+    "removeRequirement": "Entfernen",
+    "category": "Kategorie",
+    "description": "Beschreibung",
+    "status": "Status",
+    "categories": {
+      "confidentiality": "Vertraulichkeit",
+      "integrity": "Integrität",
+      "availability": "Verfügbarkeit",
+      "compliance": "Compliance",
+      "operational": "Betrieblich"
+    },
+    "statuses": {
+      "required": "Erforderlich",
+      "recommended": "Empfohlen",
+      "optional": "Optional",
+      "implemented": "Implementiert",
+      "deferred": "Aufgeschoben"
+    }
+  },
+  "riskDetail": {
+    "tabs": {
+      "overview": "Übersicht",
+      "assessment": "Bewertung",
+      "controls": "Steuerungen",
+      "treatment": "Behandlung",
+      "evidence": "Nachweise",
+      "history": "Verlauf",
+      "audit": "Audit"
+    },
+    "noAssessments": "Keine Bewertungen für dieses Risiko verfügbar.",
+    "noControls": "Noch keine Steuerungen verknüpft.",
+    "keyControl": "Schlüsselsteuerung",
+    "treatmentDescription": "Risikobehandlungspläne und Maßnahmen.",
+    "evidenceDescription": "Nachweisdokumente zu diesem Risiko.",
+    "noHistory": "Kein Bewertungsverlauf verfügbar.",
+    "auditTrailDescription": "Audit-Verlauf für dieses Risiko.",
+    "auditTrailComingSoon": "Der vollständige Audit-Verlauf wird in einer zukünftigen Phase bereitgestellt.",
+    "notFound": "Risiko nicht gefunden."
+  },
+  "risks": {
+    "likelihood": "Wahrscheinlichkeit",
+    "impact": "Auswirkung",
+    "noAssessments": "Keine Bewertungen verfügbar.",
+    "noControls": "Noch keine Steuerungen verknüpft.",
+    "keyControl": "Schlüsselsteuerung",
+    "treatmentDescription": "Risikobehandlungspläne und Maßnahmen.",
+    "evidenceDescription": "Nachweisdokumente zu diesem Risiko.",
+    "noHistory": "Kein Bewertungsverlauf verfügbar.",
+    "auditTrailDescription": "Audit-Verlauf für dieses Risiko.",
+    "auditTrailComingSoon": "Der vollständige Audit-Verlauf wird in einer zukünftigen Phase bereitgestellt.",
+    "notFound": "Risiko nicht gefunden.",
+    "loadError": "Fehler beim Laden der Risiken",
+    "assessmentType": {
+      "inherent": "Inhärent",
+      "current": "Aktuell",
+      "target": "Ziel"
+    },
+    "riskLevel": {
+      "inherent": "Inhärentes Risiko",
+      "current": "Aktuelles Risiko",
+      "target": "Zielrisiko"
+    },
+    "current": "Aktuell"
   }
 }

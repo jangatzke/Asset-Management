@@ -359,6 +359,64 @@
     - Keine DB-Konnektivitätsprüfung
 ```
 
+- id: UI-801
+  title: EntityPicker-Komponente mit such-/paginierbarer Multi-Auswahl
+  priority: P2
+  status: compliant
+  implementation:
+    - frontend/src/components/EntityPicker.tsx
+    - frontend/src/services/entityPickerApi.ts
+    - frontend/src/components/entityPickerUtils.test.ts
+  tests:
+    - frontend/src/components/entityPickerUtils.test.ts
+    - frontend/src/pages/RiskDetail.test.tsx
+  gaps: []
+
+- id: UI-802
+  title: Raw UUID-Eingabefelder durch EntityPicker ersetzen
+  priority: P2
+  status: compliant
+  implementation:
+    - frontend/src/pages/ISMSPhase6.tsx (EntityPicker für ownerId, chairId, auditorIds, businessProcesses, resources, dependencies)
+    - frontend/src/components/EntitySearchSelect.tsx (bestehende Single-Select Integration)
+  tests:
+    - frontend/src/pages/RiskDetail.test.tsx (EntityPicker Feld-Mapping Tests)
+  gaps: []
+
+- id: UI-803
+  title: Security Requirements strukturierte UI statt JSON-Textarea
+  priority: P2
+  status: compliant
+  implementation:
+    - frontend/src/pages/ISMSPhase6.tsx (SecurityRequirements Dropdowns mit Kategorien und Status)
+    - frontend/src/locales/en.json (securityRequirements translations)
+    - frontend/src/locales/de.json (securityRequirements Übersetzungen)
+  tests:
+    - frontend/src/pages/RiskDetail.test.tsx (Security Requirements Serialisierung Tests)
+  gaps: []
+
+- id: UI-804
+  title: Risk-Detail-Seite mit 7 Tabs
+  priority: P2
+  status: compliant
+  implementation:
+    - frontend/src/pages/RiskDetail.tsx (Overview, Assessment, Controls, Treatment, Evidence, History, Audit Tabs)
+    - frontend/src/locales/en.json (riskDetail.tabs translations)
+    - frontend/src/locales/de.json (riskDetail.tabs Übersetzungen)
+  tests:
+    - frontend/src/pages/RiskDetail.test.tsx (Tab-Struktur Tests)
+  gaps: []
+
+- id: UI-805
+  title: i18n-Einträge für alle neuen UI-Texte
+  priority: P2
+  status: compliant
+  implementation:
+    - frontend/src/locales/en.json (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs)
+    - frontend/src/locales/de.json (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs)
+  tests: []
+  gaps: []
+
 ## Status-Legende
 | Status | Bedeutung |
 |--------|-----------|

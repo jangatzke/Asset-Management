@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
+import EntityPicker from '../components/EntityPicker';
 import { useI18n } from '../context/I18nContext';
 
 // ─── Resource Metadata ───────────────────────────────────────────────────────
@@ -425,6 +426,12 @@ const ISMSPhase6 = () => {
   // Form state for create/edit
   const [formData, setFormData] = useState<Record<string, unknown>>({});
 
+  // EntityPicker selected values (separate from formData)
+  const [entityPickerValues, setEntityPickerValues] = useState<Record<string, unknown[]>>({});
+
+  // Structured security requirements for suppliers
+  const [securityRequirements, setSecurityRequirements] = useState<Array<{ id: string; category: string; description: string; status: string }>>([]);
+
   const meta = resourceMetas[resource] || null;
   const activeDomain = domainGroups.find((group) => group.resources.includes(resource));
 
@@ -486,6 +493,26 @@ const ISMSPhase6 = () => {
     setSubmitError(null);
     try {
       const payload: Record<string, unknown> = { ...formData };
+
+      // Merge EntityPicker values (array of {id, label}) into payload as arrays of IDs
+      Object.entries(entityPickerValues).forEach(([key, values]) => {
+        if (Array.isArray(values) && values.length > 0) {
+          payload[key] = values.map((v: unknown) => {
+            if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: string }).id;
+            return v;
+          });
+        } else if (!Array.isArray(values)) {
+          // Single select value
+          const single = values as { id?: string } | undefined;
+          if (single?.id) payload[key] = single.id;
+        }
+      });
+
+      // Merge structured security requirements
+      if (securityRequirements.length > 0) {
+        payload.securityRequirements = securityRequirements.map(({ id: _id, ...req }) => req);
+      }
+
       // Clean up comma-separated fields
       if (meta) {
         meta.fields.forEach((f) => {
@@ -576,6 +603,41 @@ const ISMSPhase6 = () => {
 
   const handleFormBooleanChange = (key: string, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [key]: checked }));
+  };
+
+  // EntityPicker change handler
+  const handleEntityPickerChange = (fieldKey: string, value: unknown, values?: unknown[]) => {
+    if (values !== undefined) {
+      setEntityPickerValues(prev => ({ ...prev, [fieldKey]: values }));
+    } else {
+      setFormData(prev => ({ ...prev, [fieldKey]: value }));
+    }
+  };
+
+  // Security requirements handlers
+  const addSecurityRequirement = () => {
+    setSecurityRequirements(prev => [...prev, { id: crypto.randomUUID(), category: 'confidentiality', description: '', status: 'required' }]);
+  };
+
+  const removeSecurityRequirement = (id: string) => {
+    setSecurityRequirements(prev => prev.filter(r => r.id !== id));
+  };
+
+  const updateSecurityRequirement = (id: string, field: string, value: string) => {
+    setSecurityRequirements(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+  };
+
+  // EntityPicker config for fields that should use entity selection UI
+  const getEntityPickerConfig = (fieldKey: string) => {
+    const config: Record<string, { entityType: string; labelKey: string; multi?: boolean }> = {
+      ownerId: { entityType: 'user', labelKey: 'ismsOperations.fields.ownerId' },
+      chairId: { entityType: 'user', labelKey: 'ismsOperations.fields.chairId' },
+      auditorIds: { entityType: 'user', labelKey: 'ismsOperations.fields.auditorIds', multi: true },
+      businessProcesses: { entityType: 'businessProcess', labelKey: 'ismsOperations.fields.businessProcesses', multi: true },
+      resources: { entityType: 'asset', labelKey: 'ismsOperations.fields.resources', multi: true },
+      dependencies: { entityType: 'supplier', labelKey: 'ismsOperations.fields.dependencies', multi: true },
+    };
+    return config[fieldKey];
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────
@@ -776,7 +838,9 @@ const ISMSPhase6 = () => {
 
       {/* ─── Create/Edit Modal ────────────────────────────────────────────── */}
       <Modal isOpen={createFormOpen || editModalOpen} onClose={() => { setCreateFormOpen(false); setEditModalOpen(false); }} title={`${editRow ? 'Edit' : 'Add'} ${meta?.label.replace(/s$/, '')}`}>
-        {meta && (
+        {meta && (() => {
+          const isDisabled = false; // Future: disable form during submission etc.
+          return (
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             {submitError && (
               <div className="rounded-md border border-red-300 bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-800 dark:text-red-200">
@@ -786,10 +850,97 @@ const ISMSPhase6 = () => {
             {meta.fields.map((f) => {
               const value = formData[f.key];
               const required = meta.createRequired?.includes(f.key) || meta.updateRequired?.includes(f.key);
+              const pickerConfig = getEntityPickerConfig(f.key);
+
+              // Render EntityPicker for entity reference fields
+              if (pickerConfig) {
+                return (
+                  <div key={f.key}>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                      {t(pickerConfig.labelKey)} {required && <span className="text-red-500">*</span>}
+                    </label>
+                    <div className="mt-1">
+                      <EntityPicker
+                        labelKey={pickerConfig.labelKey}
+                        entityType={pickerConfig.entityType as any}
+                        value={value ? { id: String(value), label: String(value) } : null}
+                        values={(entityPickerValues[f.key] as any[]) ?? []}
+                        onChange={(v) => handleEntityPickerChange(f.key, v)}
+                        onValuesChange={(vs) => setEntityPickerValues(prev => ({ ...prev, [f.key]: vs }))}
+                        multiple={pickerConfig.multi}
+                        required={required}
+                        disabled={isDisabled}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
+              // Render structured Security Requirements UI for suppliers
+              if (f.key === 'securityRequirements' && resource === 'suppliers') {
+                return (
+                  <div key={f.key}>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                      {t('securityRequirements.title')}
+                    </label>
+                    <div className="mt-1 space-y-2">
+                      {securityRequirements.map((req, idx) => (
+                        <div key={req.id} className="p-3 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">#{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeSecurityRequirement(req.id)}
+                              className="text-red-500 hover:text-red-700 text-xs"
+                            >
+                              {t('securityRequirements.removeRequirement')}
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <select
+                              value={req.category}
+                              onChange={(e) => updateSecurityRequirement(req.id, 'category', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                            >
+                              {Object.entries(t('securityRequirements.categories') as unknown as Record<string, string>).map(([k, v]) => (
+                                <option key={k} value={k}>{v}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={req.status}
+                              onChange={(e) => updateSecurityRequirement(req.id, 'status', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                            >
+                              {Object.entries(t('securityRequirements.statuses') as unknown as Record<string, string>).map(([k, v]) => (
+                                <option key={k} value={k}>{v}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <textarea
+                            value={req.description}
+                            onChange={(e) => updateSecurityRequirement(req.id, 'description', e.target.value)}
+                            placeholder={t('securityRequirements.description')}
+                            rows={2}
+                            className="w-full mt-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          />
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addSecurityRequirement}
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {t('securityRequirements.addRequirement')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={f.key}>
                   <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                    {f.label} {required && <span className="text-red-500">*</span>}
+                    {t(f.label)} {required && <span className="text-red-500">*</span>}
                   </label>
                   <div className="mt-1">
                     {f.type === 'textarea' ? (
@@ -855,7 +1006,8 @@ const ISMSPhase6 = () => {
               </button>
             </div>
           </div>
-        )}
+        );
+        })()}
       </Modal>
 
       {/* ─── Delete Confirmation Modal ────────────────────────────────────── */}

@@ -853,5 +853,87 @@
   "graph": {
     "noData": "No graph data available",
     "noDependencies": "No dependencies found"
+  },
+  "entityPicker": {
+    "searchPlaceholder": "Search...",
+    "empty": "No results found",
+    "scrollForMore": "Scroll for more...",
+    "loading": "Loading..."
+  },
+  "ismsOperations.fields": {
+    "ownerId": "Owner",
+    "auditorIds": "Auditors",
+    "chairId": "Chair",
+    "courseId": "Course",
+    "businessProcesses": "Business Processes",
+    "resources": "Resources",
+    "dependencies": "Dependencies"
+  },
+  "securityRequirements": {
+    "title": "Security Requirements",
+    "addRequirement": "Add Requirement",
+    "removeRequirement": "Remove",
+    "category": "Category",
+    "description": "Description",
+    "status": "Status",
+    "categories": {
+      "confidentiality": "Confidentiality",
+      "integrity": "Integrity",
+      "availability": "Availability",
+      "compliance": "Compliance",
+      "operational": "Operational"
+    },
+    "statuses": {
+      "required": "Required",
+      "recommended": "Recommended",
+      "optional": "Optional",
+      "implemented": "Implemented",
+      "deferred": "Deferred"
+    }
+  },
+  "riskDetail": {
+    "tabs": {
+      "overview": "Overview",
+      "assessment": "Assessment",
+      "controls": "Controls",
+      "treatment": "Treatment",
+      "evidence": "Evidence",
+      "history": "History",
+      "audit": "Audit"
+    },
+    "noAssessments": "No assessments available for this risk.",
+    "noControls": "No controls linked to this risk yet.",
+    "keyControl": "Key Control",
+    "treatmentDescription": "Risk treatment plans and actions.",
+    "evidenceDescription": "Evidence documents related to this risk.",
+    "noHistory": "No assessment history available.",
+    "auditTrailDescription": "Audit trail for this risk.",
+    "auditTrailComingSoon": "Full audit trail will be available in a future phase.",
+    "notFound": "Risk not found."
+  },
+  "risks": {
+    "likelihood": "Likelihood",
+    "impact": "Impact",
+    "noAssessments": "No assessments available.",
+    "noControls": "No controls linked yet.",
+    "keyControl": "Key Control",
+    "treatmentDescription": "Risk treatment plans and actions.",
+    "evidenceDescription": "Evidence documents related to this risk.",
+    "noHistory": "No assessment history available.",
+    "auditTrailDescription": "Audit trail for this risk.",
+    "auditTrailComingSoon": "Full audit trail will be available in a future phase.",
+    "notFound": "Risk not found.",
+    "loadError": "Failed to load risks",
+    "assessmentType": {
+      "inherent": "Inherent",
+      "current": "Current",
+      "target": "Target"
+    },
+    "riskLevel": {
+      "inherent": "Inherent Risk",
+      "current": "Current Risk",
+      "target": "Target Risk"
+    },
+    "current": "Current"
   }
 }
