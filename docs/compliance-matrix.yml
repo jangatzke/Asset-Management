@@ -1599,3 +1599,83 @@
   evidence:
     - job_runs table with jobId, jobType, status, workerId, scheduledAt, startedAt, finishedAt, error, attempt.
     - Indexes on (jobType, status) and scheduledAt for query performance.
+
+# Phase 12: CI/CD Release Gates
+- id: CI-001
+  title: Mandatory CI pipeline jobs (13 jobs)
+  priority: P0
+  status: compliant
+  implementation:
+    - .github/workflows/ci.yml
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
+  gaps: []
+  evidence:
+    - All 13 mandatory jobs defined in ci.yml workflow
+    - No job uses || true to neutralize failures
+
+- id: CI-002
+  title: Release gates checklist with dependency on all jobs
+  priority: P0
+  status: compliant
+  implementation:
+    - .github/workflows/ci.yml (release-gates job)
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
+  gaps: []
+  evidence:
+    - release-gates depends on all 13 mandatory jobs
+    - Shell script checks each job status explicitly
+
+- id: CI-003
+  title: Dependency scan blocks on high/critical vulnerabilities with allowlist
+  priority: P0
+  status: compliant
+  implementation:
+    - .github/workflows/ci.yml (dependency-scan job)
+    - scripts/check-vulnerabilities.ts
+    - docs/vulnerability-allowlist.json
+  tests: []
+  gaps: []
+  evidence:
+    - npm audit --production --audit-level=high without || true
+    - check-vulnerabilities.ts validates against allowlist with CVE, justification, owner, expiryDate
+
+- id: CI-004
+  title: Semgrep SAST SARIF output and upload
+  priority: P1
+  status: compliant
+  implementation:
+    - .github/workflows/ci.yml (sast job)
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
+  gaps: []
+  evidence:
+    - --output-format=sarif --output=semgrep-results.sarif
+    - upload-sarif@v3 with sarif_file: semgrep-results.sarif
+
+- id: CI-005
+  title: Migration test (empty DB -> migrate deploy -> seed -> tests)
+  priority: P1
+  status: compliant
+  implementation:
+    - .github/workflows/ci.yml (migration-test job)
+  tests: []
+  gaps: []
+  evidence:
+    - PostgreSQL service container with empty database
+    - prisma migrate deploy, db seed, integration tests
+
+- id: CI-006
+  title: requirements-check script validates P0/P1 status and evidence
+  priority: P1
+  status: compliant
+  implementation:
+    - scripts/check-requirements.ts
+    - package.json (npm run requirements-check)
+  tests: []
+  gaps: []
+  evidence:
+    - Checks no P0/P1 missing/non_compliant
+    - Partial only with documented exception
+    - Test/evidence references required for P0
