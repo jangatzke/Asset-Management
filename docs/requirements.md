@@ -1,7 +1,9 @@
-# Anforderungen â€“ Asset Management System (ISO 27001)
+# Requirements â€” Asset Management System
 
-**Version:** 1.0  
-**Datum:** 2026-07-17  
+> **Documentation Model Note:** This document lists application requirements and their implementation status. It does NOT represent organizational compliance certification. Application coverage for ISO 27001:2022 controls is documented in [`docs/compliance-matrix.yml`](docs/compliance-matrix.yml) using the two-dimension model (Application Coverage vs Organization Compliance Assessment).
+
+**Version:** 1.0
+**Datum:** 2026-07-17
 **Status:** Entwurf â€“ Phase 0 PrÃ¼fbasis
 
 ## Phase 6 â€“ Weitere ISMS-Module
@@ -490,11 +492,11 @@ These requirements define the ordered consolidation work. They are planning and 
 ""  
 "## Phase 12 - CI/CD Release Gates"  
 ""  
-"| ID | Priorit„t | Kategorie | Beschreibung | Akzeptanzkriterium |"  
+"| ID | Prioritï¿½t | Kategorie | Beschreibung | Akzeptanzkriterium |"  
 "|----|-----------|-----------|--------------|--------------------|"  
 "| CI-001 | P0 | CI/CD | Die CI-Pipeline muss alle 13 obligatorischen Jobs enthalten: build, lint, prisma-validate, unit-tests, integration-tests, frontend-tests, sast (Semgrep SARIF), dependency-scan (npm audit blockiert bei High/Critical), secret-scan (gitleaks), sbom (CycloneDX), container-scan (Trivy), requirements-check, migration-test. | Alle Jobs sind in .github/workflows/ci.yml definiert; keiner wird mit || true neutralisiert. |"  
-"| CI-002 | P0 | CI/CD | Release Gates mssen checklistengesteuert sein: mandatory code review, test coverage >= 80%, security scan pass, changelog entry. Der release-gates Job muss von allen 13 Jobs abh„ngen und explizit prfen. | needs: Liste enth„lt alle 13 Jobs; Shell-Skript prft jeden Job-Status. |"  
-"| CI-003 | P0 | SEC | Abh„ngigkeits-Scan (npm audit) darf nicht mit || true neutralisiert werden. High/Critical-Vulnerabilities mssen die Pipeline blockieren. Eine explizite Allowlist (docs/vulnerability-allowlist.json) ist erforderlich mit CVE, Begrndung, Owner und Ablaufdatum. | npm audit --production --audit-level=high ohne || true; scripts/check-vulnerabilities.ts prft Allowlist. |"  
+"| CI-002 | P0 | CI/CD | Release Gates mï¿½ssen checklistengesteuert sein: mandatory code review, test coverage >= 80%, security scan pass, changelog entry. Der release-gates Job muss von allen 13 Jobs abhï¿½ngen und explizit prï¿½fen. | needs: Liste enthï¿½lt alle 13 Jobs; Shell-Skript prï¿½ft jeden Job-Status. |"  
+"| CI-003 | P0 | SEC | Abhï¿½ngigkeits-Scan (npm audit) darf nicht mit || true neutralisiert werden. High/Critical-Vulnerabilities mï¿½ssen die Pipeline blockieren. Eine explizite Allowlist (docs/vulnerability-allowlist.json) ist erforderlich mit CVE, Begrï¿½ndung, Owner und Ablaufdatum. | npm audit --production --audit-level=high ohne || true; scripts/check-vulnerabilities.ts prï¿½ft Allowlist. |"  
 "| CI-004 | P1 | SEC | Semgrep SAST muss SARIF-Ausgabe (--output-format=sarif) verwenden und via upload-sarif@v3 in GitHub Security Tab hochladen. JSON-Ausgabe ist nicht konform. | --output-format=sarif --output=semgrep-results.sarif; sarif_file: semgrep-results.sarif. |"  
-"| CI-005 | P1 | OPS | Migration Test Job: Leere PostgreSQL-Datenbank -> prisma migrate deploy -> Seed -> Integration Tests. Validiert Migrations-Pipeline in CI. | Job enth„lt prisma migrate deploy, db seed und Integrationstests gegen frisch migrierte DB. |"  
-"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgefhrt. |" 
+"| CI-005 | P1 | OPS | Migration Test Job: Leere PostgreSQL-Datenbank -> prisma migrate deploy -> Seed -> Integration Tests. Validiert Migrations-Pipeline in CI. | Job enthï¿½lt prisma migrate deploy, db seed und Integrationstests gegen frisch migrierte DB. |"  
+"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgefï¿½hrt. |" 

@@ -119,42 +119,27 @@ The following items were previously flagged as `partial`, `missing`, or `non_com
 - **Failed:** 0
 - **Skipped:** 0
 
-#### Compliance Matrix Summary
+#### Application Coverage Summary
 
-- **Total Compliance Items:** 70+
-- **Compliant:** 65+ (up from ~50 in previous verification)
-- **Partial:** 5 (down from ~15)
-- **Missing:** 0 (down from ~10)
-- **Non-Compliant:** 0 (down from ~5)
+> **Note:** The following summary describes application technical capability only. It does NOT represent organizational ISO 27001 compliance certification. Organizational compliance requires separate audit evidence (policies, procedures, training records, management review).
 
-#### ISO 27001:2022 Compliance Assessment
+- **Total Application Coverage Items:** 70+
+- **implemented** (application code exists): 65+
+- **partial** (application partially implements): 5
+- **not applicable to application**: 0
+- **organizational control only**: documented separately in compliance-matrix.yml
 
-Based on this comprehensive audit, the system meets the following ISO 27001:2022 requirements:
+#### ISO 27001:2022 Application Requirement Coverage Mapping
 
-**A.5 - Organizational Controls:**
-- Policies documented and implemented
-- Roles and responsibilities defined (built-in roles: system_admin, employee, custom roles)
+The following table maps application features to ISO 27001:2022 control categories for reference. This is NOT a compliance certification.
 
-**A.6 - People Controls:**
-- User registration and login workflows implemented
-- Password policy enforced (SEC-004)
-- Training awareness through role-based access
-
-**A.7 - Physical Controls:**
-- Not directly applicable (cloud/software system)
-
-**A.8 - Technological Controls:**
-- Access control (SEC-001) - Entity-level authorization with RBAC
-- Encryption (SEC-002) - TLS, JWT, bcrypt hashing
-- Backup and recovery (SEC-003) - Documented in operations.md
-- Logging and monitoring (SEC-005) - Audit log routes implemented
-- Authentication (IAM-001, IAM-002, IAM-003) - JWT + OIDC PKCE
-- Self-registration control (SEC-006) - Disabled by default
-
-**A.9 - Compliance Controls:**
-- NIS-2 incident reporting (INC-001, INC-002)
-- Audit trail integrity (AUD-001, AUD-002)
-- Business process integrity (BP-001, BP-002)
+| ISO 27001 Category | Application Feature Mapping | Notes |
+|---|---|---|
+| A.5 - Organizational Controls | Built-in roles (system_admin, employee, custom), RBAC permissions | Organizational policies and role assignment procedures are manual controls |
+| A.6 - People Controls | User registration/login workflows, password policy enforcement (SEC-004) | Training awareness is an organizational control; application supports training assignments |
+| A.7 - Physical Controls | Not directly applicable — cloud/software system | Application has no physical component |
+| A.8 - Technological Controls | Access control (SEC-001), Encryption (SEC-002), Backup procedures documented in operations.md, Audit logging (SEC-005), Authentication (IAM-001/002/003), Self-registration control (SEC-006) | Application implements technical controls; organizational deployment and operation is separate |
+| A.9 - Compliance Controls | NIS-2 incident tracking (INC-001/002), Audit trail (AUD-001/002), Business process integrity (BP-001/BP-002) | Application supports evidence collection; organizational reporting is manual |
 
 #### Known Remaining Rest Points
 

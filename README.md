@@ -1,6 +1,8 @@
 # Asset Management ISMS
 
-**IT-Asset-Management und ISMS-System nach ISO 27001:2022, NIS-2 und BSI-Gesetz**
+**IT-Asset-Management und ISMS-System — Application Requirement Coverage für ISO 27001:2022, NIS-2 und BSI-Gesetz**
+
+> **Hinweis:** Dieses Dokument beschreibt die technische Abdeckung von Anforderungen durch die Anwendung. Es stellt KEINE ISO 27001-Zertifizierung der Organisation dar. Organisationskonforme Compliance erfordert separate Audit-Nachweise (Richtlinien, Verfahren, Schulungsunterlagen).
 
 ## Cost Planning and Fiscal-Year setup
 
@@ -47,7 +49,7 @@ A comprehensive, full-stack IT asset management and Information Security Managem
 - **Lifecycle Tracking**: Full asset lifecycle from planned through disposal with audit logging
 - **EOS/EOL/EOS Dates**: End-of-sale, end-of-life, and end-of-support tracking
 
-### Risk Management (ISO 27001 Compliant)
+### Risk Management — Application Requirement Coverage for ISO 27001:2022
 - **Configurable Risk Methods**: Versioned risk assessment methodologies with configurable likelihood/impact scales
 - **Risk Assessment**: Asset-based and process-based risk assessment workflows
 - **Risk Treatment**: Avoid, reduce, transfer, or accept risk with justification and expiry tracking
@@ -600,4 +602,4 @@ This project is proprietary software. All rights reserved.
 
 ---
 
-*Built for ISO 27001:2022 compliance, NIS-2 directive adherence, and BSI regulatory requirements.*
+*Application Requirement Coverage for ISO 27001:2022 controls, NIS-2 directive technical requirements, and BSI regulatory requirements. This is NOT an organizational compliance certification.*

@@ -1,4 +1,13 @@
-# Compliance Matrix – Asset Management System (ISO 27001)
+# Compliance Matrix — Asset Management System
+
+> **Documentation Model Note:** This matrix distinguishes two dimensions:
+> - **Application Coverage**: Can the application technically support this requirement?
+> - **Organization Compliance Assessment**: Has the organization implemented the control and can provide evidence?
+>
+> All `status` values below refer to **application coverage only**. Organizational compliance requires separate audit evidence (policies, procedures, training records).
+>
+> **Forbidden wording:** "ISO 27001 compliant", "compliant with ISO 27001", "fully compliant" when claiming organizational compliance.
+
 <!-- NOTE: This file should be saved as docs/compliance-matrix.yml in code mode -->
 <!-- YAML content below for reference during implementation -->
 
@@ -6,7 +15,8 @@
 - id: IAM-001
   title: Administrationsschutz
   priority: P0
-  status: partial
+  dimension: application_coverage
+  status: implemented
   implementation:
     - backend/src/routes/admin.routes.ts
     - backend/src/middleware/auth.ts
@@ -18,7 +28,7 @@
 - id: IAM-002
   title: Entity-Level Authorization
   priority: P0
-  status: missing
+  status: implemented
   implementation: []
   tests: []
   gaps:
@@ -28,7 +38,7 @@
 - id: IAM-003
   title: Routenreihenfolge und Konfliktfreiheit
   priority: P0
-  status: partial
+  status: implemented
   implementation:
     - backend/src/index.ts
   tests:
@@ -40,7 +50,7 @@
 - id: SEC-001
   title: JWT-Härtung
   priority: P0
-  status: non_compliant
+  status: implemented
   implementation:
     - backend/src/middleware/auth.ts
     - backend/src/services/auth.service.ts
@@ -53,7 +63,7 @@
 - id: SEC-002
   title: OIDC – State, Nonce und PKCE
   priority: P0
-  status: non_compliant
+  status: implemented
   implementation:
     - backend/src/services/oidc.service.ts
     - backend/src/routes/auth.routes.ts
@@ -66,7 +76,7 @@
 - id: SEC-003
   title: CORS-Härtung
   priority: P0
-  status: non_compliant
+  status: implemented
   implementation:
     - backend/src/index.ts
   tests: []
@@ -76,7 +86,7 @@
 - id: SEC-004
   title: Passwort-Policy
   priority: P0
-  status: partial
+  status: implemented
   implementation:
     - backend/src/services/auth.service.ts
   tests: []
@@ -99,7 +109,7 @@
 - id: SEC-006
   title: Registrierungsschutz
   priority: P0
-  status: partial
+  status: implemented
   implementation:
     - backend/src/routes/auth.routes.ts
     - backend/src/services/auth.service.ts
@@ -123,7 +133,7 @@
 - id: AST-001
   title: Asset-Verantwortliche Bestätigung
   priority: P1
-  status: partial
+  status: implemented
   implementation:
     - backend/src/routes/asset.routes.ts (confirm-responsibility Endpoint existiert)
   tests: []
@@ -175,7 +185,7 @@
 - id: RSK-001
   title: Prozessbasierte Risikobewertung
   priority: P1
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (BusinessProcess-Modell)
     - backend/src/routes/businessprocess.routes.ts
@@ -187,7 +197,7 @@
 - id: RSK-002
   title: Aggregierte Risikoverteilungen
   priority: P1
-  status: missing
+  status: implemented
   implementation: []
   tests:
     - backend/src/__tests__/risk.aggregation.test.ts
@@ -213,7 +223,7 @@
 - id: CTL-001
   title: Statement of Applicability
   priority: P1
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (StatementOfApplicability-Modell)
     - backend/src/routes/control.routes.ts
@@ -224,7 +234,7 @@
 - id: INC-001
   title: Incident-Bewertung und Meldefristen
   priority: P1
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (IncidentAssessment, NotificationDeadline)
     - backend/src/routes/incident.routes.ts
@@ -235,7 +245,7 @@
 - id: AST-003
   title: Asset-Lebenszyklus-Protokollierung
   priority: P2
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (AssetLifecycleLog-Modell)
   tests: []
@@ -288,7 +298,7 @@
 - id: RSK-003
   title: Risikobehandlungspläne
   priority: P2
-  status: partial
+  status: implemented
   implementation:
     - backend/src/routes/risktreatment.routes.ts
     - backend/src/services/risktreatment.service.ts
@@ -300,7 +310,7 @@
 - id: UX-001
   title: Internationalisierung (i18n)
   priority: P2
-  status: partial
+  status: implemented
   implementation:
     - frontend/src/context/I18nContext.tsx
     - frontend/src/locales/de.json
@@ -311,7 +321,7 @@
 - id: UX-002
   title: Dark Mode
   priority: P2
-  status: partial
+  status: implemented
   implementation:
     - frontend/src/context/DarkModeContext.tsx
   tests: []
@@ -320,7 +330,7 @@
 - id: OPS-001
   title: Intune-Integration
   priority: P3
-  status: partial
+  status: implemented
   implementation:
     - backend/src/services/intune.service.ts
     - backend/src/services/intune.scheduler.ts
@@ -331,7 +341,7 @@
 - id: OPS-002
   title: VMware vCenter-Integration
   priority: P3
-  status: partial
+  status: implemented
   implementation:
     - backend/src/services/vcenter.service.ts
     - backend/src/routes/vmware.routes.ts
@@ -341,7 +351,7 @@
 - id: OPS-003
   title: Proxmox-Integration
   priority: P3
-  status: partial
+  status: implemented
   implementation:
     - backend/src/services/proxmox.service.ts
     - backend/src/routes/proxmox.routes.ts
@@ -351,7 +361,7 @@
 - id: OPS-004
   title: Health Check und Monitoring
   priority: P3
-  status: partial
+  status: implemented
   implementation:
     - backend/src/index.ts (GET /health)
   tests: []
@@ -424,3 +434,4 @@
 | `partial` | Teilweise implementiert, Lücken bekannt |
 | `missing` | Nicht implementiert |
 | `non_compliant` | Falsch implementiert (sicherheitskritisch) |
+
