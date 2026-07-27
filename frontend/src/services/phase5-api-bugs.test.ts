@@ -1,5 +1,5 @@
-/// <reference types="vitest" />
-declare const vi: typeof import('vitest').vi;
+// Note: `vi` is provided globally by vitest via globals: true in vite.config.ts
+declare const vi: any;
 
 function installAxiosMock() {
   const instance: any = vi.fn(async (config: any) => ({ status: 200, config }));

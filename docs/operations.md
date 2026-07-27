@@ -60,6 +60,9 @@ CORS_ORIGIN=https://yourdomain.com
 LOG_LEVEL=info
 WEBHOOK_TIMEOUT_MS=10000
 WEBHOOK_MAX_RETRIES=3
+
+# Metrics (Phase 11)
+METRICS_TOKEN=<strong-random-token>   # Required to protect /metrics endpoint
 ```
 
 ---
@@ -89,31 +92,81 @@ Returns 200 if the server process is alive.
 **Failure handling:** Kubernetes will restart the container.
 
 ### Readiness Probe (`/health/ready`)
-Returns 200 with all checks healthy when the server is ready to serve traffic.
+Returns a structured health status with real readiness checks (Phase 11 enhancement).
+
+**Status values:** `healthy` (all checks pass), `degraded` (optional integrations unavailable), `not_ready` (critical failure).
 
 ```json
 {
-  "status": "ready",
+  "status": "healthy",
   "ready": true,
   "uptime": 86400,
-  "timestamp": "2026-07-19T10:00:00.000Z",
+  "timestamp": "2026-07-27T10:00:00.000Z",
   "checks": {
     "database": {
       "status": "healthy",
+      "message": "Database reachable",
       "duration": 5
     },
-    "webhookQueue": {
+    "schema": {
       "status": "healthy",
-      "duration": 1
+      "message": "No pending migrations",
+      "latestMigration": "20260726231700_phase10_job_tracking",
+      "pendingCount": 0,
+      "duration": 8
+    },
+    "secrets": {
+      "status": "healthy",
+      "details": ["JWT_SECRET", "DATABASE_URL"],
+      "message": "All required secrets configured"
+    },
+    "intune": {
+      "status": "skipped",
+      "message": "Not configured"
+    },
+    "smtp": {
+      "status": "skipped",
+      "message": "Not configured"
     }
   }
 }
 ```
 
+**Status transitions:**
+| Condition | Status | HTTP Code |
+|-----------|--------|-----------|
+| All critical checks pass, optional skipped/healthy | `healthy` | 200 |
+| Optional integration unhealthy (Intune/SMTP/VMware) | `degraded` | 200 |
+| Database unreachable or required secrets missing | `not_ready` | 503 |
+
 **Failure handling:** Kubernetes removes the pod from service endpoints.
 
 ### Metrics Endpoint (`/metrics`)
-Prometheus-compatible metrics:
+Prometheus-compatible metrics endpoint (Phase 11: protected by `METRICS_TOKEN`).
+
+**Authentication:** Requires either `?token=<METRICS_TOKEN>` query parameter or `Authorization: Bearer <token>` header. Without valid token, returns HTTP 401.
+
+```bash
+# Access with token
+curl -H "Authorization: Bearer my-metrics-token" http://localhost:3000/metrics
+# Or via query param
+curl "http://localhost:3000/metrics?token=my-metrics-token"
+```
+
+**Exposed metrics (Phase 11):**
+
+| Metric | Type | Description | Labels |
+|--------|------|-------------|--------|
+| `http_requests_total` | counter | Total HTTP requests | method, path, status |
+| `http_request_duration_ms` | histogram | Request duration in milliseconds | method, path |
+| `http_errors_total` | counter | Total HTTP errors | method, path, errorType |
+| `db_errors_total` | counter | Database query errors | - |
+| `job_duration_seconds` | histogram | Background job duration in seconds | jobId, jobType, status |
+| `job_failures_total` | counter | Background job failures | jobId, jobType |
+| `integration_sync_status` | gauge | Integration sync status (1=ok, 0=error) | integration |
+| `app_uptime_seconds` | gauge | Server uptime in seconds | - |
+
+**Example output:**
 
 ```prometheus
 # HELP http_requests_total Total HTTP requests

@@ -9,7 +9,7 @@ import type { AddressInfo } from 'net';
 // Phase 8 imports
 import { correlationId } from './middleware/correlationId';
 import { jsonLogger } from './middleware/jsonLogger';
-import { metricsMiddleware, metricsEndpoint } from './middleware/metrics';
+import { metricsMiddleware, metricsEndpoint, createMetricsAuthMiddleware, attachDbErrorHook } from './middleware/metrics';
 import { idempotency } from './middleware/idempotency';
 import { etag } from './middleware/etag';
 import { scopeAudit } from './middleware/apiScopes';
@@ -138,8 +138,12 @@ app.get('/health/live', healthLive);
 // Readiness probe - checks database and configured health checks
 app.get('/health/ready', healthReady);
 
-// Prometheus-compatible metrics endpoint
-app.get('/metrics', metricsEndpoint);
+// Prometheus-compatible metrics endpoint (protected by token if METRICS_TOKEN is set)
+const metricsAuth = createMetricsAuthMiddleware();
+app.get('/metrics', metricsAuth, metricsEndpoint);
+
+// Register DB error hook for prom-client db_errors_total counter
+attachDbErrorHook(prisma);
 
 // ==================== API Routes ====================
 

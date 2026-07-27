@@ -1,3 +1,67 @@
+# Phase 11: Health Readiness & Metrics
+- id: OPS-1101
+  title: Real readiness checks on /health/ready
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/health.ts
+    - backend/src/routes/health.routes.ts
+  tests:
+    - backend/src/__tests__/phase8.health.test.ts
+    - backend/src/__tests__/phase11.health-readiness.test.ts
+  gaps: []
+  evidence:
+    - Database reachability check via $queryRaw SELECT 1
+    - Schema/migration status checked via _prisma_migrations table (latest migration + pending count)
+    - Required secrets (JWT_SECRET, DATABASE_URL) verified present
+    - Optional integrations (Intune, SMTP, VMware, Proxmox) return degraded when configured but unhealthy
+    - registerHealthCheck() and registerRuntimeHealthCheck() API for custom checks
+
+- id: OPS-1102
+  title: Secret redaction in health responses
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/health.ts
+  tests:
+    - backend/src/__tests__/phase11.health-readiness.test.ts
+  gaps: []
+  evidence:
+    - checks.secrets.details contains only secret names (JWT_SECRET, DATABASE_URL), never values
+    - Response JSON does not contain actual secret values or connection strings with credentials
+
+- id: OPS-1103
+  title: Protected /metrics endpoint with METRICS_TOKEN
+  priority: P0
+  status: compliant
+  implementation:
+    - backend/src/middleware/metrics.ts
+    - backend/src/routes/metrics.routes.ts
+    - backend/.env.example
+  tests:
+    - backend/src/__tests__/phase11.metrics-auth.test.ts
+    - backend/src/__tests__/phase11.metrics-output.test.ts
+  gaps: []
+  evidence:
+    - prom-client registered for HTTP request count, latency histogram, error counters, DB errors, job metrics
+    - /metrics requires METRICS_TOKEN query parameter or Authorization header
+    - Without token: HTTP 401 Unauthorized
+    - With valid token: HTTP 200 + Prometheus text format
+
+- id: OPS-1104
+  title: Custom health check registration API
+  priority: P1
+  status: compliant
+  implementation:
+    - backend/src/middleware/health.ts
+  tests:
+    - backend/src/__tests__/phase11.health-readiness.test.ts
+  gaps: []
+  evidence:
+    - registerHealthCheck(name, fn) for static checks
+    - registerRuntimeHealthCheck(name, fn) for dynamic checks
+    - Failed runtime checks mark server as degraded
+
 - id: AUTHN-002
   title: Local MFA and Password Pre-Authentication
   priority: P0

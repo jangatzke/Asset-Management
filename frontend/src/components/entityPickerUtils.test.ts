@@ -1,6 +1,4 @@
-/// <reference types="vitest" />
-
-declare const vi: typeof import('vitest').vi;
+// Note: `vi` is provided globally by vitest via globals: true in vite.config.ts
 
 // Runtime type check for EntityPickerResult
 function assertEntityPickerResult(result: { id: string; label: string }): void {

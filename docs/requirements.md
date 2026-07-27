@@ -28,6 +28,14 @@
 
 | ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
 |----|-----------|-----------|--------------|--------------------|
+| OPS-1101 | P0 | OPS | `/health/ready` muss echte Readiness-Checks durchführen: Datenbank-Erreichbarkeit, Schema/Migration-Status (falls sicher prüfbar), Required-Secrets-Konfiguration. Optionale Integrationen (Intune, SMTP, VMware, Proxmox) führen zu `degraded`, nicht `not_ready`. | GET `/health/ready` gibt strukturierte Antwort `{ status: healthy|degraded|not_ready, checks: { database, schema, secrets, intune, smtp, ... } }` zurück. |
+| OPS-1102 | P0 | SEC | Health-Status darf keine Secrets/Credentials enthalten. Environment variable names dürfen aufgelistet werden, aber Werte müssen rotiert bleiben. | Response enthält `checks.secrets.details` mit Secret-Namen (z.B. `JWT_SECRET`, `DATABASE_URL`) aber ohne Werte. |
+| OPS-1103 | P0 | OPS | `/metrics` muss über `METRICS_TOKEN` Umgebungsvariable geschützt sein. Ohne Token wird HTTP 401 zurückgegeben. Prometheus-kompatible Metriken für HTTP request count, latency histogram, error count, DB errors, background job duration/failures, integration sync status. | GET `/metrics?token=...` mit gültigem `METRICS_TOKEN` gibt HTTP 200 + Prometheus text format zurück. Ohne Token: HTTP 401. |
+| OPS-1104 | P1 | OPS | Health-Check Middleware muss `registerHealthCheck()` und `registerRuntimeHealthCheck()` für benutzerdefinierte Checks bereitstellen. | Entwickler können zusätzliche Checks zur Readiness-Prüfung registrieren; fehlende Checks markieren den Server als `degraded`. |
+
+
+| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
 | INT-701 | P0 | SEC | Intune-Authentifizierung muss MSAL Node mit Zertifikat aus SecretStore-Abstraktion verwenden; Tokens/Secrets dürfen nicht geloggt werden. | `@azure/msal-node` nutzt `.default` Application Permissions; SecretStore unterstützt `env:` und `file:` ohne Default-Secrets. |
 | INT-702 | P0 | SEC | Graph-Zugriff muss Least-Privilege Application Permissions prüfen. | Health Check meldet fehlendes `DeviceManagementManagedDevices.Read.All` verständlich. |
 | INT-703 | P1 | AST | Managed-Device-Sync muss nur unterstützte Graph-Felder selektieren, Pagination und HTTP 429 `Retry-After` respektieren. | Mehrseitige Antworten werden vollständig verarbeitet und 429 verzögert den Retry nach Header. |

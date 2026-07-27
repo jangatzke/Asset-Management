@@ -1,11 +1,26 @@
 # Implementation Log
 
+## 2026-07-27 — Phase 11: Health Readiness & Metrics
+
+| Field | Value |
+|-------|-------|
+| Phase | 11 — Real readiness checks, structured health/degraded status, prom-client metrics with auth protection |
+| Commit | Pending; target commit message: `Phase 11: harden readiness health and metrics` |
+| Requirements | OPS-1101 (real readiness checks), OPS-1102 (secret redaction), OPS-1103 (/metrics auth), OPS-1104 (custom check registration) |
+| changed files | `docs/requirements.md`, `docs/compliance-matrix.yml` |
+| new files | `backend/src/middleware/metrics.ts`, `backend/src/routes/metrics.routes.ts`, `backend/src/__tests__/phase11.health-readiness.test.ts`, `backend/src/__tests__/phase11.metrics-auth.test.ts`, `backend/src/__tests__/phase11.metrics-output.test.ts`, `docs/phase11-health-metrics-plan.md` |
+| API changes | GET `/health/live` — liveness probe (existing, Phase 8). GET `/health/ready` — readiness with real DB/schema/secrets/integration checks (enhanced Phase 8 → Phase 11). GET `/metrics` — Prometheus metrics endpoint protected by `METRICS_TOKEN` query param or `Authorization: Bearer <token>` header. |
+| service changes | Enhanced `backend/src/middleware/health.ts`: `checkDatabaseReachability()` via `$queryRaw SELECT 1`, `checkSchemaStatus()` via `_prisma_migrations` table (latest migration + pending count), `checkRequiredSecrets()` verifies JWT_SECRET and DATABASE_URL presence, optional integration checks for Intune/SMTP/VMware/Proxmox return `degraded` not `not_ready`. New `backend/src/middleware/metrics.ts`: prom-client registry with HTTP request counter, latency histogram, error counters, DB error counter, background job duration/failure metrics. New `backend/src/routes/metrics.routes.ts`: `/metrics` route with token auth middleware. |
+| new tests | `backend/src/__tests__/phase11.health-readiness.test.ts` — 25+ tests covering: readiness success/degraded/not_ready, DB failure, missing secrets, optional integration skipped/unhealthy, schema status (latest migration + pending), secret redaction, runtime health check registration. `backend/src/__tests__/phase11.metrics-auth.test.ts` — metrics auth: no token → 401, wrong token → 401, correct token → 200. `backend/src/__tests__/phase11.metrics-output.test.ts` — metrics output: request counter/latency/error observations, prom-client format validation. |
+| regression fixes | Fixed pre-existing frontend `vi` redeclaration errors in `entityPickerUtils.test.ts` and `phase5-api-bugs.test.ts` by removing duplicate `declare const vi` statements (Phase 10 baseline issue). Added `mockReset()` to Phase 8/11 health test files to prevent Jest mock state bleeding when running both suites together. |
+| verification | Backend build PASS; shared build PASS; Prisma validate PASS; Prisma migrate status PASS (23 migrations, schema up to date); full backend Jest PASS (42 suites, 593 tests including 18 new Phase 11 tests); frontend Vitest PASS (5 files, 24 tests); workspace lint PASS with warnings only (0 errors). |
+
 ## 2026-07-26 — Phase 10: Background Jobs Cluster-Safety
 
 | Field | Value |
 |-------|-------|
 | Phase | 10 — PostgreSQL advisory locks for cluster-safe background jobs + JobRun tracking table |
-| Commit | Pending; target commit message: `Phase 10: make background jobs cluster-safe` |
+| Commit | e1933ec (`Phase 10: make background jobs cluster-safe`) |
 | Requirements | JOB-1001 (advisory lock cluster-safety), JOB-1002 (JobRun tracking) |
 | changed files | `backend/src/services/intune.scheduler.ts`, `backend/src/services/reminder.scheduler.ts`, `docs/requirements.md`, `docs/compliance-matrix.yml` |
 | new files | `backend/src/services/jobLock.service.ts`, `backend/src/services/jobRunner.service.ts`, `backend/src/__tests__/phase10.job-cluster-safety.test.ts`, `docs/phase10-background-jobs-plan.md` |
