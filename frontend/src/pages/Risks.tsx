@@ -5,6 +5,7 @@ import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
+import { getRiskColor, getErrorMessage } from '../utils/statusHelpers';
 
 interface Risk {
   id: string;
@@ -158,13 +159,14 @@ const Risks = () => {
       const list = response.data?.data || [];
       setRisks(list);
       const detailPairs = await Promise.allSettled(list.slice(0, 20).map((risk: Risk) => riskApi.getById(risk.id)));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API responses have dynamic shape
       const details: Record<string, any> = {};
       detailPairs.forEach((result, index) => {
         if (result.status === 'fulfilled') details[list[index].id] = result.value.data;
       });
       setRiskDetails(details);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.saveError'));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('common.saveError'));
     } finally { setLoading(false); }
   };
 
@@ -176,11 +178,13 @@ const Risks = () => {
     } catch { return []; }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape is dynamic
   const searchUsers = async (q: string) => {
     try {
       const res = await adminApi.listUsers();
       const users = res.data?.data ?? res.data ?? [];
       if (!q) return users;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return users.filter((u: any) =>
         `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(q.toLowerCase())
       );
@@ -201,10 +205,12 @@ const Risks = () => {
     } catch { return []; }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape is dynamic
   const loadControlImplementations = async () => {
     try {
       const res = await controlApi.list({ page: 1, limit: 100 });
       const controls = res.data?.data ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setControlImplementations(controls.flatMap((control: any) => (control.implementations ?? []).map((impl: any) => ({ ...impl, control }))));
     } catch { setControlImplementations([]); }
   };
@@ -230,7 +236,7 @@ const Risks = () => {
     try {
       const [detail, controls] = await Promise.all([riskApi.getById(risk.id), riskApi.listControls(risk.id, { includeInactive: true })]);
       setRiskDetails((prev) => ({ ...prev, [risk.id]: { ...detail.data, riskControls: controls.data } }));
-    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.loadError')); }
+    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.loadError')); }
   };
 
   const refreshSelectedRiskControls = async () => {
@@ -245,7 +251,7 @@ const Risks = () => {
       await riskApi.linkControl(selectedRiskForControls.id, riskControlForm);
       setRiskControlForm(initialRiskControlForm);
       await refreshSelectedRiskControls();
-    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.linkError')); }
+    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.linkError')); }
   };
 
   const handleUpdateRiskControl = async (link: RiskControlLink, data: Partial<RiskControlForm>) => {
@@ -253,7 +259,7 @@ const Risks = () => {
     try {
       await riskApi.updateControl(selectedRiskForControls.id, link.id, data);
       await refreshSelectedRiskControls();
-    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.updateError')); }
+    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.updateError')); }
   };
 
   const handleRemoveRiskControl = async (link: RiskControlLink) => {
@@ -261,7 +267,7 @@ const Risks = () => {
     try {
       await riskApi.removeControl(selectedRiskForControls.id, link.id);
       await refreshSelectedRiskControls();
-    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.removeError')); }
+    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.removeError')); }
   };
 
   const handleAssessRiskControl = async (link: RiskControlLink) => {
@@ -277,23 +283,13 @@ const Risks = () => {
       setAssessmentForm(initialRiskControlAssessmentForm);
       setAssessingRiskControlId(null);
       await refreshSelectedRiskControls();
-    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.controls.assessmentError')); }
+    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.assessmentError')); }
   };
 
   const filteredRisks = risks.filter((risk) =>
     risk.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     risk.displayId.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel?.toLowerCase()) {
-      case 'very_high': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-      case 'high': return 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200';
-      case 'medium': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      case 'low': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-    }
-  };
 
   const handleSubmit = async () => {
     if (!form.title || !form.description || !form.possibleImpact || !form.riskOwnerId || !form.assessorId || !form.nextReviewDate || !form.justification) {
@@ -327,8 +323,8 @@ const Risks = () => {
       setModalOpen(false);
       resetForm();
       await loadRisks();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('risks.createSuccess'));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('risks.createSuccess'));
     } finally {
       setSaving(false);
     }
@@ -359,8 +355,8 @@ const Risks = () => {
     try {
       await riskApi.delete(id);
       await loadRisks();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.deleteError'));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('common.deleteError'));
     }
   };
 
@@ -407,7 +403,7 @@ const Risks = () => {
       const res = await treatmentApi.list({ riskId: selectedRiskForTreatment.id });
       setTreatments(res.data?.data ?? []);
       setTreatmentForm(initialTreatmentForm);
-    } catch (err: any) { setError(err.response?.data?.error?.message || t('risks.createTreatmentError')); }
+    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.createTreatmentError')); }
   };
 
   if (loading) {

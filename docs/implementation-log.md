@@ -882,3 +882,16 @@ Phase 0 intentionally did not start Phase 1 implementation, did not add ISMS fun
 - Restored backend noUnusedLocals and removed newly exposed unused imports/constants.
 - Added Phase 6 DTO/backend validation contract tests.
 - Updated OpenAPI request schemas for Risk and Control and corrected RiskControlAssessment effectiveness enum.
+
+## 2026-07-27 — Phase 14: Code Quality and Architecture
+
+| Field | Value |
+|-------|-------|
+| Phase | 14 — Shared status helpers, type-safe error extraction, component refactoring |
+| Commit | Pending; target commit message: `Phase 14: improve code quality and architecture` |
+| Requirements | CQ-1401 (shared status helpers), CQ-1402 (type-safe catch blocks), CQ-1403 (component refactoring) |
+| changed files | `frontend/src/utils/statusHelpers.ts`, `frontend/src/pages/Risks.tsx`, `frontend/src/pages/Controls.tsx`, `docs/requirements.md`, `docs/compliance-matrix.yml` |
+| new files | `frontend/src/utils/statusHelpers.test.ts`, `docs/phase14-code-quality-plan.md` |
+| refactors | Extracted inline `getStatusColor` from Controls.tsx and Risks.tsx to shared `getControlStatusColor()` in `statusHelpers.ts`. Added `getErrorMessage()` helper for type-safe axios error extraction. Replaced all `catch (err: any)` with `catch (err: unknown)` + `getErrorMessage(err)`. |
+| verification | Backend build PASS; shared build PASS; Prisma validate PASS; full backend Jest PASS (44 suites, 630 tests); frontend Vitest PASS (6 files, 42 tests including 18 new statusHelpers tests); workspace lint PASS with warnings only (no new errors introduced). |
+| known issues | Pre-existing `no-regex-spaces` lint error in `backend/src/__tests__/ci-config.test.ts:126`. Pre-existing ESM compatibility issue in `scripts/check-requirements.ts` (`__dirname` undefined). These are NOT Phase 14 regressions. |

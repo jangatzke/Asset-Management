@@ -1805,5 +1805,45 @@
     - Partial only with documented exception
     - Test/evidence references required for P0
 
+# Phase 14: Code Quality and Architecture
+- id: CQ-1401
+  title: Shared status color helpers (getRiskColor, getControlStatusColor, getStatusColor)
+  priority: P1
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/utils/statusHelpers.ts
+  tests:
+    - frontend/src/utils/statusHelpers.test.ts
+  gaps: []
+  evidence:
+    - All components import from shared helpers instead of defining inline
 
+- id: CQ-1402
+  title: Type-safe error extraction (getErrorMessage) replaces implicit any catch blocks
+  priority: P1
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/utils/statusHelpers.ts
+    - frontend/src/pages/Risks.tsx
+    - frontend/src/pages/Controls.tsx
+  tests:
+    - frontend/src/utils/statusHelpers.test.ts
+  gaps: []
+  evidence:
+    - All catch blocks use `err: unknown` with getErrorMessage() helper
 
+- id: CQ-1403
+  title: Large component refactoring (Risks.tsx, Controls.tsx) reduces duplication
+  priority: P1
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/pages/Risks.tsx
+    - frontend/src/pages/Controls.tsx
+    - frontend/src/utils/statusHelpers.ts
+  tests: []
+  gaps: []
+  evidence:
+    - Inline getStatusColor/getRiskColor removed from Risks.tsx and Controls.tsx

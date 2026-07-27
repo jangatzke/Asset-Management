@@ -499,4 +499,12 @@ These requirements define the ordered consolidation work. They are planning and 
 "| CI-003 | P0 | SEC | Abh�ngigkeits-Scan (npm audit) darf nicht mit || true neutralisiert werden. High/Critical-Vulnerabilities m�ssen die Pipeline blockieren. Eine explizite Allowlist (docs/vulnerability-allowlist.json) ist erforderlich mit CVE, Begr�ndung, Owner und Ablaufdatum. | npm audit --production --audit-level=high ohne || true; scripts/check-vulnerabilities.ts pr�ft Allowlist. |"  
 "| CI-004 | P1 | SEC | Semgrep SAST muss SARIF-Ausgabe (--output-format=sarif) verwenden und via upload-sarif@v3 in GitHub Security Tab hochladen. JSON-Ausgabe ist nicht konform. | --output-format=sarif --output=semgrep-results.sarif; sarif_file: semgrep-results.sarif. |"  
 "| CI-005 | P1 | OPS | Migration Test Job: Leere PostgreSQL-Datenbank -> prisma migrate deploy -> Seed -> Integration Tests. Validiert Migrations-Pipeline in CI. | Job enth�lt prisma migrate deploy, db seed und Integrationstests gegen frisch migrierte DB. |"  
-"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgef�hrt. |" 
+"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgef�hrt. |"
+
+## Phase 14 – Code Quality and Architecture
+
+| ID | Priorit�t | Kategorie | Beschreibung | Akzeptanzkriterium |
+|----|-----------|-----------|--------------|--------------------|
+| CQ-1401 | P1 | OPS | Wiederholte Status-Farben und Fehlerextraktion m�ssen in Shared Helpers zentralisiert sein. | `frontend/src/utils/statusHelpers.ts` enth�lt `getRiskColor`, `getControlStatusColor`, `getStatusColor`, `getErrorMessage`. Alle verbrauchenden Komponenten importieren aus diesem Modul. |
+| CQ-1402 | P1 | OPS | TypeScript catch-Bl�cke d�rfen keinen impliziten `any` Typ verwenden. | Alle `catch (err: any)` durch `catch (err: unknown)` + typsichere Extraktion ersetzt. Keine neuen `any` in refactored Code. |
+| CQ-1403 | P1 | OPS | Große Komponenten m�ssen durch Extraktion von Hilfsfunktionen wartbarer sein. | Inline `getStatusColor`/`getRiskColor` Funktionen aus Risks.tsx und Controls.tsx entfernt. Duplikation reduziert. |

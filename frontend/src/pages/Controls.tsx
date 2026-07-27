@@ -3,6 +3,7 @@ import { controlApi, frameworkApi, evidenceApi, catalogApi } from '../services/a
 import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
 import { implementationRiskDisplayRows } from './riskControlWorkflow.utils';
+import { getControlStatusColor, getErrorMessage } from '../utils/statusHelpers';
 
 interface Control {
   id: string;
@@ -142,8 +143,8 @@ const Controls = () => {
       if (frameworks.status === 'fulfilled') setFrameworkCount(frameworks.value.data?.length ?? 0);
       if (soa.status === 'fulfilled') setSoaCount(soa.value.data?.length ?? 0);
       if (evidence.status === 'fulfilled') setEvidenceCount(soa.status === 'fulfilled' ? (evidence.value.data?.length ?? 0) : 0);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.saveError'));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('common.saveError'));
     } finally {
       setLoading(false);
     }
@@ -153,16 +154,6 @@ const Controls = () => {
     control.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     control.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'implemented': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-      case 'planned': return 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200';
-      case 'in_progress': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      case 'under_review': return 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-    }
-  };
 
   const primaryImplementation = (control: Control) => control.implementations?.[0];
 
@@ -200,8 +191,8 @@ const Controls = () => {
       setForm(initialForm);
       setSelectedCatalogId('');
       await loadControls();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('controls.createError'));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('controls.createError'));
     } finally {
       setSaving(false);
     }
@@ -223,8 +214,8 @@ const Controls = () => {
       setImplementationModalOpen(false);
       setImplementationForm(initialImplementationForm);
       await loadControls();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('controls.implementationCreateError'));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('controls.implementationCreateError'));
     } finally { setSaving(false); }
   };
 
@@ -308,7 +299,7 @@ const Controls = () => {
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{control.title}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{control.controlGoal}</td>
                   <td className="px-6 py-4 text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(primaryImplementation(control)?.implementationStatus || control.implementationStatus)}`}>
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getControlStatusColor(primaryImplementation(control)?.implementationStatus || control.implementationStatus)}`}>
                       {implementationSummary(control)}
                     </span>
                     <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationCount').replace('{count}', String(control.implementations?.length ?? 0))}</div>
