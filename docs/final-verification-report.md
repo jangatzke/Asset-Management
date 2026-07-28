@@ -149,3 +149,86 @@ The following table maps application features to ISO 27001:2022 control categori
 4. OPS-009 through OPS-012 and CI-002 remain documented as `partial` - Automation/Release-Workflow/Runtime-Validation/Production-Dockerfile still missing.
 5. No public self-registration by default; conscious self-service registration requires `ALLOW_SELF_REGISTRATION=true`.
 6. Auth endpoints may return HTTP 429 on repeated attempts; clients must implement retry/backoff.
+
+---
+
+## 2026-07-28 — Final Verification Run (Post–Phase 14)
+
+**Scope:** Comprehensive verification after all phases 0–14 are complete. No new features implemented.
+
+### Git Status
+
+| Check | Result |
+|---|---|
+| `git status --short` | **Clean working tree** at commit `f833852` before changes |
+| Latest commit | `f833852 Phase 14: improve code quality and architecture` |
+
+### Build Verification
+
+| Check | Command | Result |
+|---|---|---|
+| Shared build | `npm run build --workspace=shared` | **PASS** (exit=0) |
+| Backend build | `npm run build --workspace=backend` | **PASS** (exit=0, tsc clean) |
+| Frontend build | `npm run build --workspace=frontend` | **PASS** (tsc + vite build, 1396 modules, chunk-size warning only) |
+
+### Prisma Verification
+
+| Check | Command | Result |
+|---|---|---|
+| Prisma validate | `npx prisma validate --schema backend/prisma/schema.prisma` | **PASS** — schema valid |
+
+### Test Results
+
+| Check | Command | Result |
+|---|---|---|
+| Backend Jest (full) | `npm test --workspace=backend -- --ci` | **PASS** — 44 suites, **630 tests passed**, 0 failed |
+| Frontend Vitest (full) | `npx vitest run --root frontend` | **PASS** — 6 test files, **42 tests passed**, 0 failed |
+
+### Lint Verification
+
+| Check | Command | Result |
+|---|---|---|
+| Workspace lint | `npm run lint` | **1 error fixed** (no-regex-spaces in ci-config.test.ts:126), remaining issues are warnings only — no new errors introduced |
+
+### Requirements Check
+
+| Check | Command | Result |
+|---|---|---|
+| requirements-check | `npm run requirements-check` | **PASS** — 59 requirements scanned, all P0/P1 meet gate criteria |
+
+### Fix Applied
+
+| File | Issue | Fix |
+|---|---|---|
+| [`backend/src/__tests__/ci-config.test.ts:126`](backend/src/__tests__/ci-config.test.ts:126) | ESLint `no-regex-spaces` error — regex `[\\s\\S]` with consecutive spaces triggered rule | Replaced literal double-space pattern `\n  ` with explicit space quantifier `\n[ ]{2}` — functionally equivalent, lint-clean |
+
+### Known Remaining Issues (Pre-existing, Not Regressions)
+
+1. **Lint warnings** — workspace-wide unused variable warnings (`@typescript-eslint/no-unused-vars`), React hook dependency warnings (`react-hooks/exhaustive-deps`), and empty function warnings. These are pre-existing and do not block the gate.
+2. **Vite chunk-size warning** — frontend bundle 908 kB exceeds 500 kB threshold; informational only, not a build failure.
+3. **Prisma generate on Windows** — may fail with `EPERM` when active Node/Jest processes hold the Prisma engine DLL lock. This is an environment limitation, not a code issue.
+
+### Phase Commit Summary
+
+| Phase | Commit SHA | Message |
+|---|---|---|
+| 0 | `2d50ab8` | Phase 0: establish refactoring baseline |
+| 1 | `4f9678f` | Phase 1: harden authorization and scoped permissions |
+| 2 | `d7e4237` | Phase 2: implement refresh-token session flow |
+| 3 | `48aad03` | Phase 3: add pre-auth MFA and password flows |
+| 4 | `a83383f` | Phase 4: consolidate OIDC authorization code flow |
+| 5 | `9a885a3` | Phase 5: fix risk impact and route consistency |
+| — | `0033b74` | Stabilize Phase 1-5 DoD gates |
+| 6 | `1250be6` | Phase 6: align shared DTOs and API contracts |
+| 7 | `94a3648` | Phase 7: add explicit domain services and status transitions |
+| 8 | `4b55ea6` | Phase 8: consolidate entity selection UI |
+| 9 | `7d1467a` | Phase 9: harden audit log integrity |
+| 10 | `e1933ec` | Phase 10: make background jobs cluster-safe |
+| 11 | `0c6498e` | Phase 11: harden readiness health and metrics |
+| 12 | `0daa75c` | Phase 12: enforce CI/CD release gates |
+| 13 | `ee07cf2` | Phase 13: correct compliance documentation model |
+| 14 | `f833852` | Phase 14: improve code quality and architecture |
+
+### Final Status
+
+**ALL PHASES 0–14 COMPLETE.** All builds pass, all tests pass (672 total), Prisma schema valid, requirements gate clean. One pre-existing lint error was fixed during this verification run.

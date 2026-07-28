@@ -895,3 +895,82 @@ Phase 0 intentionally did not start Phase 1 implementation, did not add ISMS fun
 | refactors | Extracted inline `getStatusColor` from Controls.tsx and Risks.tsx to shared `getControlStatusColor()` in `statusHelpers.ts`. Added `getErrorMessage()` helper for type-safe axios error extraction. Replaced all `catch (err: any)` with `catch (err: unknown)` + `getErrorMessage(err)`. |
 | verification | Backend build PASS; shared build PASS; Prisma validate PASS; full backend Jest PASS (44 suites, 630 tests); frontend Vitest PASS (6 files, 42 tests including 18 new statusHelpers tests); workspace lint PASS with warnings only (no new errors introduced). |
 | known issues | Pre-existing `no-regex-spaces` lint error in `backend/src/__tests__/ci-config.test.ts:126`. Pre-existing ESM compatibility issue in `scripts/check-requirements.ts` (`__dirname` undefined). These are NOT Phase 14 regressions. |
+
+## 2026-07-28 — Final Verification (Post–Phase 14)
+
+| Field | Value |
+|-------|-------|
+| Phase | Final verification only — no new features or phases implemented |
+| Scope | Verify all builds, tests, Prisma schema, lint, and requirements-check after phases 0–14; fix one pre-existing lint error |
+| git status | Clean working tree at `f833852` before changes |
+| latest commit | `f833852 Phase 14: improve code quality and architecture` |
+
+### Build Results
+
+| Check | Command | Result |
+|---|---|---|
+| Shared build | `npm run build --workspace=shared` | **PASS** (exit=0) |
+| Backend build | `npm run build --workspace=backend` | **PASS** (tsc clean, exit=0) |
+| Frontend build | `npm run build --workspace=frontend` | **PASS** (tsc + vite build, 1396 modules, chunk-size warning only) |
+
+### Prisma Results
+
+| Check | Command | Result |
+|---|---|---|
+| Validate | `npx prisma validate --schema backend/prisma/schema.prisma` | **PASS** — schema valid |
+
+### Test Results
+
+| Check | Command | Result |
+|---|---|---|
+| Backend Jest (full) | `npm test --workspace=backend -- --ci` | **PASS** — 44 suites, **630 tests passed**, 0 failed |
+| Frontend Vitest (full) | `npx vitest run --root frontend` | **PASS** — 6 files, **42 tests passed**, 0 failed |
+
+### Lint Results
+
+| Check | Command | Result |
+|---|---|---|
+| Workspace lint | `npm run lint` | **1 error fixed** (no-regex-spaces in ci-config.test.ts:126). Remaining issues are warnings only. |
+
+### Requirements Check
+
+| Check | Command | Result |
+|---|---|---|
+| requirements-check | `npm run requirements-check` | **PASS** — 59 requirements scanned, all P0/P1 meet gate criteria |
+
+### Fix Applied
+
+- **File:** [`backend/src/__tests__/ci-config.test.ts:126`](backend/src/__tests__/ci-config.test.ts:126)
+- **Issue:** ESLint `no-regex-spaces` error — regex pattern with consecutive spaces triggered the rule.
+- **Fix:** Replaced literal double-space `\n  ` in release-gates regex with explicit quantifier `\n[ ]{2}`. Functionally equivalent, lint-clean. Verified: all 29 ci-config tests still pass.
+
+### Known Remaining Issues (Pre-existing, Not Regressions)
+
+1. **Lint warnings** — workspace-wide unused variable warnings (`@typescript-eslint/no-unused-vars`), React hook dependency warnings (`react-hooks/exhaustive-deps`), empty function warnings. Pre-existing, do not block the gate.
+2. **Vite chunk-size warning** — frontend bundle 908 kB exceeds 500 kB threshold; informational only.
+3. **Prisma generate on Windows** — may fail with `EPERM` when active Node/Jest processes hold the Prisma engine DLL lock.
+
+### Phase Commit List (All Phases 0–14)
+
+| # | Commit SHA | Message |
+|---|---|---|
+| 0 | `2d50ab8` | Phase 0: establish refactoring baseline |
+| 1 | `4f9678f` | Phase 1: harden authorization and scoped permissions |
+| 2 | `d7e4237` | Phase 2: implement refresh-token session flow |
+| 3 | `48aad03` | Phase 3: add pre-auth MFA and password flows |
+| 4 | `a83383f` | Phase 4: consolidate OIDC authorization code flow |
+| 5 | `9a885a3` | Phase 5: fix risk impact and route consistency |
+| — | `0033b74` | Stabilize Phase 1-5 DoD gates |
+| 6 | `1250be6` | Phase 6: align shared DTOs and API contracts |
+| 7 | `94a3648` | Phase 7: add explicit domain services and status transitions |
+| 8 | `4b55ea6` | Phase 8: consolidate entity selection UI |
+| 9 | `7d1467a` | Phase 9: harden audit log integrity |
+| 10 | `e1933ec` | Phase 10: make background jobs cluster-safe |
+| 11 | `0c6498e` | Phase 11: harden readiness health and metrics |
+| 12 | `0daa75c` | Phase 12: enforce CI/CD release gates |
+| 13 | `ee07cf2` | Phase 13: correct compliance documentation model |
+| 14 | `f833852` | Phase 14: improve code quality and architecture |
+
+### Final Status
+
+**ALL PHASES 0–14 COMPLETE.** All builds pass, all tests pass (672 total), Prisma schema valid, requirements gate clean.
