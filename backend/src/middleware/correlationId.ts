@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 export const CORRELATION_ID_HEADER = 'x-correlation-id';
 
@@ -17,7 +17,7 @@ export const correlationId = (req: Request, res: Response, next: NextFunction): 
     (req as Request & { correlationId: string }).correlationId = existingId;
   } else {
     // Generate new correlation ID
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     res.setHeader('X-Correlation-Id', id);
     (req as Request & { correlationId: string }).correlationId = id;
   }

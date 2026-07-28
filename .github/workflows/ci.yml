@@ -101,6 +101,9 @@ jobs:
       - name: Build shared package
         run: npm run build --workspace=shared
 
+      - name: Generate Prisma client
+        run: npm exec --workspace=backend -- prisma generate
+
       - name: Build backend
         run: npm run build --workspace=backend
 
@@ -218,7 +221,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
         run: |
-          npx prisma generate --workspace=backend
+          npm exec --workspace=backend -- prisma generate
           npx prisma migrate deploy --schema=backend/prisma/schema.prisma
           npm test --workspace=backend -- --testPathPattern=integration --coverage=false
 
@@ -268,8 +271,8 @@ jobs:
           semgrep scan \
             --config=auto \
             --error \
-            --output-format=sarif \
-            --output=semgrep-results.sarif \
+            --sarif \
+            -o semgrep-results.sarif \
             backend/src/ frontend/src/ shared/src/
 
       - name: Upload SAST report (SARIF)
@@ -500,7 +503,7 @@ jobs:
           fi
 
       - name: Generate Prisma client
-        run: npx prisma generate --workspace=backend
+        run: npm exec --workspace=backend -- prisma generate
 
       - name: Verify empty database (no tables)
         run: |
@@ -522,7 +525,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb_empty
         run: |
-          npx prisma db seed --workspace=backend || echo "Seed completed or skipped"
+          npm exec --workspace=backend -- prisma db seed || echo "Seed completed or skipped"
 
       - name: Run integration tests on migrated DB
         env:
@@ -556,7 +559,7 @@ jobs:
           fi
 
       - name: Run CI config validation tests
-        run: npx vitest run scripts/__tests__/ci-config.test.ts
+        run: npm test --workspace=backend -- --runTestsByPath src/__tests__/ci-config.test.ts --coverage=false
 
   # =====================================================================
   # RELEASE GATES (Final Gate)
