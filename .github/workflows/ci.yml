@@ -527,8 +527,17 @@ jobs:
 
           # All mandatory jobs must pass
           for job in lint build prisma-validate unit-tests integration-tests frontend-tests; do
-            if [[ "${{ needs.$job.result }}" != "success" ]]; then
-              echo "::error::Required job $job failed: ${{ needs.$job.result }}"
+            case "$job" in
+              lint) result="${{ needs.lint.result }}" ;;
+              build) result="${{ needs.build.result }}" ;;
+              prisma-validate) result="${{ needs.prisma-validate.result }}" ;;
+              unit-tests) result="${{ needs.unit-tests.result }}" ;;
+              integration-tests) result="${{ needs.integration-tests.result }}" ;;
+              frontend-tests) result="${{ needs.frontend-tests.result }}" ;;
+            esac
+
+            if [[ "$result" != "success" ]]; then
+              echo "::error::Required job $job failed: $result"
               exit 1
             fi
             echo "+ $job passed"
@@ -536,7 +545,12 @@ jobs:
 
           # Security checks — must not fail
           for job in sast secret-scan; do
-            if [[ "${{ needs.$job.result }}" == "failure" ]]; then
+            case "$job" in
+              sast) result="${{ needs.sast.result }}" ;;
+              secret-scan) result="${{ needs.secret-scan.result }}" ;;
+            esac
+
+            if [[ "$result" == "failure" ]]; then
               echo "::error::Security scan $job failed"
               exit 1
             fi
