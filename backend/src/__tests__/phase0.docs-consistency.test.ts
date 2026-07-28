@@ -66,4 +66,18 @@ describe('Phase 0 documentation consistency', () => {
     expect(plan).toContain('Mandatory stop after Phase 5');
     expect(plan).toContain('no Phase 6 or later work may start automatically');
   });
+
+  it('does not count Phase 0 planning placeholders as implementation evidence', () => {
+    const matrix = read('docs/compliance-matrix.yml');
+    const plannedPhase0Ids = ['AUTHN-001', 'AUTHN-002', 'AUD-001', 'DTO-001', 'UI-001'];
+
+    for (const id of plannedPhase0Ids) {
+      const entries = matrix.split('\n- id: ').filter((entry) => entry.startsWith(id) || entry.startsWith(`- id: ${id}`));
+      const entry = entries.find((candidate) => candidate.includes('Phase 0 documents this requirement only'));
+      expect(entry).toBeDefined();
+      expect(entry).toContain('status: planned');
+      expect(entry).toContain('implementation: []');
+      expect(entry).toContain('Phase 0 documents this requirement only');
+    }
+  });
 });

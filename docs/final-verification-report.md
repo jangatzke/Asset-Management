@@ -1,5 +1,20 @@
 # Final Integration and Compliance Verification
 
+## 2026-07-28 Phase 0/1 Re-audit Addendum
+
+**Scope:** Re-audit Phase 0 and Phase 1 only against original consolidation/hardening requirements; no Phase 2+ implementation changes and no new ISMS fachmodules.
+
+| Check | Result |
+|---|---|
+| Starting state | `git status --short` clean; `HEAD=b51d94a` (`Finalize refactoring verification`). |
+| Phase 0 plan/baseline | PASS. `docs/refactoring-plan.md` covers ordered Phase 0-14 workflow and mandatory stop after Phase 5. `docs/refactoring-baseline.md` records commit/date/builds/Prisma/tests/lint/CI/CD/known errors/warnings. Baseline artifacts exist for backend/shared/frontend builds, Prisma validate/status, backend integration/all tests, frontend tests, lint, and Phase 0 docs test. |
+| Requirements traceability | PASS. Required ID families `AUTHZ-*`, `AUTHN-*`, `OIDC-*`, `AUD-*`, `DTO-*`, `UI-*`, `OPS-*`, and `CI-*` exist in `docs/requirements.md` and `docs/compliance-matrix.yml`. Added a docs consistency test that planned Phase 0 placeholders are not counted as implementation evidence. |
+| Phase 1 authorization model/service | PASS. `Permission`/`RolePermission` model and seed catalog initialize the required granular permission set. `AuthorizationService` exposes `can`, `canForEntity`, `buildReadFilter`, `require`, and `requireForEntity`, resolves scope via domain relationships, unions multiple role assignments, handles group roles, and ignores expired assignments. |
+| Phase 1 route/filter coverage | FIXED/PASS. Core list/search rows and counts use shared authorization `where` filters. Core detail routes enforce read permissions. Re-audit closed safe guard gaps on asset relation/dependency/lifecycle/responsibility subresources and risk nested control/assessment/treatment subresources by adding explicit `requireEntityPermission()` checks. |
+| Phase 1 tests | PASS. The 12 required scenarios exist in `authorization.integration.test.ts` and pass. |
+| Verification commands | PASS: targeted backend Jest (`phase0.docs-consistency|authorization.integration`) 2 suites/16 tests; backend build; shared build; frontend build with known chunk-size warning; Prisma validate; Prisma migrate status (23 migrations, up to date); requirements-check (59 scanned); workspace lint (0 errors, 24 warnings); frontend Vitest (6 files, 42 tests). |
+| Remaining known issues | Vite chunk-size warning remains. Workspace lint has warning-only findings. |
+
 **datum:** 2026-07-19  
 **Scope:** Abschlussprüfung nach Phasen 0-8 ohne neue Fachfeatures.
 

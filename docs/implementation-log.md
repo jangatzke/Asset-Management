@@ -1,5 +1,17 @@
 # Implementation Log
 
+## 2026-07-28 — Phase 0/1 Re-audit Completeness
+
+| Field | Value |
+|-------|-------|
+| Scope | Re-audit only Phase 0 reproducible baseline/traceability and Phase 1 authorization consolidation against the original consolidation/hardening requirements. No Phase 2+ functional work and no new ISMS fachmodules. |
+| Starting HEAD | `b51d94a` (`Finalize refactoring verification`) |
+| Verdict | Phase 0 was complete with one test-hardening opportunity; Phase 1 core model/service/tests were complete but safe route-level guard gaps remained on selected asset and risk subresource endpoints. |
+| Gaps fixed | Added explicit entity-scoped permissions to asset relation/dependency/lifecycle/responsibility endpoints and risk nested control/assessment/treatment/read subresource endpoints that previously only had broad or authenticate-only guards. Added a Phase 0 docs consistency assertion that planned placeholders are not counted as implementation evidence. Updated AUTHZ-002 matrix status/evidence after closing gaps. |
+| changed files | `backend/src/routes/asset.routes.ts`, `backend/src/routes/risk.routes.ts`, `backend/src/__tests__/phase0.docs-consistency.test.ts`, `docs/compliance-matrix.yml`, `docs/implementation-log.md`, `docs/final-verification-report.md` |
+| verification | Targeted backend Jest PASS: `authorization.integration` + `phase0.docs-consistency` (2 suites, 16 tests). Backend build PASS. Shared build PASS. Frontend build PASS with existing Vite chunk-size warning. Prisma validate PASS. Prisma migrate status PASS (23 migrations, database schema up to date). Requirements-check PASS (59 requirements scanned). Workspace lint PASS with 24 warnings and 0 errors. Frontend Vitest PASS (6 files, 42 tests). |
+| Remaining known issues | Frontend production build still reports the known chunk-size warning. Workspace lint reports warning-only issues (unused variables, React hook dependencies, fast-refresh warnings), 0 errors. |
+
 ## 2026-07-27 — Phase 11: Health Readiness & Metrics
 
 | Field | Value |

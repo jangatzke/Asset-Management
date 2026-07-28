@@ -1477,7 +1477,7 @@
   title: Consolidated entity-level authorization
   priority: P0
   dimension: application_coverage
-  status: partial
+  status: implemented
   phase: 1
   implementation:
     - backend/src/services/authorization.service.ts
@@ -1495,13 +1495,13 @@
     - backend/prisma/schema.prisma
   tests:
     - backend/src/__tests__/authorization.integration.test.ts
-  gaps:
-    - Some legacy/non-core endpoints still require follow-up hardening beyond Phase 1 scope review; core assets/risks/controls/incidents and Phase 6 generic resources are covered.
+  gaps: []
   evidence:
     - Granular permission catalog and RolePermission table added
     - Scoped role assignments include LegalEntity, OrganizationUnit, IsmsScope and Site constraints
     - buildReadFilter is merged into list/search where and count queries for core entities
     - Detail outside scope returns 403
+    - Phase 0/1 re-audit closed safe route guard gaps for asset relation/dependency/lifecycle read endpoints and risk nested assessment/control/treatment endpoints.
 
 - id: AUTHN-001
   title: Local authentication bootstrap and rate-limit hardening

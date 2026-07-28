@@ -184,7 +184,7 @@ assetRouter.post('/:id/disposal-proof', authenticate, authorizeEntityWrite('asse
 // Relations
 // ==========================================
 
-assetRouter.get('/:id/relations', authenticate, async (req, res, next) => {
+assetRouter.get('/:id/relations', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
   try {
     const relations = await assetService.getRelations(req.params.id);
     res.json(relations);
@@ -193,7 +193,7 @@ assetRouter.get('/:id/relations', authenticate, async (req, res, next) => {
   }
 });
 
-assetRouter.post('/:id/relations', authenticate, validateBody(AssetRelationCreateSchema), async (req: AuthRequest, res, next) => {
+assetRouter.post('/:id/relations', authenticate, requireEntityPermission('assets.write', 'assets'), validateBody(AssetRelationCreateSchema), async (req: AuthRequest, res, next) => {
   try {
     const relation = await assetService.createRelation(req.params.id, req.body);
     res.status(201).json(relation);
@@ -240,7 +240,7 @@ assetRouter.get('/:id/impact-analysis', authenticate, requireAdminAccess, async 
 });
 
 // AST-011, AST-012: List all upstream/downstream dependencies
-assetRouter.get('/:id/dependencies', authenticate, async (req, res, next) => {
+assetRouter.get('/:id/dependencies', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
   try {
     const deps = await assetGraphService.getDependencies(req.params.id);
     res.json(deps);
@@ -273,7 +273,7 @@ assetRouter.get('/:id/upstream', authenticate, requireAdminAccess, async (req, r
 // Lifecycle Logs — AST-030
 // ==========================================
 
-assetRouter.get('/:id/lifecycle-logs', authenticate, async (req, res, next) => {
+assetRouter.get('/:id/lifecycle-logs', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
   try {
     const logs = await assetService.getLifecycleLogs(req.params.id);
     res.json(logs);
@@ -286,7 +286,7 @@ assetRouter.get('/:id/lifecycle-logs', authenticate, async (req, res, next) => {
 // Responsibility Confirmation — AST-033
 // ==========================================
 
-assetRouter.post('/:id/confirm-responsibility', authenticate, validateBody(ConfirmAssetResponsibilitySchema), async (req: AuthRequest, res, next) => {
+assetRouter.post('/:id/confirm-responsibility', authenticate, requireEntityPermission('assets.write', 'assets'), validateBody(ConfirmAssetResponsibilitySchema), async (req: AuthRequest, res, next) => {
   try {
     const { role } = req.body;
     const result = await assetService.confirmResponsibility(req.params.id, req.userId!, role);
