@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api';
 import en from '../locales/en.json';
@@ -43,16 +43,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       setLanguageState(user.language as Language);
     } else {
       // No DB value yet - keep saved/local language and persist that preference
-      void authApi.updatePreferences({ language }).catch(() => {});
+      void authApi.updatePreferences({ language }).catch(() => undefined);
     }
-  }, [user?.id, user?.language, language]);
+  }, [user, language]);
 
   useEffect(() => {
     localStorage.setItem('language', language);
     document.documentElement.lang = language;
   }, [language]);
 
-  const setLanguage = async (lang: Language) => {
+  const setLanguage = useCallback(async (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('language', lang);
     updateUserPreferences({ language: lang });
@@ -64,9 +64,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Failed to save language preference:', err);
     }
-  };
+  }, [updateUserPreferences]);
 
-  const t = (key: string): string => {
+  const t = useCallback((key: string): string => {
     const keys = key.split('.');
     let value: any = translations[language];
     for (const k of keys) {
@@ -77,7 +77,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
     }
     return typeof value === 'string' ? value : key;
-  };
+  }, [language]);
 
   return (
     <I18nContext.Provider value={{ language, setLanguage, t }}>
@@ -86,6 +86,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context hook must remain exported with its provider for stable imports.
 export function useI18n() {
   const context = useContext(I18nContext);
   if (!context) {

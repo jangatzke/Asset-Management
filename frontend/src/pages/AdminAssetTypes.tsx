@@ -81,6 +81,7 @@ const AdminAssetTypes = () => {
 
   useEffect(() => {
     loadAssetTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial page load only; loadAssetTypes uses current translation fallback for this mount.
   }, []);
 
   const loadAssetTypes = async () => {

@@ -30,8 +30,12 @@ const CostPlanning = () => {
     setCandidates(candidateResponse.data);
   };
 
-  useEffect(() => { loadYears().catch(() => setMessage(t('costPlanning.loadYearsError'))); }, []);
-  useEffect(() => { ensurePlan().catch(() => setMessage(t('costPlanning.loadPlanError'))); }, [fiscalYearLabel]);
+  useEffect(() => { loadYears().catch(() => setMessage(t('costPlanning.loadYearsError')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial fiscal-year list load only; uses current translation fallback for this mount.
+  }, []);
+  useEffect(() => { ensurePlan().catch(() => setMessage(t('costPlanning.loadPlanError')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Plan refresh is intentionally keyed to fiscalYearLabel only.
+  }, [fiscalYearLabel]);
 
   const summary = useMemo(() => plan?.summary ?? { plannedAmount: '0', knownAmount: '0', acquiredAmount: '0', openAmount: '0', itemCount: 0 }, [plan]);
 

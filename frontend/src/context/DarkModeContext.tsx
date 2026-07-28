@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api';
 
@@ -35,9 +35,9 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
       // No DB value yet - fall back to system preference and persist
       const systemPref = getSystemDarkMode();
       setDarkModeState(systemPref);
-      void authApi.updatePreferences({ darkMode: systemPref }).catch(() => {});
+      void authApi.updatePreferences({ darkMode: systemPref }).catch(() => undefined);
     }
-  }, [user?.id, user?.darkMode]);
+  }, [user]);
 
   // Apply to DOM and localStorage on change
   useEffect(() => {
@@ -49,7 +49,7 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
     }
   }, [darkMode]);
 
-  const setDarkMode = async (value: boolean) => {
+  const setDarkMode = useCallback(async (value: boolean) => {
     setDarkModeState(value);
     localStorage.setItem('darkMode', String(value));
     updateUserPreferences({ darkMode: value });
@@ -61,11 +61,11 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Failed to save dark mode preference:', err);
     }
-  };
+  }, [updateUserPreferences]);
 
-  const toggleDarkMode = () => {
+  const toggleDarkMode = useCallback(() => {
     setDarkMode(!darkMode);
-  };
+  }, [darkMode, setDarkMode]);
 
   return (
     <DarkModeContext.Provider value={{ darkMode, toggleDarkMode, setDarkMode }}>
@@ -74,6 +74,7 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context hook must remain exported with its provider for stable imports.
 export function useDarkMode() {
   const context = useContext(DarkModeContext);
   if (!context) {

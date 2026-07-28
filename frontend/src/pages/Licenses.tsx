@@ -58,7 +58,9 @@ const Licenses = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
 
-  useEffect(() => { loadLicenses(); }, []);
+  useEffect(() => { loadLicenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial licenses load only; loader uses current translation fallback for this mount.
+  }, []);
 
   const loadLicenses = async () => {
     try {

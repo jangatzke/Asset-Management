@@ -51,7 +51,9 @@ const AdminAuthSettings = () => {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial settings load only; load uses current translation fallback for this mount.
+  }, []);
 
   const updateNumber = (field: keyof AuthSettingsForm, value: string) => {
     setForm((current) => ({ ...current, [field]: Number(value) }));

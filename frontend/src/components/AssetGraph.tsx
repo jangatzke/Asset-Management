@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { assetApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 
@@ -100,8 +100,8 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
       .finally(() => setLoading(false));
   }, [assetId, maxDepth, direction, relationFilter]);
 
-  const nodes = assetId ? internalNodes : (propNodes || []);
-  const edges = assetId ? internalEdges : (propEdges || []);
+  const nodes = useMemo(() => assetId ? internalNodes : (propNodes || []), [assetId, internalNodes, propNodes]);
+  const edges = useMemo(() => assetId ? internalEdges : (propEdges || []), [assetId, internalEdges, propEdges]);
 
   // Initialize node positions in a circular layout
   const initializePositions = useCallback(() => {
@@ -337,7 +337,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
     });
 
     setSelectedNode(foundNode);
-  }, [nodes, isDragging]);
+  }, [nodes, isDragging, pan.x, pan.y, zoom]);
 
   // Handle mouse events for panning
   const handleMouseDown = (e: React.MouseEvent) => {

@@ -5,8 +5,6 @@
  * and asset type management functionality.
  */
 
-import bcrypt from 'bcryptjs';
-
 // Using any type for mocks to avoid strict TypeScript 'never' inference issues
 const mockPrismaClient: any = {
   auditLog: {
@@ -101,8 +99,7 @@ jest.mock('../services/oidc.service', () => ({
 
 import { AdminService } from '../services/admin.service';
 import { AppError } from '../middleware/errorHandler';
-import { testUser, testAdminUser, testUserRole, testGroup, testUserGroup, testGroupRole, testRole, testAdminRole, testAssetType, testOidcConfig } from '../test/fixtures';
-import { oidcService } from '../services/oidc.service';
+import { testUser, testUserRole, testGroup, testUserGroup, testGroupRole, testRole, testAdminRole, testAssetType } from '../test/fixtures';
 
 describe('AdminService', () => {
   let adminService: AdminService;

@@ -109,6 +109,7 @@ const Controls = () => {
   useEffect(() => {
     loadControls();
     loadCatalogOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial controls page load only; loaders use current translation fallback for this mount.
   }, []);
 
   const loadCatalogOptions = async () => {

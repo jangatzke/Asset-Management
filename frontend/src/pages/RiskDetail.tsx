@@ -67,6 +67,7 @@ const RiskDetail = () => {
   useEffect(() => {
     if (!riskId) return;
     loadRisk();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Risk detail reload is intentionally keyed to route riskId.
   }, [riskId]);
 
   const loadRisk = async () => {

@@ -110,7 +110,9 @@ const Assets = () => {
   const [newRelationType, setNewRelationType] = useState('depends_on');
   const [existingRelations, setExistingRelations] = useState<AssetRelation[]>([]);
 
-  useEffect(() => { loadAssets(); loadAssetTypes(); }, []);
+  useEffect(() => { loadAssets(); loadAssetTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial asset page load only; loaders use current translation fallback for this mount.
+  }, []);
 
   const loadAssets = async () => {
     try {

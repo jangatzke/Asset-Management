@@ -2,7 +2,6 @@ import {
   healthBasic, 
   healthReady, 
   setReady, 
-  registerHealthCheck,
   registerRuntimeHealthCheck,
   getHealthState,
 } from '../middleware/health';

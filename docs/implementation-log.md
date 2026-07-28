@@ -1,5 +1,17 @@
 # Implementation Log
 
+## 2026-07-28 — Build and Lint Warning Cleanup
+
+| Field | Value |
+|-------|-------|
+| Scope | Cleanup only for the remaining frontend Vite chunk-size warning and workspace lint warnings. No new product features or ISMS modules were introduced. |
+| Starting HEAD | `3286515` (`Re-audit Phase 0-1 completeness`) |
+| Vite chunk-size fix | Converted frontend route page imports in `frontend/src/App.tsx` to `React.lazy`/`Suspense` route-level code splitting. Production build now emits route chunks and the largest initial chunks stay below the default 500 kB warning threshold without raising `chunkSizeWarningLimit`. |
+| Lint warning fixes | Removed unused backend test imports/locals, enabled safe rest-sibling unused-var handling for destructuring secrets, memoized graph inputs in `AssetGraph`, completed hook dependency arrays where behavior required it, and added narrow documented line-level disables only for context hook exports and intentional one-shot/route-keyed effects. Security-relevant lint rules remain active; no broad suppressions were added. |
+| changed files | `backend/.eslintrc.cjs`, `backend/src/__tests__/admin.service.test.ts`, `backend/src/__tests__/asset.crud.test.ts`, `backend/src/__tests__/auth.service.test.ts`, `backend/src/__tests__/phase11.health-readiness.test.ts`, `backend/src/__tests__/phase11.metrics-auth.test.ts`, `backend/src/__tests__/risk.assessment.test.ts`, `backend/src/__tests__/validation.middleware.test.ts`, `frontend/.eslintrc.cjs`, `frontend/src/App.tsx`, `frontend/src/components/AssetGraph.tsx`, `frontend/src/context/DarkModeContext.tsx`, `frontend/src/context/I18nContext.tsx`, selected frontend pages with documented one-shot effect disables, `docs/implementation-log.md`, `docs/final-verification-report.md` |
+| verification | `npm run build --workspace=frontend` PASS with no chunk-size warning; `npm run lint` PASS with no errors and no warnings; backend build PASS; shared build PASS; Prisma validate PASS with `DATABASE_URL` loaded from local backend `.env`; Prisma migrate status PASS (23 migrations, database schema up to date); backend Jest PASS (44 suites, 631 tests); frontend Vitest PASS (6 files, 42 tests); requirements-check PASS (59 requirements scanned). |
+| Remaining known issues | None from this cleanup. The first Prisma validate/status attempt without `DATABASE_URL` failed with expected P1012 config loading, then passed after setting `DATABASE_URL` from backend `.env`. |
+
 ## 2026-07-28 — Phase 0/1 Re-audit Completeness
 
 | Field | Value |

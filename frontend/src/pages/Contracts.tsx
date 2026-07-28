@@ -57,7 +57,9 @@ const Contracts = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
 
-  useEffect(() => { loadContracts(); }, []);
+  useEffect(() => { loadContracts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial contracts load only; loader uses current translation fallback for this mount.
+  }, []);
 
   const loadContracts = async () => {
     try {

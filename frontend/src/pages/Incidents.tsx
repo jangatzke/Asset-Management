@@ -95,6 +95,7 @@ const Incidents = () => {
 
   useEffect(() => {
     loadIncidents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial incidents load only; loader uses current translation fallback for this mount.
   }, []);
 
   const loadIncidents = async () => {

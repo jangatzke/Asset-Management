@@ -37,7 +37,9 @@ const AdminFiscalYear = () => {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial fiscal-year load only; load uses current translation fallback for this mount.
+  }, []);
 
   const save = async () => {
     setSaving(true);

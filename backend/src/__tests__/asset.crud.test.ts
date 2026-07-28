@@ -75,7 +75,6 @@ const { AssetService } = require('../services/asset.service');
 // ==========================================
 
 const validAssetTypeId = '550e8400-e29b-41d4-a716-446655440000';
-const validOrgUnitId = '550e8400-e29b-41d4-a716-446655440001';
 
 const createAssetData: CreateAssetData = {
   name: 'Test Server',
@@ -295,7 +294,7 @@ describe('AssetService - CRUD Operations', () => {
     });
 
     it('should update an asset successfully', async () => {
-      const result = await assetService.update('asset-123', { criticality: 'critical' }, 'user-123');
+      await assetService.update('asset-123', { criticality: 'critical' }, 'user-123');
       expect(mockPrisma.asset.update).toHaveBeenCalled();
     });
 

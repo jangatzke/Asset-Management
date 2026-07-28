@@ -1,5 +1,5 @@
 import { createMetricsAuthMiddleware, getMetrics, resetMetrics } from '../middleware/metrics';
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction } from 'express';
 
 describe('Phase 11: Metrics Authentication', () => {
   let mockReq: any;

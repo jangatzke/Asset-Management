@@ -18,7 +18,7 @@ module.exports = {
   ignorePatterns: ['dist/', 'coverage/', 'node_modules/', 'vite.config.ts'],
   rules: {
     '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_', ignoreRestSiblings: true }],
     '@typescript-eslint/no-empty-function': 'warn',
     'no-empty': ['error', { allowEmptyCatch: false }],
     'prefer-const': 'off',

@@ -5,7 +5,6 @@
  * and passes valid input through correctly.
  */
 
-import { jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
 import { z } from 'zod';

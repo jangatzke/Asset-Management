@@ -150,7 +150,9 @@ const Risks = () => {
   const [assessmentForm, setAssessmentForm] = useState<RiskControlAssessmentForm>(initialRiskControlAssessmentForm);
   const [assessingRiskControlId, setAssessingRiskControlId] = useState<string | null>(null);
 
-  useEffect(() => { loadRisks(); }, []);
+  useEffect(() => { loadRisks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial risks load only; loader uses current translation fallback for this mount.
+  }, []);
 
   const loadRisks = async () => {
     try {

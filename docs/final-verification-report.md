@@ -1,5 +1,18 @@
 # Final Integration and Compliance Verification
 
+## 2026-07-28 Build/Lint Warning Cleanup Addendum
+
+**Scope:** Remove the remaining non-blocking frontend Vite chunk-size warning and workspace lint warnings only; no new product features or ISMS modules.
+
+| Check | Result |
+|---|---|
+| Starting state | `git status --short` clean; prior `HEAD=3286515` (`Re-audit Phase 0-1 completeness`). |
+| Frontend chunk-size warning | FIXED/PASS. `frontend/src/App.tsx` now lazy-loads route pages behind `Suspense`, splitting production output into route chunks. `npm run build --workspace=frontend` completed with no Vite chunk-size warning and without increasing the warning limit. |
+| Workspace lint warnings | FIXED/PASS. `npm run lint` completed with 0 errors and 0 warnings. Cleanup removed unused backend imports/locals, handled safe secret-rest destructuring, memoized graph data, completed hook dependencies where behavior required it, and used narrow documented line-level disables only for stable context hook exports and intentional one-shot/route-keyed effects. |
+| Regression verification | PASS: backend build; shared build; Prisma validate; Prisma migrate status (23 migrations, database schema up to date); backend Jest 44 suites/631 tests; frontend Vitest 6 files/42 tests; requirements-check 59 requirements scanned. |
+| Prisma environment note | Initial Prisma validate/status without `DATABASE_URL` produced expected P1012 config loading errors; rerun with `DATABASE_URL` loaded from local backend `.env` passed. |
+| Remaining issues | None from this cleanup verification. |
+
 ## 2026-07-28 Phase 0/1 Re-audit Addendum
 
 **Scope:** Re-audit Phase 0 and Phase 1 only against original consolidation/hardening requirements; no Phase 2+ implementation changes and no new ISMS fachmodules.

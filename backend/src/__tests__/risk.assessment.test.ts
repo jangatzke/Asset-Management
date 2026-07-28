@@ -358,7 +358,7 @@ describe('Risk Assessment — Paket 3.2', () => {
       PrismaMock.riskAssessment.updateMany.mockResolvedValue({ count: 1 } as any);
       PrismaMock.riskAssessment.create.mockResolvedValue({ id: 'assessment-003', assessmentNumber: 3 } as any);
 
-      const assessments = await riskService.createAssessment({
+      await riskService.createAssessment({
         riskId: 'risk-001',
         riskMethodVersionId: mockMethodVersion.id,
         assessmentType: 'current',
@@ -597,7 +597,7 @@ describe('Risk Assessment — Paket 3.2', () => {
         { id: 'task-001', status: 'pending', dueDate: new Date('2026-01-01') },
       ] as any);
 
-      const tasks = await riskService.listReviewTasks({ overdue: true });
+      await riskService.listReviewTasks({ overdue: true });
 
       expect(PrismaMock.reviewTask.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
