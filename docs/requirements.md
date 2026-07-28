@@ -492,6 +492,7 @@ These requirements define the ordered consolidation work. They are planning and 
 ""  
 "## Phase 12 - CI/CD Release Gates"  
 ""  
+<<<<<<< HEAD
 "| ID | Prioritï¿½t | Kategorie | Beschreibung | Akzeptanzkriterium |"  
 "|----|-----------|-----------|--------------|--------------------|"  
 "| CI-001 | P0 | CI/CD | Die CI-Pipeline muss alle 13 obligatorischen Jobs enthalten: build, lint, prisma-validate, unit-tests, integration-tests, frontend-tests, sast (Semgrep SARIF), dependency-scan (npm audit blockiert bei High/Critical), secret-scan (gitleaks), sbom (CycloneDX), container-scan (Trivy), requirements-check, migration-test. | Alle Jobs sind in .github/workflows/ci.yml definiert; keiner wird mit || true neutralisiert. |"  
@@ -508,3 +509,13 @@ These requirements define the ordered consolidation work. They are planning and 
 | CQ-1401 | P1 | OPS | Wiederholte Status-Farben und Fehlerextraktion mï¿½ssen in Shared Helpers zentralisiert sein. | `frontend/src/utils/statusHelpers.ts` enthï¿½lt `getRiskColor`, `getControlStatusColor`, `getStatusColor`, `getErrorMessage`. Alle verbrauchenden Komponenten importieren aus diesem Modul. |
 | CQ-1402 | P1 | OPS | TypeScript catch-Blï¿½cke dï¿½rfen keinen impliziten `any` Typ verwenden. | Alle `catch (err: any)` durch `catch (err: unknown)` + typsichere Extraktion ersetzt. Keine neuen `any` in refactored Code. |
 | CQ-1403 | P1 | OPS | GroÃŸe Komponenten mï¿½ssen durch Extraktion von Hilfsfunktionen wartbarer sein. | Inline `getStatusColor`/`getRiskColor` Funktionen aus Risks.tsx und Controls.tsx entfernt. Duplikation reduziert. |
+=======
+"| ID | Priorit„t | Kategorie | Beschreibung | Akzeptanzkriterium |"  
+"|----|-----------|-----------|--------------|--------------------|"  
+"| CI-001 | P0 | CI/CD | Die CI-Pipeline muss alle 13 obligatorischen Jobs enthalten: build, lint, prisma-validate, unit-tests, integration-tests, frontend-tests, sast (Semgrep SARIF), dependency-scan (npm audit blockiert bei High/Critical), secret-scan (gitleaks), sbom (CycloneDX), container-scan (Trivy), requirements-check, migration-test. | Alle Jobs sind in .github/workflows/ci.yml definiert; keiner wird mit || true neutralisiert. |"  
+"| CI-002 | P0 | CI/CD | Release Gates mssen checklistengesteuert sein: mandatory code review, test coverage >= 80%, security scan pass, changelog entry. Der release-gates Job muss von allen 13 Jobs abh„ngen und explizit prfen. | needs: Liste enth„lt alle 13 Jobs; Shell-Skript prft jeden Job-Status. |"  
+"| CI-003 | P0 | SEC | Abh„ngigkeits-Scan (npm audit) darf nicht mit || true neutralisiert werden. High/Critical-Vulnerabilities mssen die Pipeline blockieren. Eine explizite Allowlist (docs/vulnerability-allowlist.json) ist erforderlich mit CVE, Begrndung, Owner und Ablaufdatum. | npm audit --production --audit-level=high ohne || true; scripts/check-vulnerabilities.ts prft Allowlist. |"  
+"| CI-004 | P1 | SEC | Semgrep SAST muss SARIF-Ausgabe (--output-format=sarif) verwenden und via upload-sarif@v3 in GitHub Security Tab hochladen. JSON-Ausgabe ist nicht konform. | --output-format=sarif --output=semgrep-results.sarif; sarif_file: semgrep-results.sarif. |"  
+"| CI-005 | P1 | OPS | Migration Test Job: Leere PostgreSQL-Datenbank -> prisma migrate deploy -> Seed -> Integration Tests. Validiert Migrations-Pipeline in CI. | Job enth„lt prisma migrate deploy, db seed und Integrationstests gegen frisch migrierte DB. |"  
+"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgefhrt. |" 
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373

@@ -1723,8 +1723,12 @@
 - id: CI-001
   title: Mandatory CI pipeline jobs (13 jobs)
   priority: P0
+<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
+=======
+  status: compliant
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml
   tests:
@@ -1737,8 +1741,12 @@
 - id: CI-002
   title: Release gates checklist with dependency on all jobs
   priority: P0
+<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
+=======
+  status: compliant
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (release-gates job)
   tests:
@@ -1751,8 +1759,12 @@
 - id: CI-003
   title: Dependency scan blocks on high/critical vulnerabilities with allowlist
   priority: P0
+<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
+=======
+  status: compliant
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (dependency-scan job)
     - scripts/check-vulnerabilities.ts
@@ -1766,8 +1778,12 @@
 - id: CI-004
   title: Semgrep SAST SARIF output and upload
   priority: P1
+<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
+=======
+  status: compliant
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (sast job)
   tests:
@@ -1780,8 +1796,12 @@
 - id: CI-005
   title: Migration test (empty DB -> migrate deploy -> seed -> tests)
   priority: P1
+<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
+=======
+  status: compliant
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (migration-test job)
   tests: []
@@ -1793,8 +1813,12 @@
 - id: CI-006
   title: requirements-check script validates P0/P1 status and evidence
   priority: P1
+<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
+=======
+  status: compliant
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - scripts/check-requirements.ts
     - package.json (npm run requirements-check)
@@ -1803,6 +1827,7 @@
   evidence:
     - Checks no P0/P1 missing/non_compliant
     - Partial only with documented exception
+<<<<<<< HEAD
     - Test/evidence references required for P0
 
 # Phase 14: Code Quality and Architecture
@@ -1847,3 +1872,6 @@
   gaps: []
   evidence:
     - Inline getStatusColor/getRiskColor removed from Risks.tsx and Controls.tsx
+=======
+    - Test/evidence references required for P0
+>>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
