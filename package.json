@@ -20,7 +20,6 @@
     "vulnerability-check": "tsx scripts/check-vulnerabilities.ts"
   },
   "devDependencies": {
-    "@esbuild/win32-x64": "^0.28.1",
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
