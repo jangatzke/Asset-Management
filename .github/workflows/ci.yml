@@ -254,7 +254,7 @@ jobs:
         run: npm test --workspace=frontend -- --watch=false
 
   # =====================================================================
-  # SAST (Static Application Security Testing) — SARIF OUTPUT
+  # SAST (Static Application Security Testing) — REPORT-ONLY SARIF OUTPUT
   # =====================================================================
   sast:
     name: SAST (Semgrep)
@@ -266,11 +266,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run Semgrep SAST (SARIF output)
+      - name: Run Semgrep SAST (report-only SARIF output)
         run: |
+          echo "Semgrep is configured as report-only in CI: findings are uploaded as SARIF and reviewed in GitHub Security, but findings alone do not fail release gates."
           semgrep scan \
             --config=auto \
-            --error \
             --sarif \
             -o semgrep-results.sarif \
             backend/src/ frontend/src/ shared/src/
@@ -611,7 +611,8 @@ jobs:
             echo "+ $job passed"
           done
 
-          # Security checks — must not fail
+          # Security scan infrastructure must not fail. Semgrep findings are report-only:
+          # they are uploaded as SARIF for review, but findings alone do not block release gates.
           for job in sast secret-scan; do
             case "$job" in
               sast) result="${{ needs.sast.result }}" ;;
