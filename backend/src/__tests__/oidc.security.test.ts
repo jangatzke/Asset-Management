@@ -6,6 +6,7 @@ const mockPrismaClient: any = {
   userRole: { findMany: jest.fn(), create: jest.fn() },
   displayIdCounter: { upsert: jest.fn() },
   auditLog: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) }, // Phase 9: hash-chain lookup
+  $transaction: jest.fn(async (callback: (tx: typeof mockPrismaClient) => Promise<unknown>) => callback(mockPrismaClient)),
 };
 
 jest.mock('../config/database', () => ({ prisma: mockPrismaClient }));
@@ -36,7 +37,7 @@ describe('OidcService Phase 4 security', () => {
     clientId: 'client-123',
     clientSecret: null,
     clientSecretRef: 'env:OIDC_CLIENT_SECRET_TEST',
-    redirectUri: 'http://localhost:3000/callback',
+    redirectUri: 'http://localhost:3000/api/v1/auth/oidc/callback',
     allowedEmailDomains: [],
     autoProvisioning: false,
     defaultRoleForNewUsers: 'employee',
@@ -131,6 +132,26 @@ describe('OidcService Phase 4 security', () => {
     await expect(oidcService.handleCallback('code', 'reused')).rejects.toThrow('OIDC state has already been used');
   });
 
+  it('rejects state replay when atomic consume update count is zero', async () => {
+    mockPrismaClient.oidcLoginState.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(oidcService.handleCallback('code', 'plain-state')).rejects.toThrow('OIDC state has already been used');
+    expect(openidClient.authorizationCodeGrant).not.toHaveBeenCalled();
+  });
+
+  it('allows only one concurrent callback to consume one state', async () => {
+    mockPrismaClient.oidcLoginState.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    const results = await Promise.allSettled([
+      oidcService.handleCallback('code-one', 'plain-state'),
+      oidcService.handleCallback('code-two', 'plain-state'),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(openidClient.authorizationCodeGrant).toHaveBeenCalledTimes(1);
+  });
+
   it('uses openid-client grant checks with expected state, nonce, and PKCE verifier', async () => {
     await oidcService.handleCallback('auth-code', 'plain-state');
 
@@ -168,5 +189,17 @@ describe('OidcService Phase 4 security', () => {
 
     expect(openidClient.ClientSecretBasic).toHaveBeenCalledWith('resolved-secret');
     expect(mockConfig.clientSecret).toBeNull();
+  });
+
+  it('rejects authorization URL generation when redirect URI is not the backend callback path', async () => {
+    mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, redirectUri: 'http://localhost:5173/callback' });
+
+    await expect(oidcService.getAuthorizationUrl()).rejects.toThrow('OIDC redirect URI must target the backend callback endpoint');
+  });
+
+  it('rejects cleartext persisted client secrets in production', () => {
+    process.env.NODE_ENV = 'production';
+
+    expect(() => oidcService.resolveClientSecret({ clientSecret: 'cleartext-secret', clientSecretRef: null })).toThrow('OIDC client secret must be provided by environment reference in production');
   });
 });

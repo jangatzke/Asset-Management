@@ -1,7 +1,12 @@
 import { AuditService, AuditEventParams } from '../services/audit.service';
 
+type MockTransactionCallback = (tx: unknown) => Promise<unknown>;
+
 // Mock Prisma Client
 const mockPrisma = {
+  $transaction: jest.fn(async (fn: MockTransactionCallback) => fn(mockPrisma)),
+  $queryRaw: jest.fn(),
+  $executeRaw: jest.fn(),
   auditLog: {
     create: jest.fn(),
     findFirst: jest.fn().mockResolvedValue(null), // Phase 9: hash-chain previous entry lookup
@@ -19,6 +24,9 @@ describe('AuditService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (fn: MockTransactionCallback) => fn(mockPrisma));
+    mockPrisma.$queryRaw.mockResolvedValue([{ sequence: 1 }]);
+    mockPrisma.$executeRaw.mockResolvedValue(1);
     auditService = new AuditService();
   });
 

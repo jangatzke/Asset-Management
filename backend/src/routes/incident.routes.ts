@@ -80,7 +80,7 @@ incidentRouter.get('/:id', authenticate, requireEntityPermission('incidents.read
   }
 });
 
-incidentRouter.post('/:id/assess', authenticate, authorizeEntityWrite('incidents'), validateBody(AssessIncidentSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/assess', authenticate, requireEntityPermission('incidents.assess', 'incidents'), validateBody(AssessIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
     const assessment = await incidentService.assessIncident(req.params.id, req.body);
     res.status(201).json(assessment);
@@ -107,7 +107,7 @@ incidentRouter.post('/:id/recalculate-deadlines', authenticate, authorizeEntityW
   }
 });
 
-incidentRouter.post('/:id/reports', authenticate, authorizeEntityWrite('incidents'), validateBody(CreateIncidentReportSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/reports', authenticate, requireEntityPermission('incidents.report', 'incidents'), validateBody(CreateIncidentReportSchema), async (req: AuthRequest, res, next) => {
   try {
     const report = await incidentService.createIncidentReport(req.params.id, req.body);
     res.status(201).json(report);
@@ -125,7 +125,7 @@ incidentRouter.post('/:id/communications', authenticate, authorizeEntityWrite('i
   }
 });
 
-incidentRouter.post('/:id/close', authenticate, authorizeEntityWrite('incidents'), validateBody(CloseIncidentSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/close', authenticate, requireEntityPermission('incidents.close', 'incidents'), validateBody(CloseIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
     const incident = await incidentService.closeIncident(req.params.id, req.body, req.userId ?? 'system');
     res.json(incident);
@@ -134,7 +134,7 @@ incidentRouter.post('/:id/close', authenticate, authorizeEntityWrite('incidents'
   }
 });
 
-incidentRouter.post('/:id/report', authenticate, authorizeEntityWrite('incidents'), validateBody(CreateIncidentReportSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/report', authenticate, requireEntityPermission('incidents.report', 'incidents'), validateBody(CreateIncidentReportSchema), async (req: AuthRequest, res, next) => {
   try {
     const report = await incidentService.createReport(req.params.id, req.body);
     res.status(201).json(report);

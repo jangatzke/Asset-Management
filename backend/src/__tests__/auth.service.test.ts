@@ -14,6 +14,8 @@ const mockPrismaClient: any = {
     create: jest.fn(),
     findFirst: jest.fn().mockResolvedValue(null), // Phase 9: hash-chain lookup
   },
+  $queryRaw: jest.fn().mockResolvedValue([{ sequence: 1 }]),
+  $executeRaw: jest.fn().mockResolvedValue(1),
   user: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -45,6 +47,12 @@ const mockPrismaClient: any = {
     findUnique: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+  },
+  preAuthChallenge: {
+    create: jest.fn(),
+    updateMany: jest.fn(),
+    findUnique: jest.fn(),
+    count: jest.fn(),
   },
   displayIdCounter: {
     upsert: jest.fn(),
@@ -82,6 +90,14 @@ describe('AuthService', () => {
       updatedAt: new Date(),
     });
     mockPrismaClient.passwordHistory.findMany.mockResolvedValue([]);
+    mockPrismaClient.passwordHistory.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrismaClient.preAuthChallenge.create.mockResolvedValue({ id: 'preauth-1' });
+    mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 1 });
+    mockPrismaClient.preAuthChallenge.count.mockResolvedValue(1);
+    mockPrismaClient.preAuthChallenge.findUnique.mockResolvedValue(null);
+    mockPrismaClient.$queryRaw.mockResolvedValue([{ sequence: 1 }]);
+    mockPrismaClient.$executeRaw.mockResolvedValue(1);
+    mockPrismaClient.$transaction.mockImplementation((fn: any) => fn(mockPrismaClient));
   });
 
   describe('register', () => {
@@ -380,6 +396,7 @@ describe('AuthService', () => {
         user: testUser,
       });
       mockPrismaClient.refreshToken.create.mockResolvedValue({ id: 'refresh-2' });
+      mockPrismaClient.refreshToken.updateMany.mockResolvedValue({ count: 1 });
       mockPrismaClient.refreshToken.update.mockResolvedValue({});
       mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
 
@@ -387,10 +404,38 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('token');
       expect(result).toHaveProperty('refreshToken');
-      expect(mockPrismaClient.refreshToken.update).toHaveBeenCalledWith({
-        where: { id: 'refresh-1' },
-        data: { usedAt: expect.any(Date), replacedById: 'refresh-2' },
+      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { id: 'refresh-1', tokenHash: authService.hashRefreshToken(rawRefreshToken), usedAt: null, revokedAt: null, expiresAt: { gt: expect.any(Date) } },
+        data: { usedAt: expect.any(Date) },
       });
+    });
+
+    it('allows exactly one of two parallel refresh attempts to consume a token', async () => {
+      const rawRefreshToken = 'parallel-refresh-token';
+      const existing = {
+        id: 'refresh-1',
+        userId: testUser.id,
+        tokenHash: authService.hashRefreshToken(rawRefreshToken),
+        familyId: 'family-1',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+        revokedAt: null,
+        replacedById: null,
+        ipAddress: null,
+        userAgent: null,
+        user: testUser,
+      };
+      mockPrismaClient.refreshToken.findUnique.mockResolvedValue(existing);
+      mockPrismaClient.refreshToken.create.mockResolvedValueOnce({ id: 'refresh-2' });
+      mockPrismaClient.refreshToken.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 2 });
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+
+      const results = await Promise.allSettled([authService.refreshToken(rawRefreshToken), authService.refreshToken(rawRefreshToken)]);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(mockPrismaClient.refreshToken.create).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({ where: { familyId: 'family-1' }, data: { revokedAt: expect.any(Date) } });
     });
 
     it('should reject refresh-token reuse and revoke the token family', async () => {
@@ -446,6 +491,42 @@ describe('AuthService', () => {
     });
   });
 
+  describe('pre-auth challenges', () => {
+    it('persists non-raw single-use challenges during MFA-required login and consumes them once', async () => {
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, oidcId: null, mfaEnabled: true, mfaSecret: 'plain-secret' });
+
+      const loginResult = await authService.login({ email: testUser.email, password: testUserPassword });
+      expect(loginResult.state).toBe('mfa_required');
+      if (loginResult.state !== 'mfa_required') throw new Error('MFA pre-auth result was expected');
+      const createCall = mockPrismaClient.preAuthChallenge.create.mock.calls[0][0];
+      expect(createCall.data.userId).toBe(testUser.id);
+      expect(createCall.data.purpose).toBe('mfa_required');
+      expect(createCall.data.jtiHash).toHaveLength(64);
+      expect(loginResult.preAuthToken).not.toContain(createCall.data.jtiHash);
+
+      await authService.verifyPreAuthToken(loginResult.preAuthToken!, 'mfa_required');
+      expect(mockPrismaClient.preAuthChallenge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { usedAt: expect.any(Date) } }));
+    });
+
+    it('denies pre-auth challenge replay', async () => {
+      const token = jwt.sign({ userId: testUser.id, purpose: 'mfa_required', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256' });
+      mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.preAuthChallenge.findUnique.mockResolvedValue({ jtiHash: 'hash', purpose: 'mfa_required', expiresAt: new Date(Date.now() + 60_000), usedAt: new Date(), revokedAt: null });
+
+      await expect(authService.verifyPreAuthToken(token, 'mfa_required')).rejects.toThrow('Pre-auth token has already been used');
+    });
+
+    it('denies expired and wrong-purpose pre-auth challenges', async () => {
+      const token = jwt.sign({ userId: testUser.id, purpose: 'password_change', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256', expiresIn: '5m' });
+      mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.preAuthChallenge.findUnique.mockResolvedValueOnce({ purpose: 'password_change', expiresAt: new Date(Date.now() - 1), usedAt: null, revokedAt: null });
+      await expect(authService.verifyPreAuthToken(token, 'password_change')).rejects.toThrow('Pre-auth token expired');
+
+      await expect(authService.verifyPreAuthToken(token, 'mfa_required')).rejects.toThrow('Invalid pre-auth token');
+    });
+  });
+
   describe('logout', () => {
     it('should revoke all refresh tokens for user', async () => {
       mockPrismaClient.refreshToken.findUnique.mockResolvedValue({
@@ -461,6 +542,43 @@ describe('AuthService', () => {
       expect(mockPrismaClient.refreshToken.update).toHaveBeenCalledWith({
         where: { id: 'refresh-1' },
         data: { revokedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('password change audit coupling', () => {
+    it('updates password and writes PASSWORD_CHANGE audit in the same transaction', async () => {
+      const token = jwt.sign({ userId: testUser.id, purpose: 'password_change', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256', expiresIn: '5m' });
+      mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, isActive: true, oidcId: null });
+      mockPrismaClient.user.update.mockResolvedValue({ ...testUser, mustChangePasswordOnNext: false });
+      mockPrismaClient.authSettings.findFirst.mockResolvedValue({
+        id: 'auth-settings-1',
+        passwordComplexityEnabled: true,
+        minPasswordLength: 8,
+        passwordHistoryCount: 1,
+        passwordValidityDays: 0,
+        forceMfa: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockPrismaClient.$queryRaw.mockResolvedValue([{ sequence: 7 }]);
+      mockPrismaClient.auditLog.findFirst.mockResolvedValue({ entryHash: 'prev-hash' });
+
+      await authService.changeExpiredPassword(token, 'NewStrong1!');
+
+      expect(mockPrismaClient.$transaction).toHaveBeenCalled();
+      expect(mockPrismaClient.user.update).toHaveBeenCalled();
+      expect(mockPrismaClient.passwordHistory.create).toHaveBeenCalled();
+      expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'PASSWORD_CHANGE',
+          entityType: 'User',
+          entityId: testUser.id,
+          sequence: 7,
+          previousHash: 'prev-hash',
+          entryHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
       });
     });
   });

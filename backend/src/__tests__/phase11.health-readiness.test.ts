@@ -2,9 +2,12 @@ import {
   healthBasic, 
   healthReady, 
   setReady, 
+  setCriticalInitialization,
+  resetHealthState,
   registerRuntimeHealthCheck,
   getHealthState,
 } from '../middleware/health';
+import fs from 'fs';
 
 // Mock prisma
 jest.mock('../config/database', () => ({
@@ -22,6 +25,8 @@ describe('Phase 11: Health Readiness Checks', () => {
 
   let origJwtSecret: string | undefined;
   let origDbUrl: string | undefined;
+  let origReadinessMode: string | undefined;
+  let readdirSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockReq = {};
@@ -32,18 +37,17 @@ describe('Phase 11: Health Readiness Checks', () => {
     // Save and set required env vars so secrets check passes by default
     origJwtSecret = process.env.JWT_SECRET;
     origDbUrl = process.env.DATABASE_URL;
+    origReadinessMode = process.env.READINESS_MODE;
     process.env.JWT_SECRET = 'test-jwt-secret-for-phase11';
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
     // Reset mock state completely to prevent bleeding from other test files (e.g., phase8.health)
     (prisma.$queryRaw as jest.Mock).mockReset();
     // Default: DB works
     (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ '?column?': 1 }]);
-    setReady(false);
-    // Clear runtime checks
-    const state = getHealthState();
-    if (state.runtimeChecks) {
-      state.runtimeChecks.clear();
-    }
+    resetHealthState();
+    readdirSpy = jest.spyOn(fs, 'readdirSync').mockReturnValue([
+      { name: '20260718000000_consolidated_init', isDirectory: () => true },
+    ] as any);
   });
 
   afterEach(() => {
@@ -58,6 +62,12 @@ describe('Phase 11: Health Readiness Checks', () => {
     } else {
       delete process.env.DATABASE_URL;
     }
+    if (origReadinessMode !== undefined) {
+      process.env.READINESS_MODE = origReadinessMode;
+    } else {
+      delete process.env.READINESS_MODE;
+    }
+    readdirSpy.mockRestore();
   });
 
   afterEach(() => {
@@ -90,11 +100,10 @@ describe('Phase 11: Health Readiness Checks', () => {
       setReady(true);
       // Mock ALL $queryRaw calls in order:
       // healthReady: DB check (1 call)
-      // checkSchemaStatus: latest migration row + pending migrations (2 calls)
+      // checkSchemaStatus: real Prisma migration rows
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([{ version_steps: '1', markers: '', log: '' }]) // schema latest migration row
-        .mockResolvedValueOnce([]); // no pending migrations
+        .mockResolvedValueOnce([{ migration_name: '20260718000000_consolidated_init', started_at: new Date(), finished_at: new Date(), rolled_back_at: null, applied_steps_count: 1, checksum: 'abc', logs: null }]);
     });
 
     test('should return healthy when all checks pass', async () => {
@@ -156,8 +165,7 @@ describe('Phase 11: Health Readiness Checks', () => {
 
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check passes
-        .mockResolvedValueOnce([]) // schema check
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check
 
       await healthReady(mockReq, mockRes);
 
@@ -195,11 +203,9 @@ describe('Phase 11: Health Readiness Checks', () => {
     test('should return healthy when optional integrations are skipped (not configured)', async () => {
       setReady(true);
 
-      // healthReady calls: DB check (1), checkSchemaStatus calls latest+pending (2 more) = 3 total
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([{ version_steps: '1', markers: '', log: '' }]) // schema latest row
-        .mockResolvedValueOnce([]); // no pending migrations
+        .mockResolvedValueOnce([{ migration_name: '20260718000000_consolidated_init', started_at: new Date(), finished_at: new Date(), rolled_back_at: null, applied_steps_count: 1, checksum: 'abc', logs: null }]);
 
       await healthReady(mockReq, mockRes);
 
@@ -214,8 +220,7 @@ describe('Phase 11: Health Readiness Checks', () => {
 
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema - fresh/no rows → healthy
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([{ migration_name: '20260718000000_consolidated_init', started_at: new Date(), finished_at: new Date(), rolled_back_at: null, applied_steps_count: 1, checksum: 'abc', logs: null }]);
 
       await healthReady(mockReq, mockRes);
 
@@ -235,8 +240,7 @@ describe('Phase 11: Health Readiness Checks', () => {
 
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema check - no rows
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check - no rows
 
       await healthReady(mockReq, mockRes);
 
@@ -255,8 +259,7 @@ describe('Phase 11: Health Readiness Checks', () => {
 
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema check - no rows
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check - no rows
 
       await healthReady(mockReq, mockRes);
 
@@ -271,8 +274,7 @@ describe('Phase 11: Health Readiness Checks', () => {
       
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema check - no rows
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check - no rows
 
       await healthReady(mockReq, mockRes);
 
@@ -289,8 +291,7 @@ describe('Phase 11: Health Readiness Checks', () => {
       
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema check - no rows
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check - no rows
 
       await healthReady(mockReq, mockRes);
 
@@ -336,11 +337,9 @@ describe('Phase 11: Health Readiness Checks', () => {
     test('should return healthy when no pending migrations and schema has rows', async () => {
       setReady(true);
 
-      // DB check + schema latest migration row + no pending migrations
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([{ version_steps: '2', markers: '', log: '' }]) // latest migration row
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([{ migration_name: '20260718000000_consolidated_init', started_at: new Date(), finished_at: new Date(), rolled_back_at: null, applied_steps_count: 1, checksum: 'abc', logs: null }]);
 
       await healthReady(mockReq, mockRes);
 
@@ -350,17 +349,99 @@ describe('Phase 11: Health Readiness Checks', () => {
 
     test('should return healthy when fresh schema (no migrations yet)', async () => {
       setReady(true);
+      readdirSpy.mockReturnValue([] as any);
 
-      // DB check + empty latest migration row (fresh) + no pending migrations
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ '?column?': 1 }]) // DB check
-        .mockResolvedValueOnce([]) // no latest migration rows = fresh schema → healthy
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // no migration rows
 
       await healthReady(mockReq, mockRes);
 
       const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
       expect(callArgs.checks.schema.status).toBe('healthy');
+    });
+
+    test('should use real Prisma migration columns and detect failed incomplete migrations', async () => {
+      setReady(true);
+      (prisma.$queryRaw as jest.Mock)
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([{ migration_name: '20260728190000_failed', started_at: new Date(), finished_at: null, rolled_back_at: null, applied_steps_count: 0, checksum: 'abc', logs: 'migration failed' }]);
+
+      await healthReady(mockReq, mockRes);
+
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(mockRes.status).toHaveBeenCalledWith(503);
+      expect(callArgs.status).toBe('not_ready');
+      expect(callArgs.checks.schema.status).toBe('unhealthy');
+      expect(callArgs.checks.schema.details).toContain('incomplete or failed');
+    });
+
+    test('should compare local migration directories before reporting pending migrations', async () => {
+      setReady(true);
+      readdirSpy.mockReturnValue([
+        { name: '20260718000000_consolidated_init', isDirectory: () => true },
+        { name: '20260728182000_p1f_job_leases', isDirectory: () => true },
+      ] as any);
+      (prisma.$queryRaw as jest.Mock)
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([{ migration_name: '20260718000000_consolidated_init', started_at: new Date(), finished_at: new Date(), rolled_back_at: null, applied_steps_count: 1, checksum: 'abc', logs: null }]);
+
+      await healthReady(mockReq, mockRes);
+
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(callArgs.checks.schema.status).toBe('unhealthy');
+      expect(callArgs.checks.schema.details).toContain('Pending local Prisma migrations');
+      expect(callArgs.checks.schema.details).toContain('20260728182000_p1f_job_leases');
+    });
+
+    test('should fail closed when migration table is unreadable in critical readiness mode', async () => {
+      process.env.READINESS_MODE = 'critical';
+      setReady(true);
+      (prisma.$queryRaw as jest.Mock)
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockRejectedValueOnce(new Error('relation "_prisma_migrations" does not exist'));
+
+      await healthReady(mockReq, mockRes);
+
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(mockRes.status).toHaveBeenCalledWith(503);
+      expect(callArgs.status).toBe('not_ready');
+      expect(callArgs.checks.schema.status).toBe('unhealthy');
+    });
+  });
+
+  describe('critical initialization readiness', () => {
+    test('should not become ready by timeout alone', async () => {
+      jest.useFakeTimers();
+      setReady(false);
+      jest.advanceTimersByTime(5000);
+
+      (prisma.$queryRaw as jest.Mock)
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([]);
+
+      await healthReady(mockReq, mockRes);
+
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(callArgs.status).toBe('not_ready');
+      expect(callArgs.ready).toBe(false);
+    });
+
+    test('should remain not_ready after critical initialization failure', async () => {
+      setReady(true);
+      setCriticalInitialization('standardAssetTypes', false);
+
+      (prisma.$queryRaw as jest.Mock)
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([]);
+
+      await healthReady(mockReq, mockRes);
+
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(mockRes.status).toHaveBeenCalledWith(503);
+      expect(callArgs.status).toBe('not_ready');
+      expect(callArgs.ready).toBe(false);
+      expect(callArgs.checks['startup:standardAssetTypes'].status).toBe('unhealthy');
     });
   });
 });

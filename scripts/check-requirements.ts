@@ -1,247 +1,216 @@
 #!/usr/bin/env tsx
 /**
- * requirements-check.ts — Validate requirement status for Phase 12 CI/CD gates.
+ * Fail-closed P0/P1 requirements gate.
  *
- * Parses docs/requirements.md and checks:
- *   - No P0/P1 requirement has status "missing"
- *   - No P0/P1 requirement has status "non_compliant"
- *   - "partial" status only allowed with documented exception reference
- *   - Test or manual evidence reference present for each P0/P1 requirement
- *
- * Exit 0 = all checks pass, exit 1 = failures found.
+ * A P0/P1 requirement passes only when the compliance matrix records concrete
+ * implementation, regression test, and evidence references with no open gaps.
+ * Temporary acceptance is allowed only with reason, owner, and non-expired
+ * expiry date.
  */
 
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
-interface Requirement {
-  id: string;
-  priority: "P0" | "P1" | "P2" | "P3";
-  status?: string;
-  evidence?: string[];
-  gaps?: string[];
+type Priority = 'P0' | 'P1' | 'P2' | 'P3';
+
+interface TemporaryAcceptance {
+  reason?: string;
+  owner?: string;
+  expiry?: string;
 }
 
-function parseRequirements(filePath: string): Requirement[] {
-  const content = fs.readFileSync(filePath, "utf-8");
-  const requirements: Requirement[] = [];
+interface MatrixRequirement {
+  id: string;
+  priority?: Priority;
+  status?: string;
+  implementation: string[];
+  tests: string[];
+  evidence: string[];
+  gaps: string[];
+  temporaryAcceptance?: TemporaryAcceptance;
+}
 
-  // Split into sections by requirement blocks (lines containing | and ID)
-  const lines = content.split("\n");
-  let currentId = "";
-  let currentPriority: Requirement["priority"] = "P3";
-  let currentStatus = "";
-  let currentEvidence: string[] = [];
-  let currentGaps: string[] = [];
-  let inTable = false;
-  let isEvidenceSection = false;
-  let isGapsSection = false;
+const BLOCKED_STATUSES = new Set(['missing', 'non_compliant', 'partial', 'planned', 'undefined']);
+const PASSING_STATUSES = new Set(['implemented', 'tested', 'evidence-capable']);
+const DOC_ONLY_IMPLEMENTATION = /^(?:docs\/|README\.md$)/i;
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
+function parseList(lines: string[], startIndex: number): { values: string[]; nextIndex: number } {
+  const values: string[] = [];
+  let index = startIndex;
 
-    // Detect requirement ID pattern: | ID | Priority | ... or | ID | Priorität | ...
-    const idMatch = line.match(/^\|(\s*(?:[A-Z]+-\d+|[A-Z]+-\d+\.\d+|CI-\d+|UI-\d+|OPS-\d+)\s*)\|\s*(P0|P1|P2|P3)\s*\|/);
-    if (idMatch) {
-      // Save previous requirement if exists
-      if (currentId) {
-        requirements.push({
-          id: currentId,
-          priority: currentPriority,
-          status: currentStatus || undefined,
-          evidence: currentEvidence.length > 0 ? currentEvidence : undefined,
-          gaps: currentGaps.length > 0 ? currentGaps : undefined,
-        });
+  while (index < lines.length) {
+    const match = lines[index].match(/^\s*-\s+(.+)\s*$/);
+    if (!match) break;
+    values.push(match[1].trim());
+    index += 1;
+  }
+
+  return { values, nextIndex: index };
+}
+
+function parseTemporaryAcceptance(lines: string[], startIndex: number): { value: TemporaryAcceptance; nextIndex: number } {
+  const value: TemporaryAcceptance = {};
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const match = lines[index].match(/^\s{4,}([A-Za-z_]+):\s*(.+)\s*$/);
+    if (!match) break;
+
+    const key = match[1].replace(/_([a-z])/g, (_all, letter: string) => letter.toUpperCase());
+    if (key === 'reason' || key === 'owner' || key === 'expiry') {
+      value[key] = match[2].trim();
+    }
+    index += 1;
+  }
+
+  return { value, nextIndex: index };
+}
+
+export function parseComplianceMatrix(content: string): MatrixRequirement[] {
+  const blocks = content.split(/^\s*- id:\s*/m).slice(1);
+  return blocks.map((block) => {
+    const lines = block.split('\n');
+    const id = lines[0].trim();
+    const requirement: MatrixRequirement = {
+      id,
+      implementation: [],
+      tests: [],
+      evidence: [],
+      gaps: [],
+    };
+
+    for (let index = 1; index < lines.length;) {
+      const line = lines[index];
+      const scalar = line.match(/^\s{2}([A-Za-z_]+):\s*(.*)\s*$/);
+
+      if (!scalar) {
+        index += 1;
+        continue;
       }
-      currentId = idMatch[1].trim();
-      currentPriority = idMatch[2] as Requirement["priority"];
-      currentStatus = "";
-      currentEvidence = [];
-      currentGaps = [];
-      isEvidenceSection = false;
-      isGapsSection = false;
-      inTable = true;
-      continue;
+
+      const key = scalar[1];
+      const value = scalar[2].trim();
+
+      if (key === 'priority' && /^(P0|P1|P2|P3)$/.test(value)) {
+        requirement.priority = value as Priority;
+        index += 1;
+        continue;
+      }
+
+      if (key === 'status') {
+        requirement.status = value;
+        index += 1;
+        continue;
+      }
+
+      if (key === 'implementation' || key === 'tests' || key === 'evidence' || key === 'gaps') {
+        if (value === '[]') {
+          requirement[key] = [];
+          index += 1;
+          continue;
+        }
+
+        const parsed = parseList(lines, index + 1);
+        requirement[key] = parsed.values;
+        index = parsed.nextIndex;
+        continue;
+      }
+
+      if (key === 'temporary_acceptance') {
+        const parsed = parseTemporaryAcceptance(lines, index + 1);
+        requirement.temporaryAcceptance = parsed.value;
+        index = parsed.nextIndex;
+        continue;
+      }
+
+      index += 1;
     }
 
-    // Detect compliance-matrix-style status blocks: "- id: XXX" followed by "status:"
-    const statusMatch = line.match(/^- id:\s*([A-Za-z0-9_-]+)$/);
-    if (statusMatch && !currentId) {
-      // This is a compliance-matrix style entry — we'll capture it via the next lines
-      currentId = statusMatch[1];
-      continue;
-    }
+    return requirement;
+  });
+}
 
-    const priorityFromStatus = line.match(/priority:\s*(P0|P1|P2|P3)/);
-    if (priorityFromStatus && currentId) {
-      currentPriority = priorityFromStatus[1] as Requirement["priority"];
-      continue;
-    }
+function hasTemporaryAcceptance(req: MatrixRequirement, now: Date): boolean {
+  const acceptance = req.temporaryAcceptance;
+  if (!acceptance?.reason || !acceptance.owner || !acceptance.expiry) return false;
 
-    const statusLineMatch = line.match(/^status:\s*(\w+)/);
-    if (statusLineMatch && currentId) {
-      currentStatus = statusLineMatch[1];
-      continue;
-    }
+  const expiry = new Date(acceptance.expiry);
+  if (Number.isNaN(expiry.getTime())) return false;
 
-    // Detect evidence section in compliance-matrix style
-    if (/^\- evidence:$/i.test(line)) {
-      isEvidenceSection = true;
-      isGapsSection = false;
-      continue;
-    }
+  return expiry.getTime() >= now.getTime();
+}
 
-    // Detect gaps section in compliance-matrix style
-    if (/^\- gaps:$/i.test(line) || /^\|\s*gaps\s*\|/i.test(line)) {
-      isGapsSection = true;
-      isEvidenceSection = false;
-      continue;
-    }
+export function validateRequirement(req: MatrixRequirement, now: Date): string[] {
+  const errors: string[] = [];
+  const temporaryAccepted = hasTemporaryAcceptance(req, now);
 
-    // Collect evidence items (list items under evidence:)
-    if (isEvidenceSection && line.startsWith("- ")) {
-      currentEvidence.push(line.slice(2).trim());
-      continue;
-    }
-
-    // Collect gaps items
-    if (isGapsSection && line.startsWith("- ")) {
-      currentGaps.push(line.slice(2).trim());
-      continue;
-    }
-
-    // Reset sections on new table row or heading
-    if (line.startsWith("###") || line.startsWith("##")) {
-      isEvidenceSection = false;
-      isGapsSection = false;
-    }
+  if (!req.status) {
+    errors.push(`${req.id}: missing status`);
+  } else if (BLOCKED_STATUSES.has(req.status)) {
+    errors.push(`${req.id}: blocked status "${req.status}"`);
+  } else if (!PASSING_STATUSES.has(req.status) && !temporaryAccepted) {
+    errors.push(`${req.id}: status "${req.status}" is not a passing application-coverage status`);
   }
 
-  // Save last requirement
-  if (currentId) {
-    requirements.push({
-      id: currentId,
-      priority: currentPriority,
-      status: currentStatus || undefined,
-      evidence: currentEvidence.length > 0 ? currentEvidence : undefined,
-      gaps: currentGaps.length > 0 ? currentGaps : undefined,
-    });
+  if (req.implementation.length === 0 && !temporaryAccepted) {
+    errors.push(`${req.id}: missing implementation reference`);
   }
 
-  return requirements;
+  if (req.implementation.length > 0 && req.implementation.every((item) => DOC_ONLY_IMPLEMENTATION.test(item))) {
+    errors.push(`${req.id}: docs-only implementation reference is not sufficient`);
+  }
+
+  if (req.tests.length === 0 && !temporaryAccepted) {
+    errors.push(`${req.id}: missing regression test reference`);
+  }
+
+  if (req.evidence.length === 0 && !temporaryAccepted) {
+    errors.push(`${req.id}: missing evidence reference`);
+  }
+
+  if (req.gaps.length > 0 && !temporaryAccepted) {
+    errors.push(`${req.id}: open gaps require explicit temporary_acceptance with reason, owner, and non-expired expiry`);
+  }
+
+  if (req.temporaryAcceptance && !temporaryAccepted) {
+    errors.push(`${req.id}: temporary_acceptance is incomplete, invalid, or expired`);
+  }
+
+  return errors;
+}
+
+export function runRequirementsCheck(rootDir: string, now = new Date()): { errors: string[]; scanned: number } {
+  const matrixPath = path.join(rootDir, 'docs', 'compliance-matrix.yml');
+
+  if (!fs.existsSync(matrixPath)) {
+    return { errors: ['docs/compliance-matrix.yml not found'], scanned: 0 };
+  }
+
+  const requirements = parseComplianceMatrix(fs.readFileSync(matrixPath, 'utf-8'));
+  const gatedRequirements = requirements.filter((req) => req.priority === 'P0' || req.priority === 'P1');
+  const errors = gatedRequirements.flatMap((req) => validateRequirement(req, now));
+
+  return { errors, scanned: gatedRequirements.length };
 }
 
 function main(): number {
-  const requirementsPath = path.join(__dirname, "..", "docs", "requirements.md");
-  const complianceMatrixPath = path.join(__dirname, "..", "docs", "compliance-matrix.yml");
+  const result = runRequirementsCheck(path.join(__dirname, '..'));
 
-  if (!fs.existsSync(requirementsPath)) {
-    console.error("ERROR: docs/requirements.md not found");
-    return 1;
-  }
+  console.log('=== Requirements Check Report ===');
+  console.log(`P0/P1 requirements scanned: ${result.scanned}`);
 
-  const requirements = parseRequirements(requirementsPath);
-
-  // Also try to merge compliance-matrix.yml status overrides
-  if (fs.existsSync(complianceMatrixPath)) {
-    const matrixContent = fs.readFileSync(complianceMatrixPath, "utf-8");
-    const matrixIds = new Map<string, { status: string; evidence?: string[] }>();
-    const blocks = matrixContent.split(/^- id:/);
-    for (const block of blocks) {
-      const idMatch = block.trim().split("\n")[0]?.trim();
-      if (!idMatch) continue;
-      const statusMatch = block.match(/status:\s*(\w+)/);
-      const evidenceMatches = [...block.matchAll(/-\s+(.+\.)/g)];
-      matrixIds.set(idTrim(idMatch), {
-        status: statusMatch ? statusMatch[1] : "",
-        evidence: evidenceMatches.length > 0 ? evidenceMatches.map((m) => m[1].trim()) : undefined,
-      });
-    }
-
-    // Merge matrix statuses into requirements
-    for (const req of requirements) {
-      const merged = matrixIds.get(req.id);
-      if (merged?.status) {
-        req.status = merged.status;
-      }
-      if (merged?.evidence && merged.evidence.length > 0) {
-        req.evidence = [...(req.evidence || []), ...merged.evidence];
-      }
-    }
-  }
-
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  for (const req of requirements) {
-    if (req.priority !== "P0" && req.priority !== "P1") continue;
-
-    // Check 1: No P0/P1 requirement with status "missing"
-    if (req.status === "missing") {
-      errors.push(`P${req.priority.slice(1)} ${req.id}: requirement status is "missing"`);
-      continue;
-    }
-
-    // Check 2: No P0/P1 requirement with status "non_compliant"
-    if (req.status === "non_compliant") {
-      errors.push(`P${req.priority.slice(1)} ${req.id}: requirement status is "non_compliant"`);
-      continue;
-    }
-
-    // Check 3: "partial" only allowed with documented exception
-    if (req.status === "partial") {
-      const hasGaps = req.gaps && req.gaps.length > 0;
-      const hasEvidence = req.evidence && req.evidence.length > 0;
-      if (!hasGaps && !hasEvidence) {
-        warnings.push(`P${req.priority.slice(1)} ${req.id}: status is "partial" but no gaps or evidence documented`);
-      }
-    }
-
-    // Check 4: P0 requirements must have test or manual evidence reference
-    if (req.priority === "P0" && req.status === "compliant") {
-      const hasEvidence = req.evidence && req.evidence.length > 0;
-      if (!hasEvidence) {
-        warnings.push(`P0 ${req.id}: compliant but no explicit test/evidence reference`);
-      }
-    }
-  }
-
-  // Print results
-  console.log("=== Requirements Check Report ===");
-  console.log(`Total requirements scanned: ${requirements.length}`);
-  console.log("");
-
-  if (errors.length > 0) {
-    console.error(`FAIL: ${errors.length} blocking error(s):`);
-    for (const err of errors) {
-      console.error(`  ✗ ${err}`);
-    }
-    console.error("");
-  }
-
-  if (warnings.length > 0) {
-    console.log(`Warnings: ${warnings.length}:`);
-    for (const w of warnings) {
-      console.log(`  ⚠ ${w}`);
-    }
-    console.log("");
-  }
-
-  if (errors.length === 0) {
-    console.log("PASS: All P0/P1 requirements meet gate criteria.");
-    if (warnings.length > 0) {
-      console.log("(Warnings present but no blocking errors.)");
-    }
+  if (result.errors.length === 0) {
+    console.log('PASS: All P0/P1 requirements meet fail-closed gate criteria.');
     return 0;
-  } else {
-    console.log("FAIL: Blocking requirement violations found.");
-    return 1;
   }
+
+  console.error(`FAIL: ${result.errors.length} blocking requirement gate violation(s):`);
+  for (const error of result.errors) {
+    console.error(`  ✗ ${error}`);
+  }
+  return 1;
 }
 
-function idTrim(s: string): string {
-  return s.replace(/^- id:\s*/i, "").trim();
+if (require.main === module) {
+  process.exit(main());
 }
-
-const exitCode = main();
-process.exit(exitCode);

@@ -26,7 +26,7 @@ const mockPrismaClient: any = {
     createMany: jest.fn(),
     updateMany: jest.fn(),
   },
-  riskAssessment: {
+  riskAssessmentVersion: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     updateMany: jest.fn(),
@@ -60,6 +60,13 @@ const mockPrismaClient: any = {
 
 jest.mock('../config/database', () => ({
   prisma: mockPrismaClient,
+}));
+
+jest.mock('../services/authorization.service', () => ({
+  authorizationService: {
+    requireEntityPermission: jest.fn().mockResolvedValue(undefined),
+    requireAdminAccess: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 
 import { riskTreatmentService } from '../services/risktreatment.service';
@@ -100,7 +107,7 @@ describe('RiskTreatmentService', () => {
       nextReviewDate: new Date('2026-12-31'),
     });
     mockPrismaClient.riskMethod.findFirst.mockResolvedValue(null);
-    mockPrismaClient.riskAssessment.findUnique.mockResolvedValue({
+    mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({
       id: 'assessment-1',
       riskId: 'risk-1',
       riskMethodVersionId: 'method-version-1',
@@ -352,7 +359,7 @@ describe('RiskTreatmentService', () => {
     });
 
     it('should reject high risk acceptance approval by original assessor', async () => {
-      mockPrismaClient.riskAssessment.findUnique.mockResolvedValue({
+      mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({
         id: 'assessment-1',
         riskId: 'risk-1',
         assessorId: 'assessor-1',
@@ -396,8 +403,8 @@ describe('RiskTreatmentService', () => {
         risk: { id: 'risk-1', riskMethodVersionId: 'method-version-1', inherentRisk: 'high', residualRisk: 'high', targetRisk: 'medium' },
         effectivenessReviews: [{ id: 'review-1' }],
       });
-      mockPrismaClient.riskAssessment.findFirst.mockResolvedValue({ assessmentNumber: 2 });
-      mockPrismaClient.riskAssessment.create.mockResolvedValue({ id: 'assessment-target-1' });
+      mockPrismaClient.riskAssessmentVersion.findFirst.mockResolvedValue({ versionNumber: 2 });
+      mockPrismaClient.riskAssessmentVersion.create.mockResolvedValue({ id: 'assessment-target-1' });
       mockPrismaClient.riskTreatment.update.mockResolvedValue({ ...mockTreatment, implementationStatus: 'completed', residualAssessmentId: 'assessment-target-1' });
 
       const result = await riskTreatmentService.complete('rt-1', {
@@ -410,8 +417,8 @@ describe('RiskTreatmentService', () => {
       }, 'user-1');
 
       expect(result.implementationStatus).toBe('completed');
-      expect(mockPrismaClient.riskAssessment.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ assessmentType: 'target', assessmentNumber: 3 }),
+      expect(mockPrismaClient.riskAssessmentVersion.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ assessmentType: 'target', versionNumber: 3 }),
       }));
     });
   });

@@ -73,11 +73,14 @@ describe('Phase 0 documentation consistency', () => {
 
     for (const id of plannedPhase0Ids) {
       const entries = matrix.split('\n- id: ').filter((entry) => entry.startsWith(id) || entry.startsWith(`- id: ${id}`));
-      const entry = entries.find((candidate) => candidate.includes('Phase 0 documents this requirement only'));
-      expect(entry).toBeDefined();
-      expect(entry).toContain('status: planned');
-      expect(entry).toContain('implementation: []');
-      expect(entry).toContain('Phase 0 documents this requirement only');
+      const placeholderEntry = entries.find((candidate) => candidate.includes('Phase 0 documents this requirement only'));
+      const implementedEntry = entries.find((candidate) => candidate.includes('status: implemented'));
+      expect(placeholderEntry ?? implementedEntry).toBeDefined();
+      if (placeholderEntry) {
+        expect(placeholderEntry).toContain('status: planned');
+        expect(placeholderEntry).toContain('implementation: []');
+        expect(placeholderEntry).toContain('Phase 0 documents this requirement only');
+      }
     }
   });
 });

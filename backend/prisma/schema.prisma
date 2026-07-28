@@ -67,6 +67,7 @@ model User {
   completedCostPlanItems CostPlanItem[]     @relation("CostPlanItemCompletedBy")
   passwordHistory        PasswordHistory[]  @relation("UserPasswordHistory")
   refreshTokens          RefreshToken[]      @relation("UserRefreshTokens")
+  preAuthChallenges      PreAuthChallenge[]  @relation("UserPreAuthChallenges")
   oidcAccountLinks       OidcAccountLink[]   @relation("UserOidcAccountLinks")
 
   @@index([oidcId, oidcProvider])
@@ -207,6 +208,8 @@ model GroupRole {
   organizationUnitId String?
   scopeId            String?
   siteId             String?
+  validFrom DateTime @default(now())
+  validUntil DateTime?
   createdAt DateTime @default(now())
 
   group            Group             @relation("GroupRoles", fields: [groupId], references: [id], onDelete: Cascade)
@@ -221,6 +224,7 @@ model GroupRole {
   @@index([organizationUnitId])
   @@index([scopeId])
   @@index([siteId])
+  @@index([validFrom, validUntil])
   @@map("group_roles")
 }
 
@@ -803,7 +807,6 @@ model RiskMethodVersion {
 
   riskMethod             RiskMethod              @relation(fields: [riskMethodId], references: [id], onDelete: Cascade)
   Risk                   Risk[]
-  RiskAssessment         RiskAssessment[]
   riskAssessmentVersions RiskAssessmentVersion[]
 
   @@index([riskMethodId])
@@ -862,7 +865,6 @@ model Risk {
   // Junction table links for M:N relationships (replaces ID arrays)
   processLinks           RiskProcess[]
   serviceLinks           RiskService[]
-  RiskAssessment         RiskAssessment[]
   riskAssessmentVersions RiskAssessmentVersion[]
 
   @@index([riskMethodVersionId])
@@ -895,9 +897,11 @@ model RiskAssessmentVersion {
   risk                   Risk                    @relation(fields: [riskId], references: [id], onDelete: Cascade)
   riskMethodVersionIdRef RiskMethodVersion       @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
   controlAssessments     RiskControlAssessment[]
+  acceptances            RiskAcceptance[]
 
   @@unique([riskId, versionNumber])
   @@index([riskId, isCurrent])
+  @@index([riskId, assessmentType, isCurrent])
   @@index([assessmentType])
   @@map("risk_assessment_versions")
 }
@@ -945,39 +949,6 @@ model RiskControlAssessment {
   @@unique([riskControlId, riskAssessmentVersionId])
   @@index([riskAssessmentVersionId])
   @@map("risk_control_assessments")
-}
-
-// RiskAssessment tracks a specific assessment snapshot bound to a method version.
-// Multiple assessments can exist per risk, forming an immutable history.
-// AssessmentType distinguishes inherent, current (existing/residual), and target assessments.
-model RiskAssessment {
-  id                  String   @id @default(uuid())
-  riskId              String
-  riskMethodVersionId String
-  assessmentNumber    Int      @default(1) // ordinal version for this risk
-  assessmentType      String   @default("current") // inherent, current, target
-  likelihood          Int
-  impact              Int
-  inherentRisk        String
-  residualRisk        String
-  targetRisk          String
-  score               Int?
-  assessorId          String
-  assessedAt          DateTime @default(now())
-  nextReviewDate      DateTime
-  justification       String // Mandatory justification for every assessment
-  isCurrent           Boolean  @default(true) // only one assessment per risk can be current
-  createdAt           DateTime @default(now())
-
-  risk              Risk              @relation(fields: [riskId], references: [id], onDelete: Cascade)
-  riskMethodVersion RiskMethodVersion @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
-  acceptances       RiskAcceptance[]
-
-  @@unique([riskId, assessmentNumber])
-  @@index([riskId, isCurrent])
-  @@index([riskMethodVersionId])
-  @@index([assessmentType])
-  @@map("risk_assessments")
 }
 
 model RiskTreatment {
@@ -1057,7 +1028,7 @@ model RiskAcceptance {
   updatedAt       DateTime  @updatedAt
 
   treatment  RiskTreatment  @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
-  assessment RiskAssessment @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  assessment RiskAssessmentVersion @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
 
   @@index([riskId])
   @@index([assessmentId])
@@ -1884,7 +1855,7 @@ model AuditLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([action])
-  @@index([sequence])
+  @@unique([sequence])
   @@map("audit_logs")
 }
 
@@ -2821,6 +2792,24 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model PreAuthChallenge {
+  id          String    @id @default(uuid())
+  userId      String
+  jtiHash     String    @unique
+  purpose     String
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+
+  user User @relation("UserPreAuthChallenges", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@map("pre_auth_challenges")
+}
+
 // ==========================================
 // Intune Integration Models
 // ==========================================
@@ -3603,4 +3592,19 @@ model JobRun {
   @@index([jobType, status])
   @@index([scheduledAt])
   @@map("job_runs")
+}
+
+model JobLease {
+  id          String   @id @default(uuid())
+  jobName     String   @unique
+  ownerId     String
+  leaseUntil  DateTime
+  heartbeatAt DateTime
+  acquiredAt  DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leaseUntil])
+  @@index([ownerId])
+  @@map("job_leases")
 }

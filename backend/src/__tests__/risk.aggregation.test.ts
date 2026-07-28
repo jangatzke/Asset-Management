@@ -159,7 +159,7 @@ describe('RiskAggregationService', () => {
       expect(result[0].totalRisks).toBe(1);
     });
 
-    it('passes methodVersion, assessmentType and assessedAt filters through RiskAssessment relation', async () => {
+    it('passes methodVersion, assessmentType and assessedAt filters through riskAssessmentVersionsVersion relation', async () => {
       mockPrismaClient.risk.findMany.mockResolvedValue([]);
 
       await riskAggregationService.aggregateByAssetType({
@@ -170,7 +170,7 @@ describe('RiskAggregationService', () => {
       });
 
       const where = mockPrismaClient.risk.findMany.mock.calls[0][0].where;
-      expect(JSON.stringify(where)).toContain('RiskAssessment');
+      expect(JSON.stringify(where)).toContain('riskAssessmentVersions');
       expect(JSON.stringify(where)).toContain('method-v1');
       expect(JSON.stringify(where)).toContain('current');
       expect(JSON.stringify(where)).toContain('assessedAt');

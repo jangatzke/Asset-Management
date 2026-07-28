@@ -981,7 +981,7 @@ export const UpdateRiskImpactSchema = CreateRiskImpactSchema.partial();
 
 export type UpdateRiskImpactDTO = z.infer<typeof UpdateRiskImpactSchema>;
 
-// --- RiskAssessment DTOs (Paket 3.2) ---
+// --- RiskAssessmentVersion DTOs (Paket 3.2) ---
 export const CreateRiskAssessmentSchema = z.object({
   riskId: z.string().uuid('Invalid risk ID'),
   riskMethodVersionId: z.string().uuid('Invalid method version ID'),

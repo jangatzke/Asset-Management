@@ -39,7 +39,7 @@ interface Risk {
   organizationUnitId?: string;
   processId?: string;
   nextReviewDate?: string;
-  RiskAssessment?: RiskAssessmentVersion[];
+  riskAssessmentVersions?: RiskAssessmentVersion[];
   riskControls?: RiskControlLink[];
 }
 
@@ -127,7 +127,7 @@ const RiskDetail = () => {
 
   const renderAssessment = () => {
     if (!risk) return null;
-    const assessments = risk.RiskAssessment || [];
+    const assessments = risk.riskAssessmentVersions || [];
     if (assessments.length === 0) {
       return <p className="text-gray-500 dark:text-gray-400">{t('risks.noAssessments')}</p>;
     }
@@ -221,7 +221,7 @@ const RiskDetail = () => {
 
   const renderHistory = () => {
     if (!risk) return null;
-    const assessments = risk.RiskAssessment || [];
+    const assessments = risk.riskAssessmentVersions || [];
     if (assessments.length === 0) {
       return <p className="text-gray-500 dark:text-gray-400">{t('risks.noHistory')}</p>;
     }

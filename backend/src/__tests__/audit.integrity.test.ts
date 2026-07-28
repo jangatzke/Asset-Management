@@ -18,8 +18,13 @@ import {
   verifyIntegrity,
 } from '../services/auditIntegrity.service';
 
+type MockTransactionCallback = (tx: unknown) => Promise<unknown>;
+
 // Mock Prisma Client with real database interaction for integration tests
 const mockPrisma = {
+  $transaction: jest.fn(async (fn: MockTransactionCallback) => fn(mockPrisma)),
+  $queryRaw: jest.fn(),
+  $executeRaw: jest.fn(),
   auditLog: {
     create: jest.fn(),
     findFirst: jest.fn(),
@@ -33,6 +38,9 @@ jest.mock('../config/database', () => ({ prisma: mockPrisma }));
 describe('Phase 9: Audit Log Integrity', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (fn: MockTransactionCallback) => fn(mockPrisma));
+    mockPrisma.$queryRaw.mockResolvedValue([{ sequence: 1 }]);
+    mockPrisma.$executeRaw.mockResolvedValue(1);
   });
 
   // -----------------------------------------------------------------------
@@ -44,6 +52,28 @@ describe('Phase 9: Audit Log Integrity', () => {
       const a = canonicalize({ z: 1, a: 2 });
       const b = canonicalize({ a: 2, z: 1 });
       expect(a).toBe(b);
+    });
+
+    it('should produce identical canonicalization and hashes for reordered object keys', () => {
+      const ordered = { a: 1, b: 2 };
+      const reordered = { b: 2, a: 1 };
+      expect(canonicalize(ordered)).toBe(canonicalize(reordered));
+
+      const base = {
+        sequence: 1,
+        timestampISO: '2026-07-26T12:00:00.000Z',
+        userId: 'user-1',
+        userName: null,
+        action: 'LOGIN',
+        entityType: 'User',
+        entityId: 'user-1',
+        details: null,
+        oldValue: null,
+        previousHash: '',
+      };
+      expect(computeEntryHash({ ...base, newValue: ordered })).toBe(
+        computeEntryHash({ ...base, newValue: reordered })
+      );
     });
 
     it('should handle null and undefined consistently', () => {
@@ -300,8 +330,7 @@ describe('Phase 9: Audit Log Integrity', () => {
 
   describe('verifyIntegrity', () => {
     it('should return valid for empty database', async () => {
-      // Mock $queryRawUnsafe to return empty array
-      (mockPrisma as any).$queryRawUnsafe = jest.fn().mockResolvedValue([]);
+      mockPrisma.auditLog.findMany.mockResolvedValue([]);
 
       const result = await verifyIntegrity(mockPrisma as any);
       expect(result.valid).toBe(true);
@@ -310,32 +339,32 @@ describe('Phase 9: Audit Log Integrity', () => {
 
     it('should detect hash mismatch in chain', async () => {
       // Compute a valid hash for entry 1 so the first link passes
+      const timestamp = new Date('2026-07-26T12:00:01.000Z');
       const validEntry1 = computeEntryHash({
-        sequence: 1, timestampISO: new Date().toISOString(), userId: 'u1', userName: null,
+        sequence: 1, timestampISO: timestamp.toISOString(), userId: 'u1', userName: null,
         action: 'LOGIN', entityType: 'User', entityId: 'u1', details: null, oldValue: null, newValue: null, previousHash: '',
       });
 
       // Simulate 3 entries where entry 2 has wrong entryHash (tampered)
       const mockEntries = [
         {
-          sequence: 1, timestamp: new Date(), user_id: 'u1', user_name: null,
-          action: 'LOGIN', entity_type: 'User', entity_id: 'u1', details: null,
-          old_value: null, new_value: null, entry_hash: validEntry1, previous_hash: '', // Valid first entry
+          sequence: 1, timestamp, userId: 'u1', userName: null,
+          action: 'LOGIN', entityType: 'User', entityId: 'u1', details: null,
+          oldValue: null, newValue: null, entryHash: validEntry1, previousHash: null,
         },
         {
-          sequence: 2, timestamp: new Date(), user_id: 'u1', user_name: null,
-          action: 'LOGIN', entity_type: 'User', entity_id: 'u1', details: null,
-          old_value: null, new_value: null, entry_hash: 'TAMPERED_HASH', previous_hash: validEntry1, // Wrong hash!
+          sequence: 2, timestamp: new Date(), userId: 'u1', userName: null,
+          action: 'LOGIN', entityType: 'User', entityId: 'u1', details: null,
+          oldValue: null, newValue: null, entryHash: 'TAMPERED_HASH', previousHash: validEntry1,
         },
         {
-          sequence: 3, timestamp: new Date(), user_id: 'u1', user_name: null,
-          action: 'LOGIN', entity_type: 'User', entity_id: 'u1', details: null,
-          old_value: null, new_value: null, entry_hash: 'valid_hash_3', previous_hash: 'TAMPERED_HASH',
+          sequence: 3, timestamp: new Date(), userId: 'u1', userName: null,
+          action: 'LOGIN', entityType: 'User', entityId: 'u1', details: null,
+          oldValue: null, newValue: null, entryHash: 'valid_hash_3', previousHash: 'TAMPERED_HASH',
         },
       ];
 
-      (mockPrisma as any).$queryRawUnsafe = jest.fn().mockResolvedValue(mockEntries);
-      mockPrisma.auditLog.count.mockResolvedValue(3);
+      mockPrisma.auditLog.findMany.mockResolvedValue(mockEntries);
 
       const result = await verifyIntegrity(mockPrisma as any);
       expect(result.valid).toBe(false);
@@ -347,19 +376,18 @@ describe('Phase 9: Audit Log Integrity', () => {
       // Simulate entries with sequences 1, 3 (missing 2)
       const mockEntries = [
         {
-          sequence: 1, timestamp: new Date(), user_id: 'u1', user_name: null,
-          action: 'LOGIN', entity_type: 'User', entity_id: 'u1', details: null,
-          old_value: null, new_value: null, entry_hash: 'hash_1', previous_hash: '',
+          sequence: 1, timestamp: new Date(), userId: 'u1', userName: null,
+          action: 'LOGIN', entityType: 'User', entityId: 'u1', details: null,
+          oldValue: null, newValue: null, entryHash: 'hash_1', previousHash: null,
         },
         {
-          sequence: 3, timestamp: new Date(), user_id: 'u1', user_name: null,
-          action: 'LOGIN', entity_type: 'User', entity_id: 'u1', details: null,
-          old_value: null, new_value: null, entry_hash: 'hash_3', previous_hash: 'hash_1', // Should be hash_2!
+          sequence: 3, timestamp: new Date(), userId: 'u1', userName: null,
+          action: 'LOGIN', entityType: 'User', entityId: 'u1', details: null,
+          oldValue: null, newValue: null, entryHash: 'hash_3', previousHash: 'hash_1',
         },
       ];
 
-      (mockPrisma as any).$queryRawUnsafe = jest.fn().mockResolvedValue(mockEntries);
-      mockPrisma.auditLog.count.mockResolvedValue(2);
+      mockPrisma.auditLog.findMany.mockResolvedValue(mockEntries);
 
       const result = await verifyIntegrity(mockPrisma as any);
       expect(result.valid).toBe(false);
@@ -393,14 +421,36 @@ describe('Phase 9: Audit Log Integrity', () => {
       // Verify findFirst was called to get previous entry
       expect(mockPrisma.auditLog.findFirst).toHaveBeenCalledWith({
         orderBy: { sequence: 'desc' },
-        select: expect.objectContaining({ entryHash: true, sequence: true }),
+        select: expect.objectContaining({ entryHash: true }),
       });
 
       // Verify create was called with hash-chain fields
       const createCall = (mockPrisma.auditLog.create as jest.Mock).mock.calls[0][0];
-      expect(createCall.data.sequence).toBe(6); // 5 + 1
+      expect(createCall.data.sequence).toBe(1);
       expect(createCall.data.previousHash).toBe('prev_hash_123');
       expect(createCall.data.entryHash).toHaveLength(64); // SHA-256 hex
+    });
+
+    it('should allocate sequence using database sequence and lock before creating the audit row', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([{ sequence: 42 }]);
+      mockPrisma.auditLog.findFirst.mockResolvedValue({ entryHash: 'prev_hash_41' });
+
+      const { AuditService } = require('../services/audit.service');
+      const service = new AuditService();
+
+      await service.logEventStandalone(mockPrisma as any, {
+        userId: 'user-1',
+        action: 'LOGIN',
+        entityType: 'User',
+        entityId: 'user-1',
+      });
+
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
+      const createCall = (mockPrisma.auditLog.create as jest.Mock).mock.calls[0][0];
+      expect(createCall.data.sequence).toBe(42);
+      expect(createCall.data.previousHash).toBe('prev_hash_41');
     });
 
     it('should handle first entry with empty previousHash', async () => {
@@ -451,7 +501,7 @@ describe('Phase 9: Audit Log Integrity', () => {
           action: 'ASSET_CREATE',
           entityType: 'Asset',
           entityId: 'asset-1',
-          sequence: 11, // 10 + 1
+          sequence: 11,
           previousHash: 'tx_prev_hash',
           entryHash: expect.stringMatching(/^[a-f0-9]{64}$/),
         }),

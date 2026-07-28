@@ -89,6 +89,10 @@ const metrics: MetricCounts = {
   totalResponseTimeMs: 0,
 };
 
+interface DbErrorEmitter {
+  $on(event: 'error', callback: () => void): void;
+}
+
 /**
  * Reset in-memory metrics (for testing).
  */
@@ -182,13 +186,22 @@ export const metricsMiddleware = (req: Request, res: Response, next: NextFunctio
 
 /**
  * Create a metrics token authentication middleware.
+ * In production, METRICS_TOKEN is required and absence fails closed.
  * If METRICS_TOKEN is set, requires ?token=<value> or Authorization: Bearer <token>.
  */
 export function createMetricsAuthMiddleware() {
   const metricsToken = process.env.METRICS_TOKEN;
 
   if (!metricsToken) {
-    // No token required — return a no-op middleware
+    if (process.env.NODE_ENV === 'production') {
+      return (_req: Request, res: Response, _next: NextFunction): void => {
+        res.status(503).json({
+          error: 'metrics_unavailable',
+          message: 'Metrics endpoint is disabled until METRICS_TOKEN is configured.',
+        });
+      };
+    }
+
     return (_req: Request, _res: Response, next: NextFunction): void => {
       next();
     };
@@ -241,7 +254,7 @@ export const metricsEndpoint = async (_req: Request, res: Response): Promise<voi
  * Attach a Prisma $on('error') hook to track DB errors globally.
  * Call this once during app startup.
  */
-export function attachDbErrorHook(prismaClient: any): void {
+export function attachDbErrorHook(prismaClient: DbErrorEmitter): void {
   prismaClient.$on('error', () => {
     dbErrorsTotal.inc();
   });

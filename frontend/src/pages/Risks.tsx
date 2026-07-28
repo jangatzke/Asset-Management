@@ -18,7 +18,7 @@ interface Risk {
   likelihood: number;
   impact: number;
   targetRisk?: string;
-  RiskAssessment?: RiskAssessmentVersion[];
+  riskAssessmentVersions?: RiskAssessmentVersion[];
   riskControls?: RiskControlLink[];
 }
 
@@ -55,7 +55,7 @@ interface RiskControlAssessment {
   impactReduction?: number;
   justification: string;
   assessedAt?: string;
-  riskAssessmentVersion?: { id: string; versionNumber: number; status: string; isClosed?: boolean };
+  RiskAssessmentVersion?: { id: string; versionNumber: number; status: string; isClosed?: boolean };
 }
 
 interface EntityOption {
@@ -96,7 +96,7 @@ interface RiskControlForm {
 }
 
 interface RiskControlAssessmentForm {
-  riskAssessmentVersionId: string;
+  RiskAssessmentVersionId: string;
   effectivenessStatus: string;
   effectivenessRating: number;
   likelihoodReduction: number;
@@ -124,7 +124,7 @@ const initialTreatmentForm: TreatmentForm = {
 };
 
 const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: false, status: 'active' };
-const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { riskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
+const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { RiskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
 
 const Risks = () => {
   const { t } = useI18n();
@@ -218,7 +218,7 @@ const Risks = () => {
   };
 
   const currentAssessment = (risk: Risk, type?: 'inherent' | 'current' | 'target') => {
-    const versions = (riskDetails[risk.id]?.RiskAssessment ?? risk.RiskAssessment ?? []) as RiskAssessmentVersion[];
+    const versions = (riskDetails[risk.id]?.riskAssessmentVersions ?? risk.riskAssessmentVersions ?? []) as RiskAssessmentVersion[];
     return versions.find((a) => a.isCurrent && (!type || a.assessmentType === type)) ?? versions.find((a) => !type || a.assessmentType === type);
   };
 
@@ -273,7 +273,7 @@ const Risks = () => {
   };
 
   const handleAssessRiskControl = async (link: RiskControlLink) => {
-    if (!selectedRiskForControls || !assessmentForm.riskAssessmentVersionId || !assessmentForm.justification) return setError(t('common.requiredField'));
+    if (!selectedRiskForControls || !assessmentForm.RiskAssessmentVersionId || !assessmentForm.justification) return setError(t('common.requiredField'));
     const payload: any = {
       ...assessmentForm,
       effectivenessRating: Number(assessmentForm.effectivenessRating),
@@ -622,9 +622,9 @@ const Risks = () => {
               {(link.assessments ?? []).slice(0, 3).map((assessment) => <div key={assessment.id} className="text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">{new Date(assessment.assessedAt ?? '').toLocaleDateString()} · {t(`risks.controls.effectiveness.${assessment.effectivenessStatus}`)} · {assessment.effectivenessRating ?? '-'}% · {assessment.justification}</div>)}
               {assessingRiskControlId === link.id && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-900 p-3 rounded">
-                  <select value={assessmentForm.riskAssessmentVersionId} onChange={(e) => setAssessmentForm({ ...assessmentForm, riskAssessmentVersionId: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                  <select value={assessmentForm.RiskAssessmentVersionId} onChange={(e) => setAssessmentForm({ ...assessmentForm, RiskAssessmentVersionId: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     <option value="">{t('risks.controls.selectAssessmentVersion')}</option>
-                    {(riskDetails[selectedRiskForControls?.id ?? '']?.RiskAssessment ?? []).filter((v: RiskAssessmentVersion) => !v.status || !['closed', 'completed', 'approved'].includes(v.status)).map((v: any) => <option key={v.id} value={v.id}>{v.assessmentType} #{v.versionNumber ?? v.assessmentNumber ?? ''} ({v.status ?? 'draft'})</option>)}
+                    {(riskDetails[selectedRiskForControls?.id ?? '']?.riskAssessmentVersions ?? []).filter((v: RiskAssessmentVersion) => !v.status || !['closed', 'completed', 'approved'].includes(v.status)).map((v: any) => <option key={v.id} value={v.id}>{v.assessmentType} #{v.versionNumber ?? v.versionNumber ?? ''} ({v.status ?? 'draft'})</option>)}
                   </select>
                   <select value={assessmentForm.effectivenessStatus} onChange={(e) => setAssessmentForm({ ...assessmentForm, effectivenessStatus: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     {['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable'].map((status) => <option key={status} value={status}>{t(`risks.controls.effectiveness.${status}`)}</option>)}

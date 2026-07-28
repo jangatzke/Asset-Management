@@ -35,6 +35,14 @@ jest.mock('../services/displayId.service', () => ({
   },
 }));
 
+jest.mock('../services/authorization.service', () => ({
+  authorizationService: {
+    requireForEntity: jest.fn<any>().mockResolvedValue(undefined),
+    requireForScope: jest.fn<any>().mockResolvedValue(undefined),
+    requireEntityPermission: jest.fn<any>().mockResolvedValue(undefined),
+  },
+}));
+
 // Import after mocking
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { riskService } = require('../services/risk.service') as any;
@@ -349,14 +357,14 @@ describe('Risk Assessment — Paket 3.2', () => {
 
       PrismaMock.risk.findUnique.mockResolvedValue(mockRisk as any);
       PrismaMock.riskMethodVersion.findUnique.mockResolvedValue(mockMethodVersion as any);
-      PrismaMock.riskAssessment.findFirst.mockResolvedValue({ assessmentNumber: 2 } as any);
+      PrismaMock.riskAssessmentVersion.findFirst.mockResolvedValue({ versionNumber: 2 } as any);
 
       PrismaMock.$transaction.mockImplementation(async (fn) => {
         return await fn(PrismaMock as any);
       });
 
-      PrismaMock.riskAssessment.updateMany.mockResolvedValue({ count: 1 } as any);
-      PrismaMock.riskAssessment.create.mockResolvedValue({ id: 'assessment-003', assessmentNumber: 3 } as any);
+      PrismaMock.riskAssessmentVersion.updateMany.mockResolvedValue({ count: 1 } as any);
+      PrismaMock.riskAssessmentVersion.create.mockResolvedValue({ id: 'assessment-003', versionNumber: 3 } as any);
 
       await riskService.createAssessment({
         riskId: 'risk-001',
@@ -372,10 +380,10 @@ describe('Risk Assessment — Paket 3.2', () => {
         justification: 'Re-assessment after security incident — threat landscape changed significantly',
       });
 
-      expect(PrismaMock.riskAssessment.create).toHaveBeenCalledWith(
+      expect(PrismaMock.riskAssessmentVersion.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            assessmentNumber: 3,
+            versionNumber: 3,
             assessmentType: 'current',
             justification: 'Re-assessment after security incident — threat landscape changed significantly',
             isCurrent: true,
@@ -384,9 +392,9 @@ describe('Risk Assessment — Paket 3.2', () => {
       );
 
       // Verify previous assessments marked as historical
-      expect(PrismaMock.riskAssessment.updateMany).toHaveBeenCalledWith({
+      expect(PrismaMock.riskAssessmentVersion.updateMany).toHaveBeenCalledWith({
         where: { riskId: 'risk-001', assessmentType: 'current', isCurrent: true },
-        data: { isCurrent: false },
+        data: expect.objectContaining({ isCurrent: false, isClosed: true }),
       });
     });
 
@@ -430,14 +438,14 @@ describe('Risk Assessment — Paket 3.2', () => {
       const mockRisk = { id: 'risk-001', displayId: 'RSK-001' };
       PrismaMock.risk.findUnique.mockResolvedValue(mockRisk as any);
       PrismaMock.riskMethodVersion.findUnique.mockResolvedValue(mockMethodVersion as any);
-      PrismaMock.riskAssessment.findFirst.mockResolvedValue(null);
+      PrismaMock.riskAssessmentVersion.findFirst.mockResolvedValue(null);
 
       PrismaMock.$transaction.mockImplementation(async (fn) => {
         return await fn(PrismaMock as any);
       });
 
-      PrismaMock.riskAssessment.updateMany.mockResolvedValue({ count: 0 } as any);
-      PrismaMock.riskAssessment.create.mockResolvedValue({ id: 'assessment-001' } as any);
+      PrismaMock.riskAssessmentVersion.updateMany.mockResolvedValue({ count: 0 } as any);
+      PrismaMock.riskAssessmentVersion.create.mockResolvedValue({ id: 'assessment-001' } as any);
 
       // Create inherent assessment
       await riskService.createAssessment({
@@ -454,7 +462,7 @@ describe('Risk Assessment — Paket 3.2', () => {
         justification: 'Inherent risk without controls',
       });
 
-      expect(PrismaMock.riskAssessment.create).toHaveBeenCalledWith(
+      expect(PrismaMock.riskAssessmentVersion.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ assessmentType: 'inherent' }),
         })
@@ -465,7 +473,7 @@ describe('Risk Assessment — Paket 3.2', () => {
       const mockHistoricalAssessment = {
         id: 'assessment-001',
         riskId: 'risk-001',
-        assessmentNumber: 1,
+        versionNumber: 1,
         assessmentType: 'current',
         likelihood: 3,
         impact: 4,
@@ -475,15 +483,15 @@ describe('Risk Assessment — Paket 3.2', () => {
 
       PrismaMock.risk.findUnique.mockResolvedValue({ id: 'risk-001' } as any);
       PrismaMock.riskMethodVersion.findUnique.mockResolvedValue(mockMethodVersion as any);
-      PrismaMock.riskAssessment.findFirst.mockResolvedValue({ assessmentNumber: 1 } as any);
-      PrismaMock.riskAssessment.findMany.mockResolvedValue([mockHistoricalAssessment] as any);
+      PrismaMock.riskAssessmentVersion.findFirst.mockResolvedValue({ versionNumber: 1 } as any);
+      PrismaMock.riskAssessmentVersion.findMany.mockResolvedValue([mockHistoricalAssessment] as any);
 
       PrismaMock.$transaction.mockImplementation(async (fn) => {
         return await fn(PrismaMock as any);
       });
 
-      PrismaMock.riskAssessment.updateMany.mockResolvedValue({ count: 1 } as any);
-      PrismaMock.riskAssessment.create.mockResolvedValue({ id: 'assessment-002', assessmentNumber: 2 } as any);
+      PrismaMock.riskAssessmentVersion.updateMany.mockResolvedValue({ count: 1 } as any);
+      PrismaMock.riskAssessmentVersion.create.mockResolvedValue({ id: 'assessment-002', versionNumber: 2 } as any);
 
       await riskService.createAssessment({
         riskId: 'risk-001',
@@ -500,7 +508,7 @@ describe('Risk Assessment — Paket 3.2', () => {
       });
 
       // Historical assessment should NOT be deleted or modified (only isCurrent flag on current ones)
-      expect(PrismaMock.riskAssessment.create).toHaveBeenCalled();
+      expect(PrismaMock.riskAssessmentVersion.create).toHaveBeenCalled();
     });
   });
 
@@ -753,9 +761,9 @@ describe('Risk Assessment — Paket 3.2', () => {
       });
 
       PrismaMock.risk.update.mockResolvedValue({ ...existingRisk, likelihood: 4, impact: 5 } as any);
-      PrismaMock.riskAssessment.findFirst.mockResolvedValue({ assessmentNumber: 1 } as any);
-      PrismaMock.riskAssessment.updateMany.mockResolvedValue({ count: 1 } as any);
-      PrismaMock.riskAssessment.create.mockResolvedValue({ id: 'assessment-002' } as any);
+      PrismaMock.riskAssessmentVersion.findFirst.mockResolvedValue({ versionNumber: 1 } as any);
+      PrismaMock.riskAssessmentVersion.updateMany.mockResolvedValue({ count: 1 } as any);
+      PrismaMock.riskAssessmentVersion.create.mockResolvedValue({ id: 'assessment-002' } as any);
 
       // Mock getById return
       const fullRisk = { ...existingRisk, likelihood: 4, impact: 5 };
@@ -772,7 +780,7 @@ describe('Risk Assessment — Paket 3.2', () => {
       }, 'updater-001');
 
       // Verify a new assessment was created
-      expect(PrismaMock.riskAssessment.create).toHaveBeenCalled();
+      expect(PrismaMock.riskAssessmentVersion.create).toHaveBeenCalled();
     });
   });
 

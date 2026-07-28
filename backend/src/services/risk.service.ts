@@ -4,6 +4,8 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { displayIdService } from './displayId.service';
 import { authorizationService } from './authorization.service';
+import type { ScopeConstraints } from './authorization.service';
+import { riskMethodService } from './riskmethod.service';
 
 const db = prisma as any;
 
@@ -12,12 +14,26 @@ const RISK_CONTROL_ROLES = ['preventive', 'detective', 'corrective', 'recovery',
 const MITIGATION_DIMENSIONS = ['likelihood', 'impact', 'both'];
 const EFFECTIVENESS_STATUSES = ['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable'];
 const ACTIVE_CONTROL_IMPLEMENTATION_STATUSES = ['active', 'planned', 'implemented', 'in_progress', 'tested', 'effective'];
+const RESIDUAL_EFFECTIVE_CONTROL_STATUSES = ['implemented', 'tested', 'effective', 'active'];
 
 async function resolveOrgUnitScope(organizationUnitId: string) {
   const organizationUnit = await prisma.organizationUnit.findUnique({ where: { id: organizationUnitId }, select: { id: true, legalEntityId: true } });
   if (!organizationUnit) throw new AppError('Organization unit not found', 404);
-  const membership = organizationUnit.legalEntityId ? await (prisma as any).ismsScopeLegalEntity.findFirst({ where: { legalEntityId: organizationUnit.legalEntityId }, select: { scopeId: true } }) : null;
-  return { legalEntityId: organizationUnit.legalEntityId ?? null, organizationUnitId, siteId: null, scopeId: membership?.scopeId ?? null };
+  return { legalEntityId: organizationUnit.legalEntityId ?? null, organizationUnitId, siteId: null, scopeId: null };
+}
+
+async function resolveImplementationScope(controlImplementationId: string): Promise<ScopeConstraints> {
+  const implementation = await db.controlImplementation.findUnique({
+    where: { id: controlImplementationId },
+    include: { organizationUnit: true, site: { include: { organizationUnit: true } } },
+  });
+  if (!implementation) throw new AppError('Control implementation not found', 404);
+  return {
+    legalEntityId: implementation.organizationUnit?.legalEntityId ?? implementation.site?.organizationUnit?.legalEntityId ?? null,
+    organizationUnitId: implementation.organizationUnitId ?? implementation.site?.organizationUnitId ?? null,
+    siteId: implementation.siteId ?? null,
+    scopeId: implementation.scopeId ?? null,
+  };
 }
 
 // ==========================================
@@ -169,8 +185,29 @@ export class RiskService {
     if (data.effectivenessRating !== undefined && (data.effectivenessRating < 0 || data.effectivenessRating > 100)) throw new AppError('Effectiveness rating must be between 0 and 100', 400);
     if (data.likelihoodReduction !== undefined && (data.likelihoodReduction < 0 || data.likelihoodReduction > 100)) throw new AppError('Likelihood reduction must be between 0 and 100', 400);
     if (data.impactReduction !== undefined && (data.impactReduction < 0 || data.impactReduction > 100)) throw new AppError('Impact reduction must be between 0 and 100', 400);
+    if ((data.likelihoodReduction !== undefined || data.impactReduction !== undefined) && !['effective', 'partially_effective'].includes(data.effectivenessStatus)) throw new AppError('Reduction values require explicit effective or partially effective control assessment status', 400);
     if (mitigationDimension === 'likelihood' && (data.impactReduction ?? 0) > 0) throw new AppError('Impact reduction is only allowed for impact or both mitigation dimensions', 400);
     if (mitigationDimension === 'impact' && (data.likelihoodReduction ?? 0) > 0) throw new AppError('Likelihood reduction is only allowed for likelihood or both mitigation dimensions', 400);
+  }
+
+  private validateImplementedControlEffectiveness(riskControl: any, data: CreateRiskControlAssessmentData) {
+    const implementationStatus = riskControl.controlImplementation?.implementationStatus ?? riskControl.controlImplementation?.status;
+    if (!RESIDUAL_EFFECTIVE_CONTROL_STATUSES.includes(implementationStatus) && (data.likelihoodReduction !== undefined || data.impactReduction !== undefined)) {
+      throw new AppError('Planned or not-implemented controls cannot reduce current residual risk; record effectiveness only after implementation/testing', 400);
+    }
+  }
+
+  private async calculateVersionedRisk(riskMethodVersionId: string, likelihood: number, impact: number) {
+    return riskMethodService.calculateRiskScore(riskMethodVersionId, likelihood, impact);
+  }
+
+  private async nextAssessmentVersionNumber(tx: any, riskId: string) {
+    const maxVersion = await tx.riskAssessmentVersion.findFirst({
+      where: { riskId },
+      orderBy: { versionNumber: 'desc' },
+      select: { versionNumber: true },
+    });
+    return (maxVersion?.versionNumber ?? 0) + 1;
   }
 
   /**
@@ -268,8 +305,8 @@ export class RiskService {
         },
         treatments: true,
         reviewTasks: true,
-        RiskAssessment: {
-          orderBy: { assessmentNumber: 'desc' },
+        riskAssessmentVersions: {
+          orderBy: { versionNumber: 'desc' },
         },
         riskMethodVersion: true,
       },
@@ -420,23 +457,7 @@ export class RiskService {
 
       // Create initial assessment snapshot (type = current)
       if (data.riskMethodVersionId) {
-        await tx.riskAssessment.create({
-          data: {
-            riskId: risk.id,
-            riskMethodVersionId: data.riskMethodVersionId,
-            assessmentNumber: 1,
-            assessmentType: 'current',
-            likelihood: data.likelihood,
-            impact: data.impact,
-            inherentRisk,
-            residualRisk,
-            targetRisk,
-            assessorId: data.assessorId,
-            nextReviewDate: data.nextReviewDate,
-            justification: data.justification,
-            isCurrent: true,
-          },
-        });
+        const methodScore = await this.calculateVersionedRisk(data.riskMethodVersionId, data.likelihood, data.impact);
 
         await (tx as any).riskAssessmentVersion.create({
           data: {
@@ -449,7 +470,7 @@ export class RiskService {
             inherentRisk,
             residualRisk,
             targetRisk,
-            score: data.likelihood * data.impact,
+            score: methodScore.score,
             assessorId: data.assessorId,
             nextReviewDate: data.nextReviewDate,
             justification: data.justification,
@@ -491,6 +512,12 @@ export class RiskService {
     if (!existing) {
       throw new AppError('Risk not found', 404);
     }
+    if (updatedBy) {
+      await authorizationService.requireForEntity(updatedBy, 'risks.write', 'risks', id);
+      if (data.organizationUnitId !== undefined && data.organizationUnitId !== existing.organizationUnitId) {
+        await authorizationService.requireForScope(updatedBy, 'risks.write', await resolveOrgUnitScope(data.organizationUnitId));
+      }
+    }
 
     // Determine if assessment values changed
     const assessmentChanged =
@@ -499,9 +526,13 @@ export class RiskService {
       data.justification !== undefined;
 
     const result = await prisma.$transaction(async (tx) => {
+      const effectiveLikelihood = data.likelihood ?? existing.likelihood;
+      const effectiveImpact = data.impact ?? existing.impact;
       let newInherentRisk = existing.inherentRisk;
-      if (data.likelihood !== undefined && data.impact !== undefined) {
-        newInherentRisk = this.calculateRiskLevel(data.likelihood, data.impact);
+      if ((data.likelihood !== undefined || data.impact !== undefined) && existing.riskMethodVersionId) {
+        newInherentRisk = (await this.calculateVersionedRisk(existing.riskMethodVersionId, effectiveLikelihood, effectiveImpact)).riskClass;
+      } else if (data.likelihood !== undefined || data.impact !== undefined) {
+        newInherentRisk = this.calculateRiskLevel(effectiveLikelihood, effectiveImpact);
       }
 
       // Build update payload
@@ -582,35 +613,34 @@ export class RiskService {
 
       // If assessment values changed, create a new assessment snapshot
       if (assessmentChanged && existing.riskMethodVersionId) {
-        // Determine next assessment number
-        const maxAssessment = await tx.riskAssessment.findFirst({
-          where: { riskId: id },
-          orderBy: { assessmentNumber: 'desc' },
-          select: { assessmentNumber: true },
-        });
-        const nextNumber = (maxAssessment?.assessmentNumber ?? 0) + 1;
-
-        // Mark current assessments as historical
-        await tx.riskAssessment.updateMany({
-          where: { riskId: id, isCurrent: true },
-          data: { isCurrent: false },
-        });
-
         const assessmentType = (data.assessmentType as 'inherent' | 'current' | 'target') ?? 'current';
-        await tx.riskAssessment.create({
+        const nextNumber = await this.nextAssessmentVersionNumber(tx, id);
+        const likelihood = data.likelihood ?? existing.likelihood;
+        const impact = data.impact ?? existing.impact;
+        const methodScore = await this.calculateVersionedRisk(existing.riskMethodVersionId, likelihood, impact);
+        const inherentRisk = data.likelihood !== undefined || data.impact !== undefined ? methodScore.riskClass : existing.inherentRisk;
+        const residualRisk = data.residualRisk ?? existing.residualRisk;
+        const targetRisk = data.targetRisk ?? existing.targetRisk;
+        await (tx as any).riskAssessmentVersion.updateMany({
+          where: { riskId: id, assessmentType, isCurrent: true },
+          data: { isCurrent: false, isClosed: true, closedAt: new Date(), status: 'historical' },
+        });
+        await (tx as any).riskAssessmentVersion.create({
           data: {
             riskId: id,
             riskMethodVersionId: existing.riskMethodVersionId,
-            assessmentNumber: nextNumber,
+            versionNumber: nextNumber,
             assessmentType,
-            likelihood: data.likelihood ?? existing.likelihood,
-            impact: data.impact ?? existing.impact,
-            inherentRisk: newInherentRisk,
-            residualRisk: newInherentRisk,
-            targetRisk: newInherentRisk,
+            likelihood,
+            impact,
+            inherentRisk,
+            residualRisk,
+            targetRisk,
+            score: methodScore.score,
             assessorId: updatedBy ?? existing.assessorId,
             nextReviewDate: data.nextReviewDate ?? existing.nextReviewDate,
             justification: data.justification ?? existing.evaluationJustification ?? '',
+            status: 'draft',
             isCurrent: true,
           },
         });
@@ -706,57 +736,21 @@ export class RiskService {
       // Explicitly version instead of mutating the closed version below.
     }
 
-    // Determine next assessment number
-    const maxAssessment = await prisma.riskAssessment.findFirst({
-      where: { riskId: data.riskId },
-      orderBy: { assessmentNumber: 'desc' },
-      select: { assessmentNumber: true },
-    });
-    const nextNumber = (maxAssessment?.assessmentNumber ?? 0) + 1;
+    const methodScore = await this.calculateVersionedRisk(data.riskMethodVersionId, data.likelihood, data.impact);
+    const score = data.score ?? methodScore.score;
 
     // Use transaction to mark previous as historical and create new
-    await prisma.$transaction(async (tx) => {
-      // Mark current assessments as historical for this type
-      await tx.riskAssessment.updateMany({
-        where: { riskId: data.riskId, assessmentType: data.assessmentType, isCurrent: true },
-        data: { isCurrent: false },
-      });
-
-      const score = data.likelihood * data.impact;
-
-      await tx.riskAssessment.create({
-        data: {
-          riskId: data.riskId,
-          riskMethodVersionId: data.riskMethodVersionId,
-          assessmentNumber: nextNumber,
-          assessmentType: data.assessmentType,
-          likelihood: data.likelihood,
-          impact: data.impact,
-          inherentRisk: data.inherentRisk,
-          residualRisk: data.residualRisk,
-          targetRisk: data.targetRisk,
-          score,
-          assessorId: data.assessorId,
-          nextReviewDate: data.nextReviewDate,
-          justification: data.justification,
-          isCurrent: true,
-        },
-      });
-
-      const maxVersion = await (tx as any).riskAssessmentVersion.findFirst({
-        where: { riskId: data.riskId },
-        orderBy: { versionNumber: 'desc' },
-        select: { versionNumber: true },
-      });
+    const createdVersion = await prisma.$transaction(async (tx) => {
+      const nextNumber = await this.nextAssessmentVersionNumber(tx, data.riskId);
       await (tx as any).riskAssessmentVersion.updateMany({
         where: { riskId: data.riskId, assessmentType: data.assessmentType, isCurrent: true },
-        data: { isCurrent: false },
+        data: { isCurrent: false, isClosed: true, closedAt: new Date(), status: 'historical' },
       });
-      await (tx as any).riskAssessmentVersion.create({
+      const created = await (tx as any).riskAssessmentVersion.create({
         data: {
           riskId: data.riskId,
           riskMethodVersionId: data.riskMethodVersionId,
-          versionNumber: (maxVersion?.versionNumber ?? 0) + 1,
+          versionNumber: nextNumber,
           assessmentType: data.assessmentType,
           likelihood: data.likelihood,
           impact: data.impact,
@@ -795,15 +789,16 @@ export class RiskService {
           },
         });
       }
+      return created;
     });
 
     // Audit log
     await auditService.logEventStandalone(prisma, {
       userId: data.assessorId,
       action: 'RISK_ASSESSMENT_CREATE',
-      entityType: 'RiskAssessment',
-      entityId: data.riskId,
-      details: `Created ${data.assessmentType} assessment #${nextNumber} for risk ${risk.displayId}`,
+      entityType: 'RiskAssessmentVersion',
+      entityId: createdVersion.id,
+      details: `Created ${data.assessmentType} assessment version #${createdVersion.versionNumber} for risk ${risk.displayId}`,
     });
 
     return this.getAssessments(data.riskId);
@@ -865,6 +860,10 @@ export class RiskService {
     ]);
     if (!risk) throw new AppError('Risk not found', 404);
     if (!implementation) throw new AppError('Control implementation not found', 404);
+    if (createdBy) {
+      await authorizationService.requireForEntity(createdBy, 'risks.write', 'risks', riskId);
+      await authorizationService.requireForScope(createdBy, 'controls.write', await resolveImplementationScope(data.controlImplementationId));
+    }
     if (implementation.isArchived || implementation.status === 'archived' || implementation.status === 'inactive') throw new AppError('Archived or inactive control implementations cannot be linked to risks', 400);
     if (implementation.status && !ACTIVE_CONTROL_IMPLEMENTATION_STATUSES.includes(implementation.status)) throw new AppError('Control implementation is not linkable in its current status', 400);
 
@@ -989,16 +988,19 @@ export class RiskService {
 
   async createRiskControlAssessment(riskId: string, riskControlId: string, data: CreateRiskControlAssessmentData, userId?: string) {
     const [riskControl, version] = await Promise.all([
-      db.riskControl.findFirst({ where: { id: riskControlId, riskId } }),
+      db.riskControl.findFirst({ where: { id: riskControlId, riskId }, include: { controlImplementation: true } }),
       db.riskAssessmentVersion.findUnique({ where: { id: data.riskAssessmentVersionId } }),
     ]);
     if (!riskControl) throw new AppError('Risk control link not found', 404);
     this.validateRiskControlAssessmentPayload(data, riskControl.mitigationDimension);
+    this.validateImplementedControlEffectiveness(riskControl, data);
     this.validateAssessmentMutability(version);
     if (version.riskId !== riskControl.riskId) throw new AppError('Risk-control assessment version must belong to the same risk', 400);
 
     try {
       const assessment = await db.$transaction(async (tx: any) => {
+        const versionForWrite = await tx.riskAssessmentVersion.findUnique({ where: { id: data.riskAssessmentVersionId } });
+        this.validateAssessmentMutability(versionForWrite);
         const created = await tx.riskControlAssessment.create({
           data: {
             riskControlId,

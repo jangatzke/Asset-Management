@@ -6,6 +6,7 @@ describe('Phase 11: Metrics Authentication', () => {
   let mockRes: any;
   let nextFn: jest.Mock;
   const origMetricsToken = process.env.METRICS_TOKEN;
+  const origNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     // Clear metrics token for clean state
@@ -25,15 +26,29 @@ describe('Phase 11: Metrics Authentication', () => {
     } else {
       delete process.env.METRICS_TOKEN;
     }
+    process.env.NODE_ENV = origNodeEnv;
   });
 
   describe('no token configured', () => {
     test('should allow access when METRICS_TOKEN is not set', async () => {
+      process.env.NODE_ENV = 'test';
       const middleware = createMetricsAuthMiddleware();
       middleware(mockReq, mockRes, nextFn);
       
       expect(nextFn).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
+    });
+
+    test('should fail closed in production when METRICS_TOKEN is not set', async () => {
+      process.env.NODE_ENV = 'production';
+
+      const middleware = createMetricsAuthMiddleware();
+      middleware(mockReq, mockRes, nextFn);
+
+      expect(nextFn).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(503);
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(callArgs.error).toBe('metrics_unavailable');
     });
   });
 

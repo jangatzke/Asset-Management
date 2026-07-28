@@ -18,6 +18,8 @@ import {
   healthLive, 
   healthReady, 
   setReady, 
+  setCriticalInitialization,
+  getHealthState,
 } from './middleware/health';
 import { setupGracefulShutdown } from './middleware/gracefulShutdown';
 import { initializeIdempotency } from './middleware/idempotency';
@@ -217,8 +219,10 @@ async function startServer(): Promise<void> {
 
     try {
       await ensureStandardAssetTypes(prisma);
+      setCriticalInitialization('standardAssetTypes', true);
       console.log('Standard ISO27001 asset types ensured');
     } catch (error) {
+      setCriticalInitialization('standardAssetTypes', false);
       console.error('Failed to ensure standard ISO27001 asset types:', error);
     }
 
@@ -233,11 +237,10 @@ async function startServer(): Promise<void> {
       console.error('Failed to initialize background services:', error);
     }
 
-    // Mark server as ready after a short delay
-    setTimeout(() => {
-      setReady(true);
-      console.log('Server is READY');
-    }, 2000);
+    const criticalInitializations = getHealthState().criticalInitializations;
+    const criticalInitializationHealthy = Object.values(criticalInitializations).every(Boolean);
+    setReady(criticalInitializationHealthy);
+    console.log(criticalInitializationHealthy ? 'Server is READY' : 'Server is NOT READY due to critical initialization failure');
   });
 
   server.on('error', (error: NodeJS.ErrnoException) => {

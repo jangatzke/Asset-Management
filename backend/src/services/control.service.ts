@@ -2,9 +2,26 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
+import { authorizationService } from './authorization.service';
+import type { ScopeConstraints } from './authorization.service';
 
 const db = prisma as any;
 const DEPRECATED_CONTROL_FIELDS = ['relatedRiskIds', 'riskIds', 'evidenceIds', 'risks'];
+
+async function resolveImplementationTargetScope(data: { scopeId?: string | null; organizationUnitId?: string | null; siteId?: string | null }): Promise<ScopeConstraints> {
+  const [organizationUnit, site] = await Promise.all([
+    data.organizationUnitId ? db.organizationUnit.findUnique({ where: { id: data.organizationUnitId }, select: { id: true, legalEntityId: true } }) : null,
+    data.siteId ? db.site.findUnique({ where: { id: data.siteId }, include: { organizationUnit: true } }) : null,
+  ]);
+  if (data.organizationUnitId && !organizationUnit) throw new AppError('Organization unit not found', 404);
+  if (data.siteId && !site) throw new AppError('Site not found', 404);
+  return {
+    legalEntityId: organizationUnit?.legalEntityId ?? site?.organizationUnit?.legalEntityId ?? null,
+    organizationUnitId: data.organizationUnitId ?? site?.organizationUnitId ?? null,
+    siteId: data.siteId ?? null,
+    scopeId: data.scopeId ?? null,
+  };
+}
 
 export interface CreateControlData {
   catalogId: string;
@@ -93,7 +110,7 @@ export class ControlService {
       throw new AppError(`Deprecated direct control-risk/evidence fields are not accepted: ${forbidden.join(', ')}. Use RiskControl and EvidenceLink.`, 400);
     }
   }
-  async list(query: ListControlsQuery, authzWhere: Prisma.ControlWhereInput = {}) {
+  async list(query: ListControlsQuery, authzWhere: Prisma.ControlWhereInput = {}, implementationAuthzWhere: Prisma.ControlImplementationWhereInput | null = null) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
     const offset = (page - 1) * limit;
@@ -129,7 +146,7 @@ export class ControlService {
         orderBy: { createdAt: 'desc' },
         include: {
           requirementMappings: { include: { requirement: true } },
-          implementations: true,
+          implementations: implementationAuthzWhere ? { where: implementationAuthzWhere } : true,
         } as Prisma.ControlInclude,
       }),
       prisma.control.count({ where: effectiveWhere }),
@@ -146,12 +163,13 @@ export class ControlService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId?: string) {
+    const implementationAuthzWhere = userId ? await authorizationService.buildControlImplementationReadFilter(userId) : undefined;
     const control = await prisma.control.findUnique({
       where: { id },
       include: {
         requirementMappings: { include: { requirement: true } },
-        implementations: { include: { findings: true, actions: true } },
+        implementations: { where: implementationAuthzWhere, include: { findings: true, actions: true } },
       } as Prisma.ControlInclude,
     });
 
@@ -162,7 +180,8 @@ export class ControlService {
     return control;
   }
 
-  async listImplementationRisks(implementationId: string) {
+  async listImplementationRisks(implementationId: string, userId?: string) {
+    const riskAuthzWhere = userId ? await authorizationService.buildRiskReadFilter(userId) : undefined;
     const implementation = await db.controlImplementation.findUnique({
       where: { id: implementationId },
       include: {
@@ -181,10 +200,19 @@ export class ControlService {
       },
     });
     if (!implementation) throw new AppError('Control implementation not found', 404);
+    if (userId) await authorizationService.requireForEntity(userId, 'controls.read', 'controls', implementationId);
+    const visibleRiskControls = riskAuthzWhere ? await db.riskControl.findMany({
+      where: { controlImplementationId: implementationId, risk: riskAuthzWhere },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        risk: { select: { id: true, displayId: true, title: true, status: true, inherentRisk: true, residualRisk: true } },
+        assessments: { orderBy: { assessedAt: 'desc' }, take: 1, include: { riskAssessmentVersion: true, evidenceLinks: true } },
+      },
+    }) : implementation.riskControls;
     return {
       implementationId,
       control: implementation.control,
-      risks: implementation.riskControls.map((riskControl: any) => ({
+      risks: visibleRiskControls.map((riskControl: any) => ({
         riskControlId: riskControl.id,
         riskId: riskControl.riskId,
         displayId: riskControl.risk?.displayId,
@@ -418,6 +446,9 @@ export class ControlService {
     if (!data.scopeId && !data.organizationUnitId && !data.siteId) {
       throw new AppError('Control implementation requires scope, organization unit, or site', 400);
     }
+    if (createdBy) {
+      await authorizationService.requireForScope(createdBy, 'controls.write', await resolveImplementationTargetScope(data));
+    }
 
     if (data.requirementIds?.length) {
       const requirementCount = await prisma.requirement.count({ where: { id: { in: data.requirementIds } } });
@@ -458,6 +489,7 @@ export class ControlService {
   async createControlTest(data: CreateControlTestData, createdBy?: string) {
     const implementation = await db.controlImplementation.findUnique({ where: { id: data.controlImplementationId } });
     if (!implementation) throw new AppError('Control implementation not found', 404);
+    if (createdBy) await authorizationService.requireForEntity(createdBy, 'controls.test', 'controls', data.controlImplementationId);
     if (!data.result?.trim()) throw new AppError('Control test result is required', 400);
 
     return db.$transaction(async (tx: any) => {

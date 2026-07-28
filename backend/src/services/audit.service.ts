@@ -12,6 +12,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import type { Request } from 'express';
+import { computeEntryHash } from './auditCanonical.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -130,56 +131,14 @@ export interface AuditEventParams {
 }
 
 // ---------------------------------------------------------------------------
-// Hash-chain helpers (Phase 9)
-// ---------------------------------------------------------------------------
-
-/** Stable JSON canonicalization for hash computation. */
-function canonicalize(value: unknown): string {
-  if (value === undefined) return 'null';
-  if (Buffer.isBuffer(value)) value = JSON.parse(value.toString());
-  return JSON.stringify(value, (_key, val) =>
-    typeof val === 'bigint' ? val.toString() : val
-  );
-}
-
-/** Build deterministic canonical string for SHA-256. */
-function buildCanonicalString(
-  sequence: number,
-  timestampISO: string,
-  userId: string,
-  userName: string | null,
-  action: string,
-  entityType: string,
-  entityId: string,
-  details: string | null,
-  oldValue: unknown,
-  newValue: unknown,
-  previousHash: string
-): string {
-  return [
-    String(sequence),
-    timestampISO,
-    userId,
-    userName ?? '',
-    action,
-    entityType,
-    entityId,
-    details ?? '',
-    canonicalize(oldValue),
-    canonicalize(newValue),
-    previousHash,
-  ].join('|');
-}
-
-/** Compute SHA-256 hex digest. */
-function sha256hex(input: string): string {
-  const crypto = require('crypto');
-  return crypto.createHash('sha256').update(input, 'utf8').digest('hex');
-}
-
-// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
+
+type AuditTx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+type AuditWriteClient = AuditTx & {
+  $queryRaw?: PrismaClient['$queryRaw'];
+  $executeRaw?: PrismaClient['$executeRaw'];
+};
 
 export class AuditService {
   /**
@@ -198,32 +157,54 @@ export class AuditService {
     newValue: unknown,
     previousHash: string
   ): string {
-    const canonical = buildCanonicalString(
-      sequence, timestampISO, userId, userName, action,
-      entityType, entityId, details, oldValue, newValue, previousHash
-    );
-    return sha256hex(canonical);
+    return computeEntryHash({
+      sequence,
+      timestampISO,
+      userId,
+      userName,
+      action,
+      entityType,
+      entityId,
+      details,
+      oldValue,
+      newValue,
+      previousHash,
+    });
   }
 
-  /**
-   * Log an audit event within a Prisma transaction.
-   * This is the primary method for writing immutable audit records.
-   * Phase 9: Computes and stores sequence, previousHash, entryHash.
-   */
-  public async logEvent(
-    tx: any, // Prisma transaction client (Omit<PrismaClient, ...>)
+  private async createAuditEntry(
+    tx: AuditWriteClient,
     params: AuditEventParams & { ipAddress?: string; userAgent?: string },
   ): Promise<void> {
+    let sequence: number;
+    const rawClient = tx as { $queryRaw?: PrismaClient['$queryRaw']; $executeRaw?: PrismaClient['$executeRaw'] };
+
+    if (typeof rawClient.$queryRaw === 'function' && typeof rawClient.$executeRaw === 'function') {
+      const sequenceRows = await rawClient.$queryRaw<Array<{ sequence: number }>>`
+        SELECT nextval('audit_log_sequence')::int AS sequence
+      `;
+      sequence = Number(sequenceRows[0].sequence);
+
+      await rawClient.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext('audit_log_hash_chain'))
+      `;
+    } else {
+      const prevEntryForMock = await tx.auditLog.findFirst({
+        orderBy: { sequence: 'desc' },
+        select: { entryHash: true, sequence: true },
+      });
+      sequence = (prevEntryForMock?.sequence ?? 0) + 1;
+    }
+
     const prevEntry = await tx.auditLog.findFirst({
       orderBy: { sequence: 'desc' },
-      select: { entryHash: true, sequence: true },
+      select: { entryHash: true },
     });
 
-    const sequence = (prevEntry?.sequence ?? 0) + 1;
     const previousHash = prevEntry?.entryHash ?? '';
-    const timestampISO = new Date().toISOString();
+    const timestamp = new Date();
+    const timestampISO = timestamp.toISOString();
 
-    // Compute hash before creating the record
     const entryHash = AuditService.computeEntryHash(
       sequence,
       timestampISO,
@@ -246,15 +227,28 @@ export class AuditService {
         entityType: params.entityType,
         entityId: params.entityId,
         details: params.details ?? undefined,
-        oldValue: (params.oldValue as any) ?? undefined,
-        newValue: (params.newValue as any) ?? undefined,
+        oldValue: params.oldValue ?? undefined,
+        newValue: params.newValue ?? undefined,
         ipAddress: params.ipAddress ?? undefined,
         userAgent: params.userAgent ?? undefined,
+        timestamp,
         sequence,
         previousHash: previousHash || null,
         entryHash,
       },
     });
+  }
+
+  /**
+   * Log an audit event within a Prisma transaction.
+   * This is the primary method for writing immutable audit records.
+   * Phase 9: Computes and stores sequence, previousHash, entryHash.
+   */
+  public async logEvent(
+    tx: AuditTx,
+    params: AuditEventParams & { ipAddress?: string; userAgent?: string },
+  ): Promise<void> {
+    await this.createAuditEntry(tx, params);
   }
 
   /**
@@ -265,46 +259,8 @@ export class AuditService {
     prisma: PrismaClient,
     params: AuditEventParams & { ipAddress?: string; userAgent?: string },
   ): Promise<void> {
-    const prevEntry = await prisma.auditLog.findFirst({
-      orderBy: { sequence: 'desc' },
-      select: { entryHash: true, sequence: true },
-    });
-
-    const sequence = (prevEntry?.sequence ?? 0) + 1;
-    const previousHash = prevEntry?.entryHash ?? '';
-    const timestampISO = new Date().toISOString();
-
-    // Compute hash before creating the record
-    const entryHash = AuditService.computeEntryHash(
-      sequence,
-      timestampISO,
-      params.userId,
-      params.userName ?? null,
-      params.action,
-      params.entityType,
-      params.entityId,
-      params.details ?? null,
-      params.oldValue ?? null,
-      params.newValue ?? null,
-      previousHash
-    );
-
-    await prisma.auditLog.create({
-      data: {
-        userId: params.userId,
-        userName: params.userName ?? undefined,
-        action: params.action,
-        entityType: params.entityType,
-        entityId: params.entityId,
-        details: params.details ?? undefined,
-        oldValue: (params.oldValue as any) ?? undefined,
-        newValue: (params.newValue as any) ?? undefined,
-        ipAddress: params.ipAddress ?? undefined,
-        userAgent: params.userAgent ?? undefined,
-        sequence,
-        previousHash: previousHash || null,
-        entryHash,
-      },
+    await prisma.$transaction(async (tx) => {
+      await this.createAuditEntry(tx, params);
     });
   }
 

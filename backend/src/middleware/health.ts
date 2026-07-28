@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../config/database';
 
 // ==================== Health Check State ====================
@@ -14,6 +16,7 @@ interface HealthStateInternal {
   startupTime: number;
   isReady: boolean;
   checks: Record<string, boolean>;
+  criticalInitializations: Record<string, boolean>;
   // Runtime check functions registered dynamically
   runtimeChecks: Map<string, () => Promise<HealthCheckResult>>;
 }
@@ -22,8 +25,19 @@ const healthState: HealthStateInternal = {
   startupTime: Date.now(),
   isReady: false,
   checks: {} as Record<string, boolean>,
+  criticalInitializations: {} as Record<string, boolean>,
   runtimeChecks: new Map(),
 };
+
+interface PrismaMigrationRow {
+  migration_name: string;
+  started_at: Date | string | null;
+  finished_at: Date | string | null;
+  rolled_back_at: Date | string | null;
+  applied_steps_count: number | null;
+  checksum: string | null;
+  logs: string | null;
+}
 
 // ==================== Registration API ====================
 
@@ -59,6 +73,19 @@ export function setReady(isReady: boolean): void {
   healthState.isReady = isReady;
 }
 
+/** Record completion state for a startup step required before readiness may become healthy. */
+export function setCriticalInitialization(name: string, isHealthy: boolean): void {
+  healthState.criticalInitializations[name] = isHealthy;
+}
+
+/** Reset health state for isolated tests. */
+export function resetHealthState(): void {
+  healthState.isReady = false;
+  healthState.checks = {};
+  healthState.criticalInitializations = {};
+  healthState.runtimeChecks.clear();
+}
+
 /**
  * Get current health state (for testing).
  */
@@ -66,6 +93,7 @@ export function getHealthState() {
   return {
     ...healthState,
     checks: { ...healthState.checks },
+    criticalInitializations: { ...healthState.criticalInitializations },
     runtimeChecks: new Map(healthState.runtimeChecks),
   };
 }
@@ -101,36 +129,106 @@ function checkRequiredSecrets(): HealthCheckResult {
   return { status: 'healthy', details: `Checked: ${checked.join(', ')}` };
 }
 
-/** Check schema/migration status safely. */
+function getLocalMigrationNames(): string[] | null {
+  const migrationsDir = path.resolve(__dirname, '../../prisma/migrations');
+
+  try {
+    return fs.readdirSync(migrationsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function isCriticalReadinessMode(): boolean {
+  return process.env.NODE_ENV === 'production' || process.env.READINESS_MODE === 'critical';
+}
+
+function describeMigrationFailure(row: PrismaMigrationRow): string | null {
+  if (!row.migration_name || !row.started_at) {
+    return 'Migration row has missing migration_name or started_at';
+  }
+
+  if (!row.checksum) {
+    return `Migration ${row.migration_name} has no checksum`;
+  }
+
+  if (!row.finished_at && !row.rolled_back_at) {
+    return `Migration ${row.migration_name} is incomplete or failed${row.logs ? `: ${row.logs}` : ''}`;
+  }
+
+  if (row.rolled_back_at && !row.finished_at) {
+    return `Migration ${row.migration_name} was rolled back and is not applied`;
+  }
+
+  return null;
+}
+
+/** Check schema/migration status safely using real Prisma migration columns. */
 async function checkSchemaStatus(): Promise<HealthCheckResult> {
   try {
-    // Try to read the latest migration from _prisma_migrations table
-    const rows = await prisma.$queryRaw<
-      Array<{ version_steps: string; markers: string; log: string }>
-    >`SELECT version_steps, markers, log FROM "_prisma_migrations" ORDER BY started_at DESC LIMIT 1`;
+    const rows = await prisma.$queryRaw<PrismaMigrationRow[]>`
+      SELECT migration_name, started_at, finished_at, rolled_back_at, applied_steps_count, checksum, logs
+      FROM "_prisma_migrations"
+      ORDER BY started_at ASC
+    `;
 
     if (rows.length === 0) {
-      return { status: 'healthy', details: 'No migrations yet (fresh schema)' };
+      const localMigrationNames = getLocalMigrationNames();
+      if (localMigrationNames === null) {
+        return {
+          status: isCriticalReadinessMode() ? 'unhealthy' : 'skipped',
+          details: 'No migration rows found and local migration directory could not be inspected; pending status unknown',
+        };
+      }
+
+      if (localMigrationNames.length > 0) {
+        return {
+          status: 'unhealthy',
+          details: `Database has no applied Prisma migrations; pending local migrations: ${localMigrationNames.join(', ')}`,
+        };
+      }
+
+      return { status: 'healthy', details: 'No local Prisma migrations and no database migration rows found' };
     }
 
-    // Check for any unapplied migrations by looking at pending flag
-    const pendingRows = await prisma.$queryRaw<
-      Array<{ migration_name: string }>
-    >`SELECT migration_name FROM "_prisma_migrations" WHERE applied = false LIMIT 1`;
-
-    if (pendingRows.length > 0) {
+    const failed = rows.map(describeMigrationFailure).find((failure): failure is string => failure !== null);
+    if (failed) {
       return {
         status: 'unhealthy',
-        details: `Pending migration: ${pendingRows[0].migration_name}`,
+        details: failed,
       };
     }
 
-    const latestVersion = rows[0].version_steps;
-    return { status: 'healthy', details: `Latest migration: ${latestVersion}` };
+    const localMigrationNames = getLocalMigrationNames();
+    if (localMigrationNames === null) {
+      return {
+        status: isCriticalReadinessMode() ? 'unhealthy' : 'skipped',
+        details: 'Prisma migration table is readable, but local migration directory could not be inspected; pending status unknown',
+      };
+    }
+
+    const appliedMigrationNames = new Set(
+      rows
+        .filter((row) => row.finished_at && !row.rolled_back_at)
+        .map((row) => row.migration_name)
+    );
+    const pendingLocalMigrations = localMigrationNames.filter((name) => !appliedMigrationNames.has(name));
+
+    if (pendingLocalMigrations.length > 0) {
+      return {
+        status: 'unhealthy',
+        details: `Pending local Prisma migrations not recorded as applied in database: ${pendingLocalMigrations.join(', ')}`,
+      };
+    }
+
+    const latestMigration = rows[rows.length - 1].migration_name;
+    return { status: 'healthy', details: `Latest applied migration: ${latestMigration}; local migrations match database` };
   } catch (error: unknown) {
-    // If the table doesn't exist or query fails, skip silently
     return {
-      status: 'skipped',
+      status: isCriticalReadinessMode() ? 'unhealthy' : 'skipped',
       details: error instanceof Error ? error.message : 'Unknown error checking schema',
     };
   }
@@ -201,7 +299,7 @@ export const healthReady = async (_req: Request, res: Response): Promise<void> =
   // 2. Schema/migration status check (informational, may be skipped)
   const schemaResult = await checkSchemaStatus();
   checks['schema'] = schemaResult;
-  if (schemaResult.status === 'unhealthy') {
+  if (schemaResult.status === 'unhealthy' || (schemaResult.status === 'skipped' && isCriticalReadinessMode())) {
     allHealthy = false;
   }
 
@@ -242,6 +340,17 @@ export const healthReady = async (_req: Request, res: Response): Promise<void> =
   );
 
   // 5. Registered runtime health checks
+  for (const [name, isHealthy] of Object.entries(healthState.criticalInitializations)) {
+    checks[`startup:${name}`] = {
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      details: isHealthy ? 'Critical initialization completed' : 'Critical initialization failed or has not completed',
+    };
+    if (!isHealthy) {
+      allHealthy = false;
+    }
+  }
+
+  // 6. Registered runtime health checks
   for (const [name, checkFn] of healthState.runtimeChecks) {
     try {
       const result = await checkFn();
@@ -257,18 +366,23 @@ export const healthReady = async (_req: Request, res: Response): Promise<void> =
 
   // Determine overall status
   let status: 'healthy' | 'degraded' | 'not_ready';
-  if (!allHealthy) {
-    // Check if any required component is unhealthy (DB or secrets)
+  if (!healthState.isReady) {
+    status = 'not_ready';
+  } else if (!allHealthy) {
+    // Check if any required component is unhealthy (DB, schema, secrets, or startup initialization)
     const dbStatus = checks['database']?.status;
+    const schemaStatus = checks['schema']?.status;
     const secretsStatus = checks['secrets']?.status;
-    if (dbStatus === 'unhealthy' || secretsStatus === 'unhealthy') {
+    const hasFailedStartupInitialization = Object.entries(checks).some(
+      ([name, check]) => name.startsWith('startup:') && check.status === 'unhealthy'
+    );
+
+    if (dbStatus === 'unhealthy' || schemaStatus === 'unhealthy' || secretsStatus === 'unhealthy' || hasFailedStartupInitialization) {
       status = 'not_ready';
     } else {
       // Optional integrations unhealthy -> degraded
       status = 'degraded';
     }
-  } else if (!healthState.isReady) {
-    status = 'not_ready';
   } else {
     status = 'healthy';
   }

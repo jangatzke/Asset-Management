@@ -9,7 +9,7 @@ jest.mock('../services/displayId.service', () => ({
   nextDisplayId: jest.fn().mockResolvedValue('AST-0001'),
 }));
 jest.mock('../services/authorization.service', () => ({
-  authorizationService: { requireEntityPermission: jest.fn(), requireAdminAccess: jest.fn() },
+  authorizationService: { requireEntityPermission: jest.fn(), requireForEntity: jest.fn(), requireForScope: jest.fn(), requireAdminAccess: jest.fn() },
 }));
 
 import { riskService } from '../services/risk.service';
@@ -99,14 +99,14 @@ describe('normalized risk-control and asset inventory overhaul', () => {
     await expect(riskService.assessRiskControl({ riskControlId: 'rc-1', riskAssessmentVersionId: 'rav-1', effectivenessStatus: 'effective', justification: 'x', assessedBy: 'u1' })).rejects.toThrow('same risk');
   });
 
-  it('creates RiskAssessmentVersion using assessor-entered residual and target values', async () => {
+  it('creates riskAssessmentVersion using assessor-entered residual and target values', async () => {
     mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-1' });
     mockPrismaClient.riskMethodVersion.findUnique.mockResolvedValue({ id: 'rmv-1', isImmutable: false });
-    mockPrismaClient.riskAssessment.findFirst.mockResolvedValue({ assessmentNumber: 1 });
     mockPrismaClient.riskAssessmentVersion.findFirst.mockResolvedValue({ versionNumber: 1 });
-    mockPrismaClient.riskAssessment.create.mockResolvedValue({ id: 'ra-2' });
+    mockPrismaClient.riskAssessmentVersion.findFirst.mockResolvedValue({ versionNumber: 1 });
+    mockPrismaClient.riskAssessmentVersion.create.mockResolvedValue({ id: 'ra-2' });
     mockPrismaClient.riskAssessmentVersion.create.mockResolvedValue({ id: 'rav-2' });
-    mockPrismaClient.riskAssessment.findMany.mockResolvedValue([]);
+    mockPrismaClient.riskAssessmentVersion.findMany.mockResolvedValue([]);
     mockPrismaClient.riskAssessmentVersion.findMany.mockResolvedValue([]);
 
     await riskService.createAssessment({ riskId: 'risk-1', riskMethodVersionId: 'rmv-1', assessmentType: 'current', likelihood: 2, impact: 3, inherentRisk: 'high', residualRisk: 'medium', targetRisk: 'low', assessorId: 'u1', nextReviewDate: new Date(), justification: 'Effective key controls justify residual risk' });
@@ -129,7 +129,7 @@ describe('normalized risk-control and asset inventory overhaul', () => {
 
   it('completing treatment creates reassessment review task instead of mutating closed residual risk', async () => {
     mockPrismaClient.riskTreatment.findUnique.mockResolvedValue({ id: 't-1', riskId: 'risk-1', treatmentOption: 'reduce', displayId: 'TR-1', risk: { id: 'risk-1', riskOwnerId: 'owner-1', riskMethodVersionId: 'rmv-1', inherentRisk: 'high', residualRisk: 'high', targetRisk: 'medium' }, effectivenessReviews: [{ id: 'er-1' }] });
-    mockPrismaClient.riskAssessment.findUnique.mockResolvedValue({ id: 'ra-1', riskId: 'risk-1' });
+    mockPrismaClient.riskAssessmentVersion.findUnique.mockResolvedValue({ id: 'ra-1', riskId: 'risk-1' });
     mockPrismaClient.riskTreatment.update.mockResolvedValue({ id: 't-1' });
     await riskTreatmentService.complete('t-1', { residualAssessmentId: 'ra-1' }, 'u1');
     expect(mockPrismaClient.reviewTask.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ triggerSource: 'risk_treatment_completed' }) }));

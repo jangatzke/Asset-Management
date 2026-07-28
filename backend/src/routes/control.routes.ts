@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityRead, authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
+import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { controlService } from '../services/control.service';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams } from '../middleware/validation';
@@ -14,7 +14,7 @@ export const controlRouter = Router();
 
 controlRouter.get('/', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
   try {
-    const result = await controlService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'controls') as any);
+    const result = await controlService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'controls') as any, await authorizationService.buildControlImplementationReadFilter(req.userId!));
     res.json(result);
   } catch (error) {
     next(error);
@@ -65,7 +65,7 @@ controlRouter.post('/soa/:id/submit', authenticate, authorizeEntityWrite('contro
   }
 });
 
-controlRouter.post('/soa/:id/approve', authenticate, authorizeEntityWrite('controls'), validateBody(ApproveRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
+controlRouter.post('/soa/:id/approve', authenticate, requirePermission('controls.approve'), validateBody(ApproveRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
   try {
     res.json(await controlService.approveSOA(req.params.id, req.userId!, req.body.decision ?? 'approved', req.body.comment));
   } catch (error) {
@@ -81,15 +81,15 @@ controlRouter.post('/implementations', authenticate, authorizeEntityWrite('contr
   }
 });
 
-controlRouter.get('/implementations/:implementationId/risks', authenticate, authorizeEntityRead('controls'), validateParams(ControlImplementationRiskParamsSchema), async (req, res, next) => {
+controlRouter.get('/implementations/:implementationId/risks', authenticate, requireEntityPermission('controls.read', 'controls', 'implementationId'), validateParams(ControlImplementationRiskParamsSchema), async (req: AuthRequest, res, next) => {
   try {
-    res.json(await controlService.listImplementationRisks(req.params.implementationId));
+    res.json(await controlService.listImplementationRisks(req.params.implementationId, req.userId));
   } catch (error) {
     next(error);
   }
 });
 
-controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), validateBody(CreateControlTestSchema), async (req: AuthRequest, res, next) => {
+controlRouter.post('/tests', authenticate, requirePermission('controls.test'), validateBody(CreateControlTestSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createControlTest(req.body, req.userId));
   } catch (error) {
@@ -101,9 +101,9 @@ controlRouter.post('/tests', authenticate, authorizeEntityWrite('controls'), val
 // Parametric routes - /:id must come AFTER all static routes
 // ==========================================
 
-controlRouter.get('/:id', authenticate, requireEntityPermission('controls.read', 'controls'), async (req, res, next) => {
+controlRouter.get('/:id', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
   try {
-    const control = await controlService.getById(req.params.id);
+    const control = await controlService.getById(req.params.id, req.userId);
     res.json(control);
   } catch (error) {
     next(error);

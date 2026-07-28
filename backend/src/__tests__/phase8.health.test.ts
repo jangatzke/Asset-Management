@@ -3,9 +3,11 @@ import {
   healthLive, 
   healthReady, 
   setReady, 
+  resetHealthState,
   registerHealthCheck,
   getHealthState 
 } from '../middleware/health';
+import fs from 'fs';
 
 // Mock prisma
 jest.mock('../config/database', () => ({
@@ -23,6 +25,7 @@ describe('Health Check Middleware', () => {
 
   let origJwtSecret: string | undefined;
   let origDbUrl: string | undefined;
+  let readdirSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockReq = {};
@@ -41,8 +44,8 @@ describe('Health Check Middleware', () => {
     process.env.JWT_SECRET = 'test-jwt-secret-for-phase8';
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
     
-    // Reset health state
-    setReady(false);
+    resetHealthState();
+    readdirSpy = jest.spyOn(fs, 'readdirSync').mockReturnValue([] as any);
   });
 
   afterEach(() => {
@@ -56,6 +59,7 @@ describe('Health Check Middleware', () => {
     } else {
       delete process.env.DATABASE_URL;
     }
+    readdirSpy.mockRestore();
   });
 
   describe('healthLive', () => {
@@ -74,11 +78,9 @@ describe('Health Check Middleware', () => {
     test('should return ready when database is connected and server is ready', async () => {
       setReady(true);
       
-      // Mock all $queryRaw calls: DB check, schema latest migration row, no pending migrations
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ "?column?": 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema check - fresh/no rows → healthy
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check - fresh/no rows → healthy
 
       await healthReady(mockReq, mockRes);
 
@@ -93,8 +95,7 @@ describe('Health Check Middleware', () => {
       
       (prisma.$queryRaw as jest.Mock)
         .mockResolvedValueOnce([{ "?column?": 1 }]) // DB check
-        .mockResolvedValueOnce([]) // schema check - fresh/no rows → healthy
-        .mockResolvedValueOnce([]); // no pending
+        .mockResolvedValueOnce([]); // schema check - fresh/no rows → healthy
 
       await healthReady(mockReq, mockRes);
 

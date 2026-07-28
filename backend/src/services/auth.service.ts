@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { authenticator } from 'otplib';
+import { Prisma } from '@prisma/client';
 import QRCode from 'qrcode';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
@@ -92,8 +93,11 @@ export type AuthFlowResult = AuthLoginResult | PreAuthStateResult;
 interface PreAuthTokenPayload {
   userId: string;
   purpose: PreAuthPurpose;
+  jti: string;
   typ: 'pre_auth';
 }
+
+type PrismaTransaction = Prisma.TransactionClient;
 
 type LocalAuthUser = {
   id: string;
@@ -210,17 +214,45 @@ export class AuthService {
     return Buffer.concat([decipher.update(Buffer.from(encrypted, 'base64')), decipher.final()]).toString('utf8');
   }
 
-  private generatePreAuthToken(userId: string, purpose: PreAuthPurpose): string {
-    return jwt.sign({ userId, purpose, typ: 'pre_auth' }, this.getJwtSecret(), {
+  private hashPreAuthJti(jti: string): string {
+    return crypto.createHash('sha256').update(jti).digest('hex');
+  }
+
+  private async generatePreAuthToken(userId: string, purpose: PreAuthPurpose): Promise<string> {
+    const jti = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + this.getPreAuthLifetimeSeconds() * 1000);
+    await prisma.preAuthChallenge.create({
+      data: { userId, purpose, jtiHash: this.hashPreAuthJti(jti), expiresAt },
+    });
+    return jwt.sign({ userId, purpose, jti, typ: 'pre_auth' }, this.getJwtSecret(), {
       expiresIn: this.getPreAuthLifetimeSeconds(),
       algorithm: 'HS256',
     });
   }
 
-  verifyPreAuthToken(token: string, expectedPurpose: PreAuthPurpose): PreAuthTokenPayload {
+  async verifyPreAuthToken(token: string, expectedPurpose: PreAuthPurpose, consume = true): Promise<PreAuthTokenPayload> {
     const payload = jwt.verify(token, this.getJwtSecret(), { algorithms: ['HS256'] }) as PreAuthTokenPayload;
-    if (payload.typ !== 'pre_auth' || payload.purpose !== expectedPurpose || !payload.userId) {
+    if (payload.typ !== 'pre_auth' || payload.purpose !== expectedPurpose || !payload.userId || !payload.jti) {
       throw new AppError('Invalid pre-auth token', 401);
+    }
+    const jtiHash = this.hashPreAuthJti(payload.jti);
+    const now = new Date();
+    const where = {
+      jtiHash,
+      userId: payload.userId,
+      purpose: expectedPurpose,
+      usedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: now },
+    };
+    const result = consume
+      ? await prisma.preAuthChallenge.updateMany({ where, data: { usedAt: now } })
+      : { count: await prisma.preAuthChallenge.count({ where }) };
+    if (result.count !== 1) {
+      const existing = await prisma.preAuthChallenge.findUnique({ where: { jtiHash } });
+      if (existing && existing.purpose !== expectedPurpose) throw new AppError('Invalid pre-auth token', 401);
+      if (existing && existing.expiresAt <= now) throw new AppError('Pre-auth token expired', 401);
+      throw new AppError('Pre-auth token has already been used', 401);
     }
     return payload;
   }
@@ -294,9 +326,9 @@ export class AuthService {
     };
   }
 
-  private preAuthState(userId: string, state: 'mfa_required' | 'mfa_enrollment_required' | 'password_change_required'): PreAuthStateResult {
+  private async preAuthState(userId: string, state: 'mfa_required' | 'mfa_enrollment_required' | 'password_change_required'): Promise<PreAuthStateResult> {
     const purpose: PreAuthPurpose = state === 'mfa_required' ? 'mfa_required' : state === 'mfa_enrollment_required' ? 'mfa_enrollment' : 'password_change';
-    return { state, preAuthToken: this.generatePreAuthToken(userId, purpose), expiresInSeconds: this.getPreAuthLifetimeSeconds() };
+    return { state, preAuthToken: await this.generatePreAuthToken(userId, purpose), expiresInSeconds: this.getPreAuthLifetimeSeconds() };
   }
 
   private async issueAuthenticatedSession(user: LocalAuthUser, context: SessionContext, action: 'LOGIN' | 'MFA_LOGIN' | 'OIDC_LOGIN' = 'LOGIN'): Promise<AuthLoginResult> {
@@ -469,7 +501,9 @@ export class AuthService {
     if (!existing) throw new AppError('Invalid refresh token', 401);
 
     if (existing.usedAt || existing.revokedAt) {
-      await db.refreshToken.updateMany({ where: { familyId: existing.familyId }, data: { revokedAt: new Date() } });
+      await prisma.$transaction(async (tx) => {
+        await tx.refreshToken.updateMany({ where: { familyId: existing.familyId }, data: { revokedAt: new Date() } });
+      });
       await auditService.logEventStandalone(prisma, {
         userId: existing.userId,
         userName: existing.user ? this.buildUserName(existing.user) : undefined,
@@ -486,10 +520,30 @@ export class AuthService {
     if (existing.expiresAt <= new Date()) throw new AppError('Refresh token expired', 401);
     if (!existing.user || !existing.user.isActive) throw new AppError('Account is disabled', 403);
 
-    const replacement = await this.createRefreshSession(existing.userId, context, existing.familyId);
-    await db.refreshToken.update({
-      where: { id: existing.id },
-      data: { usedAt: new Date(), replacedById: replacement.record.id },
+    const replacement = await prisma.$transaction(async (tx: PrismaTransaction) => {
+      const now = new Date();
+      const consume = await tx.refreshToken.updateMany({
+        where: { id: existing.id, tokenHash, usedAt: null, revokedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      if (consume.count !== 1) {
+        await tx.refreshToken.updateMany({ where: { familyId: existing.familyId }, data: { revokedAt: now } });
+        throw new AppError('Refresh token reuse detected', 401);
+      }
+      const newRawRefreshToken = this.generateOpaqueRefreshToken();
+      const expiresAt = new Date(Date.now() + this.getRefreshTokenLifetimeMs());
+      const record = await tx.refreshToken.create({
+        data: {
+          userId: existing.userId,
+          tokenHash: this.hashRefreshToken(newRawRefreshToken),
+          familyId: existing.familyId,
+          expiresAt,
+          ipAddress: context.ipAddress,
+          userAgent: context.userAgent,
+        },
+      });
+      await tx.refreshToken.update({ where: { id: existing.id }, data: { replacedById: record.id } });
+      return { refreshToken: newRawRefreshToken, expiresAt, record };
     });
 
     const token = this.generateToken({ userId: existing.user.id, email: existing.user.email });
@@ -517,7 +571,7 @@ export class AuthService {
   }
 
   async verifyMfaLogin(preAuthToken: string, token: string, context: SessionContext = {}): Promise<AuthLoginResult> {
-    const payload = this.verifyPreAuthToken(preAuthToken, 'mfa_required');
+    const payload = await this.verifyPreAuthToken(preAuthToken, 'mfa_required');
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user || !user.isActive || !user.mfaEnabled || !user.mfaSecret) throw new AppError('Invalid MFA challenge', 401);
     if (!this.verifyTotp(user.mfaSecret, token)) throw new AppError('Invalid MFA verification code', 401);
@@ -525,25 +579,40 @@ export class AuthService {
   }
 
   async changeExpiredPassword(preAuthToken: string, newPassword: string, context: SessionContext = {}): Promise<AuthFlowResult> {
-    const payload = this.verifyPreAuthToken(preAuthToken, 'password_change');
+    const payload = await this.verifyPreAuthToken(preAuthToken, 'password_change');
     const user = await prisma.user.findUnique({ where: { id: payload.userId } }) as LocalAuthUser | null;
     if (!user || !user.isActive) throw new AppError('Invalid pre-auth token', 401);
     if (user.oidcId) throw new AppError('Password changes for OIDC-linked accounts must be handled by the identity provider', 400);
     await authSettingsService.ensurePasswordAllowedForLocalUser(user.id, newPassword);
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await auditService.logEventStandalone(prisma, {
-      userId: user.id,
-      userName: `${user.firstName} ${user.lastName}`,
-      action: 'PASSWORD_CHANGE',
-      entityType: 'User',
-      entityId: user.id,
-      details: 'User changed expired or administrator-required password during pre-authentication',
+    const settings = await authSettingsService.getSettings();
+    const updated = await prisma.$transaction(async (tx) => {
+      const changedUser = await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash, mustChangePasswordOnNext: false, passwordChangedAt: new Date(), updatedBy: user.id },
+      }) as LocalAuthUser;
+      if (settings.passwordHistoryCount > 0) {
+        await tx.passwordHistory.create({ data: { userId: user.id, passwordHash } });
+        const staleHistory = await tx.passwordHistory.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+          skip: settings.passwordHistoryCount,
+          select: { id: true },
+        });
+        if (staleHistory.length > 0) {
+          await tx.passwordHistory.deleteMany({ where: { id: { in: staleHistory.map((entry) => entry.id) } } });
+        }
+      }
+      await auditService.logEvent(tx, {
+        userId: user.id,
+        userName: `${user.firstName} ${user.lastName}`,
+        action: 'PASSWORD_CHANGE',
+        entityType: 'User',
+        entityId: user.id,
+        details: 'User changed expired or administrator-required password during pre-authentication',
+      });
+      return changedUser;
     });
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash, mustChangePasswordOnNext: false, passwordChangedAt: new Date(), updatedBy: user.id },
-    }) as LocalAuthUser;
-    await authSettingsService.recordPasswordHash(user.id, passwordHash);
     return this.nextStateAfterPassword(updated, context);
   }
 
@@ -560,7 +629,7 @@ export class AuthService {
   }
 
   async beginPreAuthMfaEnrollment(preAuthToken: string) {
-    const payload = this.verifyPreAuthToken(preAuthToken, 'mfa_enrollment');
+    const payload = await this.verifyPreAuthToken(preAuthToken, 'mfa_enrollment', false);
     return this.beginMfaEnrollment(payload.userId);
   }
 
@@ -585,7 +654,7 @@ export class AuthService {
   }
 
   async confirmPreAuthMfaEnrollment(preAuthToken: string, token: string, context: SessionContext = {}): Promise<AuthLoginResult> {
-    const payload = this.verifyPreAuthToken(preAuthToken, 'mfa_enrollment');
+    const payload = await this.verifyPreAuthToken(preAuthToken, 'mfa_enrollment');
     await this.confirmMfaEnrollment(payload.userId, token);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } }) as LocalAuthUser | null;
     if (!user || !user.isActive || !user.mfaEnabled || !user.mfaSecret) throw new AppError('Invalid pre-auth token', 401);

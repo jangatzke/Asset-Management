@@ -123,11 +123,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
 
   describe("Release gates dependencies", () => {
     it("release-gates job must depend on all mandatory jobs", () => {
-<<<<<<< HEAD
       const regex = /release-gates:([\s\S]*?)(?=\n[ ]{2}[a-z_-]+:|$)/;
-=======
-      const regex = /release-gates:([\s\S]*?)(?=\n  [a-z_-]+:|$)/;
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
       const match = content.match(regex);
       expect(match).toBeTruthy();
       const releaseSection = match?.[0] ?? "";

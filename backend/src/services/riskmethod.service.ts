@@ -98,7 +98,7 @@ class SafeCalculationEngine {
    * Calculate risk score using a safe, validated calculation type.
    * No eval(), Function(), or dynamic evaluation is used.
    */
-  static calculate(calculationType: string, likelihood: number, impact: number): number {
+  static calculate(calculationType: string, likelihood: number, impact: number, ratingDimensions?: Record<string, unknown>): number {
     switch (calculationType) {
       case 'product':
         return likelihood * impact;
@@ -107,11 +107,21 @@ class SafeCalculationEngine {
       case 'max':
         return Math.max(likelihood, impact);
       case 'matrix':
-        // Matrix calculation uses product as default for 2D matrix lookup
-        return likelihood * impact;
+        return this.calculateMatrix(likelihood, impact, ratingDimensions);
       default:
         throw new AppError(`Unsupported calculation type: ${calculationType}. Allowed: product, sum, max, matrix`, 400);
     }
+  }
+
+  private static calculateMatrix(likelihood: number, impact: number, ratingDimensions?: Record<string, unknown>): number {
+    const matrix = ratingDimensions?.matrix ?? ratingDimensions?.riskMatrix ?? ratingDimensions?.scores;
+    if (matrix && typeof matrix === 'object') {
+      const row = (matrix as Record<string, unknown>)[String(likelihood)] as Record<string, unknown> | undefined;
+      const value = row?.[String(impact)] ?? (matrix as Record<string, unknown>)[`${likelihood},${impact}`] ?? (matrix as Record<string, unknown>)[`${likelihood}:${impact}`];
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string' && value.trim() && !Number.isNaN(Number(value))) return Number(value);
+    }
+    return likelihood * impact;
   }
 
   /**
@@ -463,7 +473,7 @@ export class RiskMethodService {
     SafeCalculationEngine.validateInputs(likelihood, impact, jsonRecord(version.likelihoodScale), jsonRecord(version.impactScale));
 
     const calculationType = version.calculationType || 'product';
-    const score = SafeCalculationEngine.calculate(calculationType, likelihood, impact);
+    const score = SafeCalculationEngine.calculate(calculationType, likelihood, impact, jsonRecord(version.ratingDimensions));
     const riskClass = SafeCalculationEngine.classifyRisk(score, jsonRecord(version.riskClasses));
 
     return { score, riskClass };
@@ -496,9 +506,9 @@ export class RiskMethodService {
         impact: true,
         inherentRisk: true,
         riskMethodVersionId: true,
-        RiskAssessment: {
+        riskAssessmentVersions: {
           where: { isCurrent: true },
-          select: { assessmentNumber: true, score: true },
+          select: { versionNumber: true, score: true },
           take: 1,
         },
       },
@@ -511,14 +521,14 @@ export class RiskMethodService {
       const likelihood = input?.likelihoodOverrides?.[risk.id] ?? risk.likelihood;
       const impact = input?.impactOverrides?.[risk.id] ?? risk.impact;
 
-      const currentAssessments = risk.RiskAssessment ?? (risk as any).assessments ?? [];
-      const newScore = SafeCalculationEngine.calculate(calculationType, likelihood, impact);
+      const currentAssessments = risk.riskAssessmentVersions ?? (risk as any).assessments ?? [];
+      const newScore = SafeCalculationEngine.calculate(calculationType, likelihood, impact, jsonRecord(targetVersion.ratingDimensions));
       const newRiskClass = SafeCalculationEngine.classifyRisk(newScore, jsonRecord(targetVersion.riskClasses));
 
       return {
         riskId: risk.id,
         title: risk.title,
-        currentAssessmentNumber: currentAssessments[0]?.assessmentNumber ?? 0,
+        currentAssessmentNumber: currentAssessments[0]?.versionNumber ?? 0,
         currentInherentRisk: risk.inherentRisk ?? 'unknown',
         currentScore: currentAssessments[0]?.score ?? null,
         newScore,
@@ -530,7 +540,7 @@ export class RiskMethodService {
   // ---- Confirmed Recalculation (creates new Assessment version) ----
 
   /**
-   * Confirm recalculation: creates a new RiskAssessment with the target method version.
+   * Confirm recalculation: creates a new RiskAssessmentVersion with the target method version.
    * Does NOT modify historical assessments — appends a new version.
    */
   async confirmRecalculation(
@@ -542,9 +552,9 @@ export class RiskMethodService {
     const risk = await prisma.risk.findUnique({
       where: { id: riskId },
       include: {
-        RiskAssessment: {
+        riskAssessmentVersions: {
           where: { isCurrent: true },
-          orderBy: { assessmentNumber: 'desc' },
+          orderBy: { versionNumber: 'desc' },
           take: 1,
         },
       },
@@ -564,10 +574,10 @@ export class RiskMethodService {
       impact,
     );
 
-    // Determine next assessment number
-    const currentAssessments = risk.RiskAssessment ?? (risk as any).assessments ?? [];
+    // Determine next assessment version number
+    const currentAssessments = risk.riskAssessmentVersions ?? (risk as any).assessments ?? [];
     const currentAssessment = currentAssessments[0];
-    const newAssessmentNumber = (currentAssessment?.assessmentNumber ?? 0) + 1;
+    const newAssessmentNumber = (currentAssessment?.versionNumber ?? 0) + 1;
 
     const nextReviewDate = input.nextReviewDate || this.calculateNextReviewDate(targetVersion);
 
@@ -575,18 +585,19 @@ export class RiskMethodService {
     const newAssessment = await prisma.$transaction(async (tx) => {
       // Mark current assessment as no longer current
       if (currentAssessment) {
-        await tx.riskAssessment.update({
+        await tx.riskAssessmentVersion.update({
           where: { id: currentAssessment.id },
-          data: { isCurrent: false },
+          data: { isCurrent: false, isClosed: true, closedAt: new Date(), status: 'historical' },
         });
       }
 
       // Create new assessment with new method version
-      const assessment = await tx.riskAssessment.create({
+      const assessment = await tx.riskAssessmentVersion.create({
         data: {
           riskId,
           riskMethodVersionId: input.riskMethodVersionId,
-          assessmentNumber: newAssessmentNumber,
+          versionNumber: newAssessmentNumber,
+          assessmentType: 'current',
           likelihood,
           impact,
           inherentRisk: riskClass,
@@ -612,7 +623,7 @@ export class RiskMethodService {
       });
 
       // Mark version as immutable (now referenced by an assessment)
-      const existingRefs = await tx.riskAssessment.count({
+      const existingRefs = await tx.riskAssessmentVersion.count({
         where: { riskMethodVersionId: input.riskMethodVersionId },
       });
       if (existingRefs > 0) {
@@ -630,11 +641,11 @@ export class RiskMethodService {
       await auditService.logEventStandalone(prisma, {
         userId,
         action: 'RISK_UPDATE',
-        entityType: 'RiskAssessment',
+        entityType: 'RiskAssessmentVersion',
         entityId: newAssessment.id,
         details: `Recalculated risk "${risk.title}" with method version ${targetVersion.versionTag} (assessment #${newAssessmentNumber})`,
         oldValue: {
-          assessmentNumber: currentAssessment?.assessmentNumber,
+          assessmentNumber: currentAssessment?.versionNumber,
           riskMethodVersionId: risk.riskMethodVersionId,
           inherentRisk: risk.inherentRisk,
         },

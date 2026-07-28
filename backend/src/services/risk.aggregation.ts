@@ -10,7 +10,7 @@
  * - Bei Mehrfachzuordnungen (z.B. ein Risiko → mehrere Assets) wird das Risiko
  *   in JEDE betroffene Gruppe aufgenommen, aber pro Gruppe dedupliziert.
  * - Aggregationen beziehen sich standardmäßig auf die aktuelle Assessment-Version
- *   (isCurrent=true) von RiskAssessment; historische Kennzahlen können über
+ *   (isCurrent=true) von RiskAssessmentVersion; historische Kennzahlen können über
  *   methodVersionId + Zeitraum rekonstruiert werden.
  */
 
@@ -43,7 +43,7 @@ export interface DashboardSummary {
 
 /** Filter-Optionen für alle Aggregationen */
 export interface AggregationFilters {
-  from?: Date;       // Zeitraum-Start (bezieht sich auf assessedAt von RiskAssessment)
+  from?: Date;       // Zeitraum-Start (bezieht sich auf assessedAt von RiskAssessmentVersion)
   to?: Date;         // Zeitraum-Ende
   scope?: string[];  // ISMS-Scope-IDs (optional, zukünftig)
   organizationUnitId?: string;
@@ -51,7 +51,7 @@ export interface AggregationFilters {
   riskClass?: string;
   assessmentType?: 'inherent' | 'current' | 'target';
   methodVersionId?: string;
-  isCurrent?: boolean; // Nur aktuelle RiskAssessment berücksichtigen (Standard: true)
+  isCurrent?: boolean; // Nur aktuelle RiskAssessmentVersion berücksichtigen (Standard: true)
 }
 
 // ─────────────────────────────────────────────
@@ -127,7 +127,7 @@ function buildAggregationGroup(
 
 /**
  * Baut WHERE-Klauseln für Aggregation-Filter dynamisch und sicher auf.
- * Zeitraum, AssessmentType und Current-State beziehen sich auf RiskAssessment.assessedAt.
+ * Zeitraum, AssessmentType und Current-State beziehen sich auf RiskAssessmentVersion.assessedAt.
  */
 function buildAggregationWhere(filters: AggregationFilters): Prisma.RiskWhereInput {
   const conditions: Prisma.RiskWhereInput[] = [{ isArchived: false }];
@@ -136,7 +136,7 @@ function buildAggregationWhere(filters: AggregationFilters): Prisma.RiskWhereInp
   if (filters.organizationUnitId) conditions.push({ organizationUnitId: filters.organizationUnitId });
   if (filters.methodVersionId) conditions.push({ riskMethodVersionId: filters.methodVersionId });
 
-  const assessmentSome: Prisma.RiskAssessmentWhereInput = {};
+  const assessmentSome: Prisma.RiskAssessmentVersionWhereInput = {};
   if (filters.assessmentType) assessmentSome.assessmentType = filters.assessmentType;
   if (filters.methodVersionId) assessmentSome.riskMethodVersionId = filters.methodVersionId;
   if (filters.isCurrent !== false) assessmentSome.isCurrent = true;
@@ -148,7 +148,7 @@ function buildAggregationWhere(filters: AggregationFilters): Prisma.RiskWhereInp
   }
 
   if (Object.keys(assessmentSome).length > 0) {
-    conditions.push({ RiskAssessment: { some: assessmentSome } } as any);
+    conditions.push({ riskAssessmentVersions: { some: assessmentSome } } as any);
   }
 
   return conditions.length === 1 ? conditions[0] : { AND: conditions };
@@ -569,7 +569,7 @@ export class RiskAggregationService {
   }
 
   // ────────────────────────────────────────
-  // RSK-011: Aggregation nach Risikoklasse (über RiskAssessment + methodVersion riskClasses)
+  // RSK-011: Aggregation nach Risikoklasse (über RiskAssessmentVersion + methodVersion riskClasses)
   // ────────────────────────────────────────
   /**
    * Gruppiert Risiken nach ihrer berechneten Risikoklasse.
@@ -653,7 +653,7 @@ export class RiskAggregationService {
   // RSK-011: Aggregation nach Assessment Type
   // ────────────────────────────────────────
   /**
-   * Gruppiert Risiken nach assessmentType (inherent/current/target) über RiskAssessment.
+   * Gruppiert Risiken nach assessmentType (inherent/current/target) über RiskAssessmentVersion.
    */
   async aggregateByAssessmentType(filters: AggregationFilters = {}): Promise<RiskAggregationGroup[]> {
     const risks = await prisma.risk.findMany({
@@ -661,7 +661,7 @@ export class RiskAggregationService {
       select: {
         id: true, title: true, inherentRisk: true, residualRisk: true,
         likelihood: true, impact: true,
-        RiskAssessment: {
+        riskAssessmentVersions: {
           where: filters.assessmentType ? { assessmentType: filters.assessmentType } : undefined,
           select: { assessmentType: true },
           take: 1,
@@ -672,7 +672,7 @@ export class RiskAggregationService {
     const groups = new Map<string, { label: string; riskIds: Set<string> }>();
 
     for (const risk of risks) {
-      const atype = risk.RiskAssessment?.[0]?.assessmentType ?? 'current';
+      const atype = risk.riskAssessmentVersions?.[0]?.assessmentType ?? 'current';
       if (!groups.has(atype)) groups.set(atype, { label: atype.charAt(0).toUpperCase() + atype.slice(1), riskIds: new Set() });
       groups.get(atype)!.riskIds.add(risk.id);
     }
@@ -804,15 +804,15 @@ export class RiskAggregationService {
   // ────────────────────────────────────────
   /**
    * Liefert Risikozählungen pro Zeitraum-Segment für Trend-Analysen.
-   * Gruppiert nach assessedAt von RiskAssessment.
+   * Gruppiert nach assessedAt von RiskAssessmentVersion.
    */
   async getRiskTrend(
     from: Date,
     to: Date,
     groupByPeriod: 'month' | 'quarter' | 'year' = 'month',
   ): Promise<Array<{ period: string; riskCount: number; avgInherentScore: number; avgResidualScore: number }>> {
-    // Hole alle RiskAssessment im Zeitraum mit zugehörigem Risiko
-    const RiskAssessment = await prisma.riskAssessment.findMany({
+    // Hole alle RiskAssessmentVersion im Zeitraum mit zugehörigem Risiko
+    const riskAssessmentVersions = await prisma.riskAssessmentVersion.findMany({
       where: {
         assessedAt: { gte: from, lte: to },
         risk: { isArchived: false },
@@ -831,7 +831,7 @@ export class RiskAggregationService {
     // Gruppiere nach Zeitraum-Segment
     const periodMap = new Map<string, { count: number; inherentSum: number; residualSum: number }>();
 
-    for (const a of RiskAssessment) {
+    for (const a of riskAssessmentVersions) {
       let period: string;
       const d = new Date(a.assessedAt);
       if (groupByPeriod === 'month') {

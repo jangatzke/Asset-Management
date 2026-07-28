@@ -3,6 +3,13 @@ const mockPrismaClient: any = {
   frameworkVersion: { create: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
   requirement: { findMany: jest.fn(), count: jest.fn() },
   control: { findUnique: jest.fn() },
+  userRole: { findMany: jest.fn() },
+  userGroup: { findMany: jest.fn() },
+  organizationUnit: { findUnique: jest.fn() },
+  site: { findUnique: jest.fn() },
+  ismsScopeLegalEntity: { findMany: jest.fn() },
+  ismsScopeOrganizationUnit: { findMany: jest.fn() },
+  ismsScopeSite: { findMany: jest.fn() },
   controlRequirementMapping: { createMany: jest.fn() },
   controlImplementation: { create: jest.fn() },
   statementOfApplicability: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
@@ -54,6 +61,13 @@ describe('Phase 4 compliance services', () => {
 
   it('creates control implementation for multiple requirements and scoped organization context', async () => {
     mockPrismaClient.control.findUnique.mockResolvedValue({ id: 'ctrl-1', title: 'Access Control' });
+    mockPrismaClient.userRole.findMany.mockResolvedValue([{ role: { name: 'control-owner', canAccessAdmin: false, rolePermissions: [{ permission: { name: 'controls.write' } }] } }]);
+    mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
+    mockPrismaClient.organizationUnit.findUnique.mockResolvedValue({ id: 'org-1', legalEntityId: 'legal-1' });
+    mockPrismaClient.site.findUnique.mockResolvedValue(null);
+    mockPrismaClient.ismsScopeLegalEntity.findMany.mockResolvedValue([]);
+    mockPrismaClient.ismsScopeOrganizationUnit.findMany.mockResolvedValue([]);
+    mockPrismaClient.ismsScopeSite.findMany.mockResolvedValue([]);
     mockPrismaClient.requirement.count.mockResolvedValue(2);
     mockPrismaClient.controlImplementation.create.mockResolvedValue({ id: 'impl-1', requirements: [{ requirementId: 'req-1' }, { requirementId: 'req-2' }] });
 

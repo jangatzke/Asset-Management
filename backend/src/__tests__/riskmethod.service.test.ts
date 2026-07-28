@@ -25,7 +25,7 @@ const mockTransactionFn = jest.fn((cb) => cb({
     findFirst: jest.fn(),
     update: jest.fn(),
   },
-  riskAssessment: {
+  riskAssessmentVersion: {
     update: jest.fn(),
     create: jest.fn(),
     count: jest.fn(),
@@ -56,7 +56,7 @@ const mockPrismaClient: any = {
     count: jest.fn(),
     update: jest.fn(),
   },
-  riskAssessment: {
+  riskAssessmentVersion: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
@@ -128,7 +128,7 @@ describe('RiskMethodService — Paket 3.1', () => {
     id: 'ra-1',
     riskId: 'risk-1',
     riskMethodVersionId: 'rmv-1',
-    assessmentNumber: 1,
+    versionNumber: 1,
     likelihood: 3,
     impact: 4,
     inherentRisk: 'medium',
@@ -445,7 +445,7 @@ describe('RiskMethodService — Paket 3.1', () => {
       expect(result[0].newRiskClass).toBe('high');
       // Verify no write operations were called
       expect(mockPrismaClient.risk.update).not.toHaveBeenCalled();
-      expect(mockPrismaClient.riskAssessment.create).not.toHaveBeenCalled();
+      expect(mockPrismaClient.riskAssessmentVersion.create).not.toHaveBeenCalled();
     });
 
     it('should filter by specific risk IDs', async () => {
@@ -506,7 +506,7 @@ describe('RiskMethodService — Paket 3.1', () => {
       mockPrismaClient.risk.findUnique.mockResolvedValue(mockRisk);
       mockPrismaClient.riskMethodVersion.findUnique.mockResolvedValue(mockVersion);
 
-      const newAssessment = { ...mockAssessment, id: 'ra-2', assessmentNumber: 2 };
+      const newAssessment = { ...mockAssessment, id: 'ra-2', versionNumber: 2 };
       const txUpdateAssessment = jest.fn().mockResolvedValue({});
       const txCreateAssessment = jest.fn().mockResolvedValue(newAssessment);
       const txUpdateRisk = jest.fn().mockResolvedValue({});
@@ -514,7 +514,7 @@ describe('RiskMethodService — Paket 3.1', () => {
       const txUpdateVersion = jest.fn().mockResolvedValue({ ...mockVersion, isImmutable: true });
 
       mockTransactionFn.mockImplementation(async (cb) => cb({
-        riskAssessment: { update: txUpdateAssessment, create: txCreateAssessment, count: txCountRefs },
+        riskAssessmentVersion: { update: txUpdateAssessment, create: txCreateAssessment, count: txCountRefs },
         risk: { update: txUpdateRisk },
         riskMethodVersion: { update: txUpdateVersion },
       }));
@@ -525,11 +525,11 @@ describe('RiskMethodService — Paket 3.1', () => {
         justification: 'Method updated to v3.0',
       });
 
-      expect(result.assessmentNumber).toBe(2);
+      expect(result.versionNumber).toBe(2);
       // Old assessment marked as not current
       expect(txUpdateAssessment).toHaveBeenCalledWith({
         where: { id: mockAssessment.id },
-        data: { isCurrent: false },
+        data: expect.objectContaining({ isCurrent: false, isClosed: true }),
       });
       // New assessment created
       expect(txCreateAssessment).toHaveBeenCalled();

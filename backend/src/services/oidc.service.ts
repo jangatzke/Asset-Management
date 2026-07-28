@@ -109,6 +109,9 @@ export class OidcService {
       if (!value) throw new AppError('OIDC client secret reference could not be resolved', 500);
       return value;
     }
+    if (process.env.NODE_ENV === 'production' && config.clientSecret) {
+      throw new AppError('OIDC client secret must be provided by environment reference in production', 500);
+    }
     return config.clientSecret || undefined;
   }
 
@@ -153,7 +156,10 @@ export class OidcService {
     if (data.tenantId !== undefined) updateData.tenantId = data.tenantId;
     if (data.clientId !== undefined) updateData.clientId = data.clientId;
     if (data.clientSecretRef !== undefined) updateData.clientSecretRef = data.clientSecretRef;
-    if (data.clientSecret !== undefined) updateData.clientSecret = data.clientSecret;
+    if (data.clientSecret !== undefined) {
+      if (process.env.NODE_ENV === 'production' && data.clientSecret) throw new AppError('OIDC client secret must be provided by environment reference in production', 400);
+      updateData.clientSecret = data.clientSecret;
+    }
     if (data.redirectUri !== undefined) updateData.redirectUri = data.redirectUri;
     if (data.allowedEmailDomains !== undefined) updateData.allowedEmailDomains = data.allowedEmailDomains;
     if (data.autoProvisioning !== undefined) updateData.autoProvisioning = data.autoProvisioning;
@@ -180,6 +186,7 @@ export class OidcService {
   async getAuthorizationUrl(_legacyState?: string): Promise<AuthorizationResult> {
     const config = await this.getConfig() as OidcRuntimeConfig;
     if (!config.enabled || !config.tenantId || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
+    if (!config.redirectUri.includes('/auth/oidc/callback') && !config.redirectUri.includes('/api/v1/auth/oidc/callback')) throw new AppError('OIDC redirect URI must target the backend callback endpoint', 400);
 
     const client = await this.openidClient();
     const oidcConfig = await this.clientConfiguration(config);
@@ -189,8 +196,7 @@ export class OidcService {
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
     const expiresAt = new Date(Date.now() + this.stateTtlMs);
 
-    const db = prisma as any;
-    await db.oidcLoginState.create({
+    await prisma.oidcLoginState.create({
       data: { oidcConfigId: config.id, stateHash: this.stateHash(state), nonce, codeVerifier, expiresAt },
     });
 
@@ -208,14 +214,12 @@ export class OidcService {
 
   private async consumeState(configId: string, state: string) {
     const stateHash = this.stateHash(state);
-    const db = prisma as any;
-    const stored = await db.oidcLoginState.findUnique({ where: { stateHash } });
+    const stored = await prisma.oidcLoginState.findUnique({ where: { stateHash } });
     if (!stored || stored.oidcConfigId !== configId) throw new AppError('Invalid state', 401);
     if (stored.usedAt) throw new AppError('OIDC state has already been used', 401);
     if (stored.expiresAt.getTime() <= Date.now()) throw new AppError('OIDC state has expired', 401);
-    await db.oidcLoginState.updateMany({ where: { id: stored.id, usedAt: null }, data: { usedAt: new Date() } });
-    const consumed = await db.oidcLoginState.findUnique({ where: { id: stored.id } });
-    if (!consumed?.usedAt) throw new AppError('OIDC state has already been used', 401);
+    const consumed = await prisma.oidcLoginState.updateMany({ where: { id: stored.id, oidcConfigId: configId, stateHash, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+    if (consumed.count !== 1) throw new AppError('OIDC state has already been used', 401);
     return stored;
   }
 

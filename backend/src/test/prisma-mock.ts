@@ -60,7 +60,6 @@ export const createMockPrismaClient = () => {
     riskMethod: createMockModel(),
     risk: createMockModel(),
     riskTreatment: createMockModel(),
-    riskAssessment: createMockModel(),
     riskAssessmentVersion: createMockModel(),
     riskControl: createMockModel(),
     riskControlAssessment: createMockModel(),

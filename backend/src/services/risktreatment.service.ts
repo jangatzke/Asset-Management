@@ -212,7 +212,7 @@ export class RiskTreatmentService {
 
     let currentAssessment: any = null;
     if (normalizedData.assessmentId) {
-      currentAssessment = await db.riskAssessment.findUnique({ where: { id: normalizedData.assessmentId } });
+      currentAssessment = await db.riskAssessmentVersion.findUnique({ where: { id: normalizedData.assessmentId } });
       if (!currentAssessment || currentAssessment.riskId !== normalizedData.riskId) {
         throw new AppError('Risk assessment version not found for this risk', 404);
       }
@@ -386,7 +386,7 @@ export class RiskTreatmentService {
         throw new AppError('Only the designated approver may approve this acceptance', 403);
       }
 
-      const assessment = await db.riskAssessment.findUnique({ where: { id: treatment.acceptance.assessmentId } });
+      const assessment = await db.riskAssessmentVersion.findUnique({ where: { id: treatment.acceptance.assessmentId } });
       if (!assessment) throw new AppError('Cannot approve: referenced assessment not found', 404);
 
       const requiredLevel = treatment.acceptance.requiredLevel as ApprovalLevel;
@@ -508,7 +508,7 @@ export class RiskTreatmentService {
     const result = await db.$transaction(async (tx: any) => {
       let assessmentId = data.residualAssessmentId;
       if (assessmentId) {
-        const assessment = await tx.riskAssessment.findUnique({ where: { id: assessmentId } });
+        const assessment = await tx.riskAssessmentVersion.findUnique({ where: { id: assessmentId } });
         if (!assessment || assessment.riskId !== treatment.riskId) {
           throw new AppError('Residual assessment not found for this risk', 404);
         }
@@ -518,20 +518,20 @@ export class RiskTreatmentService {
         }
         const methodVersionId = data.targetAssessment.riskMethodVersionId ?? treatment.risk.riskMethodVersionId;
         if (!methodVersionId) throw new AppError('Target assessment requires risk method version', 400);
-        const maxAssessment = await tx.riskAssessment.findFirst({
+        const maxAssessment = await tx.riskAssessmentVersion.findFirst({
           where: { riskId: treatment.riskId },
-          orderBy: { assessmentNumber: 'desc' },
-          select: { assessmentNumber: true },
+          orderBy: { versionNumber: 'desc' },
+          select: { versionNumber: true },
         });
-        await tx.riskAssessment.updateMany({
+        await tx.riskAssessmentVersion.updateMany({
           where: { riskId: treatment.riskId, assessmentType: 'target', isCurrent: true },
-          data: { isCurrent: false },
+          data: { isCurrent: false, isClosed: true, closedAt: new Date(), status: 'historical' },
         });
-        const created = await tx.riskAssessment.create({
+        const created = await tx.riskAssessmentVersion.create({
           data: {
             riskId: treatment.riskId,
             riskMethodVersionId: methodVersionId,
-            assessmentNumber: (maxAssessment?.assessmentNumber ?? 0) + 1,
+            versionNumber: (maxAssessment?.versionNumber ?? 0) + 1,
             assessmentType: 'target',
             likelihood: data.targetAssessment.likelihood,
             impact: data.targetAssessment.impact,
@@ -542,6 +542,7 @@ export class RiskTreatmentService {
             assessorId: data.targetAssessment.assessorId ?? userId,
             nextReviewDate: data.targetAssessment.nextReviewDate,
             justification: data.targetAssessment.justification,
+            status: 'draft',
             isCurrent: true,
           },
         });

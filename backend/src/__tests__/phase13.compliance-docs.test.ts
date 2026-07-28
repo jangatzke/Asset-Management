@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { parseComplianceMatrix, validateRequirement } from '../../../scripts/check-requirements';
 
 const repoRoot = path.resolve(__dirname, '../../..');
 
@@ -61,8 +62,8 @@ describe('Phase 13 compliance documentation model', () => {
 
   it('compliance-matrix.yml uses corrected status terms', () => {
     const content = read('docs/compliance-matrix.yml');
-    expect(content).not.toContain('status: compliant');
-    expect(content).not.toContain('status: non_compliant');
+    expect(content).not.toMatch(/^\s+status:\s+compliant\s*$/m);
+    expect(content).not.toMatch(/^\s+status:\s+non_compliant\s*$/m);
   });
 
   it('compliance-matrix.md has documentation model note', () => {
@@ -97,5 +98,75 @@ describe('Phase 13 compliance documentation model', () => {
     const content = read('docs/compliance-matrix.yml');
     expect(content).toContain('Forbidden wording');
     expect(content).toContain('"ISO 27001 compliant"');
+  });
+
+  describe('requirements gate fail-closed semantics', () => {
+    function oneRequirement(fields: string): string {
+      return `- id: TEST-001
+  title: Gate fixture
+  priority: P0
+${fields}`;
+    }
+
+    function gateErrors(fields: string): string[] {
+      const req = parseComplianceMatrix(oneRequirement(fields))[0];
+      return validateRequirement(req, new Date('2026-07-28T00:00:00.000Z'));
+    }
+
+    const validRefs = `  status: implemented
+  implementation:
+    - backend/src/middleware/health.ts
+  tests:
+    - backend/src/__tests__/phase11.health-readiness.test.ts
+  evidence:
+    - Regression test verifies readiness gate.
+  gaps: []`;
+
+    it.each(['missing', 'non_compliant', 'partial', 'planned', 'undefined'])('fails P0/P1 status %s', (status) => {
+      expect(gateErrors(validRefs.replace('status: implemented', `status: ${status}`)).join('\n')).toContain(`blocked status "${status}"`);
+    });
+
+    it('fails P0/P1 missing status', () => {
+      expect(gateErrors(validRefs.replace('  status: implemented\n', '')).join('\n')).toContain('missing status');
+    });
+
+    it('fails missing implementation, regression test, evidence, and open gap', () => {
+      const errors = gateErrors(`  status: implemented
+  implementation: []
+  tests: []
+  evidence: []
+  gaps:
+    - unresolved gap`);
+      expect(errors.join('\n')).toContain('missing implementation reference');
+      expect(errors.join('\n')).toContain('missing regression test reference');
+      expect(errors.join('\n')).toContain('missing evidence reference');
+      expect(errors.join('\n')).toContain('open gaps require explicit temporary_acceptance');
+    });
+
+    it('permits explicit temporary acceptance only with reason, owner, and non-expired expiry', () => {
+      const req = parseComplianceMatrix(oneRequirement(`  status: deferred
+  implementation: []
+  tests: []
+  evidence: []
+  gaps:
+    - accepted gap
+  temporary_acceptance:
+    reason: External dependency waiting for vendor release.
+    owner: Security Owner
+    expiry: 2026-12-31`))[0];
+
+      expect(validateRequirement(req, new Date('2026-07-28T00:00:00.000Z'))).toEqual([]);
+    });
+
+    it('docs-only status implemented is not enough', () => {
+      expect(gateErrors(`  status: implemented
+  implementation:
+    - docs/requirements.md
+  tests:
+    - backend/src/__tests__/phase13.compliance-docs.test.ts
+  evidence:
+    - Documentation only.
+      gaps: []`).join('\n')).toContain('docs-only implementation reference');
+    });
   });
 });

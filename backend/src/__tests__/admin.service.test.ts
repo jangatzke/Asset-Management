@@ -81,6 +81,7 @@ const mockPrismaClient: any = {
     delete: jest.fn(),
     deleteMany: jest.fn(),
   },
+  $transaction: jest.fn(async (cb: any) => cb(mockPrismaClient)),
 };
 
 jest.mock('../config/database', () => ({

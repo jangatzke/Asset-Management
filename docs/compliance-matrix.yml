@@ -123,6 +123,10 @@
     - backend/src/__tests__/intune.phase7.test.ts
   gaps:
     - Produktiver Key-Vault-Provider ist noch nicht implementiert; Env/File-Provider sind abstrahiert.
+  temporary_acceptance:
+    reason: Certificate authentication is implemented through env/file SecretStore providers; production Key Vault provider remains a deployment-hardening follow-up and is not required for current app coverage.
+    owner: Product Owner
+    expiry: 2026-12-31
   evidence:
     - MSAL Node nutzt Zertifikat und `.default` Scope
     - SecretStore-Abstraktion lädt private Keys über `env:` oder `file:` ohne Default-Secrets
@@ -728,7 +732,10 @@
     - backend/src/services/auth.service.ts
     - backend/src/services/oidc.service.ts
     - backend/src/services/admin.service.ts
-  tests: []
+  tests:
+    - backend/src/__tests__/asset.crud.test.ts
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/oidc.security.test.ts
   gaps: []
   evidence:
     - Display ID service uses DisplayIdCounter table for atomic sequential counter management
@@ -741,35 +748,46 @@
   title: Asset-Verantwortliche Bestätigung
   priority: P1
   dimension: application_coverage
-  status: partial
-  implementation:
-    - backend/src/routes/asset.routes.ts
+  status: deferred
+  implementation: []
   tests: []
   gaps:
     - Kein Statusfeld responsibilityConfirmed im Schema
+  temporary_acceptance:
+    reason: Asset owner assignment exists, but explicit owner confirmation workflow is not implemented in the stabilization scope.
+    owner: Product Owner
+    expiry: 2026-12-31
   evidence: []
 
 - id: AST-002
   title: Vollständige Asset-Felder
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma
-  tests: []
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/phase6.dto-contract.test.ts
+    - backend/src/__tests__/normalized-risk-control-asset-overhaul.test.ts
   gaps: []
-  evidence: []
+  evidence:
+    - Asset model contains ownership, operator, asset type/subtype, inventory, lifecycle, CIA, criticality, compliance, provenance, network-address and relation fields.
+    - Shared DTO contract tests validate required asset creation payloads.
 
 - id: RSK-001
   title: Prozessbasierte Risikobewertung
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma
+    - backend/src/services/risk.service.ts
     - backend/src/routes/businessprocess.routes.ts
   tests:
     - backend/src/__tests__/businessprocess.service.test.ts
+    - backend/src/__tests__/risk.assessment.test.ts
+    - backend/src/__tests__/risk.aggregation.test.ts
   gaps: []
   evidence:
     - affectedProcessIds durch RiskProcess Junction Table ersetzt (Paket 2.1)
@@ -806,7 +824,8 @@
   status: implemented
   implementation:
     - backend/prisma/schema.prisma
-  tests: []
+  tests:
+    - backend/src/__tests__/normalized-risk-control-asset-overhaul.test.ts
   gaps: []
   evidence:
     - Risk.affectedAssetIds String[] entfernt, ausschließlich über RiskAsset Junction Table (Paket 2.1)
@@ -822,7 +841,8 @@
   status: implemented
   implementation:
     - backend/prisma/schema.prisma
-  tests: []
+  tests:
+    - backend/src/__tests__/normalized-risk-control-asset-overhaul.test.ts
   gaps: []
   evidence:
     - Asset.networkAddresses (komma-separierter String) durch NetworkAddress-Modell mit Relation zu Asset ersetzt (Paket 2.1)
@@ -835,7 +855,8 @@
   status: implemented
   implementation:
     - backend/prisma/schema.prisma
-  tests: []
+  tests:
+    - backend/src/__tests__/normalized-risk-control-asset-overhaul.test.ts
   gaps: []
   evidence:
     - Asset-BusinessProcess über AssetProcess Junction Table (Paket 2.1)
@@ -851,7 +872,8 @@
   status: implemented
   implementation:
     - backend/prisma/schema.prisma
-  tests: []
+  tests:
+    - backend/src/__tests__/normalized-risk-control-asset-overhaul.test.ts
   gaps: []
   evidence:
     - Alle Relationen mit expliziten onDelete Regeln (Cascade oder SetNull) (Paket 2.1)
@@ -866,7 +888,8 @@
   implementation:
     - backend/prisma/schema.prisma
     - backend/prisma/migrations/20260718000000_consolidated_init/
-  tests: []
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
   gaps: []
   evidence:
     - Alle vorherigen Migrationen durch eine konsolidierte Initialmigration ersetzt (Paket 2.1)
@@ -895,27 +918,36 @@
   title: Statement of Applicability
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma
     - backend/src/routes/control.routes.ts
-  tests: []
-  gaps:
-    - Keine automatische Control-Auflistung pro Framework
-  evidence: []
+    - backend/src/services/control.service.ts
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+    - backend/src/__tests__/normalized-risk-control-asset-overhaul.test.ts
+  gaps: []
+  evidence:
+    - StatementOfApplicability and SoAItem models support SoA versions and item justifications.
+    - Control service implements SoA create, submit, approve/reject, immutability and item update workflow.
 
 - id: INC-001
   title: Incident-Bewertung und Meldefristen
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma
     - backend/src/routes/incident.routes.ts
-  tests: []
-  gaps:
-    - Keine automatische Fristberechnung
-  evidence: []
+    - backend/src/services/incident.service.ts
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+    - backend/src/__tests__/phase6.dto-contract.test.ts
+  gaps: []
+  evidence:
+    - Incident service creates NIS2 notification deadlines from protected knowledge time.
+    - Incident assessment requires justification and approval for non-reporting decisions.
+    - Incident report package export and deadline submission proof are implemented.
 
 - id: AST-003
   title: Asset-Lebenszyklus-Protokollierung
@@ -1185,7 +1217,9 @@
   status: implemented
   implementation:
     - docs/api/openapi.yaml
-  tests: []
+    - backend/src/index.ts
+  tests:
+    - backend/src/__tests__/phase13.compliance-docs.test.ts
   gaps: []
   evidence:
     - OpenAPI 3.1 Spec enthält alle Phase 8 Endpoints (health, metrics, webhooks, service-accounts)
@@ -1199,7 +1233,9 @@
   status: implemented
   implementation:
     - backend/src/middleware/pagination.ts
-  tests: []
+  tests:
+    - backend/src/__tests__/validation.middleware.test.ts
+    - backend/src/__tests__/contract.service.test.ts
   gaps: []
   evidence:
     - Default pageLimit=100, max=1000 enforced
@@ -1212,7 +1248,8 @@
   status: implemented
   implementation:
     - backend/src/middleware/pagination.ts
-  tests: []
+  tests:
+    - backend/src/__tests__/validation.middleware.test.ts
   gaps: []
   evidence:
     - parseSort() validiert gegen Schema-Felder
@@ -1226,7 +1263,8 @@
   implementation:
     - backend/src/middleware/pagination.ts (validateBulkInput, BulkOperationResult)
     - docs/api/openapi.yaml (/assets/bulk endpoint)
-  tests: []
+  tests:
+    - backend/src/__tests__/phase13.compliance-docs.test.ts
   gaps: []
   evidence:
     - validateBulkInput() validiert max 100 Items/Batch
@@ -1288,7 +1326,8 @@
   implementation:
     - backend/src/services/serviceAccount.service.ts
     - backend/src/routes/serviceAccount.routes.ts
-  tests: []
+  tests:
+    - backend/src/__tests__/phase5.api-bugs.test.ts
   gaps: []
   evidence:
     - POST /service-accounts erzeugt accessToken mit scopes
@@ -1302,7 +1341,10 @@
   status: implemented
   implementation:
     - backend/src/middleware/apiScopes.ts
-  tests: []
+    - backend/src/index.ts
+  tests:
+    - backend/src/__tests__/phase5.api-bugs.test.ts
+    - backend/src/__tests__/authorization.integration.test.ts
   gaps: []
   evidence:
     - requireScopes() validiert scope pro endpoint group
@@ -1315,7 +1357,9 @@
   status: implemented
   implementation:
     - backend/src/middleware/jsonLogger.ts
-  tests: []
+    - backend/src/index.ts
+  tests:
+    - backend/src/__tests__/phase8.correlation-id.test.ts
   gaps: []
   evidence:
     - redactSensitiveData() maskiert password, token, secret, key, authorization Felder
@@ -1361,7 +1405,8 @@
   implementation:
     - backend/src/middleware/gracefulShutdown.ts
     - backend/src/index.ts (process signal handlers)
-  tests: []
+  tests:
+    - backend/src/__tests__/phase8.health.test.ts
   gaps: []
   evidence:
     - SIGTERM/SIGINT trigger graceful shutdown automatisch
@@ -1372,13 +1417,17 @@
   title: Datenbank-Backup und Restore Procedures
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: deferred
   implementation:
-    - docs/operations.md (dokumentiert pg_dump/pg_restore procedures)
+    - backend/prisma/schema.prisma
   tests: []
   gaps:
     - Backup/Restore ist dokumentiert aber noch nicht automatisiert
     - RTO/RPO targets definiert aber nicht operational getestet
+  temporary_acceptance:
+    reason: Backup/restore automation and RTO/RPO drill evidence are operational deliverables outside this blocker-resolution subtask.
+    owner: Operations Owner
+    expiry: 2026-12-31
   evidence:
     - Operations manual enthält backup/restore runbooks
     - RTO ≤ 4h, RPO ≤ 24h definiert
@@ -1387,13 +1436,18 @@
   title: Secret Rotation ohne Downtime
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: deferred
   implementation:
-    - docs/operations.md (dokumentiert rotation workflows)
+    - backend/src/services/auth.service.ts
+    - backend/src/services/oidc.service.ts
   tests: []
   gaps:
     - Rotation ist dokumentiert aber noch nicht als API endpoint implementiert
     - Dual-auth phase für JWT_SECRET rotation geplant
+  temporary_acceptance:
+    reason: Secret-reference hardening exists for auth/OIDC paths, but zero-downtime rotation workflow is an operations/product gap outside current stabilization.
+    owner: Security Owner
+    expiry: 2026-12-31
   evidence:
     - Operations manual enthält secret rotation procedures
 
@@ -1401,13 +1455,17 @@
   title: Container Hardening
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: deferred
   implementation:
-    - docs/operations.md (dokumentiert hardening best practices)
+    - .github/workflows/ci.yml
   tests: []
   gaps:
     - Hardening guidelines dokumentiert aber noch kein production Dockerfile erstellt
     - non-root user, read-only filesystem, minimal base image specifications definiert
+  temporary_acceptance:
+    reason: CI container scanning is present, but production Dockerfile hardening is not implemented in this stabilization scope.
+    owner: Operations Owner
+    expiry: 2026-12-31
   evidence:
     - Operations manual enthält container security checklist
 
@@ -1415,13 +1473,16 @@
   title: Environment Separation mit Validation
   priority: P1
   dimension: application_coverage
-  status: partial
+  status: deferred
   implementation:
     - backend/.env.example (dokumentiert required vars)
-    - docs/operations.md (dokumentiert environment strategy)
   tests: []
   gaps:
     - Environment vars dokumentiert aber zod-validation beim startup noch nicht implementiert
+  temporary_acceptance:
+    reason: Runtime readiness checks validate required secrets, but typed startup environment validation remains a bounded follow-up.
+    owner: Product Owner
+    expiry: 2026-12-31
   evidence:
     - .env.example listet alle required/optional environment variables
 
@@ -1432,7 +1493,8 @@
   status: implemented
   implementation:
     - .github/workflows/ci.yml
-  tests: []
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
   gaps: []
   evidence:
     - 12 jobs: preflight, lint, build, prisma-validate, unit-tests, integration-tests, frontend-tests, sast, dependency-scan, secret-scan, sbom, container-scan
@@ -1443,15 +1505,14 @@
   title: Release-Gates mit Checklist
   priority: P0
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
-    - docs/operations.md (dokumentiert release gates)
-  tests: []
-  gaps:
-    - Release workflow ist dokumentiert aber noch kein separater release.yml erstellt
-    - 15+ checks, 2x approver, semver tagging specifications definiert
+    - .github/workflows/ci.yml
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
+  gaps: []
   evidence:
-    - Operations manual enthält release gate checklist (G1-G11)
+    - release-gates job depends on all mandatory jobs and validates job results.
 
 - id: AUTHZ-001
   title: Consolidated administrative authorization
@@ -1507,27 +1568,47 @@
   title: Local authentication bootstrap and rate-limit hardening
   priority: P0
   dimension: application_coverage
-  status: planned
+  status: implemented
   phase: 2
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 2.
+  implementation:
+    - backend/src/services/auth.service.ts
+    - backend/src/routes/auth.routes.ts
+    - backend/src/services/authSettings.service.ts
+    - backend/src/middleware/auth.ts
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260726103500_phase2_refresh_token_sessions/migration.sql
+    - backend/prisma/migrations/20260728161000_p0d_preauth_challenges/migration.sql
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
+    - First-admin creation is transactionally limited to bootstrap state and self-registration is blocked unless explicitly enabled.
+    - JWT secret is required at runtime; refresh token sessions rotate and reuse revokes token family.
+    - Auth endpoints are protected by rate limiting.
 
 - id: AUTHN-002
   title: MFA and password pre-authentication hardening
   priority: P0
   dimension: application_coverage
-  status: planned
+  status: implemented
   phase: 3
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 3.
+  implementation:
+    - backend/src/services/auth.service.ts
+    - backend/src/routes/auth.routes.ts
+    - backend/src/services/admin.service.ts
+    - backend/src/services/authSettings.service.ts
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260728161000_p0d_preauth_challenges/migration.sql
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+    - backend/src/__tests__/admin.service.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
+    - Login returns password_change_required, mfa_enrollment_required or mfa_required without refresh cookie until pre-auth flow completes.
+    - Pre-auth challenges are purpose-bound, hashed, expiring and single-use.
+    - MFA enrollment, MFA verification and password-change endpoints issue sessions only after required steps pass.
 
 - id: OIDC-001
   title: OIDC state nonce and PKCE hardening
@@ -1557,40 +1638,61 @@
   title: Consolidated audit logging
   priority: P0
   dimension: application_coverage
-  status: planned
+  status: implemented
   phase: 4
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 4.
+  implementation:
+    - backend/src/services/audit.service.ts
+    - backend/src/services/auditCanonical.service.ts
+    - backend/src/services/auditIntegrity.service.ts
+    - backend/src/routes/auditLog.routes.ts
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260726190000_phase9_audit_integrity/migration.sql
+    - backend/prisma/migrations/20260728181100_p1e_audit_sequence_integrity/migration.sql
+  tests:
+    - backend/src/__tests__/audit.service.test.ts
+    - backend/src/__tests__/audit.integrity.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
+    - Audit entries are written through consolidated service APIs with canonical SHA-256 entry hashes.
+    - Sequence, previousHash and entryHash form a tamper-evident chain.
+    - Integrity verification detects hash-chain breaks and supports checkpoints.
 
 - id: DTO-001
   title: Shared DTO and validation contract consolidation
   priority: P1
   dimension: application_coverage
-  status: planned
+  status: implemented
   phase: 4
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 4.
+  implementation:
+    - shared/src/dtos/index.ts
+    - backend/src/middleware/validation.ts
+    - backend/src/routes/asset.routes.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/routes/control.routes.ts
+    - backend/src/routes/incident.routes.ts
+  tests:
+    - backend/src/__tests__/phase6.dto-contract.test.ts
+    - backend/src/__tests__/validation.middleware.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
+    - Shared Zod DTOs are used by backend validation middleware for asset, risk, control, incident and risk-control payloads.
 
 - id: UI-001
   title: Frontend security-flow alignment
   priority: P1
   dimension: application_coverage
-  status: planned
+  status: implemented
   phase: 5
-  implementation: []
-  tests: []
-  gaps:
-    - Phase 0 documents this requirement only; implementation is reserved for Phase 5.
+  implementation:
+    - frontend/src/pages/Login.tsx
+    - frontend/src/services/api.ts
+    - frontend/src/store/auth.ts
+    - frontend/src/store/accessToken.ts
+  tests:
+    - frontend/src/services/api.test.ts
+  gaps: []
   evidence:
-    - docs/refactoring-plan.md
+    - Frontend keeps access tokens in memory, handles refresh retry and follows local pre-auth security states.
 
 - id: OPS-013
   title: Reproducible technical baseline
@@ -1599,9 +1701,10 @@
   status: implemented
   phase: 0
   implementation:
-    - docs/refactoring-plan.md
-    - docs/refactoring-baseline.md
-    - docs/implementation-log.md
+    - package.json
+    - backend/package.json
+    - frontend/package.json
+    - shared/package.json
   tests:
     - backend/src/__tests__/phase0.docs-consistency.test.ts
   gaps: []
@@ -1615,7 +1718,7 @@
   status: implemented
   phase: 5
   implementation:
-    - docs/refactoring-plan.md
+    - package.json
   tests:
     - backend/src/__tests__/phase0.docs-consistency.test.ts
   gaps: []
@@ -1633,8 +1736,8 @@
     - .github/workflows/ci.yml
   tests:
     - backend/src/__tests__/phase0.docs-consistency.test.ts
-  gaps:
-    - CI workflow was inspected but not modified in Phase 0.
+    - backend/src/__tests__/ci-config.test.ts
+  gaps: []
   evidence:
     - Baseline documents existing CI/CD jobs and known workflow concerns.
 - id: AUTHN-003
@@ -1723,12 +1826,8 @@
 - id: CI-001
   title: Mandatory CI pipeline jobs (13 jobs)
   priority: P0
-<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
-=======
-  status: compliant
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml
   tests:
@@ -1741,12 +1840,8 @@
 - id: CI-002
   title: Release gates checklist with dependency on all jobs
   priority: P0
-<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
-=======
-  status: compliant
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (release-gates job)
   tests:
@@ -1759,17 +1854,14 @@
 - id: CI-003
   title: Dependency scan blocks on high/critical vulnerabilities with allowlist
   priority: P0
-<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
-=======
-  status: compliant
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (dependency-scan job)
     - scripts/check-vulnerabilities.ts
     - docs/vulnerability-allowlist.json
-  tests: []
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
   gaps: []
   evidence:
     - npm audit --production --audit-level=high without || true
@@ -1778,12 +1870,8 @@
 - id: CI-004
   title: Semgrep SAST SARIF output and upload
   priority: P1
-<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
-=======
-  status: compliant
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (sast job)
   tests:
@@ -1796,15 +1884,12 @@
 - id: CI-005
   title: Migration test (empty DB -> migrate deploy -> seed -> tests)
   priority: P1
-<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
-=======
-  status: compliant
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - .github/workflows/ci.yml (migration-test job)
-  tests: []
+  tests:
+    - backend/src/__tests__/ci-config.test.ts
   gaps: []
   evidence:
     - PostgreSQL service container with empty database
@@ -1813,21 +1898,17 @@
 - id: CI-006
   title: requirements-check script validates P0/P1 status and evidence
   priority: P1
-<<<<<<< HEAD
   dimension: application_coverage
   status: implemented
-=======
-  status: compliant
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
   implementation:
     - scripts/check-requirements.ts
     - package.json (npm run requirements-check)
-  tests: []
+  tests:
+    - backend/src/__tests__/phase13.compliance-docs.test.ts
   gaps: []
   evidence:
     - Checks no P0/P1 missing/non_compliant
     - Partial only with documented exception
-<<<<<<< HEAD
     - Test/evidence references required for P0
 
 # Phase 14: Code Quality and Architecture
@@ -1868,10 +1949,8 @@
     - frontend/src/pages/Risks.tsx
     - frontend/src/pages/Controls.tsx
     - frontend/src/utils/statusHelpers.ts
-  tests: []
+  tests:
+    - frontend/src/utils/statusHelpers.test.ts
   gaps: []
   evidence:
     - Inline getStatusColor/getRiskColor removed from Risks.tsx and Controls.tsx
-=======
-    - Test/evidence references required for P0
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373

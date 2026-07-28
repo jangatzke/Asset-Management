@@ -49,7 +49,15 @@ export interface EffectiveRoleAssignment extends ScopeConstraints {
   roleName: string;
   canAccessAdmin: boolean;
   permissions: Set<string>;
+  validFrom: Date | null;
   validUntil: Date | null;
+}
+
+export interface ResolvedScopeConstraints {
+  legalEntityIds: Set<string>;
+  organizationUnitIds: Set<string>;
+  scopeIds: Set<string>;
+  siteIds: Set<string>;
 }
 
 export interface AuthorizationResult {
@@ -58,14 +66,6 @@ export interface AuthorizationResult {
 }
 
 type ScopedAssignment = Pick<EffectiveRoleAssignment, 'legalEntityId' | 'organizationUnitId' | 'scopeId' | 'siteId'>;
-
-const LEGACY_ENTITY_PERMISSION_MAP: Record<string, { read: PermissionName; write: PermissionName; archive?: PermissionName }> = {
-  assets: { read: 'assets.read', write: 'assets.write', archive: 'assets.archive' },
-  risks: { read: 'risks.read', write: 'risks.write' },
-  controls: { read: 'controls.read', write: 'controls.write' },
-  incidents: { read: 'incidents.read', write: 'incidents.write' },
-  costPlanning: { read: 'bcm.read', write: 'bcm.write' },
-};
 
 export const WRITE_PERMISSION_BY_RESOURCE: Record<string, PermissionName> = {
   suppliers: 'suppliers.write',
@@ -117,15 +117,16 @@ export class AuthorizationService {
     });
 
     const roles: EffectiveRoleAssignment[] = [];
-    for (const assignment of directAssignments) roles.push(this.mapAssignment(assignment, assignment.role, assignment.validUntil));
+    for (const assignment of directAssignments) roles.push(this.mapAssignment(assignment, assignment.role, assignment.validFrom ?? null, assignment.validUntil ?? null));
     for (const userGroup of userGroups) {
-      for (const groupRole of userGroup.group?.groupRoles ?? []) roles.push(this.mapAssignment(groupRole, groupRole.role, null));
+      for (const groupRole of userGroup.group?.groupRoles ?? []) roles.push(this.mapAssignment(groupRole, groupRole.role, groupRole.validFrom ?? null, groupRole.validUntil ?? null));
     }
     return roles;
   }
 
-  isRoleActive(role: Pick<EffectiveRoleAssignment, 'validUntil'>): boolean {
-    return !role.validUntil || new Date() <= role.validUntil;
+  isRoleActive(role: Pick<EffectiveRoleAssignment, 'validFrom' | 'validUntil'>): boolean {
+    const now = new Date();
+    return (!role.validFrom || role.validFrom <= now) && (!role.validUntil || now <= role.validUntil);
   }
 
   async getActiveRoles(userId: string): Promise<EffectiveRoleAssignment[]> {
@@ -160,9 +161,14 @@ export class AuthorizationService {
   async requireForScope(userId: string, permission: PermissionName, scope: ScopeConstraints): Promise<void> {
     const activeRoles = await this.getActiveRoles(userId);
     const grantingRoles = activeRoles.filter((role) => role.permissions.has(permission));
-    if (grantingRoles.length === 0 || !grantingRoles.some((role) => !this.hasScopeConstraint(role) || this.scopeMatches(role, scope))) {
+    const resolvedScope = await this.resolveScopeSet(scope);
+    if (grantingRoles.length === 0 || !grantingRoles.some((role) => !this.hasScopeConstraint(role) || this.scopeMatches(role, resolvedScope))) {
       throw new AppError(`Authorization denied: ${permission} required for target scope`, 403);
     }
+  }
+
+  async resolveTargetScope(scope: ScopeConstraints): Promise<ResolvedScopeConstraints> {
+    return this.resolveScopeSet(scope);
   }
 
   async buildReadFilter(userId: string, entityType: EntityType): Promise<Prisma.InputJsonObject | Record<string, unknown>> {
@@ -205,7 +211,7 @@ export class AuthorizationService {
     return activeRoles.some((role) => [...role.permissions].some((permission) => permission.endsWith('.write') || permission.endsWith('.manage')));
   }
 
-  private mapAssignment(assignment: any, role: any, validUntil: Date | null): EffectiveRoleAssignment {
+  private mapAssignment(assignment: any, role: any, validFrom: Date | null, validUntil: Date | null): EffectiveRoleAssignment {
     const permissions = new Set<string>();
     for (const rolePermission of role?.rolePermissions ?? []) {
       if (rolePermission.permission?.name) permissions.add(rolePermission.permission.name);
@@ -219,6 +225,7 @@ export class AuthorizationService {
       roleName: assignment.roleName,
       canAccessAdmin: permissions.has('administration.access'),
       permissions,
+      validFrom,
       validUntil,
       legalEntityId: assignment.legalEntityId ?? null,
       organizationUnitId: assignment.organizationUnitId ?? null,
@@ -227,93 +234,130 @@ export class AuthorizationService {
     };
   }
 
-  private addLegacyPermissions(permissions: Set<string>, entityPermissions: unknown): void {
-    const legacy = entityPermissions as Record<string, 'none' | 'readonly' | 'readwrite'> | null | undefined;
-    if (!legacy) return;
-    for (const [entity, level] of Object.entries(legacy)) {
-      const mapping = LEGACY_ENTITY_PERMISSION_MAP[entity];
-      if (!mapping || level === 'none') continue;
-      if (level === 'readonly' || level === 'readwrite') permissions.add(mapping.read);
-      if (level === 'readwrite') {
-        permissions.add(mapping.write);
-        if (mapping.archive) permissions.add(mapping.archive);
-      }
-    }
+  private addLegacyPermissions(_permissions: Set<string>, _entityPermissions: unknown): void {
+    return;
   }
 
   private hasScopeConstraint(role: ScopedAssignment): boolean {
     return Boolean(role.legalEntityId || role.organizationUnitId || role.scopeId || role.siteId);
   }
 
-  private scopeMatches(role: ScopedAssignment, entityScope: ScopeConstraints): boolean {
-    if (role.legalEntityId && role.legalEntityId !== entityScope.legalEntityId) return false;
-    if (role.organizationUnitId && role.organizationUnitId !== entityScope.organizationUnitId) return false;
-    if (role.siteId && role.siteId !== entityScope.siteId) return false;
-    if (role.scopeId && role.scopeId !== entityScope.scopeId) return false;
+  private scopeMatches(role: ScopedAssignment, entityScope: ScopeConstraints | ResolvedScopeConstraints): boolean {
+    const resolved = this.asResolvedScope(entityScope);
+    if (role.legalEntityId && !resolved.legalEntityIds.has(role.legalEntityId)) return false;
+    if (role.organizationUnitId && !resolved.organizationUnitIds.has(role.organizationUnitId)) return false;
+    if (role.siteId && !resolved.siteIds.has(role.siteId)) return false;
+    if (role.scopeId && !resolved.scopeIds.has(role.scopeId)) return false;
     return true;
   }
 
-  private async resolveEntityScope(entityType: EntityType, entityId: string): Promise<ScopeConstraints> {
+  private async resolveEntityScope(entityType: EntityType, entityId: string): Promise<ResolvedScopeConstraints> {
     const db = prisma as any;
     if (entityType === 'assets') {
       const asset = await db.asset.findUnique({ where: { id: entityId }, include: { organizationUnit: true, location: { include: { organizationUnit: true } } } });
       if (!asset) throw new AppError('Asset not found', 404);
       const organizationUnitId = asset.organizationUnitId ?? asset.location?.organizationUnitId ?? null;
       const legalEntityId = asset.organizationUnit?.legalEntityId ?? asset.location?.organizationUnit?.legalEntityId ?? null;
-      return { legalEntityId, organizationUnitId, siteId: asset.locationId ?? null, scopeId: await this.findScopeForLegalEntity(legalEntityId) };
+      return this.resolveScopeSet({ legalEntityId, organizationUnitId, siteId: asset.locationId ?? null, scopeId: null });
     }
     if (entityType === 'risks') {
       const risk = await db.risk.findUnique({ where: { id: entityId }, include: { organizationUnit: true } });
       if (!risk) throw new AppError('Risk not found', 404);
       const legalEntityId = risk.organizationUnit?.legalEntityId ?? null;
-      return { legalEntityId, organizationUnitId: risk.organizationUnitId ?? null, siteId: null, scopeId: await this.findScopeForLegalEntity(legalEntityId) };
+      return this.resolveScopeSet({ legalEntityId, organizationUnitId: risk.organizationUnitId ?? null, siteId: null, scopeId: null });
     }
     if (entityType === 'controls') {
-      const implementation = await db.controlImplementation.findFirst({ where: { OR: [{ id: entityId }, { controlId: entityId }] }, include: { site: true, organizationUnit: true } });
-      const legalEntityId = implementation?.organizationUnit?.legalEntityId ?? implementation?.site?.organizationUnit?.legalEntityId ?? null;
-      return { legalEntityId, organizationUnitId: implementation?.organizationUnitId ?? implementation?.site?.organizationUnitId ?? null, siteId: implementation?.siteId ?? null, scopeId: implementation?.scopeId ?? await this.findScopeForLegalEntity(legalEntityId) };
+      const implementation = await db.controlImplementation.findUnique({ where: { id: entityId }, include: { site: { include: { organizationUnit: true } }, organizationUnit: true } });
+      if (implementation) {
+        const legalEntityId = implementation.organizationUnit?.legalEntityId ?? implementation.site?.organizationUnit?.legalEntityId ?? null;
+        return this.resolveScopeSet({ legalEntityId, organizationUnitId: implementation.organizationUnitId ?? implementation.site?.organizationUnitId ?? null, siteId: implementation.siteId ?? null, scopeId: implementation.scopeId ?? null });
+      }
+      const control = await db.control.findUnique({ where: { id: entityId }, select: { id: true } });
+      if (!control) throw new AppError('Control not found', 404);
+      return this.emptyResolvedScope();
     }
     if (entityType === 'incidents') {
       const incidentAsset = await db.incidentAsset.findFirst({ where: { incidentId: entityId }, include: { asset: { include: { organizationUnit: true, location: { include: { organizationUnit: true } } } } } });
       const legalEntityId = incidentAsset?.asset?.organizationUnit?.legalEntityId ?? incidentAsset?.asset?.location?.organizationUnit?.legalEntityId ?? null;
-      return { legalEntityId, organizationUnitId: incidentAsset?.asset?.organizationUnitId ?? incidentAsset?.asset?.location?.organizationUnitId ?? null, siteId: incidentAsset?.asset?.locationId ?? null, scopeId: await this.findScopeForLegalEntity(legalEntityId) };
+      return this.resolveScopeSet({ legalEntityId, organizationUnitId: incidentAsset?.asset?.organizationUnitId ?? incidentAsset?.asset?.location?.organizationUnitId ?? null, siteId: incidentAsset?.asset?.locationId ?? null, scopeId: null });
     }
-    return { legalEntityId: null, organizationUnitId: null, siteId: null, scopeId: null };
+    return this.emptyResolvedScope();
   }
 
-  private async findScopeForLegalEntity(legalEntityId: string | null): Promise<string | null> {
-    if (!legalEntityId) return null;
-    const membership = await (prisma as any).ismsScopeLegalEntity.findFirst({ where: { legalEntityId }, select: { scopeId: true } });
-    return membership?.scopeId ?? null;
+  private async findScopeIdsForLegalEntity(legalEntityId: string | null): Promise<Set<string>> {
+    if (!legalEntityId) return new Set();
+    const memberships = await (prisma as any).ismsScopeLegalEntity.findMany({ where: { legalEntityId }, select: { scopeId: true }, orderBy: { scopeId: 'asc' } });
+    return new Set((memberships ?? []).map((membership: { scopeId: string }) => membership.scopeId));
   }
 
   private buildScopedFilter(entityType: EntityType, role: ScopedAssignment): Record<string, unknown> | null {
-    const orgUnitClause = role.organizationUnitId ? { organizationUnitId: role.organizationUnitId } : null;
-    const legalEntityOrgClause = role.legalEntityId ? { organizationUnit: { legalEntityId: role.legalEntityId } } : null;
-    const siteClause = role.siteId ? { locationId: role.siteId } : null;
-    const scopeOrgClause = role.scopeId ? { organizationUnit: { legalEntity: { ismsScopeMemberships: { some: { scopeId: role.scopeId } } } } } : null;
+    const orgUnitClause = role.organizationUnitId ? { organizationUnitId: role.organizationUnitId } : undefined;
+    const legalEntityOrgClause = role.legalEntityId ? { organizationUnit: { legalEntityId: role.legalEntityId } } : undefined;
+    const assetSiteClause = role.siteId ? { locationId: role.siteId } : undefined;
+    const scopeOrgClause = role.scopeId ? { organizationUnit: { legalEntity: { ismsScopeMemberships: { some: { scopeId: role.scopeId } } } } } : undefined;
 
-    if (entityType === 'assets') return this.orFilter([orgUnitClause, legalEntityOrgClause, siteClause, scopeOrgClause]);
-    if (entityType === 'risks') return this.orFilter([orgUnitClause, legalEntityOrgClause, scopeOrgClause]);
+    if (entityType === 'assets') return this.andFilter([orgUnitClause, legalEntityOrgClause, assetSiteClause, scopeOrgClause]);
+    if (entityType === 'risks') return this.andFilter([orgUnitClause, legalEntityOrgClause, scopeOrgClause]);
     if (entityType === 'controls') {
-      return { implementations: { some: this.orFilter([
-        role.organizationUnitId ? { organizationUnitId: role.organizationUnitId } : null,
-        role.legalEntityId ? { organizationUnit: { legalEntityId: role.legalEntityId } } : null,
-        role.siteId ? { siteId: role.siteId } : null,
-        role.scopeId ? { OR: [{ scopeId: role.scopeId }, { organizationUnit: { legalEntity: { ismsScopeMemberships: { some: { scopeId: role.scopeId } } } } }] } : null,
-      ]) } };
+      return { implementations: { some: this.buildControlImplementationFilter(role) } };
     }
     if (entityType === 'incidents') {
-      return { incidentAssets: { some: { asset: this.orFilter([orgUnitClause, legalEntityOrgClause, siteClause, scopeOrgClause]) } } };
+      return { incidentAssets: { some: { asset: this.andFilter([orgUnitClause, legalEntityOrgClause, assetSiteClause, scopeOrgClause]) } } };
     }
     return this.hasScopeConstraint(role) ? null : {};
   }
 
-  private orFilter(filters: Array<Record<string, unknown> | null>): Record<string, unknown> {
+  private andFilter(filters: Array<Record<string, unknown> | undefined>): Record<string, unknown> {
     const active = filters.filter(Boolean) as Record<string, unknown>[];
     if (active.length === 0) return {};
     if (active.length === 1) return active[0];
-    return { OR: active };
+    return { AND: active };
+  }
+
+  public buildControlImplementationFilter(role: ScopedAssignment): Record<string, unknown> {
+    const legalEntityClause = role.legalEntityId ? { OR: [{ organizationUnit: { legalEntityId: role.legalEntityId } }, { site: { organizationUnit: { legalEntityId: role.legalEntityId } } }] } : undefined;
+    const orgUnitClause = role.organizationUnitId ? { OR: [{ organizationUnitId: role.organizationUnitId }, { site: { organizationUnitId: role.organizationUnitId } }] } : undefined;
+    const siteClause = role.siteId ? { siteId: role.siteId } : undefined;
+    const scopeClause = role.scopeId ? { OR: [{ scopeId: role.scopeId }, { organizationUnit: { legalEntity: { ismsScopeMemberships: { some: { scopeId: role.scopeId } } } } }, { site: { organizationUnit: { legalEntity: { ismsScopeMemberships: { some: { scopeId: role.scopeId } } } } } }] } : undefined;
+    return this.andFilter([legalEntityClause, orgUnitClause, siteClause, scopeClause]);
+  }
+
+  async buildControlImplementationReadFilter(userId: string): Promise<Record<string, unknown>> {
+    const activeRoles = await this.getActiveRoles(userId);
+    const grantingRoles = activeRoles.filter((role) => role.permissions.has('controls.read'));
+    if (grantingRoles.length === 0) return { id: { equals: '__phase1_no_permission__' } };
+    if (grantingRoles.some((role) => !this.hasScopeConstraint(role))) return {};
+    const scopedFilters = grantingRoles.map((role) => this.buildControlImplementationFilter(role));
+    return scopedFilters.length ? { OR: scopedFilters } : { id: { equals: '__phase1_no_scope_match__' } };
+  }
+
+  async buildRiskReadFilter(userId: string): Promise<Record<string, unknown>> {
+    return await this.buildReadFilter(userId, 'risks') as Record<string, unknown>;
+  }
+
+  private emptyResolvedScope(): ResolvedScopeConstraints {
+    return { legalEntityIds: new Set(), organizationUnitIds: new Set(), scopeIds: new Set(), siteIds: new Set() };
+  }
+
+  private asResolvedScope(scope: ScopeConstraints | ResolvedScopeConstraints): ResolvedScopeConstraints {
+    if ('legalEntityIds' in scope) return scope;
+    return {
+      legalEntityIds: new Set(scope.legalEntityId ? [scope.legalEntityId] : []),
+      organizationUnitIds: new Set(scope.organizationUnitId ? [scope.organizationUnitId] : []),
+      scopeIds: new Set(scope.scopeId ? [scope.scopeId] : []),
+      siteIds: new Set(scope.siteId ? [scope.siteId] : []),
+    };
+  }
+
+  private async resolveScopeSet(scope: ScopeConstraints): Promise<ResolvedScopeConstraints> {
+    const scopeIds = await this.findScopeIdsForLegalEntity(scope.legalEntityId);
+    if (scope.scopeId) scopeIds.add(scope.scopeId);
+    return {
+      legalEntityIds: new Set(scope.legalEntityId ? [scope.legalEntityId] : []),
+      organizationUnitIds: new Set(scope.organizationUnitId ? [scope.organizationUnitId] : []),
+      siteIds: new Set(scope.siteId ? [scope.siteId] : []),
+      scopeIds,
+    };
   }
 
   private readPermissionForEntity(entityType: EntityType): PermissionName | null {

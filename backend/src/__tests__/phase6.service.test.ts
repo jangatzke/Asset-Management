@@ -3,7 +3,9 @@ import { prisma } from '../config/database';
 
 jest.mock('../config/database', () => {
   const model = () => ({ findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() });
-  return { prisma: { supplier: model(), correctiveAction: model(), metricDefinition: model(), metricValue: model(), workflowDefinition: model(), workflowInstance: model(), workflowTransitionLog: model(), workflowTask: model(), reportRun: model(), exportJob: model(), auditLog: model() } };
+  const prisma: any = { supplier: model(), correctiveAction: model(), metricDefinition: model(), metricValue: model(), workflowDefinition: model(), workflowInstance: model(), workflowTransitionLog: model(), workflowTask: model(), reportRun: model(), exportJob: model(), auditLog: model() };
+  prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+  return { prisma };
 });
 
 describe('Phase6Service', () => {

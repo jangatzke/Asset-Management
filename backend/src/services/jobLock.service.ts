@@ -1,47 +1,117 @@
 /**
- * Phase 10: PostgreSQL Advisory Lock Service
+ * Phase 10 / P1-F: Durable Job Lease Service
  *
- * Provides cluster-safe locking for background jobs using PostgreSQL advisory locks.
- * Uses `pg_try_advisory_lock` (non-blocking) so workers skip instead of queueing.
+ * Provides cluster-safe background job leasing without session-scoped database locks.
+ * Leases are owned by explicit worker ids, expire after crashes, and are safe when
+ * Prisma uses a pooled connection for each operation.
  */
 
 import { prisma } from '../config/database';
 
-/**
- * Attempt to acquire a cluster-wide advisory lock by text key.
- * Returns true if the lock was acquired, false otherwise.
- */
-export async function tryAcquireAdvisoryLock(lockKey: string): Promise<boolean> {
-  const query = 'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired';
-  const result = await prisma.$queryRawUnsafe(query, lockKey);
-
-  // $queryRawUnsafe returns an array; extract the first row's "acquired" field.
-  const rows = result as Array<Record<string, unknown>>;
-  const raw = rows.length > 0 ? rows[0]?.acquired : false;
-  return raw === true || raw === 't';
+export interface JobLeaseRecord {
+  id: string;
+  jobName: string;
+  ownerId: string;
+  leaseUntil: Date;
+  heartbeatAt: Date;
+  acquiredAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-/**
- * Release a previously acquired advisory lock by text key.
- * Returns true if the lock was released (was held), false otherwise.
- */
-export async function releaseAdvisoryLock(lockKey: string): Promise<boolean> {
-  try {
-    const query = 'SELECT pg_advisory_unlock(hashtext($1)) AS released';
-    const result = await prisma.$queryRawUnsafe(query, lockKey);
+export const DEFAULT_JOB_LEASE_MS = 10 * 60 * 1000;
 
-    const rows = result as Array<Record<string, unknown>>;
-    const raw = (rows?.length ?? 0) > 0 ? rows[0]?.released : false;
-    return raw === true || raw === 't';
+function addMilliseconds(value: Date, milliseconds: number): Date {
+  return new Date(value.getTime() + milliseconds);
+}
+
+export function getJobLeaseName(jobId: string): string {
+  return `phase10_lease_${jobId}`;
+}
+
+export async function acquireJobLease(
+  jobName: string,
+  ownerId: string,
+  leaseMs = DEFAULT_JOB_LEASE_MS,
+  now = new Date(),
+): Promise<JobLeaseRecord | null> {
+  const leaseUntil = addMilliseconds(now, leaseMs);
+
+  try {
+    const rows = await prisma.$queryRaw<JobLeaseRecord[]>`
+      INSERT INTO "job_leases" (
+        "jobName",
+        "ownerId",
+        "leaseUntil",
+        "heartbeatAt",
+        "acquiredAt",
+        "updatedAt"
+      )
+      VALUES (${jobName}, ${ownerId}, ${leaseUntil}, ${now}, ${now}, ${now})
+      ON CONFLICT ("jobName") DO UPDATE
+      SET
+        "ownerId" = EXCLUDED."ownerId",
+        "leaseUntil" = EXCLUDED."leaseUntil",
+        "heartbeatAt" = EXCLUDED."heartbeatAt",
+        "acquiredAt" = EXCLUDED."acquiredAt",
+        "updatedAt" = EXCLUDED."updatedAt"
+      WHERE "job_leases"."leaseUntil" <= ${now}
+         OR "job_leases"."ownerId" = ${ownerId}
+      RETURNING
+        "id",
+        "jobName",
+        "ownerId",
+        "leaseUntil",
+        "heartbeatAt",
+        "acquiredAt",
+        "createdAt",
+        "updatedAt"
+    `;
+
+    const lease = rows[0] ?? null;
+    return lease?.ownerId === ownerId && lease.leaseUntil > now ? lease : null;
   } catch {
-    // If release fails for any reason, return false rather than throwing.
-    return false;
+    return null;
   }
 }
 
-/**
- * Generate a deterministic lock key from a job identifier.
- */
-export function getLockKey(jobId: string): string {
-  return `phase10_lock_${jobId}`;
+export async function heartbeatJobLease(
+  jobName: string,
+  ownerId: string,
+  leaseMs = DEFAULT_JOB_LEASE_MS,
+  now = new Date(),
+): Promise<boolean> {
+  const leaseUntil = addMilliseconds(now, leaseMs);
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    UPDATE "job_leases"
+    SET
+      "leaseUntil" = ${leaseUntil},
+      "heartbeatAt" = ${now},
+      "updatedAt" = ${now}
+    WHERE "jobName" = ${jobName}
+      AND "ownerId" = ${ownerId}
+      AND "leaseUntil" > ${now}
+    RETURNING "id"
+  `;
+
+  return rows.length === 1;
+}
+
+export async function releaseJobLease(
+  jobName: string,
+  ownerId: string,
+  now = new Date(),
+): Promise<boolean> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    UPDATE "job_leases"
+    SET
+      "leaseUntil" = ${now},
+      "updatedAt" = ${now}
+    WHERE "jobName" = ${jobName}
+      AND "ownerId" = ${ownerId}
+      AND "leaseUntil" > ${now}
+    RETURNING "id"
+  `;
+
+  return rows.length === 1;
 }

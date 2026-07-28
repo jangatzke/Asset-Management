@@ -93,10 +93,10 @@ export interface RiskMethodVersion extends BaseEntity {
  * assessmentType distinguishes inherent, current and target risk views.
  * justification is mandatory for every assessment.
  */
-export interface RiskAssessment extends BaseEntity {
+export interface RiskAssessmentVersion extends BaseEntity {
   riskId: string;
   riskMethodVersionId: string;
-  assessmentNumber: number; // ordinal version for this risk
+  versionNumber: number; // ordinal version for this risk
   assessmentType: AssessmentType; // inherent, current, target
   likelihood: number;
   impact: number;
@@ -109,7 +109,11 @@ export interface RiskAssessment extends BaseEntity {
   nextReviewDate: Date;
   justification: string; // Mandatory — every assessment requires a justification
   isCurrent: boolean; // only one assessment per risk can be current
+  isClosed: boolean;
+  closedAt?: Date;
 }
+
+export type RiskAssessment = RiskAssessmentVersion;
 
 export interface Risk extends BaseEntity {
   displayId: string;
@@ -144,7 +148,8 @@ export interface Risk extends BaseEntity {
   evidenceLinks?: RiskEvidence[];
   riskAssets?: RiskAsset[];
   treatments?: RiskTreatment[];
-  assessments?: RiskAssessment[];
+  assessments?: RiskAssessmentVersion[];
+  riskAssessmentVersions?: RiskAssessmentVersion[];
   causes?: RiskCause[];
   impacts?: RiskImpact[];
   reviewTasks?: ReviewTask[];
