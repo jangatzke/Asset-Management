@@ -385,7 +385,8 @@ jobs:
 
       - name: Skip container scan (no Dockerfile)
         if: steps.dockerfile-check.outputs.exists != 'true'
-        run: echo "WARNING: No backend/Dockerfile found — skipping container scan"
+        run: |
+          echo "WARNING: No backend/Dockerfile found — skipping container scan"
 
   # =====================================================================
   # REQUIREMENTS CHECK
