@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL DEFAULT '',
     "email" TEXT NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
-CREATE TABLE "user_roles" (
+CREATE TABLE IF NOT EXISTS "user_roles" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "roleName" TEXT NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE "user_roles" (
 );
 
 -- CreateTable
-CREATE TABLE "roles" (
+CREATE TABLE IF NOT EXISTS "roles" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -57,7 +57,7 @@ CREATE TABLE "roles" (
 );
 
 -- CreateTable
-CREATE TABLE "groups" (
+CREATE TABLE IF NOT EXISTS "groups" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -68,7 +68,7 @@ CREATE TABLE "groups" (
 );
 
 -- CreateTable
-CREATE TABLE "user_groups" (
+CREATE TABLE IF NOT EXISTS "user_groups" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "groupId" TEXT NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE "user_groups" (
 );
 
 -- CreateTable
-CREATE TABLE "group_roles" (
+CREATE TABLE IF NOT EXISTS "group_roles" (
     "id" TEXT NOT NULL,
     "groupId" TEXT NOT NULL,
     "roleName" TEXT NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE "group_roles" (
 );
 
 -- CreateTable
-CREATE TABLE "oidc_configs" (
+CREATE TABLE IF NOT EXISTS "oidc_configs" (
     "id" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "providerName" TEXT NOT NULL DEFAULT 'entra_id',
@@ -110,7 +110,7 @@ CREATE TABLE "oidc_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "organization_units" (
+CREATE TABLE IF NOT EXISTS "organization_units" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -128,7 +128,7 @@ CREATE TABLE "organization_units" (
 );
 
 -- CreateTable
-CREATE TABLE "legal_entities" (
+CREATE TABLE IF NOT EXISTS "legal_entities" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -143,7 +143,7 @@ CREATE TABLE "legal_entities" (
 );
 
 -- CreateTable
-CREATE TABLE "sites" (
+CREATE TABLE IF NOT EXISTS "sites" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "address" TEXT NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE "sites" (
 );
 
 -- CreateTable
-CREATE TABLE "isms_scopes" (
+CREATE TABLE IF NOT EXISTS "isms_scopes" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -189,7 +189,7 @@ CREATE TABLE "isms_scopes" (
 );
 
 -- CreateTable
-CREATE TABLE "interested_parties" (
+CREATE TABLE IF NOT EXISTS "interested_parties" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -207,7 +207,7 @@ CREATE TABLE "interested_parties" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_types" (
+CREATE TABLE IF NOT EXISTS "asset_types" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -220,7 +220,7 @@ CREATE TABLE "asset_types" (
 );
 
 -- CreateTable
-CREATE TABLE "business_services" (
+CREATE TABLE IF NOT EXISTS "business_services" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE "business_services" (
 );
 
 -- CreateTable
-CREATE TABLE "assets" (
+CREATE TABLE IF NOT EXISTS "assets" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -292,7 +292,7 @@ CREATE TABLE "assets" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_relations" (
+CREATE TABLE IF NOT EXISTS "asset_relations" (
     "id" TEXT NOT NULL,
     "sourceAssetId" TEXT NOT NULL,
     "targetAssetId" TEXT NOT NULL,
@@ -305,7 +305,7 @@ CREATE TABLE "asset_relations" (
 );
 
 -- CreateTable
-CREATE TABLE "network_addresses" (
+CREATE TABLE IF NOT EXISTS "network_addresses" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "address" TEXT NOT NULL,
@@ -317,7 +317,7 @@ CREATE TABLE "network_addresses" (
 );
 
 -- CreateTable
-CREATE TABLE "integration_sources" (
+CREATE TABLE IF NOT EXISTS "integration_sources" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -332,7 +332,7 @@ CREATE TABLE "integration_sources" (
 );
 
 -- CreateTable
-CREATE TABLE "import_runs" (
+CREATE TABLE IF NOT EXISTS "import_runs" (
     "id" TEXT NOT NULL,
     "integrationSourceId" TEXT NOT NULL,
     "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -347,7 +347,7 @@ CREATE TABLE "import_runs" (
 );
 
 -- CreateTable
-CREATE TABLE "import_records" (
+CREATE TABLE IF NOT EXISTS "import_records" (
     "id" TEXT NOT NULL,
     "importRunId" TEXT NOT NULL,
     "sourceRecordId" TEXT NOT NULL,
@@ -363,7 +363,7 @@ CREATE TABLE "import_records" (
 );
 
 -- CreateTable
-CREATE TABLE "import_conflicts" (
+CREATE TABLE IF NOT EXISTS "import_conflicts" (
     "id" TEXT NOT NULL,
     "importRunId" TEXT NOT NULL,
     "importRecordId" TEXT,
@@ -382,7 +382,7 @@ CREATE TABLE "import_conflicts" (
 );
 
 -- CreateTable
-CREATE TABLE "field_provenance" (
+CREATE TABLE IF NOT EXISTS "field_provenance" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "fieldName" TEXT NOT NULL,
@@ -397,7 +397,7 @@ CREATE TABLE "field_provenance" (
 );
 
 -- CreateTable
-CREATE TABLE "field_locks" (
+CREATE TABLE IF NOT EXISTS "field_locks" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "fieldName" TEXT NOT NULL,
@@ -410,7 +410,7 @@ CREATE TABLE "field_locks" (
 );
 
 -- CreateTable
-CREATE TABLE "source_priorities" (
+CREATE TABLE IF NOT EXISTS "source_priorities" (
     "id" TEXT NOT NULL,
     "integrationSourceId" TEXT NOT NULL,
     "fieldName" TEXT NOT NULL,
@@ -422,7 +422,7 @@ CREATE TABLE "source_priorities" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_methods" (
+CREATE TABLE IF NOT EXISTS "risk_methods" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -447,7 +447,7 @@ CREATE TABLE "risk_methods" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_method_versions" (
+CREATE TABLE IF NOT EXISTS "risk_method_versions" (
     "id" TEXT NOT NULL,
     "riskMethodId" TEXT NOT NULL,
     "versionTag" TEXT NOT NULL,
@@ -464,7 +464,7 @@ CREATE TABLE "risk_method_versions" (
 );
 
 -- CreateTable
-CREATE TABLE "risks" (
+CREATE TABLE IF NOT EXISTS "risks" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -499,7 +499,7 @@ CREATE TABLE "risks" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_assessments" (
+CREATE TABLE IF NOT EXISTS "risk_assessments" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "riskMethodVersionId" TEXT NOT NULL,
@@ -522,7 +522,7 @@ CREATE TABLE "risk_assessments" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_treatments" (
+CREATE TABLE IF NOT EXISTS "risk_treatments" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
@@ -551,7 +551,7 @@ CREATE TABLE "risk_treatments" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_acceptances" (
+CREATE TABLE IF NOT EXISTS "risk_acceptances" (
     "id" TEXT NOT NULL,
     "treatmentId" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
@@ -571,7 +571,7 @@ CREATE TABLE "risk_acceptances" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_treatment_approvals" (
+CREATE TABLE IF NOT EXISTS "risk_treatment_approvals" (
     "id" TEXT NOT NULL,
     "treatmentId" TEXT NOT NULL,
     "approverId" TEXT NOT NULL,
@@ -584,7 +584,7 @@ CREATE TABLE "risk_treatment_approvals" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_treatment_effectiveness_reviews" (
+CREATE TABLE IF NOT EXISTS "risk_treatment_effectiveness_reviews" (
     "id" TEXT NOT NULL,
     "treatmentId" TEXT NOT NULL,
     "result" TEXT NOT NULL,
@@ -597,7 +597,7 @@ CREATE TABLE "risk_treatment_effectiveness_reviews" (
 );
 
 -- CreateTable
-CREATE TABLE "threats" (
+CREATE TABLE IF NOT EXISTS "threats" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -615,7 +615,7 @@ CREATE TABLE "threats" (
 );
 
 -- CreateTable
-CREATE TABLE "vulnerabilities" (
+CREATE TABLE IF NOT EXISTS "vulnerabilities" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -635,7 +635,7 @@ CREATE TABLE "vulnerabilities" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_scenarios" (
+CREATE TABLE IF NOT EXISTS "risk_scenarios" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -651,7 +651,7 @@ CREATE TABLE "risk_scenarios" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_causes" (
+CREATE TABLE IF NOT EXISTS "risk_causes" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -666,7 +666,7 @@ CREATE TABLE "risk_causes" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_impacts" (
+CREATE TABLE IF NOT EXISTS "risk_impacts" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -682,7 +682,7 @@ CREATE TABLE "risk_impacts" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_cause_links" (
+CREATE TABLE IF NOT EXISTS "risk_cause_links" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "causeId" TEXT NOT NULL,
@@ -691,7 +691,7 @@ CREATE TABLE "risk_cause_links" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_impact_links" (
+CREATE TABLE IF NOT EXISTS "risk_impact_links" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "impactId" TEXT NOT NULL,
@@ -700,7 +700,7 @@ CREATE TABLE "risk_impact_links" (
 );
 
 -- CreateTable
-CREATE TABLE "review_tasks" (
+CREATE TABLE IF NOT EXISTS "review_tasks" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
@@ -724,7 +724,7 @@ CREATE TABLE "review_tasks" (
 );
 
 -- CreateTable
-CREATE TABLE "documents" (
+CREATE TABLE IF NOT EXISTS "documents" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -756,7 +756,7 @@ CREATE TABLE "documents" (
 );
 
 -- CreateTable
-CREATE TABLE "frameworks" (
+CREATE TABLE IF NOT EXISTS "frameworks" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
@@ -776,7 +776,7 @@ CREATE TABLE "frameworks" (
 );
 
 -- CreateTable
-CREATE TABLE "framework_versions" (
+CREATE TABLE IF NOT EXISTS "framework_versions" (
     "id" TEXT NOT NULL,
     "frameworkId" TEXT NOT NULL,
     "version" TEXT NOT NULL,
@@ -794,7 +794,7 @@ CREATE TABLE "framework_versions" (
 );
 
 -- CreateTable
-CREATE TABLE "requirements" (
+CREATE TABLE IF NOT EXISTS "requirements" (
     "id" TEXT NOT NULL,
     "frameworkVersionId" TEXT NOT NULL,
     "requirementKey" TEXT NOT NULL,
@@ -813,7 +813,7 @@ CREATE TABLE "requirements" (
 );
 
 -- CreateTable
-CREATE TABLE "control_requirement_mappings" (
+CREATE TABLE IF NOT EXISTS "control_requirement_mappings" (
     "id" TEXT NOT NULL,
     "controlId" TEXT NOT NULL,
     "requirementId" TEXT NOT NULL,
@@ -827,7 +827,7 @@ CREATE TABLE "control_requirement_mappings" (
 );
 
 -- CreateTable
-CREATE TABLE "controls" (
+CREATE TABLE IF NOT EXISTS "controls" (
     "id" TEXT NOT NULL,
     "catalogId" TEXT NOT NULL,
     "catalogVersion" TEXT NOT NULL,
@@ -858,7 +858,7 @@ CREATE TABLE "controls" (
 );
 
 -- CreateTable
-CREATE TABLE "control_implementations" (
+CREATE TABLE IF NOT EXISTS "control_implementations" (
     "id" TEXT NOT NULL,
     "controlId" TEXT NOT NULL,
     "scopeId" TEXT,
@@ -885,7 +885,7 @@ CREATE TABLE "control_implementations" (
 );
 
 -- CreateTable
-CREATE TABLE "control_implementation_requirements" (
+CREATE TABLE IF NOT EXISTS "control_implementation_requirements" (
     "id" TEXT NOT NULL,
     "implementationId" TEXT NOT NULL,
     "requirementId" TEXT NOT NULL,
@@ -894,7 +894,7 @@ CREATE TABLE "control_implementation_requirements" (
 );
 
 -- CreateTable
-CREATE TABLE "control_findings" (
+CREATE TABLE IF NOT EXISTS "control_findings" (
     "id" TEXT NOT NULL,
     "implementationId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -910,7 +910,7 @@ CREATE TABLE "control_findings" (
 );
 
 -- CreateTable
-CREATE TABLE "control_actions" (
+CREATE TABLE IF NOT EXISTS "control_actions" (
     "id" TEXT NOT NULL,
     "implementationId" TEXT NOT NULL,
     "findingId" TEXT,
@@ -928,7 +928,7 @@ CREATE TABLE "control_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "statements_of_applicability" (
+CREATE TABLE IF NOT EXISTS "statements_of_applicability" (
     "id" TEXT NOT NULL,
     "frameworkId" TEXT NOT NULL,
     "frameworkVersion" TEXT NOT NULL,
@@ -955,7 +955,7 @@ CREATE TABLE "statements_of_applicability" (
 );
 
 -- CreateTable
-CREATE TABLE "soa_items" (
+CREATE TABLE IF NOT EXISTS "soa_items" (
     "id" TEXT NOT NULL,
     "soaId" TEXT NOT NULL,
     "requirementId" TEXT,
@@ -977,7 +977,7 @@ CREATE TABLE "soa_items" (
 );
 
 -- CreateTable
-CREATE TABLE "soa_approvals" (
+CREATE TABLE IF NOT EXISTS "soa_approvals" (
     "id" TEXT NOT NULL,
     "soaId" TEXT NOT NULL,
     "approverId" TEXT NOT NULL,
@@ -989,7 +989,7 @@ CREATE TABLE "soa_approvals" (
 );
 
 -- CreateTable
-CREATE TABLE "incidents" (
+CREATE TABLE IF NOT EXISTS "incidents" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1036,7 +1036,7 @@ CREATE TABLE "incidents" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_assessments" (
+CREATE TABLE IF NOT EXISTS "incident_assessments" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "assessorId" TEXT NOT NULL,
@@ -1059,7 +1059,7 @@ CREATE TABLE "incident_assessments" (
 );
 
 -- CreateTable
-CREATE TABLE "notification_deadlines" (
+CREATE TABLE IF NOT EXISTS "notification_deadlines" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "notificationType" TEXT NOT NULL,
@@ -1076,7 +1076,7 @@ CREATE TABLE "notification_deadlines" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_knowledge_time_changes" (
+CREATE TABLE IF NOT EXISTS "incident_knowledge_time_changes" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "oldKnowledgeTime" TIMESTAMP(3) NOT NULL,
@@ -1089,7 +1089,7 @@ CREATE TABLE "incident_knowledge_time_changes" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_reports" (
+CREATE TABLE IF NOT EXISTS "incident_reports" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "reportType" TEXT NOT NULL,
@@ -1112,7 +1112,7 @@ CREATE TABLE "incident_reports" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_communications" (
+CREATE TABLE IF NOT EXISTS "incident_communications" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "channel" TEXT NOT NULL,
@@ -1132,7 +1132,7 @@ CREATE TABLE "incident_communications" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_escalations" (
+CREATE TABLE IF NOT EXISTS "incident_escalations" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "escalationType" TEXT NOT NULL,
@@ -1149,7 +1149,7 @@ CREATE TABLE "incident_escalations" (
 );
 
 -- CreateTable
-CREATE TABLE "evidence" (
+CREATE TABLE IF NOT EXISTS "evidence" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -1184,7 +1184,7 @@ CREATE TABLE "evidence" (
 );
 
 -- CreateTable
-CREATE TABLE "evidence_links" (
+CREATE TABLE IF NOT EXISTS "evidence_links" (
     "id" TEXT NOT NULL,
     "evidenceId" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
@@ -1197,7 +1197,7 @@ CREATE TABLE "evidence_links" (
 );
 
 -- CreateTable
-CREATE TABLE "audit_logs" (
+CREATE TABLE IF NOT EXISTS "audit_logs" (
     "id" TEXT NOT NULL,
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT NOT NULL,
@@ -1215,7 +1215,7 @@ CREATE TABLE "audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "display_id_counters" (
+CREATE TABLE IF NOT EXISTS "display_id_counters" (
     "id" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
     "sequence" INTEGER NOT NULL DEFAULT 0,
@@ -1226,7 +1226,7 @@ CREATE TABLE "display_id_counters" (
 );
 
 -- CreateTable
-CREATE TABLE "policy_documents" (
+CREATE TABLE IF NOT EXISTS "policy_documents" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -1254,7 +1254,7 @@ CREATE TABLE "policy_documents" (
 );
 
 -- CreateTable
-CREATE TABLE "document_versions" (
+CREATE TABLE IF NOT EXISTS "document_versions" (
     "id" TEXT NOT NULL,
     "documentId" TEXT NOT NULL,
     "versionNumber" TEXT NOT NULL,
@@ -1272,7 +1272,7 @@ CREATE TABLE "document_versions" (
 );
 
 -- CreateTable
-CREATE TABLE "document_acknowledgements" (
+CREATE TABLE IF NOT EXISTS "document_acknowledgements" (
     "id" TEXT NOT NULL,
     "documentId" TEXT NOT NULL,
     "versionId" TEXT,
@@ -1284,7 +1284,7 @@ CREATE TABLE "document_acknowledgements" (
 );
 
 -- CreateTable
-CREATE TABLE "document_reviews" (
+CREATE TABLE IF NOT EXISTS "document_reviews" (
     "id" TEXT NOT NULL,
     "documentId" TEXT NOT NULL,
     "reviewerId" TEXT NOT NULL,
@@ -1300,7 +1300,7 @@ CREATE TABLE "document_reviews" (
 );
 
 -- CreateTable
-CREATE TABLE "suppliers" (
+CREATE TABLE IF NOT EXISTS "suppliers" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "legalName" TEXT NOT NULL,
@@ -1330,7 +1330,7 @@ CREATE TABLE "suppliers" (
 );
 
 -- CreateTable
-CREATE TABLE "supplier_assessments" (
+CREATE TABLE IF NOT EXISTS "supplier_assessments" (
     "id" TEXT NOT NULL,
     "supplierId" TEXT NOT NULL,
     "assessorId" TEXT NOT NULL,
@@ -1353,7 +1353,7 @@ CREATE TABLE "supplier_assessments" (
 );
 
 -- CreateTable
-CREATE TABLE "supplier_contract_relations" (
+CREATE TABLE IF NOT EXISTS "supplier_contract_relations" (
     "id" TEXT NOT NULL,
     "supplierId" TEXT NOT NULL,
     "contractId" TEXT NOT NULL,
@@ -1366,7 +1366,7 @@ CREATE TABLE "supplier_contract_relations" (
 );
 
 -- CreateTable
-CREATE TABLE "supplier_risk_relations" (
+CREATE TABLE IF NOT EXISTS "supplier_risk_relations" (
     "id" TEXT NOT NULL,
     "supplierId" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
@@ -1379,7 +1379,7 @@ CREATE TABLE "supplier_risk_relations" (
 );
 
 -- CreateTable
-CREATE TABLE "business_impact_analyses" (
+CREATE TABLE IF NOT EXISTS "business_impact_analyses" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1406,7 +1406,7 @@ CREATE TABLE "business_impact_analyses" (
 );
 
 -- CreateTable
-CREATE TABLE "bia_asset_relations" (
+CREATE TABLE IF NOT EXISTS "bia_asset_relations" (
     "id" TEXT NOT NULL,
     "biaId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
@@ -1416,7 +1416,7 @@ CREATE TABLE "bia_asset_relations" (
 );
 
 -- CreateTable
-CREATE TABLE "business_continuity_plans" (
+CREATE TABLE IF NOT EXISTS "business_continuity_plans" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1441,7 +1441,7 @@ CREATE TABLE "business_continuity_plans" (
 );
 
 -- CreateTable
-CREATE TABLE "bcp_exercises" (
+CREATE TABLE IF NOT EXISTS "bcp_exercises" (
     "id" TEXT NOT NULL,
     "bcpId" TEXT NOT NULL,
     "exerciseType" TEXT NOT NULL DEFAULT 'tabletop',
@@ -1459,7 +1459,7 @@ CREATE TABLE "bcp_exercises" (
 );
 
 -- CreateTable
-CREATE TABLE "audit_programs" (
+CREATE TABLE IF NOT EXISTS "audit_programs" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1478,7 +1478,7 @@ CREATE TABLE "audit_programs" (
 );
 
 -- CreateTable
-CREATE TABLE "audit_plans" (
+CREATE TABLE IF NOT EXISTS "audit_plans" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "programId" TEXT,
@@ -1503,7 +1503,7 @@ CREATE TABLE "audit_plans" (
 );
 
 -- CreateTable
-CREATE TABLE "audit_findings" (
+CREATE TABLE IF NOT EXISTS "audit_findings" (
     "id" TEXT NOT NULL,
     "auditPlanId" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
@@ -1529,7 +1529,7 @@ CREATE TABLE "audit_findings" (
 );
 
 -- CreateTable
-CREATE TABLE "audit_evidence_relations" (
+CREATE TABLE IF NOT EXISTS "audit_evidence_relations" (
     "id" TEXT NOT NULL,
     "auditFindingId" TEXT NOT NULL,
     "evidenceId" TEXT NOT NULL,
@@ -1541,7 +1541,7 @@ CREATE TABLE "audit_evidence_relations" (
 );
 
 -- CreateTable
-CREATE TABLE "corrective_actions" (
+CREATE TABLE IF NOT EXISTS "corrective_actions" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1571,7 +1571,7 @@ CREATE TABLE "corrective_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "training_courses" (
+CREATE TABLE IF NOT EXISTS "training_courses" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1592,7 +1592,7 @@ CREATE TABLE "training_courses" (
 );
 
 -- CreateTable
-CREATE TABLE "training_assignments" (
+CREATE TABLE IF NOT EXISTS "training_assignments" (
     "id" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -1612,7 +1612,7 @@ CREATE TABLE "training_assignments" (
 );
 
 -- CreateTable
-CREATE TABLE "training_completions" (
+CREATE TABLE IF NOT EXISTS "training_completions" (
     "id" TEXT NOT NULL,
     "assignmentId" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
@@ -1629,7 +1629,7 @@ CREATE TABLE "training_completions" (
 );
 
 -- CreateTable
-CREATE TABLE "training_acknowledgements" (
+CREATE TABLE IF NOT EXISTS "training_acknowledgements" (
     "id" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -1641,7 +1641,7 @@ CREATE TABLE "training_acknowledgements" (
 );
 
 -- CreateTable
-CREATE TABLE "management_reviews" (
+CREATE TABLE IF NOT EXISTS "management_reviews" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1667,7 +1667,7 @@ CREATE TABLE "management_reviews" (
 );
 
 -- CreateTable
-CREATE TABLE "management_review_actions" (
+CREATE TABLE IF NOT EXISTS "management_review_actions" (
     "id" TEXT NOT NULL,
     "reviewId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1682,7 +1682,7 @@ CREATE TABLE "management_review_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "security_objectives" (
+CREATE TABLE IF NOT EXISTS "security_objectives" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1702,7 +1702,7 @@ CREATE TABLE "security_objectives" (
 );
 
 -- CreateTable
-CREATE TABLE "metric_definitions" (
+CREATE TABLE IF NOT EXISTS "metric_definitions" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "objectiveId" TEXT,
@@ -1723,7 +1723,7 @@ CREATE TABLE "metric_definitions" (
 );
 
 -- CreateTable
-CREATE TABLE "metric_values" (
+CREATE TABLE IF NOT EXISTS "metric_values" (
     "id" TEXT NOT NULL,
     "metricId" TEXT NOT NULL,
     "measuredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1740,7 +1740,7 @@ CREATE TABLE "metric_values" (
 );
 
 -- CreateTable
-CREATE TABLE "workflow_definitions" (
+CREATE TABLE IF NOT EXISTS "workflow_definitions" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -1761,7 +1761,7 @@ CREATE TABLE "workflow_definitions" (
 );
 
 -- CreateTable
-CREATE TABLE "workflow_instances" (
+CREATE TABLE IF NOT EXISTS "workflow_instances" (
     "id" TEXT NOT NULL,
     "definitionId" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
@@ -1779,7 +1779,7 @@ CREATE TABLE "workflow_instances" (
 );
 
 -- CreateTable
-CREATE TABLE "workflow_tasks" (
+CREATE TABLE IF NOT EXISTS "workflow_tasks" (
     "id" TEXT NOT NULL,
     "instanceId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1797,7 +1797,7 @@ CREATE TABLE "workflow_tasks" (
 );
 
 -- CreateTable
-CREATE TABLE "workflow_transition_logs" (
+CREATE TABLE IF NOT EXISTS "workflow_transition_logs" (
     "id" TEXT NOT NULL,
     "instanceId" TEXT NOT NULL,
     "fromState" TEXT,
@@ -1811,7 +1811,7 @@ CREATE TABLE "workflow_transition_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "report_definitions" (
+CREATE TABLE IF NOT EXISTS "report_definitions" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -1832,7 +1832,7 @@ CREATE TABLE "report_definitions" (
 );
 
 -- CreateTable
-CREATE TABLE "report_runs" (
+CREATE TABLE IF NOT EXISTS "report_runs" (
     "id" TEXT NOT NULL,
     "definitionId" TEXT,
     "module" TEXT NOT NULL,
@@ -1849,7 +1849,7 @@ CREATE TABLE "report_runs" (
 );
 
 -- CreateTable
-CREATE TABLE "export_jobs" (
+CREATE TABLE IF NOT EXISTS "export_jobs" (
     "id" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
     "entityId" TEXT,
@@ -1868,7 +1868,7 @@ CREATE TABLE "export_jobs" (
 );
 
 -- CreateTable
-CREATE TABLE "nis2_assessments" (
+CREATE TABLE IF NOT EXISTS "nis2_assessments" (
     "id" TEXT NOT NULL,
     "organizationUnitId" TEXT,
     "assessmentType" TEXT NOT NULL DEFAULT 'applicability',
@@ -1894,7 +1894,7 @@ CREATE TABLE "nis2_assessments" (
 );
 
 -- CreateTable
-CREATE TABLE "nis2_registrations" (
+CREATE TABLE IF NOT EXISTS "nis2_registrations" (
     "id" TEXT NOT NULL,
     "assessmentId" TEXT,
     "entityType" TEXT NOT NULL,
@@ -1918,7 +1918,7 @@ CREATE TABLE "nis2_registrations" (
 );
 
 -- CreateTable
-CREATE TABLE "nis2_questionnaire_versions" (
+CREATE TABLE IF NOT EXISTS "nis2_questionnaire_versions" (
     "id" TEXT NOT NULL,
     "version" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -1934,7 +1934,7 @@ CREATE TABLE "nis2_questionnaire_versions" (
 );
 
 -- CreateTable
-CREATE TABLE "nis2_registration_changes" (
+CREATE TABLE IF NOT EXISTS "nis2_registration_changes" (
     "id" TEXT NOT NULL,
     "registrationId" TEXT NOT NULL,
     "changeType" TEXT NOT NULL,
@@ -1951,7 +1951,7 @@ CREATE TABLE "nis2_registration_changes" (
 );
 
 -- CreateTable
-CREATE TABLE "nis2_incident_significance_rule_versions" (
+CREATE TABLE IF NOT EXISTS "nis2_incident_significance_rule_versions" (
     "id" TEXT NOT NULL,
     "version" TEXT NOT NULL,
     "rules" JSONB NOT NULL,
@@ -1965,7 +1965,7 @@ CREATE TABLE "nis2_incident_significance_rule_versions" (
 );
 
 -- CreateTable
-CREATE TABLE "sessions" (
+CREATE TABLE IF NOT EXISTS "sessions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "refreshToken" TEXT NOT NULL,
@@ -1977,7 +1977,7 @@ CREATE TABLE "sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "refresh_tokens" (
+CREATE TABLE IF NOT EXISTS "refresh_tokens" (
     "id" TEXT NOT NULL,
     "token" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -1989,7 +1989,7 @@ CREATE TABLE "refresh_tokens" (
 );
 
 -- CreateTable
-CREATE TABLE "intune_device_syncs" (
+CREATE TABLE IF NOT EXISTS "intune_device_syncs" (
     "id" TEXT NOT NULL,
     "intuneId" TEXT NOT NULL,
     "name" TEXT,
@@ -2030,7 +2030,7 @@ CREATE TABLE "intune_device_syncs" (
 );
 
 -- CreateTable
-CREATE TABLE "intune_detected_apps" (
+CREATE TABLE IF NOT EXISTS "intune_detected_apps" (
     "id" TEXT NOT NULL,
     "intuneAppId" TEXT NOT NULL,
     "deviceId" TEXT NOT NULL,
@@ -2054,7 +2054,7 @@ CREATE TABLE "intune_detected_apps" (
 );
 
 -- CreateTable
-CREATE TABLE "intune_sync_status" (
+CREATE TABLE IF NOT EXISTS "intune_sync_status" (
     "id" TEXT NOT NULL,
     "syncType" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'idle',
@@ -2079,7 +2079,7 @@ CREATE TABLE "intune_sync_status" (
 );
 
 -- CreateTable
-CREATE TABLE "intune_sync_config" (
+CREATE TABLE IF NOT EXISTS "intune_sync_config" (
     "id" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "fullSyncIntervalHours" INTEGER NOT NULL DEFAULT 24,
@@ -2099,7 +2099,7 @@ CREATE TABLE "intune_sync_config" (
 );
 
 -- CreateTable
-CREATE TABLE "intune_app_credentials" (
+CREATE TABLE IF NOT EXISTS "intune_app_credentials" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL DEFAULT 'Intune API Credentials',
     "tenantId" TEXT,
@@ -2115,7 +2115,7 @@ CREATE TABLE "intune_app_credentials" (
 );
 
 -- CreateTable
-CREATE TABLE "contracts" (
+CREATE TABLE IF NOT EXISTS "contracts" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -2138,7 +2138,7 @@ CREATE TABLE "contracts" (
 );
 
 -- CreateTable
-CREATE TABLE "licenses" (
+CREATE TABLE IF NOT EXISTS "licenses" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -2164,7 +2164,7 @@ CREATE TABLE "licenses" (
 );
 
 -- CreateTable
-CREATE TABLE "business_processes" (
+CREATE TABLE IF NOT EXISTS "business_processes" (
     "id" TEXT NOT NULL,
     "displayId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -2184,7 +2184,7 @@ CREATE TABLE "business_processes" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_documents" (
+CREATE TABLE IF NOT EXISTS "asset_documents" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "documentId" TEXT NOT NULL,
@@ -2193,7 +2193,7 @@ CREATE TABLE "asset_documents" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_evidence" (
+CREATE TABLE IF NOT EXISTS "risk_evidence" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "evidenceId" TEXT NOT NULL,
@@ -2202,7 +2202,7 @@ CREATE TABLE "risk_evidence" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_assets" (
+CREATE TABLE IF NOT EXISTS "risk_assets" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
@@ -2211,7 +2211,7 @@ CREATE TABLE "risk_assets" (
 );
 
 -- CreateTable
-CREATE TABLE "vulnerability_assets" (
+CREATE TABLE IF NOT EXISTS "vulnerability_assets" (
     "id" TEXT NOT NULL,
     "vulnerabilityId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
@@ -2220,7 +2220,7 @@ CREATE TABLE "vulnerability_assets" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_assets" (
+CREATE TABLE IF NOT EXISTS "incident_assets" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
@@ -2229,7 +2229,7 @@ CREATE TABLE "incident_assets" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_processes" (
+CREATE TABLE IF NOT EXISTS "asset_processes" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "processId" TEXT NOT NULL,
@@ -2238,7 +2238,7 @@ CREATE TABLE "asset_processes" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_services" (
+CREATE TABLE IF NOT EXISTS "asset_services" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "serviceId" TEXT NOT NULL,
@@ -2247,7 +2247,7 @@ CREATE TABLE "asset_services" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_contracts" (
+CREATE TABLE IF NOT EXISTS "asset_contracts" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "contractId" TEXT NOT NULL,
@@ -2256,7 +2256,7 @@ CREATE TABLE "asset_contracts" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_licenses" (
+CREATE TABLE IF NOT EXISTS "asset_licenses" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "licenseId" TEXT NOT NULL,
@@ -2265,7 +2265,7 @@ CREATE TABLE "asset_licenses" (
 );
 
 -- CreateTable
-CREATE TABLE "contract_licenses" (
+CREATE TABLE IF NOT EXISTS "contract_licenses" (
     "id" TEXT NOT NULL,
     "contractId" TEXT NOT NULL,
     "licenseId" TEXT NOT NULL,
@@ -2274,7 +2274,7 @@ CREATE TABLE "contract_licenses" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_processes" (
+CREATE TABLE IF NOT EXISTS "risk_processes" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "processId" TEXT NOT NULL,
@@ -2283,7 +2283,7 @@ CREATE TABLE "risk_processes" (
 );
 
 -- CreateTable
-CREATE TABLE "risk_services" (
+CREATE TABLE IF NOT EXISTS "risk_services" (
     "id" TEXT NOT NULL,
     "riskId" TEXT NOT NULL,
     "serviceId" TEXT NOT NULL,
@@ -2292,7 +2292,7 @@ CREATE TABLE "risk_services" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_services" (
+CREATE TABLE IF NOT EXISTS "incident_services" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "serviceId" TEXT NOT NULL,
@@ -2301,7 +2301,7 @@ CREATE TABLE "incident_services" (
 );
 
 -- CreateTable
-CREATE TABLE "incident_processes" (
+CREATE TABLE IF NOT EXISTS "incident_processes" (
     "id" TEXT NOT NULL,
     "incidentId" TEXT NOT NULL,
     "processId" TEXT NOT NULL,
@@ -2310,7 +2310,7 @@ CREATE TABLE "incident_processes" (
 );
 
 -- CreateTable
-CREATE TABLE "control_assets" (
+CREATE TABLE IF NOT EXISTS "control_assets" (
     "id" TEXT NOT NULL,
     "controlId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
@@ -2319,7 +2319,7 @@ CREATE TABLE "control_assets" (
 );
 
 -- CreateTable
-CREATE TABLE "control_processes" (
+CREATE TABLE IF NOT EXISTS "control_processes" (
     "id" TEXT NOT NULL,
     "controlId" TEXT NOT NULL,
     "processId" TEXT NOT NULL,
@@ -2328,7 +2328,7 @@ CREATE TABLE "control_processes" (
 );
 
 -- CreateTable
-CREATE TABLE "control_sites" (
+CREATE TABLE IF NOT EXISTS "control_sites" (
     "id" TEXT NOT NULL,
     "controlId" TEXT NOT NULL,
     "siteId" TEXT NOT NULL,
@@ -2337,7 +2337,7 @@ CREATE TABLE "control_sites" (
 );
 
 -- CreateTable
-CREATE TABLE "asset_lifecycle_logs" (
+CREATE TABLE IF NOT EXISTS "asset_lifecycle_logs" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "previousStatus" TEXT,
@@ -2351,7 +2351,7 @@ CREATE TABLE "asset_lifecycle_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "vmware_credentials" (
+CREATE TABLE IF NOT EXISTS "vmware_credentials" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "username" TEXT NOT NULL,
@@ -2364,7 +2364,7 @@ CREATE TABLE "vmware_credentials" (
 );
 
 -- CreateTable
-CREATE TABLE "vcenter_servers" (
+CREATE TABLE IF NOT EXISTS "vcenter_servers" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "host" TEXT NOT NULL,
@@ -2382,7 +2382,7 @@ CREATE TABLE "vcenter_servers" (
 );
 
 -- CreateTable
-CREATE TABLE "proxmox_credentials" (
+CREATE TABLE IF NOT EXISTS "proxmox_credentials" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "username" TEXT NOT NULL,
@@ -2396,7 +2396,7 @@ CREATE TABLE "proxmox_credentials" (
 );
 
 -- CreateTable
-CREATE TABLE "proxmox_servers" (
+CREATE TABLE IF NOT EXISTS "proxmox_servers" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "host" TEXT NOT NULL,
@@ -2415,1025 +2415,3261 @@ CREATE TABLE "proxmox_servers" (
 );
 
 -- CreateTable
-CREATE TABLE "_AssetRisks" (
+CREATE TABLE IF NOT EXISTS "_AssetRisks" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL
 );
 
 -- CreateTable
-CREATE TABLE "_AssetControls" (
+CREATE TABLE IF NOT EXISTS "_AssetControls" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL
 );
 
 -- CreateTable
-CREATE TABLE "_RiskControls" (
+CREATE TABLE IF NOT EXISTS "_RiskControls" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_displayId_key" ON "users"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
-
--- CreateIndex
-CREATE INDEX "users_oidcId_oidcProvider_idx" ON "users"("oidcId", "oidcProvider");
-
--- CreateIndex
-CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "groups_name_key" ON "groups"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "user_groups_userId_groupId_key" ON "user_groups"("userId", "groupId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "asset_types_name_key" ON "asset_types"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "business_services_displayId_key" ON "business_services"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "assets_displayId_key" ON "assets"("displayId");
-
--- CreateIndex
-CREATE INDEX "network_addresses_assetId_idx" ON "network_addresses"("assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "integration_sources_name_key" ON "integration_sources"("name");
-
--- CreateIndex
-CREATE INDEX "integration_sources_type_idx" ON "integration_sources"("type");
-
--- CreateIndex
-CREATE INDEX "integration_sources_isActive_idx" ON "integration_sources"("isActive");
-
--- CreateIndex
-CREATE INDEX "import_runs_integrationSourceId_idx" ON "import_runs"("integrationSourceId");
-
--- CreateIndex
-CREATE INDEX "import_runs_status_idx" ON "import_runs"("status");
-
--- CreateIndex
-CREATE INDEX "import_runs_startedAt_idx" ON "import_runs"("startedAt");
-
--- CreateIndex
-CREATE INDEX "import_records_targetAssetId_idx" ON "import_records"("targetAssetId");
-
--- CreateIndex
-CREATE INDEX "import_records_status_idx" ON "import_records"("status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "import_records_importRunId_sourceRecordId_key" ON "import_records"("importRunId", "sourceRecordId");
-
--- CreateIndex
-CREATE INDEX "import_conflicts_importRunId_idx" ON "import_conflicts"("importRunId");
-
--- CreateIndex
-CREATE INDEX "import_conflicts_assetId_idx" ON "import_conflicts"("assetId");
-
--- CreateIndex
-CREATE INDEX "import_conflicts_status_idx" ON "import_conflicts"("status");
-
--- CreateIndex
-CREATE INDEX "field_provenance_integrationSourceId_idx" ON "field_provenance"("integrationSourceId");
-
--- CreateIndex
-CREATE INDEX "field_provenance_importRunId_idx" ON "field_provenance"("importRunId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "field_provenance_assetId_fieldName_key" ON "field_provenance"("assetId", "fieldName");
-
--- CreateIndex
-CREATE INDEX "field_locks_assetId_idx" ON "field_locks"("assetId");
-
--- CreateIndex
-CREATE INDEX "field_locks_isActive_idx" ON "field_locks"("isActive");
-
--- CreateIndex
-CREATE UNIQUE INDEX "field_locks_assetId_fieldName_key" ON "field_locks"("assetId", "fieldName");
-
--- CreateIndex
-CREATE INDEX "source_priorities_fieldName_priority_idx" ON "source_priorities"("fieldName", "priority");
-
--- CreateIndex
-CREATE UNIQUE INDEX "source_priorities_integrationSourceId_fieldName_key" ON "source_priorities"("integrationSourceId", "fieldName");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_methods_displayId_key" ON "risk_methods"("displayId");
-
--- CreateIndex
-CREATE INDEX "risk_methods_name_version_idx" ON "risk_methods"("name", "version");
-
--- CreateIndex
-CREATE INDEX "risk_method_versions_riskMethodId_idx" ON "risk_method_versions"("riskMethodId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risks_displayId_key" ON "risks"("displayId");
-
--- CreateIndex
-CREATE INDEX "risks_riskMethodVersionId_idx" ON "risks"("riskMethodVersionId");
-
--- CreateIndex
-CREATE INDEX "risks_scenarioId_idx" ON "risks"("scenarioId");
-
--- CreateIndex
-CREATE INDEX "risk_assessments_riskId_isCurrent_idx" ON "risk_assessments"("riskId", "isCurrent");
-
--- CreateIndex
-CREATE INDEX "risk_assessments_riskMethodVersionId_idx" ON "risk_assessments"("riskMethodVersionId");
-
--- CreateIndex
-CREATE INDEX "risk_assessments_assessmentType_idx" ON "risk_assessments"("assessmentType");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_assessments_riskId_assessmentNumber_key" ON "risk_assessments"("riskId", "assessmentNumber");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_treatments_displayId_key" ON "risk_treatments"("displayId");
-
--- CreateIndex
-CREATE INDEX "risk_treatments_riskId_idx" ON "risk_treatments"("riskId");
-
--- CreateIndex
-CREATE INDEX "risk_treatments_assessmentId_idx" ON "risk_treatments"("assessmentId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_acceptances_treatmentId_key" ON "risk_acceptances"("treatmentId");
-
--- CreateIndex
-CREATE INDEX "risk_acceptances_riskId_idx" ON "risk_acceptances"("riskId");
-
--- CreateIndex
-CREATE INDEX "risk_acceptances_assessmentId_idx" ON "risk_acceptances"("assessmentId");
-
--- CreateIndex
-CREATE INDEX "risk_acceptances_status_idx" ON "risk_acceptances"("status");
-
--- CreateIndex
-CREATE INDEX "risk_treatment_approvals_treatmentId_idx" ON "risk_treatment_approvals"("treatmentId");
-
--- CreateIndex
-CREATE INDEX "risk_treatment_approvals_approverId_idx" ON "risk_treatment_approvals"("approverId");
-
--- CreateIndex
-CREATE INDEX "risk_treatment_effectiveness_reviews_treatmentId_idx" ON "risk_treatment_effectiveness_reviews"("treatmentId");
-
--- CreateIndex
-CREATE INDEX "risk_treatment_effectiveness_reviews_reviewerId_idx" ON "risk_treatment_effectiveness_reviews"("reviewerId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "threats_displayId_key" ON "threats"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "vulnerabilities_displayId_key" ON "vulnerabilities"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_scenarios_displayId_key" ON "risk_scenarios"("displayId");
-
--- CreateIndex
-CREATE INDEX "risk_scenarios_threatId_idx" ON "risk_scenarios"("threatId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_causes_displayId_key" ON "risk_causes"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_impacts_displayId_key" ON "risk_impacts"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_cause_links_riskId_causeId_key" ON "risk_cause_links"("riskId", "causeId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_impact_links_riskId_impactId_key" ON "risk_impact_links"("riskId", "impactId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "review_tasks_displayId_key" ON "review_tasks"("displayId");
-
--- CreateIndex
-CREATE INDEX "review_tasks_riskId_idx" ON "review_tasks"("riskId");
-
--- CreateIndex
-CREATE INDEX "review_tasks_status_idx" ON "review_tasks"("status");
-
--- CreateIndex
-CREATE INDEX "review_tasks_dueDate_idx" ON "review_tasks"("dueDate");
-
--- CreateIndex
-CREATE INDEX "review_tasks_assignedTo_idx" ON "review_tasks"("assignedTo");
-
--- CreateIndex
-CREATE UNIQUE INDEX "documents_displayId_key" ON "documents"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "frameworks_code_key" ON "frameworks"("code");
-
--- CreateIndex
-CREATE INDEX "framework_versions_frameworkId_idx" ON "framework_versions"("frameworkId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "framework_versions_frameworkId_version_key" ON "framework_versions"("frameworkId", "version");
-
--- CreateIndex
-CREATE INDEX "requirements_frameworkVersionId_idx" ON "requirements"("frameworkVersionId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "requirements_frameworkVersionId_requirementKey_key" ON "requirements"("frameworkVersionId", "requirementKey");
-
--- CreateIndex
-CREATE INDEX "control_requirement_mappings_requirementId_idx" ON "control_requirement_mappings"("requirementId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "control_requirement_mappings_controlId_requirementId_key" ON "control_requirement_mappings"("controlId", "requirementId");
-
--- CreateIndex
-CREATE INDEX "control_implementations_controlId_idx" ON "control_implementations"("controlId");
-
--- CreateIndex
-CREATE INDEX "control_implementations_scopeId_idx" ON "control_implementations"("scopeId");
-
--- CreateIndex
-CREATE INDEX "control_implementations_organizationUnitId_idx" ON "control_implementations"("organizationUnitId");
-
--- CreateIndex
-CREATE INDEX "control_implementations_siteId_idx" ON "control_implementations"("siteId");
-
--- CreateIndex
-CREATE INDEX "control_implementation_requirements_requirementId_idx" ON "control_implementation_requirements"("requirementId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "control_implementation_requirements_implementationId_requir_key" ON "control_implementation_requirements"("implementationId", "requirementId");
-
--- CreateIndex
-CREATE INDEX "control_findings_implementationId_idx" ON "control_findings"("implementationId");
-
--- CreateIndex
-CREATE INDEX "control_actions_implementationId_idx" ON "control_actions"("implementationId");
-
--- CreateIndex
-CREATE INDEX "control_actions_findingId_idx" ON "control_actions"("findingId");
-
--- CreateIndex
-CREATE INDEX "soa_items_soaId_idx" ON "soa_items"("soaId");
-
--- CreateIndex
-CREATE INDEX "soa_items_requirementId_idx" ON "soa_items"("requirementId");
-
--- CreateIndex
-CREATE INDEX "soa_items_controlId_idx" ON "soa_items"("controlId");
-
--- CreateIndex
-CREATE INDEX "soa_approvals_soaId_idx" ON "soa_approvals"("soaId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "incidents_displayId_key" ON "incidents"("displayId");
-
--- CreateIndex
-CREATE INDEX "incidents_significanceRuleVersionId_idx" ON "incidents"("significanceRuleVersionId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "incident_assessments_incidentId_key" ON "incident_assessments"("incidentId");
-
--- CreateIndex
-CREATE INDEX "incident_assessments_significanceRuleVersionId_idx" ON "incident_assessments"("significanceRuleVersionId");
-
--- CreateIndex
-CREATE INDEX "notification_deadlines_incidentId_idx" ON "notification_deadlines"("incidentId");
-
--- CreateIndex
-CREATE INDEX "notification_deadlines_deadlineDate_status_idx" ON "notification_deadlines"("deadlineDate", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "notification_deadlines_incidentId_notificationType_key" ON "notification_deadlines"("incidentId", "notificationType");
-
--- CreateIndex
-CREATE INDEX "incident_knowledge_time_changes_incidentId_idx" ON "incident_knowledge_time_changes"("incidentId");
-
--- CreateIndex
-CREATE INDEX "incident_reports_incidentId_idx" ON "incident_reports"("incidentId");
-
--- CreateIndex
-CREATE INDEX "incident_reports_reportType_status_idx" ON "incident_reports"("reportType", "status");
-
--- CreateIndex
-CREATE INDEX "incident_communications_incidentId_idx" ON "incident_communications"("incidentId");
-
--- CreateIndex
-CREATE INDEX "incident_escalations_incidentId_status_idx" ON "incident_escalations"("incidentId", "status");
-
--- CreateIndex
-CREATE INDEX "evidence_links_entityType_entityId_idx" ON "evidence_links"("entityType", "entityId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "evidence_links_evidenceId_entityType_entityId_key" ON "evidence_links"("evidenceId", "entityType", "entityId");
-
--- CreateIndex
-CREATE INDEX "audit_logs_timestamp_idx" ON "audit_logs"("timestamp");
-
--- CreateIndex
-CREATE INDEX "audit_logs_userId_idx" ON "audit_logs"("userId");
-
--- CreateIndex
-CREATE INDEX "audit_logs_entityType_entityId_idx" ON "audit_logs"("entityType", "entityId");
-
--- CreateIndex
-CREATE INDEX "audit_logs_action_idx" ON "audit_logs"("action");
-
--- CreateIndex
-CREATE UNIQUE INDEX "display_id_counters_entityType_key" ON "display_id_counters"("entityType");
-
--- CreateIndex
-CREATE INDEX "document_acknowledgements_userId_idx" ON "document_acknowledgements"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "document_acknowledgements_documentId_versionId_userId_key" ON "document_acknowledgements"("documentId", "versionId", "userId");
-
--- CreateIndex
-CREATE INDEX "document_reviews_documentId_idx" ON "document_reviews"("documentId");
-
--- CreateIndex
-CREATE INDEX "document_reviews_dueDate_idx" ON "document_reviews"("dueDate");
-
--- CreateIndex
-CREATE INDEX "document_reviews_status_idx" ON "document_reviews"("status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "suppliers_displayId_key" ON "suppliers"("displayId");
-
--- CreateIndex
-CREATE INDEX "suppliers_criticality_idx" ON "suppliers"("criticality");
-
--- CreateIndex
-CREATE INDEX "suppliers_nextReviewDate_idx" ON "suppliers"("nextReviewDate");
-
--- CreateIndex
-CREATE INDEX "supplier_assessments_supplierId_idx" ON "supplier_assessments"("supplierId");
-
--- CreateIndex
-CREATE INDEX "supplier_assessments_nextAssessmentDate_idx" ON "supplier_assessments"("nextAssessmentDate");
-
--- CreateIndex
-CREATE INDEX "supplier_contract_relations_contractId_idx" ON "supplier_contract_relations"("contractId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "supplier_contract_relations_supplierId_contractId_key" ON "supplier_contract_relations"("supplierId", "contractId");
-
--- CreateIndex
-CREATE INDEX "supplier_risk_relations_riskId_idx" ON "supplier_risk_relations"("riskId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "supplier_risk_relations_supplierId_riskId_key" ON "supplier_risk_relations"("supplierId", "riskId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "business_impact_analyses_displayId_key" ON "business_impact_analyses"("displayId");
-
--- CreateIndex
-CREATE INDEX "business_impact_analyses_processId_idx" ON "business_impact_analyses"("processId");
-
--- CreateIndex
-CREATE INDEX "business_impact_analyses_serviceId_idx" ON "business_impact_analyses"("serviceId");
-
--- CreateIndex
-CREATE INDEX "business_impact_analyses_nextReviewDate_idx" ON "business_impact_analyses"("nextReviewDate");
-
--- CreateIndex
-CREATE INDEX "bia_asset_relations_assetId_idx" ON "bia_asset_relations"("assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "bia_asset_relations_biaId_assetId_key" ON "bia_asset_relations"("biaId", "assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "business_continuity_plans_displayId_key" ON "business_continuity_plans"("displayId");
-
--- CreateIndex
-CREATE INDEX "business_continuity_plans_biaId_idx" ON "business_continuity_plans"("biaId");
-
--- CreateIndex
-CREATE INDEX "business_continuity_plans_nextTestDate_idx" ON "business_continuity_plans"("nextTestDate");
-
--- CreateIndex
-CREATE INDEX "bcp_exercises_bcpId_idx" ON "bcp_exercises"("bcpId");
-
--- CreateIndex
-CREATE INDEX "bcp_exercises_plannedAt_status_idx" ON "bcp_exercises"("plannedAt", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "audit_programs_displayId_key" ON "audit_programs"("displayId");
-
--- CreateIndex
-CREATE INDEX "audit_programs_year_status_idx" ON "audit_programs"("year", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "audit_plans_displayId_key" ON "audit_plans"("displayId");
-
--- CreateIndex
-CREATE INDEX "audit_plans_programId_idx" ON "audit_plans"("programId");
-
--- CreateIndex
-CREATE INDEX "audit_plans_plannedStart_status_idx" ON "audit_plans"("plannedStart", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "audit_findings_displayId_key" ON "audit_findings"("displayId");
-
--- CreateIndex
-CREATE INDEX "audit_findings_auditPlanId_idx" ON "audit_findings"("auditPlanId");
-
--- CreateIndex
-CREATE INDEX "audit_findings_dueDate_status_idx" ON "audit_findings"("dueDate", "status");
-
--- CreateIndex
-CREATE INDEX "audit_evidence_relations_evidenceId_idx" ON "audit_evidence_relations"("evidenceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "audit_evidence_relations_auditFindingId_evidenceId_key" ON "audit_evidence_relations"("auditFindingId", "evidenceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "corrective_actions_displayId_key" ON "corrective_actions"("displayId");
-
--- CreateIndex
-CREATE INDEX "corrective_actions_sourceType_sourceId_idx" ON "corrective_actions"("sourceType", "sourceId");
-
--- CreateIndex
-CREATE INDEX "corrective_actions_dueDate_status_idx" ON "corrective_actions"("dueDate", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "training_courses_displayId_key" ON "training_courses"("displayId");
-
--- CreateIndex
-CREATE INDEX "training_courses_category_status_idx" ON "training_courses"("category", "status");
-
--- CreateIndex
-CREATE INDEX "training_assignments_userId_status_idx" ON "training_assignments"("userId", "status");
-
--- CreateIndex
-CREATE INDEX "training_assignments_dueDate_status_idx" ON "training_assignments"("dueDate", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "training_assignments_courseId_userId_assignedAt_key" ON "training_assignments"("courseId", "userId", "assignedAt");
-
--- CreateIndex
-CREATE INDEX "training_completions_assignmentId_idx" ON "training_completions"("assignmentId");
-
--- CreateIndex
-CREATE INDEX "training_completions_userId_expiresAt_idx" ON "training_completions"("userId", "expiresAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "training_acknowledgements_courseId_userId_version_key" ON "training_acknowledgements"("courseId", "userId", "version");
-
--- CreateIndex
-CREATE UNIQUE INDEX "management_reviews_displayId_key" ON "management_reviews"("displayId");
-
--- CreateIndex
-CREATE INDEX "management_reviews_reviewDate_status_idx" ON "management_reviews"("reviewDate", "status");
-
--- CreateIndex
-CREATE INDEX "management_reviews_nextReviewDate_idx" ON "management_reviews"("nextReviewDate");
-
--- CreateIndex
-CREATE INDEX "management_review_actions_reviewId_idx" ON "management_review_actions"("reviewId");
-
--- CreateIndex
-CREATE INDEX "management_review_actions_dueDate_status_idx" ON "management_review_actions"("dueDate", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "security_objectives_displayId_key" ON "security_objectives"("displayId");
-
--- CreateIndex
-CREATE INDEX "security_objectives_ownerId_status_idx" ON "security_objectives"("ownerId", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "metric_definitions_displayId_key" ON "metric_definitions"("displayId");
-
--- CreateIndex
-CREATE INDEX "metric_definitions_objectiveId_idx" ON "metric_definitions"("objectiveId");
-
--- CreateIndex
-CREATE INDEX "metric_definitions_metricType_status_idx" ON "metric_definitions"("metricType", "status");
-
--- CreateIndex
-CREATE INDEX "metric_values_metricId_measuredAt_idx" ON "metric_values"("metricId", "measuredAt");
-
--- CreateIndex
-CREATE INDEX "metric_values_breachStatus_idx" ON "metric_values"("breachStatus");
-
--- CreateIndex
-CREATE UNIQUE INDEX "workflow_definitions_displayId_key" ON "workflow_definitions"("displayId");
-
--- CreateIndex
-CREATE INDEX "workflow_definitions_entityType_status_idx" ON "workflow_definitions"("entityType", "status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "workflow_definitions_name_version_key" ON "workflow_definitions"("name", "version");
-
--- CreateIndex
-CREATE INDEX "workflow_instances_definitionId_idx" ON "workflow_instances"("definitionId");
-
--- CreateIndex
-CREATE INDEX "workflow_instances_entityType_entityId_idx" ON "workflow_instances"("entityType", "entityId");
-
--- CreateIndex
-CREATE INDEX "workflow_instances_dueDate_status_idx" ON "workflow_instances"("dueDate", "status");
-
--- CreateIndex
-CREATE INDEX "workflow_tasks_instanceId_idx" ON "workflow_tasks"("instanceId");
-
--- CreateIndex
-CREATE INDEX "workflow_tasks_assigneeId_status_idx" ON "workflow_tasks"("assigneeId", "status");
-
--- CreateIndex
-CREATE INDEX "workflow_tasks_dueDate_status_idx" ON "workflow_tasks"("dueDate", "status");
-
--- CreateIndex
-CREATE INDEX "workflow_transition_logs_instanceId_idx" ON "workflow_transition_logs"("instanceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "report_definitions_displayId_key" ON "report_definitions"("displayId");
-
--- CreateIndex
-CREATE INDEX "report_definitions_module_status_idx" ON "report_definitions"("module", "status");
-
--- CreateIndex
-CREATE INDEX "report_runs_definitionId_idx" ON "report_runs"("definitionId");
-
--- CreateIndex
-CREATE INDEX "report_runs_module_startedAt_idx" ON "report_runs"("module", "startedAt");
-
--- CreateIndex
-CREATE INDEX "export_jobs_entityType_requestedAt_idx" ON "export_jobs"("entityType", "requestedAt");
-
--- CreateIndex
-CREATE INDEX "export_jobs_requestedBy_idx" ON "export_jobs"("requestedBy");
-
--- CreateIndex
-CREATE INDEX "nis2_registrations_assessmentId_idx" ON "nis2_registrations"("assessmentId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "nis2_questionnaire_versions_version_key" ON "nis2_questionnaire_versions"("version");
-
--- CreateIndex
-CREATE INDEX "nis2_registration_changes_registrationId_idx" ON "nis2_registration_changes"("registrationId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "nis2_incident_significance_rule_versions_version_key" ON "nis2_incident_significance_rule_versions"("version");
-
--- CreateIndex
-CREATE UNIQUE INDEX "sessions_refreshToken_key" ON "sessions"("refreshToken");
-
--- CreateIndex
-CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "refresh_tokens"("token");
-
--- CreateIndex
-CREATE UNIQUE INDEX "intune_device_syncs_intuneId_key" ON "intune_device_syncs"("intuneId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "intune_device_syncs_assetId_key" ON "intune_device_syncs"("assetId");
-
--- CreateIndex
-CREATE INDEX "intune_device_syncs_intuneId_idx" ON "intune_device_syncs"("intuneId");
-
--- CreateIndex
-CREATE INDEX "intune_device_syncs_syncStatus_idx" ON "intune_device_syncs"("syncStatus");
-
--- CreateIndex
-CREATE INDEX "intune_device_syncs_lastSyncDateTime_idx" ON "intune_device_syncs"("lastSyncDateTime");
-
--- CreateIndex
-CREATE INDEX "intune_detected_apps_intuneAppId_idx" ON "intune_detected_apps"("intuneAppId");
-
--- CreateIndex
-CREATE INDEX "intune_detected_apps_deviceId_idx" ON "intune_detected_apps"("deviceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "intune_detected_apps_intuneAppId_deviceId_key" ON "intune_detected_apps"("intuneAppId", "deviceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "contracts_displayId_key" ON "contracts"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "licenses_displayId_key" ON "licenses"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "business_processes_displayId_key" ON "business_processes"("displayId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "asset_documents_assetId_documentId_key" ON "asset_documents"("assetId", "documentId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_evidence_riskId_evidenceId_key" ON "risk_evidence"("riskId", "evidenceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_assets_riskId_assetId_key" ON "risk_assets"("riskId", "assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "vulnerability_assets_vulnerabilityId_assetId_key" ON "vulnerability_assets"("vulnerabilityId", "assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "incident_assets_incidentId_assetId_key" ON "incident_assets"("incidentId", "assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "asset_processes_assetId_processId_key" ON "asset_processes"("assetId", "processId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "asset_services_assetId_serviceId_key" ON "asset_services"("assetId", "serviceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "asset_contracts_assetId_contractId_key" ON "asset_contracts"("assetId", "contractId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "asset_licenses_assetId_licenseId_key" ON "asset_licenses"("assetId", "licenseId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "contract_licenses_contractId_licenseId_key" ON "contract_licenses"("contractId", "licenseId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_processes_riskId_processId_key" ON "risk_processes"("riskId", "processId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "risk_services_riskId_serviceId_key" ON "risk_services"("riskId", "serviceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "incident_services_incidentId_serviceId_key" ON "incident_services"("incidentId", "serviceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "incident_processes_incidentId_processId_key" ON "incident_processes"("incidentId", "processId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "control_assets_controlId_assetId_key" ON "control_assets"("controlId", "assetId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "control_processes_controlId_processId_key" ON "control_processes"("controlId", "processId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "control_sites_controlId_siteId_key" ON "control_sites"("controlId", "siteId");
-
--- CreateIndex
-CREATE INDEX "vcenter_servers_credentialId_idx" ON "vcenter_servers"("credentialId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "vcenter_servers_host_port_key" ON "vcenter_servers"("host", "port");
-
--- CreateIndex
-CREATE INDEX "proxmox_servers_credentialId_idx" ON "proxmox_servers"("credentialId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "proxmox_servers_host_port_nodeId_key" ON "proxmox_servers"("host", "port", "nodeId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "_AssetRisks_AB_unique" ON "_AssetRisks"("A", "B");
-
--- CreateIndex
-CREATE INDEX "_AssetRisks_B_index" ON "_AssetRisks"("B");
-
--- CreateIndex
-CREATE UNIQUE INDEX "_AssetControls_AB_unique" ON "_AssetControls"("A", "B");
-
--- CreateIndex
-CREATE INDEX "_AssetControls_B_index" ON "_AssetControls"("B");
-
--- CreateIndex
-CREATE UNIQUE INDEX "_RiskControls_AB_unique" ON "_RiskControls"("A", "B");
-
--- CreateIndex
-CREATE INDEX "_RiskControls_B_index" ON "_RiskControls"("B");
-
--- AddForeignKey
-ALTER TABLE "users" ADD CONSTRAINT "users_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "group_roles" ADD CONSTRAINT "group_roles_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "group_roles" ADD CONSTRAINT "group_roles_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "organization_units" ADD CONSTRAINT "organization_units_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "sites" ADD CONSTRAINT "sites_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "assets" ADD CONSTRAINT "assets_assetTypeId_fkey" FOREIGN KEY ("assetTypeId") REFERENCES "asset_types"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "assets" ADD CONSTRAINT "assets_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "assets" ADD CONSTRAINT "assets_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "sites"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_relations" ADD CONSTRAINT "asset_relations_sourceAssetId_fkey" FOREIGN KEY ("sourceAssetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_relations" ADD CONSTRAINT "asset_relations_targetAssetId_fkey" FOREIGN KEY ("targetAssetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "network_addresses" ADD CONSTRAINT "network_addresses_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "import_runs" ADD CONSTRAINT "import_runs_integrationSourceId_fkey" FOREIGN KEY ("integrationSourceId") REFERENCES "integration_sources"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "import_records" ADD CONSTRAINT "import_records_importRunId_fkey" FOREIGN KEY ("importRunId") REFERENCES "import_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "import_records" ADD CONSTRAINT "import_records_targetAssetId_fkey" FOREIGN KEY ("targetAssetId") REFERENCES "assets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "import_conflicts" ADD CONSTRAINT "import_conflicts_importRunId_fkey" FOREIGN KEY ("importRunId") REFERENCES "import_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "import_conflicts" ADD CONSTRAINT "import_conflicts_importRecordId_fkey" FOREIGN KEY ("importRecordId") REFERENCES "import_records"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "field_provenance" ADD CONSTRAINT "field_provenance_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "field_provenance" ADD CONSTRAINT "field_provenance_integrationSourceId_fkey" FOREIGN KEY ("integrationSourceId") REFERENCES "integration_sources"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "field_locks" ADD CONSTRAINT "field_locks_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "source_priorities" ADD CONSTRAINT "source_priorities_integrationSourceId_fkey" FOREIGN KEY ("integrationSourceId") REFERENCES "integration_sources"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_method_versions" ADD CONSTRAINT "risk_method_versions_riskMethodId_fkey" FOREIGN KEY ("riskMethodId") REFERENCES "risk_methods"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risks" ADD CONSTRAINT "risks_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risks" ADD CONSTRAINT "risks_businessProcessId_fkey" FOREIGN KEY ("businessProcessId") REFERENCES "business_processes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risks" ADD CONSTRAINT "risks_riskMethodVersionId_fkey" FOREIGN KEY ("riskMethodVersionId") REFERENCES "risk_method_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risks" ADD CONSTRAINT "risks_scenarioId_fkey" FOREIGN KEY ("scenarioId") REFERENCES "risk_scenarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risks" ADD CONSTRAINT "risks_threatId_fkey" FOREIGN KEY ("threatId") REFERENCES "threats"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risks" ADD CONSTRAINT "risks_vulnerabilityId_fkey" FOREIGN KEY ("vulnerabilityId") REFERENCES "vulnerabilities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_assessments" ADD CONSTRAINT "risk_assessments_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_assessments" ADD CONSTRAINT "risk_assessments_riskMethodVersionId_fkey" FOREIGN KEY ("riskMethodVersionId") REFERENCES "risk_method_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_treatments" ADD CONSTRAINT "risk_treatments_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_acceptances" ADD CONSTRAINT "risk_acceptances_treatmentId_fkey" FOREIGN KEY ("treatmentId") REFERENCES "risk_treatments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_acceptances" ADD CONSTRAINT "risk_acceptances_assessmentId_fkey" FOREIGN KEY ("assessmentId") REFERENCES "risk_assessments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_treatment_approvals" ADD CONSTRAINT "risk_treatment_approvals_treatmentId_fkey" FOREIGN KEY ("treatmentId") REFERENCES "risk_treatments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_treatment_effectiveness_reviews" ADD CONSTRAINT "risk_treatment_effectiveness_reviews_treatmentId_fkey" FOREIGN KEY ("treatmentId") REFERENCES "risk_treatments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_scenarios" ADD CONSTRAINT "risk_scenarios_threatId_fkey" FOREIGN KEY ("threatId") REFERENCES "threats"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_scenarios" ADD CONSTRAINT "risk_scenarios_vulnerabilityId_fkey" FOREIGN KEY ("vulnerabilityId") REFERENCES "vulnerabilities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_cause_links" ADD CONSTRAINT "risk_cause_links_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_cause_links" ADD CONSTRAINT "risk_cause_links_causeId_fkey" FOREIGN KEY ("causeId") REFERENCES "risk_causes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_impact_links" ADD CONSTRAINT "risk_impact_links_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_impact_links" ADD CONSTRAINT "risk_impact_links_impactId_fkey" FOREIGN KEY ("impactId") REFERENCES "risk_impacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "review_tasks" ADD CONSTRAINT "review_tasks_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "framework_versions" ADD CONSTRAINT "framework_versions_frameworkId_fkey" FOREIGN KEY ("frameworkId") REFERENCES "frameworks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "requirements" ADD CONSTRAINT "requirements_frameworkVersionId_fkey" FOREIGN KEY ("frameworkVersionId") REFERENCES "framework_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_requirement_mappings" ADD CONSTRAINT "control_requirement_mappings_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_requirement_mappings" ADD CONSTRAINT "control_requirement_mappings_requirementId_fkey" FOREIGN KEY ("requirementId") REFERENCES "requirements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_implementations" ADD CONSTRAINT "control_implementations_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_implementation_requirements" ADD CONSTRAINT "control_implementation_requirements_implementationId_fkey" FOREIGN KEY ("implementationId") REFERENCES "control_implementations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_findings" ADD CONSTRAINT "control_findings_implementationId_fkey" FOREIGN KEY ("implementationId") REFERENCES "control_implementations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_actions" ADD CONSTRAINT "control_actions_implementationId_fkey" FOREIGN KEY ("implementationId") REFERENCES "control_implementations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_actions" ADD CONSTRAINT "control_actions_findingId_fkey" FOREIGN KEY ("findingId") REFERENCES "control_findings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "soa_items" ADD CONSTRAINT "soa_items_soaId_fkey" FOREIGN KEY ("soaId") REFERENCES "statements_of_applicability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "soa_items" ADD CONSTRAINT "soa_items_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "soa_approvals" ADD CONSTRAINT "soa_approvals_soaId_fkey" FOREIGN KEY ("soaId") REFERENCES "statements_of_applicability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incidents" ADD CONSTRAINT "incidents_significanceRuleVersionId_fkey" FOREIGN KEY ("significanceRuleVersionId") REFERENCES "nis2_incident_significance_rule_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_assessments" ADD CONSTRAINT "incident_assessments_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_assessments" ADD CONSTRAINT "incident_assessments_significanceRuleVersionId_fkey" FOREIGN KEY ("significanceRuleVersionId") REFERENCES "nis2_incident_significance_rule_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "notification_deadlines" ADD CONSTRAINT "notification_deadlines_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_knowledge_time_changes" ADD CONSTRAINT "incident_knowledge_time_changes_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_reports" ADD CONSTRAINT "incident_reports_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_communications" ADD CONSTRAINT "incident_communications_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_escalations" ADD CONSTRAINT "incident_escalations_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "evidence_links" ADD CONSTRAINT "evidence_links_evidenceId_fkey" FOREIGN KEY ("evidenceId") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "policy_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "document_acknowledgements" ADD CONSTRAINT "document_acknowledgements_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "policy_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "document_reviews" ADD CONSTRAINT "document_reviews_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "policy_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "nis2_registrations" ADD CONSTRAINT "nis2_registrations_assessmentId_fkey" FOREIGN KEY ("assessmentId") REFERENCES "nis2_assessments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "nis2_registration_changes" ADD CONSTRAINT "nis2_registration_changes_registrationId_fkey" FOREIGN KEY ("registrationId") REFERENCES "nis2_registrations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_documents" ADD CONSTRAINT "asset_documents_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_documents" ADD CONSTRAINT "asset_documents_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_evidence" ADD CONSTRAINT "risk_evidence_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_evidence" ADD CONSTRAINT "risk_evidence_evidenceId_fkey" FOREIGN KEY ("evidenceId") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_assets" ADD CONSTRAINT "risk_assets_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_assets" ADD CONSTRAINT "risk_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "vulnerability_assets" ADD CONSTRAINT "vulnerability_assets_vulnerabilityId_fkey" FOREIGN KEY ("vulnerabilityId") REFERENCES "vulnerabilities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "vulnerability_assets" ADD CONSTRAINT "vulnerability_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_assets" ADD CONSTRAINT "incident_assets_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_assets" ADD CONSTRAINT "incident_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_processes" ADD CONSTRAINT "asset_processes_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_processes" ADD CONSTRAINT "asset_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_services" ADD CONSTRAINT "asset_services_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_services" ADD CONSTRAINT "asset_services_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "business_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_contracts" ADD CONSTRAINT "asset_contracts_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_contracts" ADD CONSTRAINT "asset_contracts_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "contracts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_licenses" ADD CONSTRAINT "asset_licenses_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "asset_licenses" ADD CONSTRAINT "asset_licenses_licenseId_fkey" FOREIGN KEY ("licenseId") REFERENCES "licenses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contract_licenses" ADD CONSTRAINT "contract_licenses_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "contracts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "contract_licenses" ADD CONSTRAINT "contract_licenses_licenseId_fkey" FOREIGN KEY ("licenseId") REFERENCES "licenses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_processes" ADD CONSTRAINT "risk_processes_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_processes" ADD CONSTRAINT "risk_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_services" ADD CONSTRAINT "risk_services_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "risk_services" ADD CONSTRAINT "risk_services_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "business_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_services" ADD CONSTRAINT "incident_services_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_services" ADD CONSTRAINT "incident_services_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "business_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_processes" ADD CONSTRAINT "incident_processes_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incident_processes" ADD CONSTRAINT "incident_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_assets" ADD CONSTRAINT "control_assets_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_assets" ADD CONSTRAINT "control_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_processes" ADD CONSTRAINT "control_processes_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_processes" ADD CONSTRAINT "control_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_sites" ADD CONSTRAINT "control_sites_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "control_sites" ADD CONSTRAINT "control_sites_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "sites"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "vcenter_servers" ADD CONSTRAINT "vcenter_servers_credentialId_fkey" FOREIGN KEY ("credentialId") REFERENCES "vmware_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "proxmox_servers" ADD CONSTRAINT "proxmox_servers_credentialId_fkey" FOREIGN KEY ("credentialId") REFERENCES "proxmox_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_AssetRisks" ADD CONSTRAINT "_AssetRisks_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_AssetRisks" ADD CONSTRAINT "_AssetRisks_B_fkey" FOREIGN KEY ("B") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_AssetControls" ADD CONSTRAINT "_AssetControls_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_AssetControls" ADD CONSTRAINT "_AssetControls_B_fkey" FOREIGN KEY ("B") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_RiskControls" ADD CONSTRAINT "_RiskControls_A_fkey" FOREIGN KEY ("A") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_RiskControls" ADD CONSTRAINT "_RiskControls_B_fkey" FOREIGN KEY ("B") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "users_displayId_key" ON "users"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "users_email_key" ON "users"("email");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "users_oidcId_oidcProvider_idx" ON "users"("oidcId", "oidcProvider");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "roles_name_key" ON "roles"("name");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "groups_name_key" ON "groups"("name");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "user_groups_userId_groupId_key" ON "user_groups"("userId", "groupId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "asset_types_name_key" ON "asset_types"("name");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "business_services_displayId_key" ON "business_services"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "assets_displayId_key" ON "assets"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "network_addresses_assetId_idx" ON "network_addresses"("assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "integration_sources_name_key" ON "integration_sources"("name");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "integration_sources_type_idx" ON "integration_sources"("type");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "integration_sources_isActive_idx" ON "integration_sources"("isActive");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_runs_integrationSourceId_idx" ON "import_runs"("integrationSourceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_runs_status_idx" ON "import_runs"("status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_runs_startedAt_idx" ON "import_runs"("startedAt");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_records_targetAssetId_idx" ON "import_records"("targetAssetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_records_status_idx" ON "import_records"("status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "import_records_importRunId_sourceRecordId_key" ON "import_records"("importRunId", "sourceRecordId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_conflicts_importRunId_idx" ON "import_conflicts"("importRunId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_conflicts_assetId_idx" ON "import_conflicts"("assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "import_conflicts_status_idx" ON "import_conflicts"("status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "field_provenance_integrationSourceId_idx" ON "field_provenance"("integrationSourceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "field_provenance_importRunId_idx" ON "field_provenance"("importRunId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "field_provenance_assetId_fieldName_key" ON "field_provenance"("assetId", "fieldName");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "field_locks_assetId_idx" ON "field_locks"("assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "field_locks_isActive_idx" ON "field_locks"("isActive");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "field_locks_assetId_fieldName_key" ON "field_locks"("assetId", "fieldName");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "source_priorities_fieldName_priority_idx" ON "source_priorities"("fieldName", "priority");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "source_priorities_integrationSourceId_fieldName_key" ON "source_priorities"("integrationSourceId", "fieldName");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_methods_displayId_key" ON "risk_methods"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_methods_name_version_idx" ON "risk_methods"("name", "version");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_method_versions_riskMethodId_idx" ON "risk_method_versions"("riskMethodId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risks_displayId_key" ON "risks"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risks_riskMethodVersionId_idx" ON "risks"("riskMethodVersionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risks_scenarioId_idx" ON "risks"("scenarioId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_assessments_riskId_isCurrent_idx" ON "risk_assessments"("riskId", "isCurrent");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_assessments_riskMethodVersionId_idx" ON "risk_assessments"("riskMethodVersionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_assessments_assessmentType_idx" ON "risk_assessments"("assessmentType");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_assessments_riskId_assessmentNumber_key" ON "risk_assessments"("riskId", "assessmentNumber");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_treatments_displayId_key" ON "risk_treatments"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_treatments_riskId_idx" ON "risk_treatments"("riskId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_treatments_assessmentId_idx" ON "risk_treatments"("assessmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_acceptances_treatmentId_key" ON "risk_acceptances"("treatmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_acceptances_riskId_idx" ON "risk_acceptances"("riskId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_acceptances_assessmentId_idx" ON "risk_acceptances"("assessmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_acceptances_status_idx" ON "risk_acceptances"("status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_treatment_approvals_treatmentId_idx" ON "risk_treatment_approvals"("treatmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_treatment_approvals_approverId_idx" ON "risk_treatment_approvals"("approverId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_treatment_effectiveness_reviews_treatmentId_idx" ON "risk_treatment_effectiveness_reviews"("treatmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_treatment_effectiveness_reviews_reviewerId_idx" ON "risk_treatment_effectiveness_reviews"("reviewerId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "threats_displayId_key" ON "threats"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "vulnerabilities_displayId_key" ON "vulnerabilities"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_scenarios_displayId_key" ON "risk_scenarios"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "risk_scenarios_threatId_idx" ON "risk_scenarios"("threatId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_causes_displayId_key" ON "risk_causes"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_impacts_displayId_key" ON "risk_impacts"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_cause_links_riskId_causeId_key" ON "risk_cause_links"("riskId", "causeId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_impact_links_riskId_impactId_key" ON "risk_impact_links"("riskId", "impactId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "review_tasks_displayId_key" ON "review_tasks"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "review_tasks_riskId_idx" ON "review_tasks"("riskId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "review_tasks_status_idx" ON "review_tasks"("status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "review_tasks_dueDate_idx" ON "review_tasks"("dueDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "review_tasks_assignedTo_idx" ON "review_tasks"("assignedTo");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "documents_displayId_key" ON "documents"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "frameworks_code_key" ON "frameworks"("code");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "framework_versions_frameworkId_idx" ON "framework_versions"("frameworkId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "framework_versions_frameworkId_version_key" ON "framework_versions"("frameworkId", "version");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "requirements_frameworkVersionId_idx" ON "requirements"("frameworkVersionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "requirements_frameworkVersionId_requirementKey_key" ON "requirements"("frameworkVersionId", "requirementKey");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_requirement_mappings_requirementId_idx" ON "control_requirement_mappings"("requirementId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "control_requirement_mappings_controlId_requirementId_key" ON "control_requirement_mappings"("controlId", "requirementId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_implementations_controlId_idx" ON "control_implementations"("controlId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_implementations_scopeId_idx" ON "control_implementations"("scopeId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_implementations_organizationUnitId_idx" ON "control_implementations"("organizationUnitId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_implementations_siteId_idx" ON "control_implementations"("siteId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_implementation_requirements_requirementId_idx" ON "control_implementation_requirements"("requirementId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "control_implementation_requirements_implementationId_requir_key" ON "control_implementation_requirements"("implementationId", "requirementId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_findings_implementationId_idx" ON "control_findings"("implementationId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_actions_implementationId_idx" ON "control_actions"("implementationId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "control_actions_findingId_idx" ON "control_actions"("findingId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "soa_items_soaId_idx" ON "soa_items"("soaId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "soa_items_requirementId_idx" ON "soa_items"("requirementId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "soa_items_controlId_idx" ON "soa_items"("controlId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "soa_approvals_soaId_idx" ON "soa_approvals"("soaId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "incidents_displayId_key" ON "incidents"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incidents_significanceRuleVersionId_idx" ON "incidents"("significanceRuleVersionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "incident_assessments_incidentId_key" ON "incident_assessments"("incidentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incident_assessments_significanceRuleVersionId_idx" ON "incident_assessments"("significanceRuleVersionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "notification_deadlines_incidentId_idx" ON "notification_deadlines"("incidentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "notification_deadlines_deadlineDate_status_idx" ON "notification_deadlines"("deadlineDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "notification_deadlines_incidentId_notificationType_key" ON "notification_deadlines"("incidentId", "notificationType");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incident_knowledge_time_changes_incidentId_idx" ON "incident_knowledge_time_changes"("incidentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incident_reports_incidentId_idx" ON "incident_reports"("incidentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incident_reports_reportType_status_idx" ON "incident_reports"("reportType", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incident_communications_incidentId_idx" ON "incident_communications"("incidentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "incident_escalations_incidentId_status_idx" ON "incident_escalations"("incidentId", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "evidence_links_entityType_entityId_idx" ON "evidence_links"("entityType", "entityId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "evidence_links_evidenceId_entityType_entityId_key" ON "evidence_links"("evidenceId", "entityType", "entityId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_logs_timestamp_idx" ON "audit_logs"("timestamp");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_logs_userId_idx" ON "audit_logs"("userId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_logs_entityType_entityId_idx" ON "audit_logs"("entityType", "entityId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_logs_action_idx" ON "audit_logs"("action");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "display_id_counters_entityType_key" ON "display_id_counters"("entityType");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "document_acknowledgements_userId_idx" ON "document_acknowledgements"("userId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "document_acknowledgements_documentId_versionId_userId_key" ON "document_acknowledgements"("documentId", "versionId", "userId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "document_reviews_documentId_idx" ON "document_reviews"("documentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "document_reviews_dueDate_idx" ON "document_reviews"("dueDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "document_reviews_status_idx" ON "document_reviews"("status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "suppliers_displayId_key" ON "suppliers"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "suppliers_criticality_idx" ON "suppliers"("criticality");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "suppliers_nextReviewDate_idx" ON "suppliers"("nextReviewDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "supplier_assessments_supplierId_idx" ON "supplier_assessments"("supplierId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "supplier_assessments_nextAssessmentDate_idx" ON "supplier_assessments"("nextAssessmentDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "supplier_contract_relations_contractId_idx" ON "supplier_contract_relations"("contractId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "supplier_contract_relations_supplierId_contractId_key" ON "supplier_contract_relations"("supplierId", "contractId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "supplier_risk_relations_riskId_idx" ON "supplier_risk_relations"("riskId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "supplier_risk_relations_supplierId_riskId_key" ON "supplier_risk_relations"("supplierId", "riskId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "business_impact_analyses_displayId_key" ON "business_impact_analyses"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "business_impact_analyses_processId_idx" ON "business_impact_analyses"("processId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "business_impact_analyses_serviceId_idx" ON "business_impact_analyses"("serviceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "business_impact_analyses_nextReviewDate_idx" ON "business_impact_analyses"("nextReviewDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "bia_asset_relations_assetId_idx" ON "bia_asset_relations"("assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "bia_asset_relations_biaId_assetId_key" ON "bia_asset_relations"("biaId", "assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "business_continuity_plans_displayId_key" ON "business_continuity_plans"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "business_continuity_plans_biaId_idx" ON "business_continuity_plans"("biaId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "business_continuity_plans_nextTestDate_idx" ON "business_continuity_plans"("nextTestDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "bcp_exercises_bcpId_idx" ON "bcp_exercises"("bcpId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "bcp_exercises_plannedAt_status_idx" ON "bcp_exercises"("plannedAt", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "audit_programs_displayId_key" ON "audit_programs"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_programs_year_status_idx" ON "audit_programs"("year", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "audit_plans_displayId_key" ON "audit_plans"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_plans_programId_idx" ON "audit_plans"("programId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_plans_plannedStart_status_idx" ON "audit_plans"("plannedStart", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "audit_findings_displayId_key" ON "audit_findings"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_findings_auditPlanId_idx" ON "audit_findings"("auditPlanId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_findings_dueDate_status_idx" ON "audit_findings"("dueDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "audit_evidence_relations_evidenceId_idx" ON "audit_evidence_relations"("evidenceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "audit_evidence_relations_auditFindingId_evidenceId_key" ON "audit_evidence_relations"("auditFindingId", "evidenceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "corrective_actions_displayId_key" ON "corrective_actions"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "corrective_actions_sourceType_sourceId_idx" ON "corrective_actions"("sourceType", "sourceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "corrective_actions_dueDate_status_idx" ON "corrective_actions"("dueDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "training_courses_displayId_key" ON "training_courses"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "training_courses_category_status_idx" ON "training_courses"("category", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "training_assignments_userId_status_idx" ON "training_assignments"("userId", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "training_assignments_dueDate_status_idx" ON "training_assignments"("dueDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "training_assignments_courseId_userId_assignedAt_key" ON "training_assignments"("courseId", "userId", "assignedAt");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "training_completions_assignmentId_idx" ON "training_completions"("assignmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "training_completions_userId_expiresAt_idx" ON "training_completions"("userId", "expiresAt");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "training_acknowledgements_courseId_userId_version_key" ON "training_acknowledgements"("courseId", "userId", "version");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "management_reviews_displayId_key" ON "management_reviews"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "management_reviews_reviewDate_status_idx" ON "management_reviews"("reviewDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "management_reviews_nextReviewDate_idx" ON "management_reviews"("nextReviewDate");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "management_review_actions_reviewId_idx" ON "management_review_actions"("reviewId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "management_review_actions_dueDate_status_idx" ON "management_review_actions"("dueDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "security_objectives_displayId_key" ON "security_objectives"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "security_objectives_ownerId_status_idx" ON "security_objectives"("ownerId", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "metric_definitions_displayId_key" ON "metric_definitions"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "metric_definitions_objectiveId_idx" ON "metric_definitions"("objectiveId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "metric_definitions_metricType_status_idx" ON "metric_definitions"("metricType", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "metric_values_metricId_measuredAt_idx" ON "metric_values"("metricId", "measuredAt");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "metric_values_breachStatus_idx" ON "metric_values"("breachStatus");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "workflow_definitions_displayId_key" ON "workflow_definitions"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_definitions_entityType_status_idx" ON "workflow_definitions"("entityType", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "workflow_definitions_name_version_key" ON "workflow_definitions"("name", "version");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_instances_definitionId_idx" ON "workflow_instances"("definitionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_instances_entityType_entityId_idx" ON "workflow_instances"("entityType", "entityId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_instances_dueDate_status_idx" ON "workflow_instances"("dueDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_tasks_instanceId_idx" ON "workflow_tasks"("instanceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_tasks_assigneeId_status_idx" ON "workflow_tasks"("assigneeId", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_tasks_dueDate_status_idx" ON "workflow_tasks"("dueDate", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "workflow_transition_logs_instanceId_idx" ON "workflow_transition_logs"("instanceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "report_definitions_displayId_key" ON "report_definitions"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "report_definitions_module_status_idx" ON "report_definitions"("module", "status");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "report_runs_definitionId_idx" ON "report_runs"("definitionId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "report_runs_module_startedAt_idx" ON "report_runs"("module", "startedAt");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "export_jobs_entityType_requestedAt_idx" ON "export_jobs"("entityType", "requestedAt");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "export_jobs_requestedBy_idx" ON "export_jobs"("requestedBy");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "nis2_registrations_assessmentId_idx" ON "nis2_registrations"("assessmentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "nis2_questionnaire_versions_version_key" ON "nis2_questionnaire_versions"("version");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "nis2_registration_changes_registrationId_idx" ON "nis2_registration_changes"("registrationId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "nis2_incident_significance_rule_versions_version_key" ON "nis2_incident_significance_rule_versions"("version");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "sessions_refreshToken_key" ON "sessions"("refreshToken");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "refresh_tokens_token_key" ON "refresh_tokens"("token");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "intune_device_syncs_intuneId_key" ON "intune_device_syncs"("intuneId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "intune_device_syncs_assetId_key" ON "intune_device_syncs"("assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "intune_device_syncs_intuneId_idx" ON "intune_device_syncs"("intuneId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "intune_device_syncs_syncStatus_idx" ON "intune_device_syncs"("syncStatus");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "intune_device_syncs_lastSyncDateTime_idx" ON "intune_device_syncs"("lastSyncDateTime");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "intune_detected_apps_intuneAppId_idx" ON "intune_detected_apps"("intuneAppId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "intune_detected_apps_deviceId_idx" ON "intune_detected_apps"("deviceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "intune_detected_apps_intuneAppId_deviceId_key" ON "intune_detected_apps"("intuneAppId", "deviceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "contracts_displayId_key" ON "contracts"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "licenses_displayId_key" ON "licenses"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "business_processes_displayId_key" ON "business_processes"("displayId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "asset_documents_assetId_documentId_key" ON "asset_documents"("assetId", "documentId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_evidence_riskId_evidenceId_key" ON "risk_evidence"("riskId", "evidenceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_assets_riskId_assetId_key" ON "risk_assets"("riskId", "assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "vulnerability_assets_vulnerabilityId_assetId_key" ON "vulnerability_assets"("vulnerabilityId", "assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "incident_assets_incidentId_assetId_key" ON "incident_assets"("incidentId", "assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "asset_processes_assetId_processId_key" ON "asset_processes"("assetId", "processId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "asset_services_assetId_serviceId_key" ON "asset_services"("assetId", "serviceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "asset_contracts_assetId_contractId_key" ON "asset_contracts"("assetId", "contractId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "asset_licenses_assetId_licenseId_key" ON "asset_licenses"("assetId", "licenseId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "contract_licenses_contractId_licenseId_key" ON "contract_licenses"("contractId", "licenseId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_processes_riskId_processId_key" ON "risk_processes"("riskId", "processId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "risk_services_riskId_serviceId_key" ON "risk_services"("riskId", "serviceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "incident_services_incidentId_serviceId_key" ON "incident_services"("incidentId", "serviceId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "incident_processes_incidentId_processId_key" ON "incident_processes"("incidentId", "processId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "control_assets_controlId_assetId_key" ON "control_assets"("controlId", "assetId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "control_processes_controlId_processId_key" ON "control_processes"("controlId", "processId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "control_sites_controlId_siteId_key" ON "control_sites"("controlId", "siteId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "vcenter_servers_credentialId_idx" ON "vcenter_servers"("credentialId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "vcenter_servers_host_port_key" ON "vcenter_servers"("host", "port");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "proxmox_servers_credentialId_idx" ON "proxmox_servers"("credentialId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "proxmox_servers_host_port_nodeId_key" ON "proxmox_servers"("host", "port", "nodeId");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "_AssetRisks_AB_unique" ON "_AssetRisks"("A", "B");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "_AssetRisks_B_index" ON "_AssetRisks"("B");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "_AssetControls_AB_unique" ON "_AssetControls"("A", "B");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "_AssetControls_B_index" ON "_AssetControls"("B");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS "_RiskControls_AB_unique" ON "_RiskControls"("A", "B");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- CreateIndex
+DO $$
+BEGIN
+  CREATE INDEX IF NOT EXISTS "_RiskControls_B_index" ON "_RiskControls"("B");
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_organizationUnitId_fkey') THEN
+    ALTER TABLE "users" ADD CONSTRAINT "users_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_roles_userId_fkey') THEN
+    ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_roles_roleId_fkey') THEN
+    ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_groups_userId_fkey') THEN
+    ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_groups_groupId_fkey') THEN
+    ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'group_roles_groupId_fkey') THEN
+    ALTER TABLE "group_roles" ADD CONSTRAINT "group_roles_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'group_roles_roleId_fkey') THEN
+    ALTER TABLE "group_roles" ADD CONSTRAINT "group_roles_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organization_units_parentId_fkey') THEN
+    ALTER TABLE "organization_units" ADD CONSTRAINT "organization_units_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sites_organizationUnitId_fkey') THEN
+    ALTER TABLE "sites" ADD CONSTRAINT "sites_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'assets_assetTypeId_fkey') THEN
+    ALTER TABLE "assets" ADD CONSTRAINT "assets_assetTypeId_fkey" FOREIGN KEY ("assetTypeId") REFERENCES "asset_types"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'assets_organizationUnitId_fkey') THEN
+    ALTER TABLE "assets" ADD CONSTRAINT "assets_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'assets_locationId_fkey') THEN
+    ALTER TABLE "assets" ADD CONSTRAINT "assets_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "sites"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_relations_sourceAssetId_fkey') THEN
+    ALTER TABLE "asset_relations" ADD CONSTRAINT "asset_relations_sourceAssetId_fkey" FOREIGN KEY ("sourceAssetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_relations_targetAssetId_fkey') THEN
+    ALTER TABLE "asset_relations" ADD CONSTRAINT "asset_relations_targetAssetId_fkey" FOREIGN KEY ("targetAssetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'network_addresses_assetId_fkey') THEN
+    ALTER TABLE "network_addresses" ADD CONSTRAINT "network_addresses_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'import_runs_integrationSourceId_fkey') THEN
+    ALTER TABLE "import_runs" ADD CONSTRAINT "import_runs_integrationSourceId_fkey" FOREIGN KEY ("integrationSourceId") REFERENCES "integration_sources"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'import_records_importRunId_fkey') THEN
+    ALTER TABLE "import_records" ADD CONSTRAINT "import_records_importRunId_fkey" FOREIGN KEY ("importRunId") REFERENCES "import_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'import_records_targetAssetId_fkey') THEN
+    ALTER TABLE "import_records" ADD CONSTRAINT "import_records_targetAssetId_fkey" FOREIGN KEY ("targetAssetId") REFERENCES "assets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'import_conflicts_importRunId_fkey') THEN
+    ALTER TABLE "import_conflicts" ADD CONSTRAINT "import_conflicts_importRunId_fkey" FOREIGN KEY ("importRunId") REFERENCES "import_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'import_conflicts_importRecordId_fkey') THEN
+    ALTER TABLE "import_conflicts" ADD CONSTRAINT "import_conflicts_importRecordId_fkey" FOREIGN KEY ("importRecordId") REFERENCES "import_records"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'field_provenance_assetId_fkey') THEN
+    ALTER TABLE "field_provenance" ADD CONSTRAINT "field_provenance_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'field_provenance_integrationSourceId_fkey') THEN
+    ALTER TABLE "field_provenance" ADD CONSTRAINT "field_provenance_integrationSourceId_fkey" FOREIGN KEY ("integrationSourceId") REFERENCES "integration_sources"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'field_locks_assetId_fkey') THEN
+    ALTER TABLE "field_locks" ADD CONSTRAINT "field_locks_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_priorities_integrationSourceId_fkey') THEN
+    ALTER TABLE "source_priorities" ADD CONSTRAINT "source_priorities_integrationSourceId_fkey" FOREIGN KEY ("integrationSourceId") REFERENCES "integration_sources"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_method_versions_riskMethodId_fkey') THEN
+    ALTER TABLE "risk_method_versions" ADD CONSTRAINT "risk_method_versions_riskMethodId_fkey" FOREIGN KEY ("riskMethodId") REFERENCES "risk_methods"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risks_organizationUnitId_fkey') THEN
+    ALTER TABLE "risks" ADD CONSTRAINT "risks_organizationUnitId_fkey" FOREIGN KEY ("organizationUnitId") REFERENCES "organization_units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risks_businessProcessId_fkey') THEN
+    ALTER TABLE "risks" ADD CONSTRAINT "risks_businessProcessId_fkey" FOREIGN KEY ("businessProcessId") REFERENCES "business_processes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risks_riskMethodVersionId_fkey') THEN
+    ALTER TABLE "risks" ADD CONSTRAINT "risks_riskMethodVersionId_fkey" FOREIGN KEY ("riskMethodVersionId") REFERENCES "risk_method_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risks_scenarioId_fkey') THEN
+    ALTER TABLE "risks" ADD CONSTRAINT "risks_scenarioId_fkey" FOREIGN KEY ("scenarioId") REFERENCES "risk_scenarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risks_threatId_fkey') THEN
+    ALTER TABLE "risks" ADD CONSTRAINT "risks_threatId_fkey" FOREIGN KEY ("threatId") REFERENCES "threats"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risks_vulnerabilityId_fkey') THEN
+    ALTER TABLE "risks" ADD CONSTRAINT "risks_vulnerabilityId_fkey" FOREIGN KEY ("vulnerabilityId") REFERENCES "vulnerabilities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_assessments_riskId_fkey') THEN
+    ALTER TABLE "risk_assessments" ADD CONSTRAINT "risk_assessments_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_assessments_riskMethodVersionId_fkey') THEN
+    ALTER TABLE "risk_assessments" ADD CONSTRAINT "risk_assessments_riskMethodVersionId_fkey" FOREIGN KEY ("riskMethodVersionId") REFERENCES "risk_method_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_treatments_riskId_fkey') THEN
+    ALTER TABLE "risk_treatments" ADD CONSTRAINT "risk_treatments_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_acceptances_treatmentId_fkey') THEN
+    ALTER TABLE "risk_acceptances" ADD CONSTRAINT "risk_acceptances_treatmentId_fkey" FOREIGN KEY ("treatmentId") REFERENCES "risk_treatments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_acceptances_assessmentId_fkey') THEN
+    ALTER TABLE "risk_acceptances" ADD CONSTRAINT "risk_acceptances_assessmentId_fkey" FOREIGN KEY ("assessmentId") REFERENCES "risk_assessments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_treatment_approvals_treatmentId_fkey') THEN
+    ALTER TABLE "risk_treatment_approvals" ADD CONSTRAINT "risk_treatment_approvals_treatmentId_fkey" FOREIGN KEY ("treatmentId") REFERENCES "risk_treatments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_treatment_effectiveness_reviews_treatmentId_fkey') THEN
+    ALTER TABLE "risk_treatment_effectiveness_reviews" ADD CONSTRAINT "risk_treatment_effectiveness_reviews_treatmentId_fkey" FOREIGN KEY ("treatmentId") REFERENCES "risk_treatments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_scenarios_threatId_fkey') THEN
+    ALTER TABLE "risk_scenarios" ADD CONSTRAINT "risk_scenarios_threatId_fkey" FOREIGN KEY ("threatId") REFERENCES "threats"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_scenarios_vulnerabilityId_fkey') THEN
+    ALTER TABLE "risk_scenarios" ADD CONSTRAINT "risk_scenarios_vulnerabilityId_fkey" FOREIGN KEY ("vulnerabilityId") REFERENCES "vulnerabilities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_cause_links_riskId_fkey') THEN
+    ALTER TABLE "risk_cause_links" ADD CONSTRAINT "risk_cause_links_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_cause_links_causeId_fkey') THEN
+    ALTER TABLE "risk_cause_links" ADD CONSTRAINT "risk_cause_links_causeId_fkey" FOREIGN KEY ("causeId") REFERENCES "risk_causes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_impact_links_riskId_fkey') THEN
+    ALTER TABLE "risk_impact_links" ADD CONSTRAINT "risk_impact_links_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_impact_links_impactId_fkey') THEN
+    ALTER TABLE "risk_impact_links" ADD CONSTRAINT "risk_impact_links_impactId_fkey" FOREIGN KEY ("impactId") REFERENCES "risk_impacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'review_tasks_riskId_fkey') THEN
+    ALTER TABLE "review_tasks" ADD CONSTRAINT "review_tasks_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'framework_versions_frameworkId_fkey') THEN
+    ALTER TABLE "framework_versions" ADD CONSTRAINT "framework_versions_frameworkId_fkey" FOREIGN KEY ("frameworkId") REFERENCES "frameworks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'requirements_frameworkVersionId_fkey') THEN
+    ALTER TABLE "requirements" ADD CONSTRAINT "requirements_frameworkVersionId_fkey" FOREIGN KEY ("frameworkVersionId") REFERENCES "framework_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_requirement_mappings_controlId_fkey') THEN
+    ALTER TABLE "control_requirement_mappings" ADD CONSTRAINT "control_requirement_mappings_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_requirement_mappings_requirementId_fkey') THEN
+    ALTER TABLE "control_requirement_mappings" ADD CONSTRAINT "control_requirement_mappings_requirementId_fkey" FOREIGN KEY ("requirementId") REFERENCES "requirements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_implementations_controlId_fkey') THEN
+    ALTER TABLE "control_implementations" ADD CONSTRAINT "control_implementations_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_implementation_requirements_implementationId_fkey') THEN
+    ALTER TABLE "control_implementation_requirements" ADD CONSTRAINT "control_implementation_requirements_implementationId_fkey" FOREIGN KEY ("implementationId") REFERENCES "control_implementations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_findings_implementationId_fkey') THEN
+    ALTER TABLE "control_findings" ADD CONSTRAINT "control_findings_implementationId_fkey" FOREIGN KEY ("implementationId") REFERENCES "control_implementations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_actions_implementationId_fkey') THEN
+    ALTER TABLE "control_actions" ADD CONSTRAINT "control_actions_implementationId_fkey" FOREIGN KEY ("implementationId") REFERENCES "control_implementations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_actions_findingId_fkey') THEN
+    ALTER TABLE "control_actions" ADD CONSTRAINT "control_actions_findingId_fkey" FOREIGN KEY ("findingId") REFERENCES "control_findings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'soa_items_soaId_fkey') THEN
+    ALTER TABLE "soa_items" ADD CONSTRAINT "soa_items_soaId_fkey" FOREIGN KEY ("soaId") REFERENCES "statements_of_applicability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'soa_items_controlId_fkey') THEN
+    ALTER TABLE "soa_items" ADD CONSTRAINT "soa_items_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'soa_approvals_soaId_fkey') THEN
+    ALTER TABLE "soa_approvals" ADD CONSTRAINT "soa_approvals_soaId_fkey" FOREIGN KEY ("soaId") REFERENCES "statements_of_applicability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incidents_significanceRuleVersionId_fkey') THEN
+    ALTER TABLE "incidents" ADD CONSTRAINT "incidents_significanceRuleVersionId_fkey" FOREIGN KEY ("significanceRuleVersionId") REFERENCES "nis2_incident_significance_rule_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_assessments_incidentId_fkey') THEN
+    ALTER TABLE "incident_assessments" ADD CONSTRAINT "incident_assessments_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_assessments_significanceRuleVersionId_fkey') THEN
+    ALTER TABLE "incident_assessments" ADD CONSTRAINT "incident_assessments_significanceRuleVersionId_fkey" FOREIGN KEY ("significanceRuleVersionId") REFERENCES "nis2_incident_significance_rule_versions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'notification_deadlines_incidentId_fkey') THEN
+    ALTER TABLE "notification_deadlines" ADD CONSTRAINT "notification_deadlines_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_knowledge_time_changes_incidentId_fkey') THEN
+    ALTER TABLE "incident_knowledge_time_changes" ADD CONSTRAINT "incident_knowledge_time_changes_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_reports_incidentId_fkey') THEN
+    ALTER TABLE "incident_reports" ADD CONSTRAINT "incident_reports_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_communications_incidentId_fkey') THEN
+    ALTER TABLE "incident_communications" ADD CONSTRAINT "incident_communications_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_escalations_incidentId_fkey') THEN
+    ALTER TABLE "incident_escalations" ADD CONSTRAINT "incident_escalations_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidence_links_evidenceId_fkey') THEN
+    ALTER TABLE "evidence_links" ADD CONSTRAINT "evidence_links_evidenceId_fkey" FOREIGN KEY ("evidenceId") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_versions_documentId_fkey') THEN
+    ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "policy_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_acknowledgements_documentId_fkey') THEN
+    ALTER TABLE "document_acknowledgements" ADD CONSTRAINT "document_acknowledgements_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "policy_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_reviews_documentId_fkey') THEN
+    ALTER TABLE "document_reviews" ADD CONSTRAINT "document_reviews_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "policy_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'nis2_registrations_assessmentId_fkey') THEN
+    ALTER TABLE "nis2_registrations" ADD CONSTRAINT "nis2_registrations_assessmentId_fkey" FOREIGN KEY ("assessmentId") REFERENCES "nis2_assessments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'nis2_registration_changes_registrationId_fkey') THEN
+    ALTER TABLE "nis2_registration_changes" ADD CONSTRAINT "nis2_registration_changes_registrationId_fkey" FOREIGN KEY ("registrationId") REFERENCES "nis2_registrations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_documents_assetId_fkey') THEN
+    ALTER TABLE "asset_documents" ADD CONSTRAINT "asset_documents_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_documents_documentId_fkey') THEN
+    ALTER TABLE "asset_documents" ADD CONSTRAINT "asset_documents_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_evidence_riskId_fkey') THEN
+    ALTER TABLE "risk_evidence" ADD CONSTRAINT "risk_evidence_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_evidence_evidenceId_fkey') THEN
+    ALTER TABLE "risk_evidence" ADD CONSTRAINT "risk_evidence_evidenceId_fkey" FOREIGN KEY ("evidenceId") REFERENCES "evidence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_assets_riskId_fkey') THEN
+    ALTER TABLE "risk_assets" ADD CONSTRAINT "risk_assets_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_assets_assetId_fkey') THEN
+    ALTER TABLE "risk_assets" ADD CONSTRAINT "risk_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'vulnerability_assets_vulnerabilityId_fkey') THEN
+    ALTER TABLE "vulnerability_assets" ADD CONSTRAINT "vulnerability_assets_vulnerabilityId_fkey" FOREIGN KEY ("vulnerabilityId") REFERENCES "vulnerabilities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'vulnerability_assets_assetId_fkey') THEN
+    ALTER TABLE "vulnerability_assets" ADD CONSTRAINT "vulnerability_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_assets_incidentId_fkey') THEN
+    ALTER TABLE "incident_assets" ADD CONSTRAINT "incident_assets_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_assets_assetId_fkey') THEN
+    ALTER TABLE "incident_assets" ADD CONSTRAINT "incident_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_processes_assetId_fkey') THEN
+    ALTER TABLE "asset_processes" ADD CONSTRAINT "asset_processes_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_processes_processId_fkey') THEN
+    ALTER TABLE "asset_processes" ADD CONSTRAINT "asset_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_services_assetId_fkey') THEN
+    ALTER TABLE "asset_services" ADD CONSTRAINT "asset_services_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_services_serviceId_fkey') THEN
+    ALTER TABLE "asset_services" ADD CONSTRAINT "asset_services_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "business_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_contracts_assetId_fkey') THEN
+    ALTER TABLE "asset_contracts" ADD CONSTRAINT "asset_contracts_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_contracts_contractId_fkey') THEN
+    ALTER TABLE "asset_contracts" ADD CONSTRAINT "asset_contracts_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "contracts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_licenses_assetId_fkey') THEN
+    ALTER TABLE "asset_licenses" ADD CONSTRAINT "asset_licenses_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asset_licenses_licenseId_fkey') THEN
+    ALTER TABLE "asset_licenses" ADD CONSTRAINT "asset_licenses_licenseId_fkey" FOREIGN KEY ("licenseId") REFERENCES "licenses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contract_licenses_contractId_fkey') THEN
+    ALTER TABLE "contract_licenses" ADD CONSTRAINT "contract_licenses_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "contracts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contract_licenses_licenseId_fkey') THEN
+    ALTER TABLE "contract_licenses" ADD CONSTRAINT "contract_licenses_licenseId_fkey" FOREIGN KEY ("licenseId") REFERENCES "licenses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_processes_riskId_fkey') THEN
+    ALTER TABLE "risk_processes" ADD CONSTRAINT "risk_processes_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_processes_processId_fkey') THEN
+    ALTER TABLE "risk_processes" ADD CONSTRAINT "risk_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_services_riskId_fkey') THEN
+    ALTER TABLE "risk_services" ADD CONSTRAINT "risk_services_riskId_fkey" FOREIGN KEY ("riskId") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'risk_services_serviceId_fkey') THEN
+    ALTER TABLE "risk_services" ADD CONSTRAINT "risk_services_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "business_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_services_incidentId_fkey') THEN
+    ALTER TABLE "incident_services" ADD CONSTRAINT "incident_services_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_services_serviceId_fkey') THEN
+    ALTER TABLE "incident_services" ADD CONSTRAINT "incident_services_serviceId_fkey" FOREIGN KEY ("serviceId") REFERENCES "business_services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_processes_incidentId_fkey') THEN
+    ALTER TABLE "incident_processes" ADD CONSTRAINT "incident_processes_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'incident_processes_processId_fkey') THEN
+    ALTER TABLE "incident_processes" ADD CONSTRAINT "incident_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_assets_controlId_fkey') THEN
+    ALTER TABLE "control_assets" ADD CONSTRAINT "control_assets_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_assets_assetId_fkey') THEN
+    ALTER TABLE "control_assets" ADD CONSTRAINT "control_assets_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_processes_controlId_fkey') THEN
+    ALTER TABLE "control_processes" ADD CONSTRAINT "control_processes_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_processes_processId_fkey') THEN
+    ALTER TABLE "control_processes" ADD CONSTRAINT "control_processes_processId_fkey" FOREIGN KEY ("processId") REFERENCES "business_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_sites_controlId_fkey') THEN
+    ALTER TABLE "control_sites" ADD CONSTRAINT "control_sites_controlId_fkey" FOREIGN KEY ("controlId") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'control_sites_siteId_fkey') THEN
+    ALTER TABLE "control_sites" ADD CONSTRAINT "control_sites_siteId_fkey" FOREIGN KEY ("siteId") REFERENCES "sites"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'vcenter_servers_credentialId_fkey') THEN
+    ALTER TABLE "vcenter_servers" ADD CONSTRAINT "vcenter_servers_credentialId_fkey" FOREIGN KEY ("credentialId") REFERENCES "vmware_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'proxmox_servers_credentialId_fkey') THEN
+    ALTER TABLE "proxmox_servers" ADD CONSTRAINT "proxmox_servers_credentialId_fkey" FOREIGN KEY ("credentialId") REFERENCES "proxmox_credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '_AssetRisks_A_fkey') THEN
+    ALTER TABLE "_AssetRisks" ADD CONSTRAINT "_AssetRisks_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '_AssetRisks_B_fkey') THEN
+    ALTER TABLE "_AssetRisks" ADD CONSTRAINT "_AssetRisks_B_fkey" FOREIGN KEY ("B") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '_AssetControls_A_fkey') THEN
+    ALTER TABLE "_AssetControls" ADD CONSTRAINT "_AssetControls_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '_AssetControls_B_fkey') THEN
+    ALTER TABLE "_AssetControls" ADD CONSTRAINT "_AssetControls_B_fkey" FOREIGN KEY ("B") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '_RiskControls_A_fkey') THEN
+    ALTER TABLE "_RiskControls" ADD CONSTRAINT "_RiskControls_A_fkey" FOREIGN KEY ("A") REFERENCES "controls"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
+
+-- AddForeignKey
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '_RiskControls_B_fkey') THEN
+    ALTER TABLE "_RiskControls" ADD CONSTRAINT "_RiskControls_B_fkey" FOREIGN KEY ("B") REFERENCES "risks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+EXCEPTION
+  WHEN undefined_table OR undefined_column THEN
+    NULL;
+END $$;
 

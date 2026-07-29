@@ -12,20 +12,42 @@
 
 import { jest } from '@jest/globals';
 
+type MockFunction = ReturnType<typeof jest.fn>;
+type MockModel = {
+  findUnique: MockFunction;
+  findFirst: MockFunction;
+  findMany: MockFunction;
+  create: MockFunction;
+  createMany: MockFunction;
+  update: MockFunction;
+  updateMany: MockFunction;
+  delete: MockFunction;
+  deleteMany: MockFunction;
+  upsert: MockFunction;
+  count: MockFunction;
+};
+
+export type MockPrismaClient = {
+  [model: string]: any;
+  $connect: MockFunction;
+  $disconnect: MockFunction;
+  $transaction: MockFunction;
+};
+
 // Create a mock structure matching PrismaClient
-export const createMockPrismaClient = () => {
-  const createMockModel = () => ({
-    findUnique: jest.fn<any>(),
-    findFirst: jest.fn<any>(),
-    findMany: jest.fn<any>(),
-    create: jest.fn<any>(),
-    createMany: jest.fn<any>(),
-    update: jest.fn<any>(),
-    updateMany: jest.fn<any>(),
-    delete: jest.fn<any>(),
-    deleteMany: jest.fn<any>(),
-    upsert: jest.fn<any>(),
-    count: jest.fn<any>(),
+export const createMockPrismaClient = (): MockPrismaClient => {
+  const createMockModel = (): MockModel => ({
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    createMany: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+    delete: jest.fn(),
+    deleteMany: jest.fn(),
+    upsert: jest.fn(),
+    count: jest.fn(),
   });
 
   return {
@@ -196,8 +218,6 @@ export const createMockPrismaClient = () => {
     // Prisma internal methods
     $connect: jest.fn(),
     $disconnect: jest.fn(),
-    $transaction: jest.fn<any>(),
+    $transaction: jest.fn(),
   };
 };
-
-export type MockPrismaClient = ReturnType<typeof createMockPrismaClient>;

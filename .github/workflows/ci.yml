@@ -139,10 +139,10 @@ jobs:
         run: npx prisma --version
 
       - name: Validate Prisma schema
-        run: npx prisma validate
+        run: npx prisma validate --schema=backend/prisma/schema.prisma
 
       - name: Format check (Prisma)
-        run: npx prisma format --check
+        run: npx prisma format --check --schema=backend/prisma/schema.prisma
 
   # =====================================================================
   # UNIT TESTS
