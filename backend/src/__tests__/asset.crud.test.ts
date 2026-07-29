@@ -289,6 +289,11 @@ describe('AssetService - CRUD Operations', () => {
 
   describe('update', () => {
     beforeEach(() => {
+      mockPrisma.assetType.findUnique.mockResolvedValue({
+        id: validAssetTypeId,
+        inventoryEnabled: false,
+        inventoryPattern: null,
+      });
       mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
       mockPrisma.asset.update.mockResolvedValue({ ...createdAsset, criticality: 'critical' });
     });
@@ -359,6 +364,36 @@ describe('AssetService - CRUD Operations', () => {
           action: 'ASSET_UPDATE',
         }),
       );
+    });
+
+    it('should update an asset while preserving its own inventory number', async () => {
+      const assetWithInventoryNumber = { ...createdAsset, inventoryNumber: 'INV-001' };
+      mockPrisma.asset.findUnique.mockResolvedValue(assetWithInventoryNumber);
+      mockPrisma.asset.update.mockResolvedValue({ ...assetWithInventoryNumber, name: 'Updated Server' });
+
+      await assetService.update('asset-123', { name: 'Updated Server', inventoryNumber: 'INV-001' }, 'user-123');
+
+      expect(mockPrisma.asset.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'asset-123' },
+        data: expect.objectContaining({
+          name: 'Updated Server',
+          inventoryNumber: 'INV-001',
+        }),
+      }));
+    });
+
+    it('should reject updating an asset to another asset inventory number', async () => {
+      const currentAsset = { ...createdAsset, inventoryNumber: 'INV-001' };
+      const otherAsset = { ...createdAsset, id: 'asset-456', inventoryNumber: 'INV-002' };
+      mockPrisma.asset.findUnique
+        .mockResolvedValueOnce(currentAsset)
+        .mockResolvedValueOnce(otherAsset);
+
+      await expect(
+        assetService.update('asset-123', { inventoryNumber: 'INV-002' }, 'user-123'),
+      ).rejects.toThrow('Inventory number must be globally unique');
+
+      expect(mockPrisma.asset.update).not.toHaveBeenCalled();
     });
   });
 

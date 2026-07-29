@@ -115,11 +115,11 @@ export class AssetService {
     return pattern.replace(marker[0], String(sequence).padStart(marker[0].length, '0'));
   }
 
-  private async allocateInventoryNumber(tx: any, assetTypeId: string, assetSubtypeId?: string, manual?: string) {
+  private async allocateInventoryNumber(tx: any, assetTypeId: string, assetSubtypeId?: string, manual?: string, currentAssetId?: string) {
     const config = await this.resolveInventoryConfig(tx, assetTypeId, assetSubtypeId);
     if (manual) {
       const existing = await tx.asset.findUnique({ where: { inventoryNumber: manual } });
-      if (existing) throw new AppError('Inventory number must be globally unique', 409);
+      if (existing && existing.id !== currentAssetId) throw new AppError('Inventory number must be globally unique', 409);
       return manual;
     }
     if (!config.enabled) return undefined;
@@ -401,6 +401,7 @@ export class AssetService {
           data.assetTypeId ?? existing.assetTypeId,
           data.assetSubtypeId ?? (existing as any).assetSubtypeId,
           data.inventoryNumber,
+          id,
         );
       }
       const updateData: Prisma.AssetUpdateInput = {
