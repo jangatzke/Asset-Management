@@ -13,6 +13,10 @@ permissions:
 env:
   NODE_VERSION: '20'
   PRISMA_TELEMETRY_INFORMATION_DISABLED: '1'
+  # Safe CI default required by Prisma schema validation/generation when no
+  # repository .env files are present. Jobs that connect to PostgreSQL override
+  # this with their service database URL.
+  DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
 
 # dorny/paths-filter@v3 and gitleaks/gitleaks-action@v2 are currently the
 # latest stable major versions used here; keep them pinned until their
