@@ -103,6 +103,7 @@ const Assets = () => {
 
   // Asset detail view state
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [graphViewerAsset, setGraphViewerAsset] = useState<Asset | null>(null);
   const [detailTab, setDetailTab] = useState<'graph' | 'impact'>('graph');
 
   // Relations form
@@ -401,6 +402,7 @@ const Assets = () => {
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.status}</td>
                     <td className="px-6 py-4 text-sm">
                       <button onClick={() => handleEdit(asset)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
+                      <button onClick={() => setGraphViewerAsset(asset)} className="text-purple-600 hover:text-purple-800 mr-3">{t('assets.openTreeViewer')}</button>
                       <button onClick={() => handleDelete(asset.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
                     </td>
                   </tr>
@@ -623,6 +625,17 @@ const Assets = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={!!graphViewerAsset} onClose={() => setGraphViewerAsset(null)} title={graphViewerAsset ? `${t('assets.assetTreeViewer')}: ${graphViewerAsset.name}` : t('assets.assetTreeViewer')}>
+        {graphViewerAsset && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {t('assets.assetTreeViewerDescription')}
+            </p>
+            <AssetGraph assetId={graphViewerAsset.id} focusAssetId={graphViewerAsset.id} />
+          </div>
+        )}
       </Modal>
     </div>
   );

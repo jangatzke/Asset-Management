@@ -227,7 +227,7 @@ export class AssetGraphService {
 
     const data = await this.loadGraphData(options);
     const graph = this.buildAssetGraph(data, options);
-    const maxDepth = options?.maxDepth ?? 3;
+    const maxDepth = options?.maxDepth ?? Number.MAX_SAFE_INTEGER;
     const direction = options?.direction ?? 'both';
     const allowedAssetIds = this.traverseAssetIds(assetId, data.relations, maxDepth, direction, options?.relationTypes);
     const allowedNodeIds = new Set<string>(allowedAssetIds);

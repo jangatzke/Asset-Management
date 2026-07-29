@@ -248,6 +248,10 @@
     "newAsset": "+ Neues Asset",
     "createAsset": "Neues Asset erstellen",
     "editAsset": "Asset bearbeiten",
+    "assetTreeViewer": "Asset Tree Viewer",
+    "assetTree": "Asset-Baum",
+    "openTreeViewer": "Baum",
+    "assetTreeViewerDescription": "Zeigt das ausgewählte Asset mit allen eingehenden und ausgehenden Abhängigkeiten als Dependency Graph. Kantenbeschriftungen zeigen den Beziehungstyp.",
     "searchPlaceholder": "Assets suchen...",
     "noAssets": "Keine Assets gefunden",
     "columns": {
@@ -852,7 +856,10 @@
   },
   "graph": {
     "noData": "Keine Graphdaten verfügbar",
-    "noDependencies": "Keine Abhängigkeiten gefunden"
+    "noDependencies": "Keine Abhängigkeiten gefunden",
+    "focusAsset": "Fokus-Asset",
+    "incomingDependencies": "Hängt von diesem Asset ab",
+    "outgoingDependencies": "Dieses Asset hängt ab von"
   },
   "entityPicker": {
     "searchPlaceholder": "Suchen...",

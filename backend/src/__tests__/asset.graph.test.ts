@@ -106,6 +106,31 @@ describe('AssetGraphService', () => {
       expect(mockAssetFindUnique).toHaveBeenCalled();
     });
 
+    it('should include the complete transitive dependency neighborhood when maxDepth is omitted', async () => {
+      const assets = [
+        createAssetWithType({ id: 'asset-1', name: 'App' }),
+        createAssetWithType({ id: 'asset-2', name: 'Database' }),
+        createAssetWithType({ id: 'asset-3', name: 'Storage' }),
+        createAssetWithType({ id: 'asset-4', name: 'Portal' }),
+      ];
+      mockAssetFindUnique.mockImplementation((opts: any) => Promise.resolve(assets.find((asset) => asset.id === opts.where.id) || null));
+      mockAssetFindMany.mockResolvedValue(assets);
+      mockRelationFindMany.mockResolvedValue([
+        { id: 'rel-1', sourceAssetId: 'asset-1', targetAssetId: 'asset-2', relationshipType: 'depends_on' },
+        { id: 'rel-2', sourceAssetId: 'asset-2', targetAssetId: 'asset-3', relationshipType: 'runs_on' },
+        { id: 'rel-3', sourceAssetId: 'asset-4', targetAssetId: 'asset-1', relationshipType: 'uses' },
+      ]);
+
+      const result = await service.getDependencyGraph('asset-1');
+
+      expect(result.nodes.map((node) => node.id).sort()).toEqual(['asset-1', 'asset-2', 'asset-3', 'asset-4']);
+      expect(result.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'asset-1', targetId: 'asset-2', relationType: 'depends_on' }),
+        expect.objectContaining({ sourceId: 'asset-2', targetId: 'asset-3', relationType: 'runs_on' }),
+        expect.objectContaining({ sourceId: 'asset-4', targetId: 'asset-1', relationType: 'uses' }),
+      ]));
+    });
+
     it('should handle empty graph (no relations)', async () => {
       const result = await service.getDependencyGraph('asset-1');
 

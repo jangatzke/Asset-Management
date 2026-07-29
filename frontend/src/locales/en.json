@@ -248,6 +248,10 @@
     "newAsset": "+ New Asset",
     "createAsset": "Create New Asset",
     "editAsset": "Edit Asset",
+    "assetTreeViewer": "Asset Tree Viewer",
+    "assetTree": "Asset tree",
+    "openTreeViewer": "Tree",
+    "assetTreeViewerDescription": "Shows the selected asset with all upstream and downstream dependencies as a dependency graph. Edge labels identify the relationship type.",
     "searchPlaceholder": "Search assets...",
     "noAssets": "No assets found",
     "columns": {
@@ -852,7 +856,10 @@
   },
   "graph": {
     "noData": "No graph data available",
-    "noDependencies": "No dependencies found"
+    "noDependencies": "No dependencies found",
+    "focusAsset": "Focused asset",
+    "incomingDependencies": "Depends on this asset",
+    "outgoingDependencies": "This asset depends on"
   },
   "entityPicker": {
     "searchPlaceholder": "Search...",

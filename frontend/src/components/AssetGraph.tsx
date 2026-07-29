@@ -20,6 +20,7 @@ interface AssetGraphProps {
   assetId?: string;
   nodes?: GraphNode[];
   edges?: GraphEdge[];
+  focusAssetId?: string;
 }
 
 const NODE_RADIUS = 28;
@@ -59,8 +60,9 @@ const getStrokeColor = (node: GraphNode): string => {
   return '#4B5563';
 };
 
-export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNodes, edges: propEdges }) => {
+export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNodes, edges: propEdges, focusAssetId }) => {
   const { t } = useI18n();
+  const rootAssetId = focusAssetId ?? assetId;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
@@ -73,7 +75,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
   const [error, setError] = useState<string | null>(null);
 
   // Filter state
-  const [maxDepth, setMaxDepth] = useState<number>(3);
+  const [maxDepth, setMaxDepth] = useState<number>(10);
   const [direction, setDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
   const [relationFilter, setRelationFilter] = useState<string>('');
 
@@ -111,8 +113,14 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
     const centerY = 300;
     const radius = Math.min(300, Math.max(120, nodes.length * 35));
 
-    nodes.forEach((node, index) => {
-      const angle = (2 * Math.PI * index) / nodes.length - Math.PI / 2;
+    const focusNode = rootAssetId ? nodes.find((node) => node.id === rootAssetId) : undefined;
+    if (focusNode) {
+      positions.set(focusNode.id, { x: centerX, y: centerY });
+    }
+
+    const surroundingNodes = focusNode ? nodes.filter((node) => node.id !== focusNode.id) : nodes;
+    surroundingNodes.forEach((node, index) => {
+      const angle = (2 * Math.PI * index) / Math.max(1, surroundingNodes.length) - Math.PI / 2;
       positions.set(node.id, {
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
@@ -120,7 +128,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
     });
 
     nodePositionsRef.current = positions;
-  }, [nodes]);
+  }, [nodes, rootAssetId]);
 
   useEffect(() => {
     initializePositions();
@@ -236,29 +244,52 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
       );
     };
 
-    // Draw edges
+      const drawArrowHead = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+        const angle = Math.atan2(to.y - from.y, to.x - from.x);
+        const arrowLength = 12;
+        const endX = to.x - NODE_RADIUS * Math.cos(angle);
+        const endY = to.y - NODE_RADIUS * Math.sin(angle);
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - arrowLength * Math.cos(angle - Math.PI / 6), endY - arrowLength * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(endX - arrowLength * Math.cos(angle + Math.PI / 6), endY - arrowLength * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
+      };
+
+      // Draw edges
     edges.forEach((edge) => {
       const sourcePos = positions.get(edge.source);
       const targetPos = positions.get(edge.target);
       if (!sourcePos || !targetPos) return;
 
       const connected = isConnectedToHighlight(edge.source) && isConnectedToHighlight(edge.target);
+      const isIncomingToFocus = !!rootAssetId && edge.target === rootAssetId;
+      const isOutgoingFromFocus = !!rootAssetId && edge.source === rootAssetId;
+      const edgeColor = isIncomingToFocus ? '#16A34A' : isOutgoingFromFocus ? '#7C3AED' : connected ? '#6B7280' : '#D1D5DB';
       ctx.beginPath();
       ctx.moveTo(sourcePos.x, sourcePos.y);
       ctx.lineTo(targetPos.x, targetPos.y);
-      ctx.strokeStyle = connected ? '#6B7280' : '#D1D5DB';
-      ctx.lineWidth = connected ? 2 : 1;
+      ctx.strokeStyle = edgeColor;
+      ctx.lineWidth = (isIncomingToFocus || isOutgoingFromFocus) ? 3 : connected ? 2 : 1;
       ctx.stroke();
+
+      ctx.fillStyle = edgeColor;
+      drawArrowHead(sourcePos, targetPos);
 
       // Draw relation type label
       if (edge.relationType && connected) {
         const midX = (sourcePos.x + targetPos.x) / 2;
         const midY = (sourcePos.y + targetPos.y) / 2;
+        const label = edge.relationType;
         ctx.font = '10px sans-serif';
-        ctx.fillStyle = '#9CA3AF';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(edge.relationType, midX, midY - 8);
+        const metrics = ctx.measureText(label);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+        ctx.fillRect(midX - metrics.width / 2 - 4, midY - 16, metrics.width + 8, 14);
+        ctx.fillStyle = edgeColor;
+        ctx.fillText(label, midX, midY - 8);
       }
     });
 
@@ -268,12 +299,15 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
       if (!pos) return;
 
       const highlighted = isHighlighted(node.id);
+      const focused = rootAssetId === node.id;
       const connected = isConnectedToHighlight(node.id);
 
       // Node circle with criticality/type color
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, NODE_RADIUS, 0, 2 * Math.PI);
-      if (highlighted) {
+      if (focused) {
+        ctx.fillStyle = '#2563EB';
+      } else if (highlighted) {
         ctx.fillStyle = '#3B82F6';
       } else if (!connected) {
         ctx.fillStyle = '#9CA3AF';
@@ -282,9 +316,17 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
       }
       ctx.fill();
 
-      ctx.strokeStyle = highlighted ? '#1D4ED8' : getStrokeColor(node);
-      ctx.lineWidth = highlighted ? 3 : 2;
+      ctx.strokeStyle = focused ? '#FACC15' : highlighted ? '#1D4ED8' : getStrokeColor(node);
+      ctx.lineWidth = focused ? 5 : highlighted ? 3 : 2;
       ctx.stroke();
+
+      if (focused) {
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, NODE_RADIUS + 8, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#FACC15';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
 
       // Node label - display ID or name
       ctx.font = 'bold 10px sans-serif';
@@ -305,7 +347,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
     });
 
     ctx.restore();
-  }, [nodes, edges, zoom, pan, selectedNode, hoveredNode]);
+  }, [nodes, edges, zoom, pan, selectedNode, hoveredNode, rootAssetId]);
 
   useEffect(() => {
     draw();
@@ -437,6 +479,22 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-2 text-xs">
+        {rootAssetId && (
+          <>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full inline-block border-2 border-yellow-400 bg-blue-600"></span>
+              <span className="text-gray-600 dark:text-gray-400">{t('graph.focusAsset')}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-5 h-0.5 inline-block bg-green-600"></span>
+              <span className="text-gray-600 dark:text-gray-400">{t('graph.incomingDependencies')}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-5 h-0.5 inline-block bg-purple-600"></span>
+              <span className="text-gray-600 dark:text-gray-400">{t('graph.outgoingDependencies')}</span>
+            </span>
+          </>
+        )}
         {Object.entries(CRITICALITY_COLORS).map(([level, colors]) => (
           <span key={level} className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: colors.fill }}></span>
