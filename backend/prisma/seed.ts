@@ -9,8 +9,12 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
+import path from 'node:path';
 import { ISO27001_STANDARD_ASSET_TYPES } from '../src/services/bootstrap.service';
 import { GRANULAR_PERMISSIONS } from '../src/services/authorization.service';
+
+dotenv.config({ path: path.resolve(__dirname, '../.env'), override: false });
 
 const prisma = new PrismaClient();
 
@@ -242,7 +246,7 @@ async function seedRiskMethods(): Promise<void> {
   });
 
   if (!existing) {
-    await prisma.riskMethod.create({
+    const riskMethod = await prisma.riskMethod.create({
       data: {
         displayId: 'RM-ISO27005',
         name: 'ISO 27005 Basic Risk Matrix',
@@ -270,7 +274,8 @@ async function seedRiskMethods(): Promise<void> {
           ],
         },
         ratingDimensions: ['confidentiality', 'integrity', 'availability'],
-        formula: 'likelihood × impact',
+        calculationType: 'product',
+        formulaExpression: 'likelihood * impact',
         riskClasses: [
           { min: 1, max: 4, level: 'low', color: '#4caf50' },
           { min: 5, max: 9, level: 'medium', color: '#ff9800' },
@@ -284,7 +289,42 @@ async function seedRiskMethods(): Promise<void> {
         },
       },
     });
+
+    await prisma.riskMethodVersion.create({
+      data: {
+        riskMethodId: riskMethod.id,
+        versionTag: `${riskMethod.version}-snapshot-1`,
+        likelihoodScale: riskMethod.likelihoodScale,
+        impactScale: riskMethod.impactScale,
+        ratingDimensions: riskMethod.ratingDimensions,
+        calculationType: riskMethod.calculationType,
+        formulaExpression: riskMethod.formulaExpression,
+        riskClasses: riskMethod.riskClasses,
+        isImmutable: false,
+      },
+    });
     console.log('  ✓ RiskMethod: ISO 27005 Basic (RM-ISO27005)');
+  } else {
+    const existingVersion = await prisma.riskMethodVersion.findFirst({
+      where: { riskMethodId: existing.id },
+    });
+
+    if (!existingVersion) {
+      await prisma.riskMethodVersion.create({
+        data: {
+          riskMethodId: existing.id,
+          versionTag: `${existing.version}-snapshot-1`,
+          likelihoodScale: existing.likelihoodScale,
+          impactScale: existing.impactScale,
+          ratingDimensions: existing.ratingDimensions,
+          calculationType: existing.calculationType,
+          formulaExpression: existing.formulaExpression,
+          riskClasses: existing.riskClasses,
+          isImmutable: false,
+        },
+      });
+      console.log('  ✓ RiskMethodVersion: ISO 27005 Basic snapshot');
+    }
   }
 }
 
@@ -436,7 +476,16 @@ async function seedIntuneSyncConfig(): Promise<void> {
 async function seedTestUser(): Promise<void> {
   console.log('\n👤 Seeding test user…');
 
-  const existing = await prisma.user.findUnique({ where: { email: 'admin@example.com' } });
+  const ensureRole = async (userId: string, roleName: string): Promise<void> => {
+    const existingRole = await prisma.userRole.findFirst({ where: { userId, roleName } });
+    if (!existingRole) {
+      await prisma.userRole.create({ data: { userId, roleName } });
+    }
+  };
+
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email: 'admin@example.com' }, { displayId: 'USR-0001' }] },
+  });
   if (!existing) {
     const passwordHash = await bcrypt.hash('Admin123!@#', 10);
 
@@ -456,19 +505,18 @@ async function seedTestUser(): Promise<void> {
       },
     });
 
-    await prisma.userRole.create({
-      data: {
-        userId: user.id,
-        roleName: 'system_admin',
-      },
-    });
+    await ensureRole(user.id, 'system_admin');
 
     console.log('  ✓ User: admin@example.com (role: system_admin)');
     console.log('    ⚠️  Password: Admin123!@#  (CHANGE IN PRODUCTION!)');
+  } else {
+    await ensureRole(existing.id, 'system_admin');
   }
 
   // Test employee user
-  const employee = await prisma.user.findUnique({ where: { email: 'employee@example.com' } });
+  const employee = await prisma.user.findFirst({
+    where: { OR: [{ email: 'employee@example.com' }, { displayId: 'USR-0002' }] },
+  });
   if (!employee) {
     const passwordHash = await bcrypt.hash('Employee123!@#', 10);
 
@@ -488,15 +536,12 @@ async function seedTestUser(): Promise<void> {
       },
     });
 
-    await prisma.userRole.create({
-      data: {
-        userId: user.id,
-        roleName: 'employee',
-      },
-    });
+    await ensureRole(user.id, 'employee');
 
     console.log('  ✓ User: employee@example.com (role: employee)');
     console.log('    ⚠️  Password: Employee123!@#  (CHANGE IN PRODUCTION!)');
+  } else {
+    await ensureRole(employee.id, 'employee');
   }
 }
 

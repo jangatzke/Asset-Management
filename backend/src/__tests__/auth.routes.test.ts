@@ -62,15 +62,29 @@ jest.mock('../middleware/errorHandler', () => ({
 }));
 
 describe('Auth Routes', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  const restoreNodeEnv = () => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS;
     delete process.env.AUTH_RATE_LIMIT_MAX;
+    delete process.env.REFRESH_TOKEN_COOKIE_SECURE;
+    restoreNodeEnv();
   });
 
   afterEach(() => {
     delete process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS;
     delete process.env.AUTH_RATE_LIMIT_MAX;
+    delete process.env.REFRESH_TOKEN_COOKIE_SECURE;
+    restoreNodeEnv();
   });
 
   describe('GET /auth/has-admin', () => {
@@ -182,6 +196,44 @@ describe('Auth Routes', () => {
       expect(response.body).toHaveProperty('user');
       expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
       expect(response.body).not.toHaveProperty('refreshToken');
+    });
+
+    it('should allow refresh cookie Secure to be disabled for local HTTP development', async () => {
+      process.env.REFRESH_TOKEN_COOKIE_SECURE = 'false';
+      mockOidcService.isLocalLoginEnabled.mockResolvedValue(true);
+      mockAuthService.login.mockResolvedValue({
+        user: { id: 'user-123', email: credentials.email },
+        token: 'test-token',
+        refreshToken: 'refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 60_000),
+      });
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send(credentials);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+      expect(response.headers['set-cookie']?.[0]).not.toContain('Secure');
+    });
+
+    it('should allow refresh cookie Secure to be forced for HTTPS deployments', async () => {
+      process.env.REFRESH_TOKEN_COOKIE_SECURE = 'true';
+      mockOidcService.isLocalLoginEnabled.mockResolvedValue(true);
+      mockAuthService.login.mockResolvedValue({
+        user: { id: 'user-123', email: credentials.email },
+        token: 'test-token',
+        refreshToken: 'refresh-token',
+        refreshTokenExpiresAt: new Date(Date.now() + 60_000),
+      });
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send(credentials);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+      expect(response.headers['set-cookie']?.[0]).toContain('Secure');
     });
 
     it('should return MFA enrollment pre-auth without refresh cookie', async () => {

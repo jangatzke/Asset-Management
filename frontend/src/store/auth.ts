@@ -28,7 +28,9 @@ interface AuthState {
   checkAuth: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+let checkAuthPromise: Promise<void> | null = null;
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   isAuthenticated: false,
@@ -59,7 +61,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   setUser: (user: User, token: string) => {
     setAccessToken(token);
-    set({ user, token, isAuthenticated: true });
+    set({ user, token, isAuthenticated: true, isLoading: false });
   },
   updateUserPreferences: (preferences) => {
     set((state) => ({
@@ -67,19 +69,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     }));
   },
   checkAuth: async () => {
-    console.log('[AuthStore] checkAuth started');
-    set({ isLoading: true });
-    try {
-      const refreshResponse = await authApi.refresh();
-      const token = refreshResponse.data.token;
-      setAccessToken(token);
-      const response = await authApi.me();
-      console.log('[AuthStore] User data:', response.data);
-      set({ user: response.data, token, isAuthenticated: true, isLoading: false });
-    } catch (error) {
-      console.log('[AuthStore] checkAuth failed:', error);
-      setAccessToken(null);
-      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+    const current = get();
+    if (current.user && current.token) {
+      set({ isAuthenticated: true, isLoading: false });
+      return;
     }
+
+    if (checkAuthPromise) return checkAuthPromise;
+
+    checkAuthPromise = (async () => {
+      set({ isLoading: true });
+      try {
+        const refreshResponse = await authApi.refresh();
+        const token = refreshResponse.data.token;
+        setAccessToken(token);
+        const response = await authApi.me();
+        set({ user: response.data, token, isAuthenticated: true, isLoading: false });
+      } catch {
+        setAccessToken(null);
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      }
+    })().finally(() => {
+      checkAuthPromise = null;
+    });
+
+    return checkAuthPromise;
   },
 }));

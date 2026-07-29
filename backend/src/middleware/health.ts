@@ -155,12 +155,12 @@ function describeMigrationFailure(row: PrismaMigrationRow): string | null {
     return `Migration ${row.migration_name} has no checksum`;
   }
 
-  if (!row.finished_at && !row.rolled_back_at) {
-    return `Migration ${row.migration_name} is incomplete or failed${row.logs ? `: ${row.logs}` : ''}`;
+  if (row.rolled_back_at) {
+    return null;
   }
 
-  if (row.rolled_back_at && !row.finished_at) {
-    return `Migration ${row.migration_name} was rolled back and is not applied`;
+  if (!row.finished_at) {
+    return `Migration ${row.migration_name} is incomplete or failed${row.logs ? `: ${row.logs}` : ''}`;
   }
 
   return null;
@@ -224,7 +224,7 @@ async function checkSchemaStatus(): Promise<HealthCheckResult> {
       };
     }
 
-    const latestMigration = rows[rows.length - 1].migration_name;
+    const latestMigration = rows.filter((row) => row.finished_at && !row.rolled_back_at).at(-1)?.migration_name ?? 'none';
     return { status: 'healthy', details: `Latest applied migration: ${latestMigration}; local migrations match database` };
   } catch (error: unknown) {
     return {

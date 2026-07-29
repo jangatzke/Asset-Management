@@ -22,10 +22,16 @@ function readCookie(req: AuthRequest, name: string): string | undefined {
   return undefined;
 }
 
+function useSecureRefreshCookie(): boolean {
+  if (process.env.REFRESH_TOKEN_COOKIE_SECURE === 'true') return true;
+  if (process.env.REFRESH_TOKEN_COOKIE_SECURE === 'false') return false;
+  return process.env.NODE_ENV === 'production';
+}
+
 function refreshCookieOptions(expires?: Date): CookieOptions {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV !== 'test',
+    secure: useSecureRefreshCookie(),
     sameSite: process.env.REFRESH_TOKEN_SAME_SITE === 'strict' ? 'strict' : 'lax',
     path: '/api/v1/auth',
     ...(expires ? { expires } : {}),

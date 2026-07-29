@@ -5,17 +5,17 @@
   "description": "Backend für IT-Asset-Management und ISMS-System",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node scripts/with-backend-env.cjs tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "pretest": "npm --workspace=shared run build && prisma generate",
+    "start": "node scripts/with-backend-env.cjs node dist/index.js",
+    "pretest": "npm --workspace=shared run build && node scripts/with-backend-env.cjs prisma generate",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:generate": "prisma generate",
-    "db:setup:cost-planning": "prisma migrate deploy && prisma generate"
+    "db:migrate": "node scripts/with-backend-env.cjs prisma migrate dev",
+    "db:deploy": "node scripts/with-backend-env.cjs prisma migrate deploy",
+    "db:seed": "node scripts/with-backend-env.cjs tsx prisma/seed.ts",
+    "db:generate": "node scripts/with-backend-env.cjs prisma generate",
+    "db:setup:cost-planning": "node scripts/with-backend-env.cjs prisma migrate deploy && node scripts/with-backend-env.cjs prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
