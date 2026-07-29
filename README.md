@@ -268,6 +268,7 @@ Die OpenAPI-Spezifikation liegt in [`docs/api/openapi.yaml`](docs/api/openapi.ya
 [`docs/compliance-matrix.md`](docs/compliance-matrix.md) und [`docs/compliance-matrix.yml`](docs/compliance-matrix.yml) unterscheiden ausdrücklich zwischen:
 
 - **Application Coverage:** Die Anwendung unterstützt eine Anforderung technisch.
+- **Application Requirement Coverage:** Die Anwendung ordnet Anforderungen technischer Funktionsabdeckung zu.
 - **Organization Compliance Assessment:** Die Organisation hat Kontrollen umgesetzt und kann Nachweise bereitstellen.
 
 Statusangaben im Repository sind daher als technische Projekt-/Anwendungsabdeckung zu lesen, nicht als organisatorische Zertifizierung.

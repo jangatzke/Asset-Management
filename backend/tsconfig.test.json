@@ -3,7 +3,13 @@
   "compilerOptions": {
     "strict": false,
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["../shared/src/*"],
+      "shared": ["../shared/dist/index"],
+      "shared/*": ["../shared/dist/*"]
+    }
   },
-  "include": ["src/**/*.test.ts", "src/test/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }
