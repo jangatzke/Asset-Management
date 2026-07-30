@@ -32,7 +32,10 @@ const canUsePsql = (): boolean => {
   }
 };
 
-const databaseUrl = process.env.MIGRATION_TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+// This test executes a destructive schema-level migration fixture against a live
+// PostgreSQL database via psql. It must be opted into explicitly so ordinary
+// backend test runs do not depend on a local DATABASE_URL being reachable.
+const databaseUrl = process.env.MIGRATION_TEST_DATABASE_URL;
 
 describe('risk assessment legacy migration verification', () => {
   const runIfDatabaseAvailable = databaseUrl && canUsePsql() ? it : it.skip;
