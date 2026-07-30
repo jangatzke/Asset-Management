@@ -14,6 +14,7 @@
     "db:migrate": "node scripts/with-backend-env.cjs prisma migrate dev",
     "db:deploy": "node scripts/with-backend-env.cjs prisma migrate deploy",
     "db:seed": "node scripts/with-backend-env.cjs tsx prisma/seed.ts",
+    "db:seed:demo": "node scripts/with-backend-env.cjs tsx prisma/demo-seed.ts",
     "db:generate": "node scripts/with-backend-env.cjs prisma generate",
     "db:setup:cost-planning": "node scripts/with-backend-env.cjs prisma migrate deploy && node scripts/with-backend-env.cjs prisma generate"
   },
