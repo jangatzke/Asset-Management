@@ -1,13 +1,60 @@
 import { useEffect, useState } from 'react';
-import { costPlanningApi } from '../services/api';
+import { assetApi, controlApi, costPlanningApi, incidentApi, riskApi } from '../services/api';
 
 const money = (value: string | number | undefined) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR' }).format(Number(value || 0));
 
+type DashboardMetrics = {
+  totalAssets: number;
+  openRisks: number;
+  activeIncidents: number;
+  controls: number;
+};
+
+export const emptyDashboardMetrics: DashboardMetrics = {
+  totalAssets: 0,
+  openRisks: 0,
+  activeIncidents: 0,
+  controls: 0,
+};
+
+export const paginatedTotal = (payload: any): number => {
+  const total = payload?.pagination?.total ?? payload?.total;
+  if (typeof total === 'number') return total;
+  if (typeof total === 'string') return Number(total) || 0;
+  return Array.isArray(payload?.data) ? payload.data.length : 0;
+};
+
 const Dashboard = () => {
   const [costReport, setCostReport] = useState<any>(null);
+  const [metrics, setMetrics] = useState<DashboardMetrics>(emptyDashboardMetrics);
 
   useEffect(() => {
-    costPlanningApi.dashboardReport().then((response) => setCostReport(response.data)).catch(() => setCostReport(null));
+    let ignore = false;
+
+    costPlanningApi.dashboardReport().then((response) => {
+      if (!ignore) setCostReport(response.data);
+    }).catch(() => {
+      if (!ignore) setCostReport(null);
+    });
+
+    Promise.all([
+      assetApi.list({ page: 1, limit: 1 }),
+      riskApi.list({ page: 1, limit: 1 }),
+      incidentApi.list({ page: 1, limit: 1 }),
+      controlApi.list({ page: 1, limit: 1 }),
+    ]).then(([assets, risks, incidents, controls]) => {
+      if (ignore) return;
+      setMetrics({
+        totalAssets: paginatedTotal(assets.data),
+        openRisks: paginatedTotal(risks.data),
+        activeIncidents: paginatedTotal(incidents.data),
+        controls: paginatedTotal(controls.data),
+      });
+    }).catch(() => {
+      if (!ignore) setMetrics(emptyDashboardMetrics);
+    });
+
+    return () => { ignore = true; };
   }, []);
 
   return (
@@ -16,19 +63,19 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Total Assets</h3>
-          <p className="text-3xl font-bold text-primary-600 mt-2">0</p>
+          <p className="text-3xl font-bold text-primary-600 mt-2">{metrics.totalAssets}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Open Risks</h3>
-          <p className="text-3xl font-bold text-orange-600 mt-2">0</p>
+          <p className="text-3xl font-bold text-orange-600 mt-2">{metrics.openRisks}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Active Incidents</h3>
-          <p className="text-3xl font-bold text-red-600 mt-2">0</p>
+          <p className="text-3xl font-bold text-red-600 mt-2">{metrics.activeIncidents}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Controls</h3>
-          <p className="text-3xl font-bold text-green-600 mt-2">0</p>
+          <p className="text-3xl font-bold text-green-600 mt-2">{metrics.controls}</p>
         </div>
       </div>
       {costReport && (
