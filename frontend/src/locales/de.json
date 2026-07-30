@@ -353,6 +353,9 @@
     "editRisk": "Risiko bearbeiten",
     "searchPlaceholder": "Risiken suchen...",
     "noRisks": "Keine Risiken gefunden",
+    "statusFilter": {
+      "open": "Offene Risiken"
+    },
     "columns": {
       "id": "ID",
       "title": "Titel",
@@ -585,6 +588,9 @@
     "warningDraftError": "Frühwarnungsentwurf konnte nicht erstellt werden",
     "searchPlaceholder": "Vorfälle suchen...",
     "noIncidents": "Keine Vorfälle gefunden",
+    "statusFilter": {
+      "open": "Aktive Vorfälle"
+    },
     "significant": "Signifikant / meldepflichtiger Kandidat",
     "notSignificant": "Nicht signifikant",
     "knowledge": "Kenntnis",

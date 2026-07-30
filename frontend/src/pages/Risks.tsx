@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
@@ -125,12 +126,22 @@ const initialTreatmentForm: TreatmentForm = {
 
 const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: false, status: 'active' };
 const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { RiskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
+const openRiskStatuses = ['identified', 'assessed', 'treatment_planned', 'treatment_in_progress'];
+
+export const normalizeRiskStatusFilter = (value: string | null) => value === 'open' ? 'open' : value ?? '';
+export const matchesRiskStatusFilter = (risk: Pick<Risk, 'status'>, statusFilter: string) => {
+  if (!statusFilter) return true;
+  if (statusFilter === 'open') return openRiskStatuses.includes(risk.status);
+  return risk.status === statusFilter;
+};
 
 const Risks = () => {
   const { t } = useI18n();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [risks, setRisks] = useState<Risk[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => normalizeRiskStatusFilter(searchParams.get('status')));
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -157,7 +168,9 @@ const Risks = () => {
   const loadRisks = async () => {
     try {
       setLoading(true);
-      const response = await riskApi.list({ page: 1, limit: 50 });
+      const params: { page: number; limit: number; status?: string } = { page: 1, limit: 50 };
+      if (statusFilter && statusFilter !== 'open') params.status = statusFilter;
+      const response = await riskApi.list(params);
       const list = response.data?.data || [];
       setRisks(list);
       const detailPairs = await Promise.allSettled(list.slice(0, 20).map((risk: Risk) => riskApi.getById(risk.id)));
@@ -288,10 +301,20 @@ const Risks = () => {
     } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.assessmentError')); }
   };
 
-  const filteredRisks = risks.filter((risk) =>
-    risk.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    risk.displayId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value);
+    else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
+
+  const filteredRisks = risks.filter((risk) => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = risk.title.toLowerCase().includes(searchLower) ||
+      risk.displayId.toLowerCase().includes(searchLower);
+    return matchesSearch && matchesRiskStatusFilter(risk, statusFilter);
+  });
 
   const handleSubmit = async () => {
     if (!form.title || !form.description || !form.possibleImpact || !form.riskOwnerId || !form.assessorId || !form.nextReviewDate || !form.justification) {
@@ -435,9 +458,20 @@ const Risks = () => {
         </div>
       )}
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row">
         <input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select aria-label="Risk status filter" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">{t('common.all')}</option>
+          <option value="open">{t('risks.statusFilter.open')}</option>
+          <option value="identified">{t('risks.status.identified')}</option>
+          <option value="assessed">{t('risks.status.assessed')}</option>
+          <option value="treatment_planned">{t('risks.status.treatment_planned')}</option>
+          <option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option>
+          <option value="accepted">{t('risks.status.accepted')}</option>
+          <option value="closed">{t('risks.status.closed')}</option>
+        </select>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">

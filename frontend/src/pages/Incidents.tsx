@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { incidentApi, nis2Api } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
@@ -81,12 +82,23 @@ const initialIncidentForm = (): IncidentForm => {
   };
 };
 
+const activeIncidentStatuses = ['new', 'under_investigation', 'contained'];
+
+export const normalizeIncidentStatusFilter = (value: string | null) => value === 'open' ? 'open' : value ?? '';
+export const matchesIncidentStatusFilter = (incident: Pick<Incident, 'status'>, statusFilter: string) => {
+  if (!statusFilter) return true;
+  if (statusFilter === 'open') return activeIncidentStatuses.includes(incident.status);
+  return incident.status === statusFilter;
+};
+
 const Incidents = () => {
   const { t } = useI18n();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => normalizeIncidentStatusFilter(searchParams.get('status')));
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,7 +113,9 @@ const Incidents = () => {
   const loadIncidents = async () => {
     try {
       setLoading(true);
-      const response = await incidentApi.list();
+      const params: { page: number; limit: number; status?: string } = { page: 1, limit: 50 };
+      if (statusFilter && statusFilter !== 'open') params.status = statusFilter;
+      const response = await incidentApi.list(params);
       setIncidents(response.data.data || []);
       setError(null);
     } catch (err: any) {
@@ -257,12 +271,21 @@ const Incidents = () => {
     }
   };
 
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('status', value);
+    else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
+
   const filteredIncidents = incidents.filter((incident) => {
     const searchLower = search.toLowerCase();
-    return (
+    const matchesSearch = (
       incident.title.toLowerCase().includes(searchLower) ||
       incident.description.toLowerCase().includes(searchLower)
     );
+    return matchesSearch && matchesIncidentStatusFilter(incident, statusFilter);
   });
 
   if (loading) {
@@ -299,14 +322,28 @@ const Incidents = () => {
         </div>
       )}
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row">
         <input
           type="text"
           placeholder={t('incidents.searchPlaceholder')}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="flex-1 px-4 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <select
+          aria-label="Incident status filter"
+          value={statusFilter}
+          onChange={(e) => handleStatusFilterChange(e.target.value)}
+          className="px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">{t('common.all')}</option>
+          <option value="open">{t('incidents.statusFilter.open')}</option>
+          <option value="new">{t('incidents.status.new')}</option>
+          <option value="under_investigation">{t('incidents.status.under_investigation')}</option>
+          <option value="contained">{t('incidents.status.contained')}</option>
+          <option value="resolved">{t('incidents.status.resolved')}</option>
+          <option value="closed">{t('incidents.status.closed')}</option>
+        </select>
       </div>
 
       <div className="bg-white dark:bg-card rounded-lg shadow overflow-hidden border border-transparent dark:border-gray-700">

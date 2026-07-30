@@ -353,6 +353,9 @@
     "editRisk": "Edit Risk",
     "searchPlaceholder": "Search risks...",
     "noRisks": "No risks found",
+    "statusFilter": {
+      "open": "Open risks"
+    },
     "columns": {
       "id": "ID",
       "title": "Title",
@@ -585,6 +588,9 @@
     "warningDraftError": "Failed to create early warning",
     "searchPlaceholder": "Search incidents...",
     "noIncidents": "No incidents found",
+    "statusFilter": {
+      "open": "Active incidents"
+    },
     "significant": "Significant / reportable candidate",
     "notSignificant": "Not significant",
     "knowledge": "Knowledge",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { assetApi, controlApi, costPlanningApi, incidentApi, riskApi } from '../services/api';
 
 const money = (value: string | number | undefined) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR' }).format(Number(value || 0));
@@ -9,6 +10,9 @@ type DashboardMetrics = {
   activeIncidents: number;
   controls: number;
 };
+
+const openRiskStatuses = ['identified', 'assessed', 'treatment_planned', 'treatment_in_progress'];
+const activeIncidentStatuses = ['new', 'under_investigation', 'contained'];
 
 export const emptyDashboardMetrics: DashboardMetrics = {
   totalAssets: 0,
@@ -23,6 +27,8 @@ export const paginatedTotal = (payload: any): number => {
   if (typeof total === 'string') return Number(total) || 0;
   return Array.isArray(payload?.data) ? payload.data.length : 0;
 };
+
+const metricCardClasses = 'block bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900';
 
 const Dashboard = () => {
   const [costReport, setCostReport] = useState<any>(null);
@@ -39,15 +45,15 @@ const Dashboard = () => {
 
     Promise.all([
       assetApi.list({ page: 1, limit: 1 }),
-      riskApi.list({ page: 1, limit: 1 }),
-      incidentApi.list({ page: 1, limit: 1 }),
+      Promise.all(openRiskStatuses.map((status) => riskApi.list({ page: 1, limit: 1, status }))),
+      Promise.all(activeIncidentStatuses.map((status) => incidentApi.list({ page: 1, limit: 1, status }))),
       controlApi.list({ page: 1, limit: 1 }),
-    ]).then(([assets, risks, incidents, controls]) => {
+    ]).then(([assets, riskResponses, incidentResponses, controls]) => {
       if (ignore) return;
       setMetrics({
         totalAssets: paginatedTotal(assets.data),
-        openRisks: paginatedTotal(risks.data),
-        activeIncidents: paginatedTotal(incidents.data),
+        openRisks: riskResponses.reduce((total, response) => total + paginatedTotal(response.data), 0),
+        activeIncidents: incidentResponses.reduce((total, response) => total + paginatedTotal(response.data), 0),
         controls: paginatedTotal(controls.data),
       });
     }).catch(() => {
@@ -61,22 +67,22 @@ const Dashboard = () => {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Link to="/assets" className={metricCardClasses} aria-label="View all assets">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Total Assets</h3>
           <p className="text-3xl font-bold text-primary-600 mt-2">{metrics.totalAssets}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        </Link>
+        <Link to="/risks?status=open" className={metricCardClasses} aria-label="View open risks">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Open Risks</h3>
           <p className="text-3xl font-bold text-orange-600 mt-2">{metrics.openRisks}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        </Link>
+        <Link to="/incidents?status=open" className={metricCardClasses} aria-label="View active incidents">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Active Incidents</h3>
           <p className="text-3xl font-bold text-red-600 mt-2">{metrics.activeIncidents}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        </Link>
+        <Link to="/controls" className={metricCardClasses} aria-label="View controls">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">Controls</h3>
           <p className="text-3xl font-bold text-green-600 mt-2">{metrics.controls}</p>
-        </div>
+        </Link>
       </div>
       {costReport && (
         <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
