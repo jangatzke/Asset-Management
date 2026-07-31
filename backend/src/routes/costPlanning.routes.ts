@@ -10,6 +10,7 @@ export const costPlanningRouter = Router();
 const IdParamSchema = z.object({ id: z.string().uuid() });
 const ItemParamSchema = z.object({ itemId: z.string().uuid() });
 const PlanQuerySchema = z.object({ fiscalYearLabel: z.string().optional(), status: z.string().optional() });
+const PlanDetailQuerySchema = z.object({ category: z.string().optional(), status: z.string().optional(), sourceType: z.string().optional(), search: z.string().optional() });
 const CandidateQuerySchema = z.object({ fiscalYearLabel: z.string(), category: z.string().optional(), sourceType: z.string().optional(), search: z.string().optional() });
 const CreatePlanSchema = z.object({ fiscalYearLabel: z.string(), ownerUserId: z.string().uuid().optional() });
 const TakeoverSchema = z.object({ candidateKeys: z.array(z.string()).min(1) });
@@ -30,7 +31,7 @@ costPlanningRouter.post('/plans', authenticate, authorizeEntityWrite('costPlanni
   try { res.status(201).json(await costPlanningService.createOrGetPlan(req.body.fiscalYearLabel, req.userId!, req.body.ownerUserId)); } catch (error) { next(error); }
 });
 
-costPlanningRouter.get('/plans/:id', authenticate, authorizeEntityRead('costPlanning'), validateParams(IdParamSchema), async (req, res, next) => {
+costPlanningRouter.get('/plans/:id', authenticate, authorizeEntityRead('costPlanning'), validateParams(IdParamSchema), validateQuery(PlanDetailQuerySchema), async (req, res, next) => {
   try { res.json(await costPlanningService.getPlan(req.params.id, req.query)); } catch (error) { next(error); }
 });
 

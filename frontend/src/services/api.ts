@@ -438,14 +438,14 @@ export const reminderAdminApi = {
 
 // Proxmox API
 export const proxmoxApi = {
-  getCredentials: () => api.get('/proxmox/credentials'),
-  createCredential: (data: { name: string; username: string; password: string; isDefault?: boolean }) => api.post('/proxmox/credentials', data),
-  updateCredential: (id: string, data: { name?: string; username?: string; password?: string; isDefault?: boolean }) => api.put(`/proxmox/credentials/${id}`, data),
-  deleteCredential: (id: string) => api.delete(`/proxmox/credentials/${id}`),
-  getServers: () => api.get('/proxmox/servers'),
-  createServer: (data: { name: string; host: string; port?: number; credentialId: string }) => api.post('/proxmox/servers', data),
-  updateServer: (id: string, data: { name?: string; host?: string; port?: number; credentialId?: string; enabled?: boolean }) => api.put(`/proxmox/servers/${id}`, data),
-  deleteServer: (id: string) => api.delete(`/proxmox/servers/${id}`),
-  testConnection: (id: string) => api.post(`/proxmox/servers/${id}/test-connection`),
-  importVMs: (id: string, dryRun?: boolean) => api.post(`/proxmox/servers/${id}/import`, { dryRun }),
+  getCredentials: () => api.get('/admin/proxmox/credentials'),
+  createCredential: (data: { name: string; username: string; password?: string; apiToken?: string; isDefault?: boolean }) => api.post('/admin/proxmox/credentials', data),
+  updateCredential: (id: string, data: { name?: string; username?: string; password?: string; apiToken?: string; isDefault?: boolean }) => api.put(`/admin/proxmox/credentials/${id}`, data),
+  deleteCredential: (id: string) => api.delete(`/admin/proxmox/credentials/${id}`),
+  getServers: () => api.get('/admin/proxmox/servers'),
+  createServer: (data: { name: string; host: string; port?: number; credentialId: string; nodeId?: string }) => api.post('/admin/proxmox/servers', data),
+  updateServer: (id: string, data: { name?: string; host?: string; port?: number; credentialId?: string; enabled?: boolean; nodeId?: string }) => api.put(`/admin/proxmox/servers/${id}`, data),
+  deleteServer: (id: string) => api.delete(`/admin/proxmox/servers/${id}`),
+  testConnection: (id: string) => api.post(`/admin/proxmox/servers/${id}/test-connection`),
+  importVMs: (id: string, dryRun?: boolean) => api.post(`/admin/proxmox/servers/${id}/import`, { dryRun }),
 };

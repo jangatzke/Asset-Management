@@ -344,7 +344,7 @@ export default function AdminProxmox() {
       )}
 
       {/* ---- Credentials Section ---- */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
@@ -411,7 +411,7 @@ export default function AdminProxmox() {
       </Card>
 
       {/* ---- Proxmox Servers Section ---- */}
-      <Card>
+      <Card sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">

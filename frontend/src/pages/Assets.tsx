@@ -627,13 +627,13 @@ const Assets = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={!!graphViewerAsset} onClose={() => setGraphViewerAsset(null)} title={graphViewerAsset ? `${t('assets.assetTreeViewer')}: ${graphViewerAsset.name}` : t('assets.assetTreeViewer')}>
+      <Modal isOpen={!!graphViewerAsset} onClose={() => setGraphViewerAsset(null)} title={graphViewerAsset ? `${t('assets.assetTreeViewer')}: ${graphViewerAsset.name}` : t('assets.assetTreeViewer')} maxWidthClassName="max-w-6xl">
         {graphViewerAsset && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {t('assets.assetTreeViewerDescription')}
             </p>
-            <AssetGraph assetId={graphViewerAsset.id} focusAssetId={graphViewerAsset.id} />
+            <AssetGraph assetId={graphViewerAsset.id} focusAssetId={graphViewerAsset.id} heightClassName="h-[42rem]" height="672px" />
           </div>
         )}
       </Modal>

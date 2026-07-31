@@ -57,6 +57,12 @@ describe('AuthorizationService Phase 1 granular scoped authorization', () => {
     await expect(service.can('u1', 'suppliers.write')).resolves.toBe(false);
   });
 
+  it('cost planning routes map to BCM read and write permissions', async () => {
+    mockPrismaClient.userRole.findMany.mockResolvedValue([role('bcm-planner', ['bcm.read', 'bcm.write'])]);
+    await expect(service.checkEntityPermission('u1', 'costPlanning', 'read')).resolves.toEqual({ allowed: true });
+    await expect(service.checkEntityPermission('u1', 'costPlanning', 'write')).resolves.toEqual({ allowed: true });
+  });
+
   it('IT-scoped user cannot see production risk', async () => {
     mockPrismaClient.userRole.findMany.mockResolvedValue([role('it-risk-reader', ['risks.read'], { organizationUnitId: 'ou-it' })]);
     mockPrismaClient.risk.findUnique.mockResolvedValue({ id: 'risk-prod', organizationUnitId: 'ou-prod', organizationUnit: { legalEntityId: 'le-prod' } });

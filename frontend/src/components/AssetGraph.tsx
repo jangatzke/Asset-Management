@@ -21,9 +21,11 @@ interface AssetGraphProps {
   nodes?: GraphNode[];
   edges?: GraphEdge[];
   focusAssetId?: string;
+  heightClassName?: string;
+  height?: string;
 }
 
-const NODE_RADIUS = 28;
+const NODE_RADIUS = 34;
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 4;
 
@@ -60,7 +62,7 @@ const getStrokeColor = (node: GraphNode): string => {
   return '#4B5563';
 };
 
-export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNodes, edges: propEdges, focusAssetId }) => {
+export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNodes, edges: propEdges, focusAssetId, heightClassName = 'h-[32rem]', height = '512px' }) => {
   const { t } = useI18n();
   const rootAssetId = focusAssetId ?? assetId;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -328,19 +330,19 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
         ctx.stroke();
       }
 
-      // Node label - display ID or name
-      ctx.font = 'bold 10px sans-serif';
+      // Node label - asset name by default, falling back to display ID only when name is unavailable
+      ctx.font = 'bold 12px sans-serif';
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const displayName = (node.displayId || node.name);
-      const truncated = displayName.length > 9 ? displayName.substring(0, 8) + '…' : displayName;
+      const displayName = (node.name || node.displayId || node.id);
+      const truncated = displayName.length > 11 ? displayName.substring(0, 10) + '…' : displayName;
       ctx.fillText(truncated, pos.x, pos.y - 5);
 
       // Type label below
       if (node.type && connected) {
-        ctx.font = '9px sans-serif';
+        ctx.font = '10px sans-serif';
         ctx.fillStyle = '#E5E7EB';
         ctx.fillText(node.type, pos.x, pos.y + 8);
       }
@@ -518,8 +520,8 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
         <>
           <canvas
             ref={canvasRef}
-            className="w-full h-96 rounded-lg border border-gray-200 dark:border-gray-700 cursor-grab active:cursor-grabbing"
-            style={{ width: '100%', height: '384px' }}
+            className={`w-full ${heightClassName} rounded-lg border border-gray-200 dark:border-gray-700 cursor-grab active:cursor-grabbing`}
+            style={{ width: '100%', height }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}

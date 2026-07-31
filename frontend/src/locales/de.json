@@ -924,7 +924,7 @@
     "auditTrailComingSoon": "Der vollständige Audit-Verlauf wird in einer zukünftigen Phase bereitgestellt.",
     "notFound": "Risiko nicht gefunden."
   },
-  "risks": {
+  "riskDetailExtra": {
     "likelihood": "Wahrscheinlichkeit",
     "impact": "Auswirkung",
     "noAssessments": "Keine Bewertungen verfügbar.",

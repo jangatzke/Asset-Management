@@ -97,6 +97,16 @@ const syncStatusColors: Record<string, ChipProps['color']> = {
   partial_success: 'warning',
 };
 
+const configTextFieldSx = {
+  '& .MuiInputLabel-root': {
+    backgroundColor: 'background.paper',
+    px: 0.5,
+  },
+  '& .MuiInputLabel-shrink': {
+    transform: 'translate(14px, -9px) scale(0.75)',
+  },
+};
+
 export default function IntuneAdmin() {
   const { t } = useTranslation();
   const [config, setConfig] = useState<IntuneConfig | null>(null);
@@ -324,7 +334,7 @@ export default function IntuneAdmin() {
       </Card>
 
       {/* Configuration */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Typography variant="h6" gutterBottom>
           {t('intune.configuration')}
         </Typography>
@@ -349,6 +359,7 @@ export default function IntuneAdmin() {
                 onChange={(e) => handleConfigUpdate('fullSyncIntervalHours', parseInt(e.target.value) || 24)}
                 fullWidth
                 size="small"
+                sx={configTextFieldSx}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -359,6 +370,7 @@ export default function IntuneAdmin() {
                 onChange={(e) => handleConfigUpdate('incrementalSyncIntervalMinutes', parseInt(e.target.value) || 120)}
                 fullWidth
                 size="small"
+                sx={configTextFieldSx}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -369,6 +381,7 @@ export default function IntuneAdmin() {
                 onChange={(e) => handleConfigUpdate('gracePeriodHours', parseInt(e.target.value) || 168)}
                 fullWidth
                 size="small"
+                sx={configTextFieldSx}
               />
             </Grid>
           </Grid>
@@ -376,7 +389,7 @@ export default function IntuneAdmin() {
       </Paper>
 
       {/* Sync Status */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Typography variant="h6" gutterBottom>
           {t('intune.syncStatus')}
         </Typography>
@@ -491,7 +504,7 @@ export default function IntuneAdmin() {
       </Paper>
 
       {/* Scheduler Control */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Typography variant="h6" gutterBottom>
           Scheduler
         </Typography>
@@ -506,7 +519,7 @@ export default function IntuneAdmin() {
       </Paper>
 
       {/* App Credentials */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Typography variant="h6" gutterBottom>
           {t('intune.credentials')}
         </Typography>
@@ -563,7 +576,7 @@ export default function IntuneAdmin() {
       </Dialog>
 
       {/* Devices */}
-      <Paper sx={{ p: 3 }}>
+      <Paper sx={{ p: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
             Synced Devices ({deviceTotal})

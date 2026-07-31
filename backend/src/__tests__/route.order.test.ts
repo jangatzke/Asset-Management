@@ -17,6 +17,14 @@ const mockAssetService = {
   findIncompleteAssets: jest.fn(() => Promise.resolve([])),
 };
 
+const mockCostPlanningService = {
+  years: jest.fn(() => Promise.resolve({ years: [], current: { label: 'FY2026' } })),
+  listPlans: jest.fn(() => Promise.resolve([])),
+  createOrGetPlan: jest.fn(() => Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000', items: [], summary: {} })),
+  getPlan: jest.fn(() => Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000', items: [], summary: {} })),
+  candidates: jest.fn(() => Promise.resolve([])),
+};
+
 const mockAssetGraphService = {
   getAssetGraph: jest.fn(() => Promise.resolve({ nodes: [], edges: [] })),
 };
@@ -27,6 +35,10 @@ jest.mock('../services/asset.service', () => ({
 
 jest.mock('../services/asset.graph', () => ({
   assetGraphService: mockAssetGraphService,
+}));
+
+jest.mock('../services/costPlanning.service', () => ({
+  costPlanningService: mockCostPlanningService,
 }));
 
 jest.mock('../middleware/auth', () => ({
@@ -50,10 +62,12 @@ jest.mock('../middleware/entityAuth', () => ({
 }));
 
 import { assetRouter } from '../routes/asset.routes';
+import { costPlanningRouter } from '../routes/costPlanning.routes';
 
 const app = express();
 app.use(express.json());
 app.use('/assets', assetRouter);
+app.use('/cost-planning', costPlanningRouter);
 
 describe('Route Order - Asset Routes (IAM-003)', () => {
   beforeEach(() => {
@@ -98,6 +112,16 @@ describe('Route Order - Asset Routes (IAM-003)', () => {
 
       expect(response.status).toBe(200);
       expect(mockAssetService.getById).toHaveBeenCalledWith(testUuid);
+    });
+  });
+
+  describe('Cost planning route contracts', () => {
+    it('GET /cost-planning/plans/:id accepts empty query parameters used by the frontend detail loader', async () => {
+      const testUuid = '550e8400-e29b-41d4-a716-446655440000';
+      const response = await request(app).get(`/cost-planning/plans/${testUuid}`);
+
+      expect(response.status).toBe(200);
+      expect(mockCostPlanningService.getPlan).toHaveBeenCalledWith(testUuid, {});
     });
   });
 });

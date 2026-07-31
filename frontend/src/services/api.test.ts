@@ -10,7 +10,11 @@ function installAxiosMock() {
     request: { use: vi.fn((fn: unknown) => { handlers.request = fn; }) },
     response: { use: vi.fn((_ok: unknown, fail: unknown) => { handlers.response = fail; }) },
   };
+  instance.get = vi.fn(async () => ({ data: {} }));
   instance.post = vi.fn(async () => ({ data: { token: 'fresh-token' } }));
+  instance.put = vi.fn(async () => ({ data: {} }));
+  instance.patch = vi.fn(async () => ({ data: {} }));
+  instance.delete = vi.fn(async () => ({ data: {} }));
   instance.__handlers = handlers;
 
   vi.doMock('axios', () => ({ default: { create: vi.fn(() => instance) } }));
@@ -86,4 +90,22 @@ test('phase 6 API client methods accept shared DTO contract types for target res
   expect(mockedApi.post).toHaveBeenCalledWith('/risks', risk);
   expect(mockedApi.post).toHaveBeenCalledWith('/controls', control);
   expect(mockedApi.post).toHaveBeenCalledWith('/incidents', incident);
+});
+
+test('integration API clients use backend-mounted admin integration routes', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { proxmoxApi, vmwareApi } = await import('./api');
+
+  await proxmoxApi.getCredentials();
+  await proxmoxApi.getServers();
+  await proxmoxApi.testConnection('server-1');
+  await vmwareApi.getCredentials();
+  await vmwareApi.getServers();
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/admin/proxmox/credentials');
+  expect(mockedApi.get).toHaveBeenCalledWith('/admin/proxmox/servers');
+  expect(mockedApi.post).toHaveBeenCalledWith('/admin/proxmox/servers/server-1/test-connection');
+  expect(mockedApi.get).toHaveBeenCalledWith('/admin/vmware/credentials');
+  expect(mockedApi.get).toHaveBeenCalledWith('/admin/vmware/vcenters');
 });

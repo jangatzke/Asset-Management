@@ -924,7 +924,7 @@
     "auditTrailComingSoon": "Full audit trail will be available in a future phase.",
     "notFound": "Risk not found."
   },
-  "risks": {
+  "riskDetailExtra": {
     "likelihood": "Likelihood",
     "impact": "Impact",
     "noAssessments": "No assessments available.",
