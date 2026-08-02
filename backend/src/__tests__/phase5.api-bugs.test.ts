@@ -45,7 +45,18 @@ const mockAuthorizationService = {
 jest.mock('../services/authorization.service', () => ({ authorizationService: mockAuthorizationService }));
 
 jest.mock('../services/risk.aggregation', () => ({
-  riskAggregationService: {},
+  riskAggregationService: {
+    aggregateByLocation: jest.fn(),
+    aggregateByOrganizationUnit: jest.fn(),
+    aggregateByBusinessProcess: jest.fn(),
+    aggregateByAssetType: jest.fn(),
+    aggregateByScope: jest.fn(),
+    getUnifiedAggregation: jest.fn(),
+    aggregateByService: jest.fn(),
+    aggregateByRiskClass: jest.fn(),
+    aggregateByStatus: jest.fn(),
+    getDashboardSummary: jest.fn(),
+  },
 }));
 
 const mockUserService = {
@@ -95,6 +106,9 @@ import { webhookRouter } from '../routes/webhook.routes';
 import { incidentRouter } from '../routes/incident.routes';
 import { riskMethodRouter } from '../routes/riskmethod.routes';
 import { orgRouter } from '../routes/organization.routes';
+import { riskAggregationService } from '../services/risk.aggregation';
+
+const mockRiskAggregationService = riskAggregationService as jest.Mocked<typeof riskAggregationService>;
 
 const createApp = () => {
   const app = express();
@@ -250,6 +264,17 @@ describe('Phase 5 API bug fixes', () => {
     expect(response.status).toBe(200);
     expect(mockPrisma.reviewTask.update).toHaveBeenCalled();
     expect(mockPrisma.risk.update).not.toHaveBeenCalled();
+  });
+
+  it('routes risk aggregation endpoints before nested riskId UUID validation', async () => {
+    const app = createApp();
+    mockRiskAggregationService.aggregateByLocation.mockResolvedValue([{ locationId: 'site-1', totalRisks: 1 }] as never);
+
+    const response = await request(app).get('/risks/aggregated/by-location');
+
+    expect(response.status).toBe(200);
+    expect(mockRiskAggregationService.aggregateByLocation).toHaveBeenCalled();
+    expect(mockPrisma.risk.findUnique).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'aggregated' } }));
   });
 
   it('lists organization units for UI pickers', async () => {

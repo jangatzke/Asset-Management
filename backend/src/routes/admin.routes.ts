@@ -1,4 +1,5 @@
 import { NextFunction, Response, Router } from 'express';
+import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { adminService } from '../services/admin.service';
@@ -6,10 +7,48 @@ import { reminderService } from '../services/reminder.service';
 import { getReminderScheduler } from '../services/reminder.scheduler';
 import { fiscalYearService } from '../services/fiscalYear.service';
 import { prisma } from '../config/database';
+import { getSafeDatabaseConfig } from '../config/database';
 import { auditService, AuditService } from '../services/audit.service';
 import { auditIntegrityService } from '../services/auditIntegrity.service';
+import { databaseBackupService, PortableBackupPayload } from '../services/databaseBackup.service';
 
 export const adminRouter = Router();
+const uploadBackup = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+adminRouter.get('/database/config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(getSafeDatabaseConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/database/export', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = await databaseBackupService.exportPortable(req.userId ?? 'system');
+    const fileName = `asset-management-portable-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.json(payload);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/database/import', authenticate, requireAdminAccess, uploadBackup.single('backup'), async (req: AuthRequest, res, next) => {
+  try {
+    const rawPayload = req.file?.buffer?.toString('utf8') ?? JSON.stringify(req.body?.backup ?? req.body);
+    const payload = JSON.parse(rawPayload) as PortableBackupPayload;
+    const result = await databaseBackupService.importPortable(payload, {
+      mode: req.query.mode === 'append' || req.body?.mode === 'append' ? 'append' : 'replace',
+      dryRun: req.query.dryRun === 'true' || req.body?.dryRun === true || req.body?.dryRun === 'true',
+      userId: req.userId ?? 'system',
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
 
 adminRouter.get('/auth-settings', authenticate, requireAdminAccess, async (_req, res, next) => {
   try {
@@ -380,6 +419,75 @@ adminRouter.put('/business-processes/:id', authenticate, requireAdminAccess, asy
 adminRouter.delete('/business-processes/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     const result = await adminService.deleteBusinessProcess(req.params.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- Organization Unit Management ----
+
+adminRouter.get('/organization-units', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    const includeArchived = req.query.includeArchived === 'true';
+    const units = await adminService.listOrganizationUnits(includeArchived);
+    res.json(units);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Picker/search endpoint must be registered before /organization-units/:id.
+adminRouter.get('/organization-units/search', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const limit = Math.min(Number(req.query.limit ?? 50), 50) || 50;
+    const units = await adminService.searchOrganizationUnits(q, limit);
+    res.json({ data: units.map((u) => ({ id: u.id, label: u.name, name: u.name })) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/organization-units/:id', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const unit = await adminService.getOrganizationUnitById(req.params.id);
+    res.json(unit);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/organization-units', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const unit = await adminService.createOrganizationUnit(req.body, req.userId!);
+    res.status(201).json(unit);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/organization-units/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const unit = await adminService.updateOrganizationUnit(req.params.id, req.body, req.userId!);
+    res.json(unit);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/organization-units/:id/archive', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await adminService.archiveOrganizationUnit(req.params.id, req.userId!);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/organization-units/:id/restore', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await adminService.restoreOrganizationUnit(req.params.id, req.userId!);
     res.json(result);
   } catch (error) {
     next(error);

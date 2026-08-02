@@ -1,8 +1,10 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ClockIcon, PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
@@ -127,6 +129,8 @@ const initialTreatmentForm: TreatmentForm = {
 const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: false, status: 'active' };
 const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { RiskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
 const openRiskStatuses = ['identified', 'assessed', 'treatment_planned', 'treatment_in_progress'];
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
 
 export const normalizeRiskStatusFilter = (value: string | null) => value === 'open' ? 'open' : value ?? '';
 export const matchesRiskStatusFilter = (risk: Pick<Risk, 'status'>, statusFilter: string) => {
@@ -160,6 +164,7 @@ const Risks = () => {
   const [riskControlForm, setRiskControlForm] = useState<RiskControlForm>(initialRiskControlForm);
   const [assessmentForm, setAssessmentForm] = useState<RiskControlAssessmentForm>(initialRiskControlAssessmentForm);
   const [assessingRiskControlId, setAssessingRiskControlId] = useState<string | null>(null);
+  const [historyRisk, setHistoryRisk] = useState<Risk | null>(null);
 
   useEffect(() => { loadRisks();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial risks load only; loader uses current translation fallback for this mount.
@@ -317,7 +322,7 @@ const Risks = () => {
   });
 
   const handleSubmit = async () => {
-    if (!form.title || !form.description || !form.possibleImpact || !form.riskOwnerId || !form.assessorId || !form.nextReviewDate || !form.justification) {
+    if (!form.title || !form.description || !form.possibleImpact || !form.riskOwnerId?.id || !form.assessorId?.id || !form.nextReviewDate || !form.justification) {
       setError(t('common.requiredField'));
       return;
     }
@@ -337,8 +342,8 @@ const Risks = () => {
         justification: form.justification,
       };
       if (form.assetIds?.length) payload.assetIds = form.assetIds.map(a => a.id);
-      if (form.organizationUnitId) payload.organizationUnitId = form.organizationUnitId.id;
-      if (form.processId) payload.processIds = [form.processId.id];
+      if (form.organizationUnitId?.id) payload.organizationUnitId = form.organizationUnitId.id;
+      if (form.processId?.id) payload.processIds = [form.processId.id];
 
       if (editingId) {
         await riskApi.update(editingId, payload);
@@ -359,6 +364,7 @@ const Risks = () => {
     try {
       const res = await riskApi.getById(risk.id);
       const data = res.data;
+
       setForm({
         title: data.title || '',
         description: data.description || '',
@@ -367,10 +373,23 @@ const Risks = () => {
         impact: data.impact || 3,
         nextReviewDate: data.nextReviewDate ? String(data.nextReviewDate).slice(0, 10) : initialForm.nextReviewDate,
         justification: data.evaluationJustification || '',
+        // Populate relation fields from API response
+        // riskOwnerId/assessorId are stored as strings in the Risk model
+        riskOwnerId: data.riskOwnerId ? { id: data.riskOwnerId, label: '' } : null,
+        assessorId: data.assessorId ? { id: data.assessorId, label: '' } : null,
+        // Extract asset IDs from the RiskAsset junction table
+        assetIds: data.riskAssets?.map((ra: any) => ({ id: ra.assetId, label: ra.asset?.name || `Asset ${ra.assetId}` })) || [],
+        // organizationUnit is directly included
+        organizationUnitId: data.organizationUnitId ? { id: data.organizationUnitId, label: data.organizationUnit?.name || '' } : null,
+        // Extract process ID from businessProcessId or processLinks junction table
+        processId: data.businessProcessId
+          ? { id: data.businessProcessId, label: data.businessProcess?.name || '' }
+          : (data.processLinks?.[0]?.processId ? { id: data.processLinks[0].processId, label: data.processLinks[0].process?.name || '' } : null),
       });
       setEditingId(risk.id);
       setModalOpen(true);
-    } catch {
+    } catch (err: unknown) {
+      console.error('Failed to load risk details for editing:', err);
       setError(t('risks.loadDetailsError'));
     }
   };
@@ -474,8 +493,8 @@ const Risks = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+        <table className="min-w-[88rem] divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.id')}</th>
@@ -487,7 +506,7 @@ const Risks = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.targetRisk')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.controls')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.status')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
+              <th className="sticky right-0 z-10 bg-gray-50 dark:bg-gray-900 px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider shadow-lg">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -496,7 +515,12 @@ const Risks = () => {
             ) : filteredRisks.map((risk) => (
               <tr key={risk.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.displayId}</td>
-                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{risk.title}</td>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white min-w-[16rem]">
+                  <div>{risk.title}</div>
+                  <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} mt-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                    <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                  </button>
+                </td>
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.likelihood}</td>
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.impact}</td>
                 <td className="px-6 py-4 text-sm">
@@ -512,11 +536,24 @@ const Risks = () => {
                   ))}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`risks.status.${risk.status}`)}</td>
-                <td className="px-6 py-4 text-sm">
-                  <button onClick={() => handleEdit(risk)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
-                  <button onClick={() => handleOpenControls(risk)} className="text-purple-600 hover:text-purple-800 mr-3">{t('risks.controls.manage')}</button>
-                  <button onClick={() => handleOpenTreatment(risk)} className="text-green-600 hover:text-green-800 mr-3">{t('common.treatment')}</button>
-                  <button onClick={() => handleDelete(risk.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
+                <td className="sticky right-0 bg-white dark:bg-gray-800 px-6 py-4 text-sm shadow-lg whitespace-nowrap">
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                    <button onClick={() => handleOpenControls(risk)} aria-label={`${t('risks.controls.manage')}: ${risk.title}`} title={t('risks.controls.manage')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
+                      <ShieldCheckIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                    <button onClick={() => handleOpenTreatment(risk)} aria-label={`${t('common.treatment')}: ${risk.title}`} title={t('common.treatment')} className={`${actionButtonClassName} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300`}>
+                      <span aria-hidden="true" className="text-base leading-none">✚</span>
+                    </button>
+                    <button onClick={() => setHistoryRisk(risk)} aria-label={`${t('history.viewHistory')}: ${risk.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                      <ClockIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                    <button onClick={() => handleDelete(risk.id)} aria-label={`${t('common.delete')}: ${risk.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                      <TrashIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -733,6 +770,8 @@ const Risks = () => {
           </div>
         </div>
       </Modal>
+
+      <EntityHistoryModal isOpen={!!historyRisk} onClose={() => setHistoryRisk(null)} entityId={historyRisk?.id} entityName={historyRisk?.title} loadHistory={riskApi.history} />
     </div>
   );
 };

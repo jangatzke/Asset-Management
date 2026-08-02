@@ -219,8 +219,10 @@ export class UserService {
       throw new AppError('User not found', 404);
     }
 
-    await prisma.user.delete({
+    // Archive/deactivate instead of hard-delete to preserve audit/history traceability.
+    await prisma.user.update({
       where: { id },
+      data: { isArchived: true, isActive: false },
     });
   }
 

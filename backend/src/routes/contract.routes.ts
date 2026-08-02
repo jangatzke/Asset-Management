@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { contractService } from '../services/contract.service';
+import { getEntityHistory } from '../services/entityHistory.service';
 
 
 
@@ -37,6 +38,21 @@ contractRouter.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// GET /api/v1/contracts/:id/history - Get contract history
+contractRouter.get('/:id/history', authenticate, async (req, res, next) => {
+  try {
+    await contractService.findById(req.params.id);
+    const history = await getEntityHistory('Contract', req.params.id, {
+      action: req.query.action as any,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    });
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PATCH /api/v1/contracts/:id - Update contract
 contractRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
   try {
@@ -48,9 +64,9 @@ contractRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) =
 });
 
 // DELETE /api/v1/contracts/:id - Soft delete contract
-contractRouter.delete('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
+contractRouter.delete('/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    const result = await contractService.delete(req.params.id);
+    const result = await contractService.delete(req.params.id, req.userId);
     res.json(result);
   } catch (error) {
     next(error);

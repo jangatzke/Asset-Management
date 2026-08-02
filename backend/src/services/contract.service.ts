@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
 export interface CreateContractData {
   title: string;
@@ -110,6 +111,14 @@ export class ContractService {
       },
     });
 
+    // Record entity history
+    await recordCreateHistory({
+      entityType: 'Contract',
+      entityId: contract.id,
+      data: { title: data.title },
+      actorId: createdBy,
+    });
+
     return contract;
   }
 
@@ -124,10 +133,20 @@ export class ContractService {
       data: { ...data, updatedBy },
     });
 
+    // Record entity history for update (status-like field is status)
+    await recordUpdateHistory({
+      entityType: 'Contract',
+      entityId: id,
+      oldData: toHistoryData(existing as any),
+      newData: toHistoryData(contract as any),
+      statusField: 'status',
+      actorId: updatedBy,
+    });
+
     return contract;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.contract.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Contract not found', 404);
@@ -136,6 +155,13 @@ export class ContractService {
     await prisma.contract.update({
       where: { id },
       data: { isArchived: true },
+    });
+
+    // Record entity history for delete (archive)
+    await recordDeleteHistory({
+      entityType: 'Contract',
+      entityId: id,
+      actorId: deletedBy,
     });
 
     return { success: true };

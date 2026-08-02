@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Assets = lazy(() => import('./pages/Assets'));
@@ -20,6 +21,7 @@ const AdminProxmox = lazy(() => import('./pages/AdminProxmox'));
 const AdminReminders = lazy(() => import('./pages/AdminReminders'));
 const AdminFiscalYear = lazy(() => import('./pages/AdminFiscalYear'));
 const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
+const AdminDatabase = lazy(() => import('./pages/AdminDatabase'));
 const Contracts = lazy(() => import('./pages/Contracts'));
 const Licenses = lazy(() => import('./pages/Licenses'));
 const Processes = lazy(() => import('./pages/Processes'));
@@ -28,43 +30,53 @@ const ISMSPhase6 = lazy(() => import('./pages/ISMSPhase6'));
 const RiskDetail = lazy(() => import('./pages/RiskDetail'));
 const CostPlanning = lazy(() => import('./pages/CostPlanning'));
 
-const routeFallback = <div className="p-6 text-sm text-gray-600 dark:text-gray-300">Loading...</div>;
+const LoadingSpinner = (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
+      <span className="text-sm text-gray-600 dark:text-gray-400">Loading…</span>
+    </div>
+  </div>
+);
 
 function App() {
   return (
-    <Suspense fallback={routeFallback}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="assets" element={<Assets />} />
-          <Route path="risks" element={<Risks />} />
-          <Route path="risks/:riskId" element={<RiskDetail />} />
-          <Route path="controls" element={<Controls />} />
-          <Route path="incidents" element={<Incidents />} />
-          <Route path="contracts" element={<Contracts />} />
-          <Route path="licenses" element={<Licenses />} />
-          <Route path="processes" element={<Processes />} />
-          <Route path="cost-planning" element={<CostPlanning />} />
-          <Route path="risk-aggregation" element={<RiskAggregation />} />
-          <Route path="isms-operations" element={<ISMSPhase6 />} />
-          <Route path="isms-phase6" element={<Navigate to="/isms-operations" replace />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="admin/users" element={<AdminUsers />} />
-          <Route path="admin/roles" element={<AdminRoles />} />
-          <Route path="admin/groups" element={<AdminGroups />} />
-          <Route path="admin/asset-types" element={<AdminAssetTypes />} />
-          <Route path="admin/oidc" element={<AdminOIDC />} />
-          <Route path="admin/intune" element={<AdminIntune />} />
-          <Route path="admin/vmware" element={<AdminVMware />} />
-          <Route path="admin/proxmox" element={<AdminProxmox />} />
-          <Route path="admin/reminders" element={<AdminReminders />} />
-          <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
-          <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={LoadingSpinner}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="assets" element={<Assets />} />
+            <Route path="risks" element={<Risks />} />
+            <Route path="risks/:riskId" element={<RiskDetail />} />
+            <Route path="controls" element={<Controls />} />
+            <Route path="incidents" element={<Incidents />} />
+            <Route path="contracts" element={<Contracts />} />
+            <Route path="licenses" element={<Licenses />} />
+            <Route path="processes" element={<Processes />} />
+            <Route path="cost-planning" element={<CostPlanning />} />
+            <Route path="risk-aggregation" element={<RiskAggregation />} />
+            <Route path="isms-operations" element={<ISMSPhase6 />} />
+            <Route path="isms-phase6" element={<Navigate to="/isms-operations" replace />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="admin/users" element={<AdminUsers />} />
+            <Route path="admin/roles" element={<AdminRoles />} />
+            <Route path="admin/groups" element={<AdminGroups />} />
+            <Route path="admin/asset-types" element={<AdminAssetTypes />} />
+            <Route path="admin/oidc" element={<AdminOIDC />} />
+            <Route path="admin/intune" element={<AdminIntune />} />
+            <Route path="admin/vmware" element={<AdminVMware />} />
+            <Route path="admin/proxmox" element={<AdminProxmox />} />
+            <Route path="admin/reminders" element={<AdminReminders />} />
+            <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
+            <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
+            <Route path="admin/database" element={<AdminDatabase />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

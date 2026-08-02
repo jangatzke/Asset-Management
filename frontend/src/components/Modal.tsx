@@ -42,8 +42,13 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
         backdropPointerDownRef.current = false;
         if (startedOnBackdrop && e.target === overlayRef.current) onClose();
       }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
     >
-      <div className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} max-h-[90vh] overflow-y-auto border border-transparent dark:border-gray-700`}>
+      <div className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} max-h-[90vh] overflow-y-auto border border-transparent dark:border-gray-700`}
+        tabIndex={-1}
+      >
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
           <button

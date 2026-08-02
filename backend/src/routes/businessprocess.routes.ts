@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { businessProcessService } from '../services/businessprocess.service';
+import { getEntityHistory } from '../services/entityHistory.service';
 
 
 
@@ -37,6 +38,21 @@ businessProcessRouter.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// GET /api/v1/business-processes/:id/history - Get business process history
+businessProcessRouter.get('/:id/history', authenticate, async (req, res, next) => {
+  try {
+    await businessProcessService.findById(req.params.id);
+    const history = await getEntityHistory('Process', req.params.id, {
+      action: req.query.action as any,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    });
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PATCH /api/v1/processes/:id - Update business process
 businessProcessRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
   try {
@@ -48,9 +64,9 @@ businessProcessRouter.patch('/:id', authenticate, async (req: AuthRequest, res, 
 });
 
 // DELETE /api/v1/processes/:id - Soft delete business process
-businessProcessRouter.delete('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
+businessProcessRouter.delete('/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    const result = await businessProcessService.delete(req.params.id);
+    const result = await businessProcessService.delete(req.params.id, req.userId);
     res.json(result);
   } catch (error) {
     next(error);

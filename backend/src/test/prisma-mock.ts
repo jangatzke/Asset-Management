@@ -119,6 +119,9 @@ export const createMockPrismaClient = (): MockPrismaClient => {
     incident: createMockModel(),
     incidentAssessment: createMockModel(),
     notificationDeadline: createMockModel(),
+    incidentHistoryEntry: createMockModel(),
+    entityHistoryEntry: createMockModel(),
+    nis2IncidentSignificanceRuleVersion: createMockModel(),
 
     // Audit & Compliance models
     auditLog: createMockModel(),

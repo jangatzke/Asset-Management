@@ -1,7 +1,9 @@
 
 import { useState, useEffect } from 'react';
+import { ClockIcon, PencilSquareIcon, ShareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { assetApi, contractApi, licenseApi, adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import AssetGraph from '../components/AssetGraph';
 import AssetImpactAnalysis from '../components/AssetImpactAnalysis';
@@ -45,6 +47,9 @@ interface AssetRelation {
   targetAssetId: string;
   relationType: string;
 }
+
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
 
 interface CreateAssetForm {
   name: string;
@@ -100,6 +105,7 @@ const Assets = () => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<CreateAssetForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [historyAsset, setHistoryAsset] = useState<Asset | null>(null);
 
   // Asset detail view state
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -212,7 +218,7 @@ const Assets = () => {
       if (form.locationId) payload.locationId = form.locationId.id;
       if (form.technicalOperatorId) payload.technicalOperatorId = form.technicalOperatorId.id;
       if (form.businessOwnerId) payload.businessOwnerId = form.businessOwnerId.id;
-      if (form.securityResponsibleId) payload.securityResponsibleId = form.securityResponsibleId.id;
+      if (form.securityResponsibleId) payload.informationSecurityResponsibleId = form.securityResponsibleId.id;
       if (form.contractId) payload.contractIds = [form.contractId.id];
       if (form.licenseId) payload.licenseIds = [form.licenseId.id];
 
@@ -232,14 +238,15 @@ const Assets = () => {
   };
 
   const handleEdit = async (asset: Asset) => {
-    try {
-      const res = await assetApi.getById(asset.id);
-      const data = res.data;
+    const openEditor = (data: any) => {
+      const contractLink = data.contractLinks?.[0];
+      const licenseLink = data.licenseLinks?.[0];
+
       setForm({
         name: data.name || '',
         description: data.description || '',
-        assetTypeId: data.assetTypeId || '',
-        assetSubtypeId: data.assetSubtypeId || '',
+        assetTypeId: data.assetTypeId || data.assetType?.id || '',
+        assetSubtypeId: data.assetSubtypeId || data.assetSubtype?.id || '',
         inventoryNumber: data.inventoryNumber || '',
         manufacturer: data.manufacturer || '',
         model: data.model || '',
@@ -250,11 +257,28 @@ const Assets = () => {
         regulatoryRelevance: data.regulatoryRelevance || 'low',
         financialDamagePotential: data.financialDamagePotential || 'low',
         productionDowntimeImpact: data.productionDowntimeImpact || 'low',
+        organizationUnitId: data.organizationUnitId ? { id: data.organizationUnitId, label: data.organizationUnit?.name || data.organizationUnitId } : null,
+        locationId: data.locationId ? { id: data.locationId, label: data.location?.name || data.location?.address || data.locationId } : null,
+        technicalOperatorId: data.technicalOperatorId ? { id: data.technicalOperatorId, label: data.technicalOperator?.name || data.technicalOperator?.email || data.technicalOperatorId } : null,
+        businessOwnerId: data.businessOwnerId ? { id: data.businessOwnerId, label: data.businessOwner?.name || data.businessOwner?.email || data.businessOwnerId } : null,
+        securityResponsibleId: data.informationSecurityResponsibleId ? { id: data.informationSecurityResponsibleId, label: data.informationSecurityResponsible?.name || data.informationSecurityResponsible?.email || data.informationSecurityResponsibleId } : null,
+        contractId: contractLink?.contractId ? { id: contractLink.contractId, label: contractLink.contract?.contractNumber || contractLink.contract?.title || contractLink.contractId } : null,
+        licenseId: licenseLink?.licenseId ? { id: licenseLink.licenseId, label: licenseLink.license?.licenseNumber || licenseLink.license?.title || licenseLink.licenseId } : null,
       });
       setEditingId(asset.id);
       setModalOpen(true);
-    } catch {
-      setError(t('assets.loadDetailsError'));
+    };
+
+    try {
+      setError('');
+      // Ensure asset types are loaded before opening the edit modal
+      await loadAssetTypes();
+
+      const res = await assetApi.getById(asset.id);
+      openEditor(res.data);
+    } catch (err: any) {
+      console.error('Failed to load asset details for editing:', err);
+      setError(err.response?.data?.error?.message || err.response?.data?.details?.[0]?.message || t('assets.loadDetailsError'));
     }
   };
 
@@ -401,9 +425,20 @@ const Assets = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.status}</td>
                     <td className="px-6 py-4 text-sm">
-                      <button onClick={() => handleEdit(asset)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
-                      <button onClick={() => setGraphViewerAsset(asset)} className="text-purple-600 hover:text-purple-800 mr-3">{t('assets.openTreeViewer')}</button>
-                      <button onClick={() => handleDelete(asset.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => handleEdit(asset)} aria-label={`${t('common.edit')}: ${asset.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                          <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                        </button>
+                        <button onClick={() => setGraphViewerAsset(asset)} aria-label={`${t('assets.openTreeViewer')}: ${asset.name}`} title={t('assets.openTreeViewer')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
+                          <ShareIcon aria-hidden="true" className={actionIconClassName} />
+                        </button>
+                        <button onClick={() => setHistoryAsset(asset)} aria-label={`${t('history.viewHistory')}: ${asset.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                          <ClockIcon aria-hidden="true" className={actionIconClassName} />
+                        </button>
+                        <button onClick={() => handleDelete(asset.id)} aria-label={`${t('common.delete')}: ${asset.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                          <TrashIcon aria-hidden="true" className={actionIconClassName} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -637,6 +672,8 @@ const Assets = () => {
           </div>
         )}
       </Modal>
+
+      <EntityHistoryModal isOpen={!!historyAsset} onClose={() => setHistoryAsset(null)} entityId={historyAsset?.id} entityName={historyAsset?.name} loadHistory={assetApi.history} />
     </div>
   );
 };

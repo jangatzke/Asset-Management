@@ -4,13 +4,21 @@ import { prisma } from '../config/database';
 
 export const orgRouter = Router();
 
+/**
+ * GET /organization/units
+ * Picker/search endpoint for selecting organization units in forms.
+ * Returns non-archived units by default. Supports optional ?q=search query
+ * and ?limit=N (default 20, max 50).
+ */
 orgRouter.get('/units', authenticate, async (req, res, next) => {
   try {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const limitParam = Number.parseInt(String(req.query.limit ?? '20'), 10);
     const take = Math.min(Math.max(Number.isFinite(limitParam) ? limitParam : 20, 1), 50);
     const units = await prisma.organizationUnit.findMany({
-      where: q ? { name: { contains: q, mode: 'insensitive' } } : undefined,
+      where: q
+        ? { isArchived: false, name: { contains: q, mode: 'insensitive' } }
+        : { isArchived: false },
       orderBy: { name: 'asc' },
       take,
       select: { id: true, name: true },

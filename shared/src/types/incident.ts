@@ -138,3 +138,24 @@ export interface IncidentKnowledgeTimeChange extends BaseEntity {
   changedBy: string;
   changedAt: Date;
 }
+
+// Incident History (AUDIT-001)
+export type IncidentHistoryAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'ASSESSMENT' | 'KNOWLEDGE_TIME_CHANGE' | 'CLOSE' | 'REOPEN';
+
+export interface IncidentHistoryEntry {
+  id: string;
+  incidentId: string;
+  action: IncidentHistoryAction;
+  fieldChanges?: Record<string, { old?: unknown; new?: unknown } | unknown>[];
+  summary?: string;
+  actorId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: Date;
+}
+
+export type IncidentHistoryQuery = {
+  action?: IncidentHistoryAction;
+  limit?: number;
+  offset?: number;
+};

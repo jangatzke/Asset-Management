@@ -5,6 +5,7 @@ import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, r
 import { riskService } from '../services/risk.service';
 import { riskAggregationService } from '../services/risk.aggregation';
 import { authorizationService } from '../services/authorization.service';
+import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import {
   CreateReviewTaskSchema,
@@ -84,79 +85,6 @@ riskRouter.post('/risk-control-assessments', authenticate, requirePermission('ri
   }
 });
 
-// Canonical nested RiskControl workflow routes.
-riskRouter.get('/:riskId/controls', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlListQuerySchema), async (req, res, next) => {
-  try {
-    res.json(await riskService.listRiskControls(req.params.riskId, req.query as any));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.post('/:riskId/controls', authenticate, requireEntityPermission('risks.write', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateBody(CreateNestedRiskControlSchema), async (req: AuthRequest, res, next) => {
-  try {
-    res.status(201).json(await riskService.createRiskControl(req.params.riskId, req.body, req.userId));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.get('/:riskId/control-assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
-  try {
-    res.json(await riskService.listControlAssessmentsForRisk(req.params.riskId, req.query as any));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.get('/:riskId/controls/:riskControlId', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), async (req, res, next) => {
-  try {
-    res.json(await riskService.getRiskControl(req.params.riskId, req.params.riskControlId));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.patch('/:riskId/controls/:riskControlId', authenticate, requireEntityPermission('risks.write', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateBody(UpdateRiskControlSchema), async (req: AuthRequest, res, next) => {
-  try {
-    res.json(await riskService.updateRiskControl(req.params.riskId, req.params.riskControlId, req.body, req.userId));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.delete('/:riskId/controls/:riskControlId', authenticate, requireEntityPermission('risks.write', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), async (req: AuthRequest, res, next) => {
-  try {
-    res.json(await riskService.removeRiskControl(req.params.riskId, req.params.riskControlId, req.userId));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.get('/:riskId/controls/:riskControlId/assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
-  try {
-    res.json(await riskService.listRiskControlAssessments(req.params.riskId, req.params.riskControlId, req.query as any));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.post('/:riskId/controls/:riskControlId/assessments', authenticate, requireEntityPermission('risks.assess', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateBody(CreateNestedRiskControlAssessmentSchema), async (req: AuthRequest, res, next) => {
-  try {
-    res.status(201).json(await riskService.createRiskControlAssessment(req.params.riskId, req.params.riskControlId, req.body, req.userId));
-  } catch (error) {
-    next(error);
-  }
-});
-
-riskRouter.get('/:riskId/controls/:riskControlId/assessments/:assessmentId', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), async (req, res, next) => {
-  try {
-    res.json(await riskService.getRiskControlAssessment(req.params.riskId, req.params.riskControlId, req.params.assessmentId));
-  } catch (error) {
-    next(error);
-  }
-});
-
 riskRouter.post('/assessment-versions/:id/close', authenticate, authorizeEntityWrite('risks'), async (req: AuthRequest, res, next) => {
   try {
     res.json(await riskService.closeAssessmentVersion(req.params.id, req.userId));
@@ -182,6 +110,16 @@ riskRouter.post('/review-tasks', authenticate, authorizeEntityWrite('risks'), va
   try {
     const task = await riskService.createReviewTask(req.body);
     res.status(201).json(task);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update a specific review task
+riskRouter.put('/review-tasks/:taskId', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateReviewTaskSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const task = await riskService.updateReviewTask(req.params.taskId, req.body, req.userId);
+    res.json(task);
   } catch (error) {
     next(error);
   }
@@ -320,6 +258,79 @@ riskRouter.get('/aggregate/by-business-process', authenticate, requireAdminAcces
   }
 });
 
+// Canonical nested RiskControl workflow routes.
+riskRouter.get('/:riskId/controls', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlListQuerySchema), async (req, res, next) => {
+  try {
+    res.json(await riskService.listRiskControls(req.params.riskId, req.query as any));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/:riskId/controls', authenticate, requireEntityPermission('risks.write', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateBody(CreateNestedRiskControlSchema), async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json(await riskService.createRiskControl(req.params.riskId, req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/:riskId/control-assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
+  try {
+    res.json(await riskService.listControlAssessmentsForRisk(req.params.riskId, req.query as any));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/:riskId/controls/:riskControlId', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), async (req, res, next) => {
+  try {
+    res.json(await riskService.getRiskControl(req.params.riskId, req.params.riskControlId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.patch('/:riskId/controls/:riskControlId', authenticate, requireEntityPermission('risks.write', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateBody(UpdateRiskControlSchema), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await riskService.updateRiskControl(req.params.riskId, req.params.riskControlId, req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.delete('/:riskId/controls/:riskControlId', authenticate, requireEntityPermission('risks.write', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await riskService.removeRiskControl(req.params.riskId, req.params.riskControlId, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/:riskId/controls/:riskControlId/assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
+  try {
+    res.json(await riskService.listRiskControlAssessments(req.params.riskId, req.params.riskControlId, req.query as any));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.post('/:riskId/controls/:riskControlId/assessments', authenticate, requireEntityPermission('risks.assess', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateBody(CreateNestedRiskControlAssessmentSchema), async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json(await riskService.createRiskControlAssessment(req.params.riskId, req.params.riskControlId, req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+riskRouter.get('/:riskId/controls/:riskControlId/assessments/:assessmentId', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), async (req, res, next) => {
+  try {
+    res.json(await riskService.getRiskControlAssessment(req.params.riskId, req.params.riskControlId, req.params.assessmentId));
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ==========================================
 // Parametric routes - /:id must come AFTER all static routes
 // ==========================================
@@ -328,6 +339,21 @@ riskRouter.get('/:id', authenticate, requireEntityPermission('risks.read', 'risk
   try {
     const risk = await riskService.getById(req.params.id);
     res.json(risk);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/risks/:id/history - Get risk history
+riskRouter.get('/:id/history', authenticate, requireEntityPermission('risks.read', 'risks'), async (req: AuthRequest, res, next) => {
+  try {
+    await riskService.getById(req.params.id);
+    const history = await getEntityHistory('Risk', req.params.id, {
+      action: req.query.action as any,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    });
+    res.json(history);
   } catch (error) {
     next(error);
   }
@@ -379,16 +405,6 @@ riskRouter.get('/:id/review-tasks', authenticate, requireEntityPermission('risks
   try {
     const tasks = await riskService.getReviewTasks(req.params.id);
     res.json(tasks);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Update a specific review task
-riskRouter.put('/review-tasks/:taskId', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateReviewTaskSchema), async (req: AuthRequest, res, next) => {
-  try {
-    const task = await riskService.updateReviewTask(req.params.taskId, req.body, req.userId);
-    res.json(task);
   } catch (error) {
     next(error);
   }

@@ -37,8 +37,11 @@ export function idempotency(options: IdempotencyOptions = {}) {
     // Validate idempotency key format (UUID or alphanumeric with hyphens)
     if (!/^[a-zA-Z0-9\-_]+$/.test(idempotencyKey)) {
       res.status(400).json({
-        error: 'Invalid Idempotency-Key Format',
-        message: 'Idempotency key must be a non-empty string containing only alphanumeric characters, hyphens, and underscores.',
+        success: false,
+        error: {
+          message: 'Invalid Idempotency-Key Format',
+          code: 'INVALID_IDEMPOTENCY_KEY',
+        },
       });
       return;
     }

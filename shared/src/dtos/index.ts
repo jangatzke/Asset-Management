@@ -16,8 +16,13 @@ export const PaginationQuerySchema = z.object({
 
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
 
+export const EntityIdSchema = z.union([
+  z.string().uuid('Invalid UUID format'),
+  z.string().regex(/^demo-[A-Za-z0-9][A-Za-z0-9_-]{0,186}$/, 'Invalid deterministic demo ID format'),
+]);
+
 export const IdParamSchema = z.object({
-  id: z.string().uuid('Invalid UUID format'),
+  id: EntityIdSchema,
 });
 
 export type IdParam = z.infer<typeof IdParamSchema>;
@@ -72,7 +77,7 @@ export const NetworkAddressCreateSchema = z.object({
 export type NetworkAddressCreateDTO = z.input<typeof NetworkAddressCreateSchema>;
 
 export const AssetRelationCreateSchema = z.object({
-  targetAssetId: z.string().uuid('Invalid target asset ID'),
+  targetAssetId: EntityIdSchema,
   relationshipType: z.string().min(1, 'Relationship type is required').max(100),
   description: z.string().max(500).optional(),
 });
@@ -86,25 +91,25 @@ export type ConfirmAssetResponsibilityDTO = z.infer<typeof ConfirmAssetResponsib
 export const CreateAssetSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   description: z.string().max(2000).optional(),
-  assetTypeId: z.string().uuid('Invalid asset type ID'),
-  assetSubtypeId: z.string().uuid('Invalid asset subtype ID').or(z.literal('')).optional().transform((value) => value || undefined),
+  assetTypeId: EntityIdSchema,
+  assetSubtypeId: EntityIdSchema.or(z.literal('')).optional().transform((value) => value || undefined),
   inventoryNumber: z.string().max(100).optional(),
   subType: z.string().max(100).optional(),
   manufacturer: z.string().max(200).optional(),
   model: z.string().max(200).optional(),
   serialNumber: z.string().max(100).optional(),
   externalId: z.string().max(100).optional(),
-  organizationUnitId: z.string().uuid('Invalid organization unit ID').or(z.literal('')).optional().transform((value) => value || undefined),
-  locationId: z.string().uuid('Invalid location ID').or(z.literal('')).optional().transform((value) => value || undefined),
-  technicalOperatorId: z.string().uuid('Invalid operator ID').or(z.literal('')).optional().transform((value) => value || undefined),
-  businessOwnerId: z.string().uuid('Invalid owner ID').or(z.literal('')).optional().transform((value) => value || undefined),
-  informationSecurityResponsibleId: z.string().uuid('Invalid security responsible ID').or(z.literal('')).optional().transform((value) => value || undefined),
+  organizationUnitId: EntityIdSchema.or(z.literal('')).optional().transform((value) => value || undefined),
+  locationId: EntityIdSchema.or(z.literal('')).optional().transform((value) => value || undefined),
+  technicalOperatorId: EntityIdSchema.or(z.literal('')).optional().transform((value) => value || undefined),
+  businessOwnerId: EntityIdSchema.or(z.literal('')).optional().transform((value) => value || undefined),
+  informationSecurityResponsibleId: EntityIdSchema.or(z.literal('')).optional().transform((value) => value || undefined),
 
   // Junction table relations (M:N) — arrays of IDs
-  processIds: z.array(z.string().uuid()).optional(),
-  serviceIds: z.array(z.string().uuid()).optional(),
-  contractIds: z.array(z.string().uuid()).optional(),
-  licenseIds: z.array(z.string().uuid()).optional(),
+  processIds: z.array(EntityIdSchema).optional(),
+  serviceIds: z.array(EntityIdSchema).optional(),
+  contractIds: z.array(EntityIdSchema).optional(),
+  licenseIds: z.array(EntityIdSchema).optional(),
 
   // Contract/License info (AST-002) — legacy convenience fields
   licenseInfo: z.string().max(500).optional(),
@@ -177,11 +182,11 @@ export const AssetQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
-  assetTypeId: z.string().uuid().optional(),
-  assetSubtypeId: z.string().uuid().optional(),
+  assetTypeId: EntityIdSchema.optional(),
+  assetSubtypeId: EntityIdSchema.optional(),
   lifecycleStatus: z.string().optional(),
   criticality: CriticalitySchema.optional(),
-  organizationUnitId: z.string().uuid().optional(),
+  organizationUnitId: EntityIdSchema.optional(),
   archived: z.coerce.boolean().default(false), // include archived assets?
 });
 
@@ -656,6 +661,44 @@ export const CloseIncidentSchema = z.object({
 });
 export type CloseIncidentDTO = z.infer<typeof CloseIncidentSchema>;
 
+// ==========================================
+// Incident History DTOs (AUDIT-001)
+// ==========================================
+
+export const IncidentHistoryActionSchema = z.enum([
+  'CREATE',
+  'UPDATE',
+  'DELETE',
+  'STATUS_CHANGE',
+  'ASSESSMENT',
+  'KNOWLEDGE_TIME_CHANGE',
+  'CLOSE',
+  'REOPEN',
+]);
+
+export type IncidentHistoryActionDTO = z.infer<typeof IncidentHistoryActionSchema>;
+
+export const IncidentHistoryEntrySchema = z.object({
+  id: z.string(),
+  incidentId: z.string(),
+  action: IncidentHistoryActionSchema,
+  fieldChanges: z.any().optional(),
+  summary: z.string().optional(),
+  actorId: z.string().optional(),
+  ipAddress: z.string().optional(),
+  userAgent: z.string().optional(),
+  createdAt: z.date(),
+});
+
+export type IncidentHistoryEntryDTO = z.infer<typeof IncidentHistoryEntrySchema>;
+
+export const IncidentHistoryQuerySchema = z.object({
+  action: IncidentHistoryActionSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export type IncidentHistoryQueryDTO = z.infer<typeof IncidentHistoryQuerySchema>;
 export const CreateSignificanceRuleVersionSchema = z.object({
   version: z.string().min(1),
   rules: z.array(z.record(JsonValueSchema)).min(1),

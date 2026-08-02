@@ -142,3 +142,24 @@ incidentRouter.post('/:id/report', authenticate, requireEntityPermission('incide
     next(error);
   }
 });
+
+// ==========================================
+// Incident History (AUDIT-001)
+// ==========================================
+
+incidentRouter.get('/:id/history', authenticate, requireEntityPermission('incidents.read', 'incidents'), async (req: AuthRequest, res, next) => {
+  try {
+    const incidentId = req.params.id;
+    // Verify incident exists and user has read access
+    await incidentService.getById(incidentId);
+    const query = {
+      action: req.query.action as any,
+      limit: parseInt(req.query.limit as string) || 100,
+      offset: parseInt(req.query.offset as string) || 0,
+    };
+    const history = await incidentService.getHistory(incidentId, query);
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});

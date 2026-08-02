@@ -27,7 +27,7 @@ IT asset management and ISMS application for asset inventory, risk and control m
 
 The project is structured as an npm workspace with `backend`, `frontend`, and `shared`. The current repository state includes:
 
-- Backend API with Express, TypeScript, Prisma ORM, and PostgreSQL.
+- Backend API with Express, TypeScript, Prisma ORM, PostgreSQL runtime support, and provider-specific Microsoft SQL Server runtime support.
 - React/Vite frontend with TypeScript, routing, i18n files for German/English, and dark mode context.
 - Shared types and DTOs in the `shared` workspace.
 - Prisma schema, seed logic, and migration-/runtime-related helper scripts in the backend.
@@ -74,7 +74,7 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | Layer | Technologies |
 |---|---|
 | Backend | Node.js, Express, TypeScript, Prisma ORM |
-| Database | PostgreSQL |
+| Database | PostgreSQL default; Microsoft SQL Server via generated provider-specific Prisma schema and portable JSON export/import for DBMS switching |
 | Frontend | React 18, TypeScript, Vite |
 | UI | Material UI, Tailwind CSS, Headless UI, Heroicons |
 | Routing/State | React Router DOM, Zustand |
@@ -109,7 +109,7 @@ asset-management-isms/
 
 - Node.js version 18 or later.
 - npm version 9 or later.
-- PostgreSQL for local development and tests against a real database.
+- PostgreSQL for default local development and tests against a real database, or Microsoft SQL Server when `DB_PROVIDER=sqlserver` is configured and the SQL Server Prisma schema/client path is generated.
 - Optional: credentials/permissions for Microsoft Intune, VMware vCenter, or Proxmox if these integrations are used.
 
 ---
@@ -168,13 +168,180 @@ The central backend configuration is provided through [`backend/.env`](backend/.
 
 | Group | Examples | Purpose |
 |---|---|---|
-| Base | `NODE_ENV`, `HOST`, `PORT`, `DATABASE_URL` | Runtime, network binding, and database connection |
+| Base | `NODE_ENV`, `HOST`, `PORT`, `DB_PROVIDER`, `DATABASE_URL`, `DATABASE_URL_FILE` | Runtime, network binding, and database connection |
 | Auth/Sessions | `JWT_SECRET`, token lifetimes, pre-auth/MFA configurations | Local authentication, JWTs, session/refresh flows |
 | CORS/HTTP | `CORS_ORIGINS`, rate limit options, upload limits | Browser access, API hardening, and request limits |
 | Monitoring | `METRICS_TOKEN`, log/health-related variables | Access to metrics and operational observability |
 | Integrations | `INTUNE_*`, `VMWARE_ENCRYPTION_KEY`, Proxmox/webhook/SMTP-related variables | External systems and background jobs |
 
 Details on operational variables and production considerations are available in [`docs/operations.md`](docs/operations.md) and [`docs/security-model.md`](docs/security-model.md).
+
+### Database provider configuration and migration / Datenbankanbieter und Migration
+
+The backend database runtime is configured in [`backend/.env`](backend/.env.example) and validated by [`backend/src/config/database.ts`](backend/src/config/database.ts). The supported `DB_PROVIDER` values are:
+
+| Provider | `DB_PROVIDER` value | URL scheme | Current use |
+|---|---|---|---|
+| PostgreSQL | `postgresql` | `postgresql://` or `postgres://` | Default and directly supported runtime provider for the current Prisma schema |
+| Microsoft SQL Server | `sqlserver` | `sqlserver://` | Direct runtime through generated [`backend/prisma/schema.sqlserver.prisma`](backend/prisma/schema.sqlserver.prisma), with JSON-like fields stored as `NVARCHAR(MAX)` JSON text |
+
+The backend rejects mismatched combinations such as `DB_PROVIDER=sqlserver` with a PostgreSQL URL. The admin status endpoint `GET /api/v1/admin/database/config` returns only safe metadata (`provider`, URL source, portable backup format, and known limitations); it never returns the database password or full connection URL.
+
+Provider-aware Prisma commands are routed through [`backend/scripts/prisma-provider.cjs`](backend/scripts/prisma-provider.cjs). With `DB_PROVIDER=postgresql`, they use [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma). With `DB_PROVIDER=sqlserver`, they generate and use [`backend/prisma/schema.sqlserver.prisma`](backend/prisma/schema.sqlserver.prisma). The SQL Server schema keeps model names compatible with the application but adapts Prisma features not supported by the SQL Server connector:
+
+- Prisma `Json` fields become `String` columns with `@db.NVarChar(Max)` and JSON text content.
+- Prisma scalar list fields such as `String[]` become JSON text columns with `@db.NVarChar(Max)`.
+- Prisma enums become string-backed fields.
+- Referential actions are normalized to SQL Server-compatible `NoAction` to avoid multiple-cascade-path validation failures.
+
+The backend runtime enables `nvarchar-json-text` compatibility mode for SQL Server and serializes/deserializes these JSON-backed fields at the Prisma boundary for ordinary create/update/read operations, preserving API payload semantics as closely as possible.
+
+#### PostgreSQL example with `DATABASE_URL`
+
+Use this format for local development or deployments where the secret is injected securely through the process environment:
+
+```env
+DB_PROVIDER=postgresql
+DATABASE_URL="postgresql://postgres:<password>@localhost:5432/asset_management?schema=public"
+```
+
+#### Microsoft SQL Server example with `sqlserver://`
+
+Use the Prisma SQL Server URL style when configuring a SQL Server target. Keep credentials outside source control and set TLS options according to the database server certificate setup:
+
+```env
+DB_PROVIDER=sqlserver
+DATABASE_URL="sqlserver://localhost:1433;database=asset_management;user=asset_user;password=<password>;encrypt=true;trustServerCertificate=false"
+```
+
+For development instances with a self-signed certificate, `trustServerCertificate=true` may be necessary, but production deployments should prefer a trusted certificate and `trustServerCertificate=false`.
+
+Generate the SQL Server Prisma Client and validate the provider-specific schema after configuring `DB_PROVIDER=sqlserver`:
+
+```powershell
+npm run db:schema:sqlserver --workspace=backend
+npm run db:generate --workspace=backend
+npm run db:validate --workspace=backend
+```
+
+For a new SQL Server deployment, generate the initial migration against an empty target database, review the generated SQL, and then deploy it in controlled environments:
+
+```powershell
+npm run db:migrate:sqlserver --workspace=backend
+npm run db:deploy:sqlserver --workspace=backend
+```
+
+#### Secure credential handling with `DATABASE_URL_FILE`
+
+Real database credentials must not be committed. [`backend/.env.example`](backend/.env.example) contains placeholders only, and ignored local paths such as [`backend/secrets`](backend/secrets) and [`backend/backups`](backend/backups) are excluded by [`.gitignore`](.gitignore).
+
+Recommended local pattern:
+
+1. Create an ignored secret directory below the backend workspace.
+2. Store the full database connection string in a local file, for example `backend/secrets/database-url.txt`.
+3. Reference the file from the environment. `DATABASE_URL_FILE` takes precedence over `DATABASE_URL` when both are set.
+
+```env
+DB_PROVIDER=postgresql
+DATABASE_URL_FILE=./secrets/database-url.txt
+```
+
+Example content of `backend/secrets/database-url.txt` for PostgreSQL:
+
+```text
+postgresql://postgres:<password>@localhost:5432/asset_management?schema=public
+```
+
+Example content of `backend/secrets/database-url.txt` for SQL Server:
+
+```text
+sqlserver://localhost:1433;database=asset_management;user=asset_user;password=<password>;encrypt=true;trustServerCertificate=false
+```
+
+Operational guidance:
+
+- Keep secret files readable only by the application/service account. On Windows, restrict access through file properties or `icacls`; on Linux containers/servers, use owner-only permissions such as `600` where applicable.
+- Do not copy real `.env` files, secret files, portable backups, native dumps, or screenshots containing connection strings into tickets, commits, logs, or documentation.
+- Prefer platform secret managers for production (for example Docker/Kubernetes secrets, CI/CD secret variables, or a managed vault) and mount/inject the value as `DATABASE_URL_FILE` or `DATABASE_URL`.
+
+#### Admin backup/export and import/restore workflow
+
+The Admin UI exposes this workflow under `/admin/database` for system administrators: review safe database metadata, download a portable JSON backup, run an import dry run, or import in append/replace mode. Replace mode requires an explicit confirmation phrase in the UI.
+
+The admin API provides a DBMS-neutral application-data backup format named `asset-management-portable-json-v1` via [`backend/src/services/databaseBackup.service.ts`](backend/src/services/databaseBackup.service.ts). The format contains exported model rows, row counts, source provider metadata, and a SHA-256 checksum. Export redacts credential-like fields such as password hashes, MFA secrets, API token hashes, client secrets, and connector secrets.
+
+All database admin endpoints require authentication and admin access:
+
+```powershell
+# Inspect current safe database configuration
+Invoke-RestMethod -Method Get `
+  -Uri "http://localhost:3001/api/v1/admin/database/config" `
+  -Headers @{ Authorization = "Bearer <admin-jwt>" }
+
+# Export a portable JSON backup
+Invoke-RestMethod -Method Get `
+  -Uri "http://localhost:3001/api/v1/admin/database/export" `
+  -Headers @{ Authorization = "Bearer <admin-jwt>" } `
+  -OutFile "backend/backups/asset-management-portable-backup.json"
+
+# Validate an import without writing data; verifies checksum and reports row counts
+Invoke-RestMethod -Method Post `
+  -Uri "http://localhost:3001/api/v1/admin/database/import?dryRun=true" `
+  -Headers @{ Authorization = "Bearer <admin-jwt>" } `
+  -ContentType "application/json" `
+  -InFile "backend/backups/asset-management-portable-backup.json"
+
+# Restore by replacing known models first; this is the default mode
+Invoke-RestMethod -Method Post `
+  -Uri "http://localhost:3001/api/v1/admin/database/import?mode=replace" `
+  -Headers @{ Authorization = "Bearer <admin-jwt>" } `
+  -ContentType "application/json" `
+  -InFile "backend/backups/asset-management-portable-backup.json"
+
+# Append rows without clearing existing data; duplicate handling follows Prisma createMany skipDuplicates behavior
+Invoke-RestMethod -Method Post `
+  -Uri "http://localhost:3001/api/v1/admin/database/import?mode=append" `
+  -Headers @{ Authorization = "Bearer <admin-jwt>" } `
+  -ContentType "application/json" `
+  -InFile "backend/backups/asset-management-portable-backup.json"
+```
+
+The import endpoint also accepts a multipart file field named `backup`, which is useful for an admin UI or scripted uploads:
+
+```powershell
+curl.exe -X POST "http://localhost:3001/api/v1/admin/database/import?dryRun=true" `
+  -H "Authorization: Bearer <admin-jwt>" `
+  -F "backup=@backend/backups/asset-management-portable-backup.json;type=application/json"
+```
+
+Import modes:
+
+- `dryRun=true`: validates the backup format/checksum and returns row counts without database writes.
+- `mode=replace`: default restore mode; clears known exported models first, then imports backup rows.
+- `mode=append`: imports rows without clearing existing data; intended for carefully planned merge scenarios.
+
+#### DBMS switching and server migration with portable JSON
+
+Use portable JSON export/import when switching between PostgreSQL and Microsoft SQL Server or when moving application data between servers/providers:
+
+1. Start the source environment and confirm `GET /api/v1/admin/database/config` reports the expected provider.
+2. Export `GET /api/v1/admin/database/export` and store the file in an ignored backup location such as `backend/backups/`.
+3. Provision the target database/server and configure `DB_PROVIDER` plus `DATABASE_URL` or `DATABASE_URL_FILE` for the target.
+4. Apply the provider-compatible Prisma schema/client and migrations for the target environment before importing. For SQL Server, run `npm run db:schema:sqlserver --workspace=backend`, `npm run db:generate --workspace=backend`, and the SQL Server migration/deploy commands.
+5. Start the target backend and run `POST /api/v1/admin/database/import?dryRun=true`.
+6. If validation succeeds, run `POST /api/v1/admin/database/import?mode=replace` for a full restore or `mode=append` for a controlled merge.
+7. Recreate secrets that are intentionally redacted from portable backups, such as passwords, MFA secrets, API/service tokens, OIDC client secrets, and integration connector credentials.
+8. Verify application health, authentication, critical records, audit logs, and integration configuration after restore.
+
+#### Native dump/restore and SQL Server compatibility notes
+
+Native database backups are provider-specific and not a DBMS-switching format:
+
+- PostgreSQL native dumps (`pg_dump`, `pg_restore`) are suitable for PostgreSQL-to-PostgreSQL restore.
+- SQL Server native backups (`BACKUP DATABASE`, `RESTORE DATABASE`, SQL Server Management Studio, or equivalent tooling) are suitable for SQL Server-to-SQL Server restore.
+- Native PostgreSQL dumps cannot be restored directly into SQL Server, and SQL Server `.bak` files cannot be restored directly into PostgreSQL.
+
+SQL Server runtime is implemented through the generated provider-specific schema and runtime JSON compatibility layer. Remaining limitations are intentionally narrow: provider-native JSON querying/indexing is not available for fields stored as `NVARCHAR(MAX)` JSON text, and production teams should review generated SQL Server migrations before applying them because SQL Server referential actions are normalized to `NoAction` for compatibility.
 
 ---
 
@@ -206,6 +373,10 @@ Details on operational variables and production considerations are available in 
 | `npm run db:generate --workspace=backend` | Generate Prisma Client |
 | `npm run db:deploy --workspace=backend` | Deploy Prisma migrations |
 | `npm run db:migrate --workspace=backend` | Run Prisma Migrate Dev |
+| `npm run db:validate --workspace=backend` | Validate the provider-selected Prisma schema |
+| `npm run db:schema:sqlserver --workspace=backend` | Generate the SQL Server-compatible Prisma schema |
+| `npm run db:migrate:sqlserver --workspace=backend` | Generate an initial SQL Server migration for an empty target database |
+| `npm run db:deploy:sqlserver --workspace=backend` | Deploy SQL Server migrations with the generated SQL Server schema |
 | `npm run db:seed --workspace=backend` | Run seed script |
 | `npm run db:setup:cost-planning --workspace=backend` | Deploy cost-planning-related migrations and generate Prisma Client |
 

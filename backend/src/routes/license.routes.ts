@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { licenseService } from '../services/license.service';
+import { getEntityHistory } from '../services/entityHistory.service';
 
 
 
@@ -37,6 +38,21 @@ licenseRouter.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// GET /api/v1/licenses/:id/history - Get license history
+licenseRouter.get('/:id/history', authenticate, async (req, res, next) => {
+  try {
+    await licenseService.findById(req.params.id);
+    const history = await getEntityHistory('License', req.params.id, {
+      action: req.query.action as any,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    });
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PATCH /api/v1/licenses/:id - Update license
 licenseRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
   try {
@@ -48,9 +64,9 @@ licenseRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) =>
 });
 
 // DELETE /api/v1/licenses/:id - Soft delete license
-licenseRouter.delete('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
+licenseRouter.delete('/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    const result = await licenseService.delete(req.params.id);
+    const result = await licenseService.delete(req.params.id, req.userId);
     res.json(result);
   } catch (error) {
     next(error);

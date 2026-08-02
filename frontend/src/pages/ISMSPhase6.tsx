@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
@@ -393,6 +394,9 @@ function getStatusColor(status?: string): string {
   }
 }
 
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 const ISMSPhase6 = () => {
@@ -739,7 +743,7 @@ const ISMSPhase6 = () => {
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             >
-              <option value="">All Statuses</option>
+              <option value="">{t('common.all')}</option>
               {meta.fields.find((f) => f.key === meta.statusField)?.options?.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
@@ -785,13 +789,19 @@ const ISMSPhase6 = () => {
                       </td>
                     ))}
                     <td className="p-3">
-                      <div className="flex gap-1">
-                        <button onClick={() => handleView(row)} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800">{t('common.view')}</button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => handleView(row)} aria-label={`${t('common.view')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.view')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                          <EyeIcon aria-hidden="true" className={actionIconClassName} />
+                        </button>
                         {meta.canUpdate && (
-                          <button onClick={() => handleEdit(row)} className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800">{t('common.edit')}</button>
+                          <button onClick={() => handleEdit(row)} aria-label={`${t('common.edit')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.edit')} className={`${actionButtonClassName} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300`}>
+                            <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                          </button>
                         )}
                         {meta.canDelete && (
-                          <button onClick={() => { setDeleteRow(row); setDeleteModalOpen(true); }} className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">{t('common.delete')}</button>
+                          <button onClick={() => { setDeleteRow(row); setDeleteModalOpen(true); }} aria-label={`${t('common.delete')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                            <TrashIcon aria-hidden="true" className={actionIconClassName} />
+                          </button>
                         )}
                       </div>
                     </td>

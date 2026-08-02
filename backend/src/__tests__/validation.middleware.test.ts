@@ -43,9 +43,11 @@ describe('Validation Middleware', () => {
         .send({ email: 'test@example.com' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Validation failed');
-      expect(response.body.details).toHaveLength(1);
-      expect(response.body.details[0].field).toBe('name');
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.message).toBe('Validation failed');
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.details).toHaveLength(1);
+      expect(response.body.error.details[0].field).toBe('name');
     });
 
     it('should reject invalid email format', async () => {
@@ -54,8 +56,10 @@ describe('Validation Middleware', () => {
         .send({ name: 'Test User', email: 'not-an-email' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Validation failed');
-      expect(response.body.details[0].field).toBe('email');
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.message).toBe('Validation failed');
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.details[0].field).toBe('email');
     });
 
     it('should return detailed error messages', async () => {
@@ -64,9 +68,10 @@ describe('Validation Middleware', () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.details.length).toBeGreaterThanOrEqual(1);
-      expect(response.body.details[0]).toHaveProperty('field');
-      expect(response.body.details[0]).toHaveProperty('message');
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.details.length).toBeGreaterThanOrEqual(1);
+      expect(response.body.error.details[0]).toHaveProperty('field');
+      expect(response.body.error.details[0]).toHaveProperty('message');
     });
   });
 
@@ -101,7 +106,9 @@ describe('Validation Middleware', () => {
       const response = await request(app).get('/test?page=abc');
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Validation failed');
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.message).toBe('Validation failed');
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -127,8 +134,10 @@ describe('Validation Middleware', () => {
       const response = await request(app).get('/test/not-a-uuid');
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Validation failed');
-      expect(response.body.details[0].message).toBe('Invalid UUID format');
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.message).toBe('Validation failed');
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.details[0].message).toBe('Invalid UUID format');
     });
   });
 });

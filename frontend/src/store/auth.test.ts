@@ -16,12 +16,12 @@ function installAuthApiMock() {
   const authApi = {
     login: vi.fn(),
     logout: vi.fn(),
-    refresh: vi.fn(),
     me: vi.fn(),
   };
+  const refreshAccessToken = vi.fn();
 
-  vi.doMock('../services/api', () => ({ authApi }));
-  return authApi;
+  vi.doMock('../services/api', () => ({ authApi, refreshAccessToken }));
+  return { authApi, refreshAccessToken };
 }
 
 async function loadAuthStore() {
@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 
 test('checkAuth skips refresh when an authenticated in-memory session already exists', async () => {
-  const authApi = installAuthApiMock();
+  const { authApi, refreshAccessToken } = installAuthApiMock();
   const useAuthStore = await loadAuthStore();
 
   useAuthStore.setState({
@@ -47,7 +47,7 @@ test('checkAuth skips refresh when an authenticated in-memory session already ex
 
   await useAuthStore.getState().checkAuth();
 
-  expect(authApi.refresh).not.toHaveBeenCalled();
+  expect(refreshAccessToken).not.toHaveBeenCalled();
   expect(authApi.me).not.toHaveBeenCalled();
   expect(useAuthStore.getState()).toMatchObject({
     user: testUser,
@@ -58,8 +58,8 @@ test('checkAuth skips refresh when an authenticated in-memory session already ex
 });
 
 test('checkAuth shares concurrent refresh work to avoid refresh-token reuse', async () => {
-  const authApi = installAuthApiMock();
-  authApi.refresh.mockResolvedValue({ data: { token: 'fresh-token' } });
+  const { authApi, refreshAccessToken } = installAuthApiMock();
+  refreshAccessToken.mockResolvedValue('fresh-token');
   authApi.me.mockResolvedValue({ data: testUser });
   const useAuthStore = await loadAuthStore();
 
@@ -68,7 +68,7 @@ test('checkAuth shares concurrent refresh work to avoid refresh-token reuse', as
 
   await Promise.all([firstCheck, secondCheck]);
 
-  expect(authApi.refresh).toHaveBeenCalledTimes(1);
+  expect(refreshAccessToken).toHaveBeenCalledTimes(1);
   expect(authApi.me).toHaveBeenCalledTimes(1);
   expect(useAuthStore.getState()).toMatchObject({
     user: testUser,

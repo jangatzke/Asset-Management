@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { I18nProvider } from './context/I18nContext';
 import { DarkModeProvider } from './context/DarkModeContext';
+import { ToastProvider } from './components/ToastProvider';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <I18nProvider>
         <DarkModeProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </DarkModeProvider>
       </I18nProvider>
     </BrowserRouter>

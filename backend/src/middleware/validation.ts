@@ -36,14 +36,19 @@ export function validate(schema: ZodSchema<any>, source: 'body' | 'query' | 'par
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const errors = error.errors.map((err) => ({
-          field: err.path.join('.'),
+        const errorDetails = error.errors.map((err) => ({
+          field: err.path.join('.') || '_root',
           message: err.message,
+          code: 'VALIDATION_ERROR',
         }));
 
         res.status(400).json({
-          error: 'Validation failed',
-          details: errors,
+          success: false,
+          error: {
+            message: 'Validation failed',
+            code: 'VALIDATION_ERROR',
+            details: errorDetails,
+          },
         });
       } else {
         next(error);

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { authApi } from '../services/api';
+import { authApi, refreshAccessToken } from '../services/api';
 import { setAccessToken } from './accessToken';
 
 interface User {
@@ -80,8 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     checkAuthPromise = (async () => {
       set({ isLoading: true });
       try {
-        const refreshResponse = await authApi.refresh();
-        const token = refreshResponse.data.token;
+        const token = await refreshAccessToken();
         setAccessToken(token);
         const response = await authApi.me();
         set({ user: response.data, token, isAuthenticated: true, isLoading: false });

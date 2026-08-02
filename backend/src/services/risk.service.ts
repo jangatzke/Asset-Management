@@ -6,6 +6,7 @@ import { displayIdService } from './displayId.service';
 import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
 import { riskMethodService } from './riskmethod.service';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
 const db = prisma as any;
 
@@ -500,6 +501,14 @@ export class RiskService {
       });
     }
 
+    // Record entity history
+    await recordCreateHistory({
+      entityType: 'Risk',
+      entityId: result.id,
+      data: { title: data.title },
+      actorId: createdBy,
+    });
+
     return this.getById(result.id);
   }
 
@@ -671,6 +680,16 @@ export class RiskService {
       });
     }
 
+    // Record entity history for update (status-like field is status)
+    await recordUpdateHistory({
+      entityType: 'Risk',
+      entityId: id,
+      oldData: toHistoryData(existing as any),
+      newData: toHistoryData(result as any),
+      statusField: 'status',
+      actorId: updatedBy,
+    });
+
     return this.getById(result.id);
   }
 
@@ -697,6 +716,13 @@ export class RiskService {
     await prisma.risk.update({
       where: { id },
       data: { isArchived: true },
+    });
+
+    // Record entity history for delete (archive)
+    await recordDeleteHistory({
+      entityType: 'Risk',
+      entityId: id,
+      actorId: deletedBy,
     });
 
     return { success: true };

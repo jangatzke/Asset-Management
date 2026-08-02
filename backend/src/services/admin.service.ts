@@ -417,21 +417,23 @@ export class AdminService {
       throw new AppError('User not found', 404);
     }
 
-    // Audit log for user deletion (before deleting)
+    // Archive/deactivate the user instead of hard-deleting to preserve audit/history traceability.
+    await prisma.user.update({
+      where: { id },
+      data: { isArchived: true, isActive: false },
+    });
+
+    // Audit log for user archival
     await auditService.logEventStandalone(prisma, {
       userId: existing.id,
       userName: `${existing.firstName} ${existing.lastName}`,
       action: 'USER_DELETE',
       entityType: 'User',
       entityId: id,
-      details: `Admin deleted user: ${existing.email}`,
+      details: `Admin archived user: ${existing.email}`,
     });
 
-    await prisma.userRole.deleteMany({ where: { userId: id } });
-    await prisma.userGroup.deleteMany({ where: { userId: id } });
-    await prisma.user.delete({ where: { id } });
-
-    return { message: 'User deleted successfully' };
+    return { message: 'User archived successfully' };
   }
 
   async changePassword(userId: string, newPassword: string, changedBy: string): Promise<void> {
@@ -1251,6 +1253,247 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
     await prisma.businessProcess.delete({ where: { id } });
 
     return { message: 'Business process deleted successfully' };
+  }
+
+  // ---- Organization Unit Management ----
+
+  async listOrganizationUnits(includeArchived = false): Promise<any[]> {
+    const where: any = {};
+    if (!includeArchived) {
+      where.isArchived = false;
+    }
+
+    const units = await prisma.organizationUnit.findMany({
+      where,
+      include: {
+        parent: { select: { id: true, name: true } },
+        _count: { select: { children: true, users: true, assets: true, risks: true, controlImplementations: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return units.map((u) => ({
+      id: u.id,
+      name: u.name,
+      description: u.description,
+      type: u.type,
+      parentId: u.parentId,
+      parentName: u.parent?.name ?? null,
+      isArchived: u.isArchived,
+      userCount: u._count.users,
+      assetCount: u._count.assets,
+      riskCount: u._count.risks,
+      controlCount: u._count.controlImplementations,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+    }));
+  }
+
+  async getOrganizationUnitById(id: string): Promise<any> {
+    const unit = await prisma.organizationUnit.findUnique({
+      where: { id },
+      include: {
+        parent: { select: { id: true, name: true } },
+        children: { select: { id: true, name: true } },
+        users: { select: { id: true, firstName: true, lastName: true, email: true } },
+        _count: { select: { assets: true, risks: true, controlImplementations: true } },
+      },
+    });
+
+    if (!unit) {
+      throw new AppError('Organization unit not found', 404);
+    }
+
+    return {
+      id: unit.id,
+      name: unit.name,
+      description: unit.description,
+      type: unit.type,
+      parentId: unit.parentId,
+      parentName: unit.parent?.name ?? null,
+      children: unit.children,
+      users: unit.users,
+      assetCount: unit._count.assets,
+      riskCount: unit._count.risks,
+      controlCount: unit._count.controlImplementations,
+      isArchived: unit.isArchived,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt,
+    };
+  }
+
+  async createOrganizationUnit(data: { name: string; description?: string; parentId?: string; type?: string }, createdBy: string): Promise<any> {
+    // Duplicate-name validation among non-archived units
+    const existing = await prisma.organizationUnit.findFirst({
+      where: {
+        name: data.name,
+        isArchived: false,
+      },
+    });
+    if (existing) {
+      throw new AppError('Organization unit with this name already exists', 409);
+    }
+
+    // Validate parent if provided
+    if (data.parentId) {
+      const parent = await prisma.organizationUnit.findUnique({
+        where: { id: data.parentId },
+      });
+      if (!parent) {
+        throw new AppError('Parent organization unit not found', 404);
+      }
+      if (parent.isArchived) {
+        throw new AppError('Parent organization unit is archived', 400);
+      }
+      if (parent.parentId === data.parentId) {
+        throw new AppError('Organization unit cannot be its own parent', 400);
+      }
+    }
+
+    const unit = await prisma.organizationUnit.create({
+      data: {
+        name: data.name,
+        description: data.description ?? null,
+        parentId: data.parentId ?? null,
+        type: data.type ?? 'department',
+        createdBy,
+      },
+      include: {
+        parent: { select: { id: true, name: true } },
+      },
+    });
+
+    return {
+      id: unit.id,
+      name: unit.name,
+      description: unit.description,
+      type: unit.type,
+      parentId: unit.parentId,
+      parentName: unit.parent?.name ?? null,
+      isArchived: unit.isArchived,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt,
+    };
+  }
+
+  async updateOrganizationUnit(id: string, data: { name?: string; description?: string; parentId?: string; type?: string }, updatedBy: string): Promise<any> {
+    const existing = await prisma.organizationUnit.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new AppError('Organization unit not found', 404);
+    }
+
+    // Duplicate-name validation among non-archived units (exclude current)
+    if (data.name && data.name !== existing.name) {
+      const duplicate = await prisma.organizationUnit.findFirst({
+        where: {
+          name: data.name,
+          isArchived: false,
+          id: { not: id },
+        },
+      });
+      if (duplicate) {
+        throw new AppError('Organization unit with this name already exists', 409);
+      }
+    }
+
+    // Validate parent if provided and changed
+    if (data.parentId !== undefined) {
+      if (data.parentId) {
+        const parent = await prisma.organizationUnit.findUnique({
+          where: { id: data.parentId },
+        });
+        if (!parent) {
+          throw new AppError('Parent organization unit not found', 404);
+        }
+        if (parent.isArchived) {
+          throw new AppError('Parent organization unit is archived', 400);
+        }
+        if (parent.parentId === data.parentId) {
+          throw new AppError('Organization unit cannot be its own parent', 400);
+        }
+        // Prevent circular: cannot set a child as its own parent
+        if (parent.id === id) {
+          throw new AppError('Organization unit cannot be its own parent', 400);
+        }
+      }
+    }
+
+    const unit = await prisma.organizationUnit.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.parentId !== undefined ? { parentId: data.parentId } : {}),
+        ...(data.type !== undefined ? { type: data.type } : {}),
+        updatedBy,
+      },
+      include: {
+        parent: { select: { id: true, name: true } },
+      },
+    });
+
+    return {
+      id: unit.id,
+      name: unit.name,
+      description: unit.description,
+      type: unit.type,
+      parentId: unit.parentId,
+      parentName: unit.parent?.name ?? null,
+      isArchived: unit.isArchived,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt,
+    };
+  }
+
+  async archiveOrganizationUnit(id: string, archivedBy: string): Promise<{ message: string }> {
+    const existing = await prisma.organizationUnit.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new AppError('Organization unit not found', 404);
+    }
+
+    await prisma.organizationUnit.update({
+      where: { id },
+      data: { isArchived: true, archivedBy },
+    });
+
+    return { message: 'Organization unit archived successfully' };
+  }
+
+  async restoreOrganizationUnit(id: string, restoredBy: string): Promise<{ message: string }> {
+    const existing = await prisma.organizationUnit.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new AppError('Organization unit not found', 404);
+    }
+
+    await prisma.organizationUnit.update({
+      where: { id },
+      data: { isArchived: false, restoredBy },
+    });
+
+    return { message: 'Organization unit restored successfully' };
+  }
+
+  // Picker/search endpoint for frontend selection
+  async searchOrganizationUnits(query: string, limit = 20): Promise<Array<{ id: string; name: string }>> {
+    const where: any = { isArchived: false };
+    if (query && query.trim()) {
+      where.name = { contains: query.trim(), mode: 'insensitive' };
+    }
+
+    const units = await prisma.organizationUnit.findMany({
+      where,
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+      take: Math.min(limit, 50),
+    });
+
+    return units;
   }
 }
 

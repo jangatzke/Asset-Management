@@ -242,6 +242,27 @@ export class AssetGraphService {
     }
 
     const nodes = graph.nodes.filter(node => allowedNodeIds.has(node.id));
+
+    // Ensure the root asset is always present even when it has no relations or was filtered out
+    const rootAssetId = assetId;
+    const rootAssetAlreadyInNodes = nodes.some((node) => node.id === rootAssetId);
+    if (!rootAssetAlreadyInNodes) {
+      const rootAssetNode: GraphNode = {
+        id: asset.id,
+        displayId: asset.displayId ?? undefined,
+        name: asset.name,
+        nodeType: 'Asset',
+        type: (asset as any).assetType?.category ?? (asset as any).assetType?.name ?? asset.lifecycleStatus ?? 'asset',
+        assetType: (asset as any).assetType?.name ?? 'unknown',
+        assetTypeId: asset.assetTypeId,
+        criticality: asset.criticality ?? 'low',
+        status: asset.status ?? 'active',
+        lifecycleStatus: asset.lifecycleStatus ?? 'unknown',
+      };
+      nodes.unshift(rootAssetNode);
+      allowedNodeIds.add(rootAssetId);
+    }
+
     const nodeIds = new Set(nodes.map(node => node.id));
     const edges = graph.edges.filter(edge => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId));
     const warnings = this.buildWarnings(nodes, edges);

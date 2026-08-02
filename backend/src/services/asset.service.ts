@@ -3,6 +3,7 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { nextDisplayId } from './displayId.service';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
 // Lifecycle status transitions allowed (AST-030)
 const LIFECYCLE_TRANSITIONS: Record<string, string[]> = {
@@ -355,6 +356,14 @@ export class AssetService {
       });
     }
 
+    // Record entity history
+    await recordCreateHistory({
+      entityType: 'Asset',
+      entityId: asset.id,
+      data: { name: data.name },
+      actorId: createdBy,
+    });
+
     return this.getById(asset.id);
   }
 
@@ -499,6 +508,16 @@ export class AssetService {
       return updatedAsset;
     });
 
+    // Record entity history for update (status-like field is lifecycleStatus)
+    await recordUpdateHistory({
+      entityType: 'Asset',
+      entityId: id,
+      oldData: toHistoryData(existing as any),
+      newData: toHistoryData(result as any),
+      statusField: 'lifecycleStatus',
+      actorId: updatedBy,
+    });
+
     return this.getById(result.id);
   }
 
@@ -550,6 +569,13 @@ export class AssetService {
         details: `Archived asset: ${existing.name} (${existing.displayId})${reason ? ': ' + reason : ''}`,
       });
     }
+
+    // Record entity history for delete (archive)
+    await recordDeleteHistory({
+      entityType: 'Asset',
+      entityId: id,
+      actorId: archivedBy,
+    });
 
     return { success: true, archivedAt: new Date() };
   }

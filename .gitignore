@@ -12,6 +12,9 @@ build/
 .env.local
 .env.*.local
 !backend/prisma/.env
+backend/secrets/
+backend/backups/
+*.portable-backup.json
 
 # IDE
 .vscode/

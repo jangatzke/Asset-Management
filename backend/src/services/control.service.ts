@@ -4,6 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
 const db = prisma as any;
 const DEPRECATED_CONTROL_FIELDS = ['relatedRiskIds', 'riskIds', 'evidenceIds', 'risks'];
@@ -253,6 +254,14 @@ export class ControlService {
       });
     }
 
+    // Record entity history
+    await recordCreateHistory({
+      entityType: 'Control',
+      entityId: control.id,
+      data: { title: data.title },
+      actorId: createdBy,
+    });
+
     return control;
   }
 
@@ -284,6 +293,16 @@ export class ControlService {
       },
     });
 
+    // Record entity history for update (status-like field is status)
+    await recordUpdateHistory({
+      entityType: 'Control',
+      entityId: id,
+      oldData: toHistoryData(existing as any),
+      newData: toHistoryData(control as any),
+      statusField: 'status',
+      actorId: updatedBy,
+    });
+
     return control;
   }
 
@@ -307,6 +326,13 @@ export class ControlService {
     await prisma.control.update({
       where: { id },
       data: { isArchived: true },
+    });
+
+    // Record entity history for delete (archive)
+    await recordDeleteHistory({
+      entityType: 'Control',
+      entityId: id,
+      actorId: deletedBy,
     });
 
     return { success: true };

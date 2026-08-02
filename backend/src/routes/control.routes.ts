@@ -3,6 +3,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { controlService } from '../services/control.service';
 import { authorizationService } from '../services/authorization.service';
+import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams } from '../middleware/validation';
 import { ApproveRiskTreatmentSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
 
@@ -105,6 +106,21 @@ controlRouter.get('/:id', authenticate, requirePermission('controls.read'), asyn
   try {
     const control = await controlService.getById(req.params.id, req.userId);
     res.json(control);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/controls/:id/history - Get control history
+controlRouter.get('/:id/history', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
+  try {
+    await controlService.getById(req.params.id, req.userId);
+    const history = await getEntityHistory('Control', req.params.id, {
+      action: req.query.action as any,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    });
+    res.json(history);
   } catch (error) {
     next(error);
   }

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
 export interface CreateLicenseData {
   title: string;
@@ -108,6 +109,14 @@ export class LicenseService {
       },
     });
 
+    // Record entity history
+    await recordCreateHistory({
+      entityType: 'License',
+      entityId: license.id,
+      data: { title: data.title },
+      actorId: createdBy,
+    });
+
     return license;
   }
 
@@ -122,10 +131,20 @@ export class LicenseService {
       data: { ...data, updatedBy },
     });
 
+    // Record entity history for update (status-like field is status)
+    await recordUpdateHistory({
+      entityType: 'License',
+      entityId: id,
+      oldData: toHistoryData(existing as any),
+      newData: toHistoryData(license as any),
+      statusField: 'status',
+      actorId: updatedBy,
+    });
+
     return license;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.license.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('License not found', 404);
@@ -134,6 +153,13 @@ export class LicenseService {
     await prisma.license.update({
       where: { id },
       data: { isArchived: true },
+    });
+
+    // Record entity history for delete (archive)
+    await recordDeleteHistory({
+      entityType: 'License',
+      entityId: id,
+      actorId: deletedBy,
     });
 
     return { success: true };

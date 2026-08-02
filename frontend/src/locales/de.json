@@ -44,6 +44,7 @@
     "update": "Aktualisieren",
     "back": "Zurück",
     "allStatuses": "Alle Status",
+    "all": "Alle",
     "number": "Nummer",
     "vendor": "Anbieter",
     "dates": "Daten",
@@ -81,7 +82,56 @@
     "riskAggregation": "Risikoaggregation",
     "reminderSettings": "Erinnerungsautomatisierung",
     "fiscalYearSettings": "Geschäftsjahr",
-    "authSettings": "Authentifizierung"
+    "authSettings": "Authentifizierung",
+    "databaseBackup": "Datenbank-Backup"
+  },
+  "databaseAdmin": {
+    "title": "Datenbank-Backup und Wiederherstellung",
+    "description": "Exportieren Sie ein portables JSON-Backup oder validieren und importieren Sie eine Backup-Datei. Es werden nur sichere Datenbank-Metadaten angezeigt; Zugangsdaten werden nie dargestellt.",
+    "configTitle": "Aktuelle Datenbankkonfiguration",
+    "refreshConfig": "Konfiguration aktualisieren",
+    "provider": "Anbieter",
+    "databaseUrlSource": "Quelle der Datenbank-URL",
+    "providerSwitchingMode": "Provider-Wechselmodus",
+    "portableBackupFormat": "Portables Backup-Format",
+    "prismaSchema": "Prisma-Schema",
+    "jsonCompatibilityMode": "JSON-Kompatibilitätsmodus",
+    "limitations": "Provider-Einschränkungen",
+    "exportTitle": "Backup exportieren",
+    "exportDescription": "Lädt ein DBMS-neutrales portables JSON-Backup mit Zeilenanzahlen und Prüfsummen-Metadaten herunter. Geheimnisfelder werden im Backend geschwärzt.",
+    "exportButton": "JSON-Backup herunterladen",
+    "exporting": "Exportiere...",
+    "importTitle": "Backup importieren oder wiederherstellen",
+    "importDescription": "Wählen Sie eine portable Backup-Datei aus und entscheiden Sie zwischen Dry-Run-Validierung, Anhängen oder Ersetzen. Führen Sie vor Produktiv-Wiederherstellungen einen Dry Run aus.",
+    "backupFile": "Backup-Datei",
+    "importMode": "Importmodus",
+    "importButton": "Import-Workflow starten",
+    "importing": "Importiere...",
+    "replaceWarning": "Der Ersetzen-Modus löscht bestehende exportierte Modelle, bevor Zeilen aus dem Backup importiert werden. Das ist destruktiv und kann über die UI nicht rückgängig gemacht werden.",
+    "replaceConfirmationLabel": "Geben Sie RESTORE ein, um den Ersetzen-Modus zu aktivieren",
+    "replaceConfirmationPhrase": "RESTORE",
+    "modes": {
+      "dryRun": "Dry Run: nur validieren",
+      "append": "Anhängen: Zeilen hinzufügen, ohne bestehende Daten zu löschen",
+      "replace": "Ersetzen: bekannte Modelle leeren und Backup wiederherstellen"
+    },
+    "resultTitle": "Import-Validierungsergebnis",
+    "resultMode": "Modus",
+    "resultChecksum": "Prüfsumme",
+    "resultFormat": "Format",
+    "validation": "Validierung",
+    "validationOk": "Prüfsumme verifiziert",
+    "rowCounts": "Zeilenanzahlen",
+    "messages": {
+      "configError": "Datenbankkonfiguration konnte nicht geladen werden.",
+      "exportSuccess": "Backup-Download gestartet.",
+      "exportError": "Datenbank-Backup konnte nicht exportiert werden.",
+      "fileRequired": "Wählen Sie zuerst eine JSON-Backup-Datei aus.",
+      "replaceConfirmationRequired": "Geben Sie die Bestätigungsphrase ein, bevor Sie den Ersetzen-Modus verwenden.",
+      "dryRunSuccess": "Backup erfolgreich validiert. Es wurden keine Daten geschrieben.",
+      "importSuccess": "Backup-Import erfolgreich abgeschlossen.",
+      "importError": "Datenbank-Backup konnte nicht importiert werden."
+    }
   },
   "ismsOperations": {
     "title": "ISMS-Betrieb",
@@ -218,6 +268,51 @@
     "controls": "Kontrollen",
     "incidents": "Vorfälle"
   },
+  "history": {
+    "title": "Verlauf",
+    "viewHistory": "Verlauf anzeigen",
+    "actionFilter": "Aktion",
+    "loading": "Verlauf wird geladen...",
+    "empty": "Kein Verlauf verfügbar",
+    "loadError": "Verlauf konnte nicht geladen werden",
+    "changes": "Änderungen",
+    "field": "Feld",
+    "oldValue": "Alter Wert",
+    "newValue": "Neuer Wert",
+    "system": "System",
+    "byActor": "von {actor}",
+    "emptyValue": "—",
+    "actions": {
+      "CREATE": "Erstellt",
+      "UPDATE": "Aktualisiert",
+      "DELETE": "Gelöscht",
+      "STATUS_CHANGE": "Status geändert",
+      "ASSESSMENT": "Bewertung",
+      "RELATION_CHANGE": "Beziehung geändert",
+      "LIFECYCLE_CHANGE": "Lebenszyklus geändert",
+      "CLOSE": "Geschlossen",
+      "REOPEN": "Wiedereröffnet"
+    },
+    "fields": {
+      "name": "Name",
+      "title": "Titel",
+      "description": "Beschreibung",
+      "status": "Status",
+      "criticality": "Kritikalität",
+      "lifecycleStatus": "Lebenszyklusstatus",
+      "implementationStatus": "Umsetzungsstatus",
+      "maturityLevel": "Reifegrad",
+      "riskLevel": "Risikostufe",
+      "likelihood": "Eintrittswahrscheinlichkeit",
+      "impact": "Auswirkung",
+      "vendor": "Anbieter",
+      "type": "Typ",
+      "contractNumber": "Vertragsnummer",
+      "licenseKey": "Lizenzschlüssel",
+      "seats": "Plätze",
+      "processOwner": "Prozessverantwortlicher"
+    }
+  },
   "groups": {
     "createGroup": "Gruppe erstellen",
     "editGroup": "Gruppe bearbeiten",
@@ -225,6 +320,73 @@
     "assignRoles": "Rollen zuweisen",
     "selectUsers": "Wählen Sie Benutzer für diese Gruppe aus",
     "selectRoles": "Wählen Sie Rollen für diese Gruppe aus"
+  },
+  "adminUsers": {
+    "title": "Benutzerverwaltung",
+    "newUser": "+ Neuer Benutzer",
+    "createUser": "Benutzer erstellen",
+    "editUser": "Benutzer bearbeiten",
+    "loading": "Benutzer werden geladen...",
+    "creating": "Wird erstellt...",
+    "searchPlaceholder": "Benutzer suchen...",
+    "noUsers": "Keine Benutzer gefunden",
+    "userDetails": "Benutzerdetails",
+    "manageRolesFor": "Rollen verwalten für",
+    "accountActions": "Kontoaktionen",
+    "saveUser": "Benutzer speichern",
+    "saveRoles": "Rollen speichern",
+    "columns": {
+      "user": "Benutzer",
+      "email": "Email",
+      "account": "Konto",
+      "roles": "Rollen",
+      "groups": "Gruppen",
+      "status": "Status"
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "Email",
+      "password": "Passwort",
+      "phoneOptional": "Telefon (optional)",
+      "roles": "Rollen"
+    },
+    "status": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv"
+    },
+    "account": {
+      "oidc": "OIDC",
+      "local": "Lokal"
+    },
+    "actions": {
+      "editUser": "Bearbeiten: {name}",
+      "deleteUser": "Löschen: {name}",
+      "activate": "Aktivieren",
+      "deactivate": "Deaktivieren",
+      "resetPassword": "Passwort zurücksetzen"
+    },
+    "messages": {
+      "loadError": "Benutzer konnten nicht geladen werden",
+      "requiredUserFields": "Email, Vorname und Nachname sind erforderlich",
+      "passwordRequired": "Passwort ist erforderlich",
+      "createSuccess": "Benutzer erfolgreich erstellt",
+      "createError": "Benutzer konnte nicht erstellt werden",
+      "deleteConfirm": "Möchten Sie diesen Benutzer wirklich löschen?",
+      "deleteSuccess": "Benutzer erfolgreich gelöscht",
+      "deleteError": "Benutzer konnte nicht gelöscht werden",
+      "activateSuccess": "Benutzer aktiviert",
+      "deactivateSuccess": "Benutzer deaktiviert",
+      "updateSuccess": "Benutzer erfolgreich aktualisiert",
+      "updateError": "Benutzer konnte nicht aktualisiert werden",
+      "roleRequired": "Mindestens eine Rolle ist erforderlich",
+      "rolesUpdateSuccess": "Rollen erfolgreich aktualisiert",
+      "rolesUpdateError": "Rollen konnten nicht zugewiesen werden",
+      "passwordPrompt": "Neues Passwort eingeben:",
+      "passwordMinLength": "Das Passwort muss mindestens 6 Zeichen lang sein",
+      "passwordResetSuccess": "Passwort erfolgreich zurückgesetzt. Der Benutzer muss es bei der nächsten Anmeldung ändern.",
+      "passwordResetError": "Passwort konnte nicht zurückgesetzt werden"
+    }
   },
   "oidc": {
     "noConfig": "Keine OIDC-Konfiguration gefunden",
@@ -546,6 +708,7 @@
     "linkedRiskCount": "{count} verknüpfte(s) Risiko/Risiken",
     "showLinkedRisks": "Verknüpfte Risiken anzeigen ({count})",
     "noLinkedRisks": "Keine verknüpften Risiken für diese Umsetzung.",
+    "searchUsers": "Benutzer suchen...",
     "addImplementation": "Umsetzung hinzufügen",
     "createImplementation": "Kontrollumsetzung erstellen",
     "implementationCreateError": "Kontrollumsetzung konnte nicht erstellt werden",
@@ -639,6 +802,30 @@
       "status": "Status",
       "severity": "Schweregrad",
       "detectionTime": "Erkennungszeit"
+    },
+    "history": {
+      "title": "Verlauf",
+      "viewHistory": "Verlauf anzeigen",
+      "noHistory": "Kein Verlauf verfügbar",
+      "loadingHistory": "Verlauf wird geladen...",
+      "loadHistoryError": "Verlauf konnte nicht geladen werden",
+      "action": "Aktion",
+      "timestamp": "Zeitpunkt",
+      "summary": "Zusammenfassung",
+      "changes": "Änderungen",
+      "field": "Feld",
+      "oldValue": "Alter Wert",
+      "newValue": "Neuer Wert",
+      "actions": {
+        "CREATE": "Erstellt",
+        "UPDATE": "Aktualisiert",
+        "DELETE": "Gelöscht",
+        "STATUS_CHANGE": "Status geändert",
+        "ASSESSMENT": "Bewertung",
+        "KNOWLEDGE_TIME_CHANGE": "Kenntniszeit geändert",
+        "CLOSE": "Geschlossen",
+        "REOPEN": "Wiedereröffnet"
+      }
     }
   },
   "dashboard": {

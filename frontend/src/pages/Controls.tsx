@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { controlApi, frameworkApi, evidenceApi, catalogApi } from '../services/api';
+import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { EntityHistoryModal } from '../components/EntityHistoryModal';
+import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { implementationRiskDisplayRows } from './riskControlWorkflow.utils';
 import { getControlStatusColor, getErrorMessage } from '../utils/statusHelpers';
@@ -88,6 +91,9 @@ const initialImplementationForm: ImplementationForm = {
   testFrequency: '',
 };
 
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
+
 const Controls = () => {
   const { t } = useI18n();
   const [controls, setControls] = useState<Control[]>([]);
@@ -97,6 +103,7 @@ const Controls = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<CreateControlForm>(initialForm);
+  const [editingControlId, setEditingControlId] = useState<string | null>(null);
   const [frameworkCount, setFrameworkCount] = useState(0);
   const [soaCount, setSoaCount] = useState(0);
   const [evidenceCount, setEvidenceCount] = useState(0);
@@ -105,6 +112,8 @@ const Controls = () => {
   const [implementationModalOpen, setImplementationModalOpen] = useState(false);
   const [implementationForm, setImplementationForm] = useState<ImplementationForm>(initialImplementationForm);
   const [expandedImplementationId, setExpandedImplementationId] = useState<string | null>(null);
+  const [responsibleUserOption, setResponsibleUserOption] = useState<{ id: string; label: string } | null>(null);
+  const [historyControl, setHistoryControl] = useState<Control | null>(null);
 
   useEffect(() => {
     loadControls();
@@ -178,7 +187,37 @@ const Controls = () => {
     }
   };
 
-  const handleCreate = async () => {
+  const resetControlForm = () => {
+    setForm(initialForm);
+    setSelectedCatalogId('');
+    setEditingControlId(null);
+  };
+
+  const handleEditControl = async (control: Control) => {
+    try {
+      const response = await controlApi.getById(control.id);
+      const data = response.data ?? control;
+      const catalog = catalogOptions.find((option) => data.catalogId === `${option.name} - ${option.version}` || data.catalogId === option.id || data.catalogId === option.name);
+      setForm({
+        catalogId: data.catalogId || '',
+        catalogVersion: data.catalogVersion || catalog?.version || '',
+        title: data.title || '',
+        description: data.description || '',
+        controlGoal: data.controlGoal || '',
+        responsibleId: data.responsibleId || '',
+        applicability: data.applicability || '',
+        implementationStatus: data.implementationStatus || 'planned',
+        maturityLevel: data.maturityLevel ?? 0,
+      });
+      setSelectedCatalogId(catalog?.id ?? '');
+      setEditingControlId(control.id);
+      setModalOpen(true);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('controls.loadDetailsError'));
+    }
+  };
+
+  const handleSubmitControl = async () => {
     if (!form.catalogId || !form.catalogVersion || !form.title || !form.controlGoal) {
       setError(t('common.requiredField'));
       return;
@@ -187,13 +226,17 @@ const Controls = () => {
     setSaving(true);
     setError('');
     try {
-      await controlApi.create(form);
+      const payload = form as any;
+      if (editingControlId) {
+        await controlApi.update(editingControlId, payload);
+      } else {
+        await controlApi.create(payload);
+      }
       setModalOpen(false);
-      setForm(initialForm);
-      setSelectedCatalogId('');
+      resetControlForm();
       await loadControls();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('controls.createError'));
+      setError(getErrorMessage(err) || (editingControlId ? t('common.saveError') : t('controls.createError')));
     } finally {
       setSaving(false);
     }
@@ -201,17 +244,31 @@ const Controls = () => {
 
   const openImplementationModal = (control: Control) => {
     setImplementationForm({ ...initialImplementationForm, controlId: control.id });
+    setResponsibleUserOption(null);
     setImplementationModalOpen(true);
   };
 
+  // Search endpoint for EntitySearchSelect (responsible person)
+  const searchUsers = async (q: string) => {
+    try {
+      const res = await adminApi.listUsers();
+      const users = res.data?.data ?? res.data ?? [];
+      if (!q) return users;
+      return users.filter((u: any) =>
+        `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(q.toLowerCase())
+      );
+    } catch { return []; }
+  };
+
   const handleCreateImplementation = async () => {
-    if (!implementationForm.controlId || !implementationForm.responsibleUserId || !implementationForm.organizationUnitId) {
+    const responsibleUserId = responsibleUserOption?.id || implementationForm.responsibleUserId;
+    if (!implementationForm.controlId || !responsibleUserId || !implementationForm.organizationUnitId) {
       setError(t('common.requiredField'));
       return;
     }
     setSaving(true);
     try {
-      await controlApi.createImplementation(implementationForm);
+      await controlApi.createImplementation({ ...implementationForm, responsibleUserId });
       setImplementationModalOpen(false);
       setImplementationForm(initialImplementationForm);
       await loadControls();
@@ -236,7 +293,7 @@ const Controls = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('controls.title')}</h1>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => { resetControlForm(); setModalOpen(true); }}
           className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
         >
           {t('controls.newControl')}
@@ -329,7 +386,19 @@ const Controls = () => {
                     {(control.requirementMappings ?? []).slice(0, 2).map((m) => <div key={m.requirement?.id}>{m.requirement?.requirementKey ?? ''} {m.requirement?.title}</div>)}
                     {(control.requirementMappings?.length ?? 0) === 0 && '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm"><button onClick={() => openImplementationModal(control)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">{t('controls.addImplementation')}</button></td>
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleEditControl(control)} aria-label={`Bearbeiten: ${control.title}`} title="Bearbeiten" className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                        <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                      <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
+                        <PlusCircleIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                      <button onClick={() => setHistoryControl(control)} aria-label={`${t('history.viewHistory')}: ${control.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                        <ClockIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -337,7 +406,7 @@ const Controls = () => {
         </table>
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={t('controls.createControl')}>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingControlId ? 'Control bearbeiten' : t('controls.createControl')}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -497,11 +566,11 @@ const Controls = () => {
               {t('common.cancel')}
             </button>
             <button
-              onClick={handleCreate}
+              onClick={handleSubmitControl}
               disabled={!form.catalogId || !form.catalogVersion || !form.title || !form.controlGoal || saving}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? t('common.saving') : t('controls.createControl')}
+              {saving ? t('common.saving') : (editingControlId ? t('common.update') : t('controls.createControl'))}
             </button>
           </div>
         </div>
@@ -517,8 +586,13 @@ const Controls = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.responsibleId')} *</label>
-              <input value={implementationForm.responsibleUserId} onChange={(e) => setImplementationForm({ ...implementationForm, responsibleUserId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
+              <EntitySearchSelect
+                label={t('controls.fields.responsibleId')}
+                searchEndpoint={searchUsers}
+                value={responsibleUserOption}
+                onChange={(opt: { id: string; label: string }) => setResponsibleUserOption(opt)}
+                placeholder={t('controls.searchUsers') || 'Search users...'}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -541,6 +615,8 @@ const Controls = () => {
           <div className="flex justify-end gap-2"><button onClick={() => setImplementationModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">{t('common.cancel')}</button><button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button></div>
         </div>
       </Modal>
+
+      <EntityHistoryModal isOpen={!!historyControl} onClose={() => setHistoryControl(null)} entityId={historyControl?.id} entityName={historyControl?.title} loadHistory={controlApi.history} />
     </div>
   );
 };

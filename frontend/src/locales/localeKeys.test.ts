@@ -15,3 +15,77 @@ test('risk list locale keys resolve to translated strings', () => {
     expect(resolveKey(locale, 'risks.searchPlaceholder')).not.toBe('risks.searchPlaceholder');
   }
 });
+
+test('common.all filter label exists in both locales', () => {
+  for (const locale of [en, de]) {
+    const key = 'common.all';
+    const value = resolveKey(locale, key);
+    expect(value).toBeDefined();
+    expect(value).toEqual(expect.any(String));
+    expect(value).not.toBe(key);
+    expect(value).not.toBe('');
+  }
+});
+
+test('common.allStatuses filter label exists in both locales', () => {
+  for (const locale of [en, de]) {
+    const key = 'common.allStatuses';
+    const value = resolveKey(locale, key);
+    expect(value).toBeDefined();
+    expect(value).toEqual(expect.any(String));
+    expect(value).not.toBe(key);
+    expect(value).not.toBe('');
+  }
+});
+
+test('shared history locale keys resolve in both locales', () => {
+  const keys = [
+    'history.title',
+    'history.viewHistory',
+    'history.actionFilter',
+    'history.loading',
+    'history.empty',
+    'history.loadError',
+    'history.system',
+    'history.byActor',
+    'history.actions.CREATE',
+    'history.actions.UPDATE',
+    'history.actions.DELETE',
+    'history.fields.status',
+  ];
+
+  for (const locale of [en, de]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toBeDefined();
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
+test('database admin locale keys resolve in both locales', () => {
+  const keys = [
+    'navigation.databaseBackup',
+    'databaseAdmin.title',
+    'databaseAdmin.configTitle',
+    'databaseAdmin.exportButton',
+    'databaseAdmin.importButton',
+    'databaseAdmin.replaceConfirmationPhrase',
+    'databaseAdmin.modes.dryRun',
+    'databaseAdmin.modes.append',
+    'databaseAdmin.modes.replace',
+    'databaseAdmin.messages.dryRunSuccess',
+  ];
+
+  for (const locale of [en, de]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toBeDefined();
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});

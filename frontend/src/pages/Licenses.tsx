@@ -1,7 +1,9 @@
 
 import { useState, useEffect } from 'react';
+import { ClockIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { licenseApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
 
 interface License {
@@ -46,6 +48,9 @@ const initialForm: LicenseForm = {
   renewalDate: '',
 };
 
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
+
 const Licenses = () => {
   const { t } = useI18n();
   const [licenses, setLicenses] = useState<License[]>([]);
@@ -57,6 +62,7 @@ const Licenses = () => {
   const [form, setForm] = useState<LicenseForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
+  const [historyLicense, setHistoryLicense] = useState<License | null>(null);
 
   useEffect(() => { loadLicenses();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial licenses load only; loader uses current translation fallback for this mount.
@@ -214,8 +220,17 @@ const Licenses = () => {
                     ) : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    <button onClick={() => handleEdit(l)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
-                    <button onClick={() => handleDelete(l.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleEdit(l)} aria-label={`${t('common.edit')}: ${l.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                        <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                      <button onClick={() => setHistoryLicense(l)} aria-label={`${t('history.viewHistory')}: ${l.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                        <ClockIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                      <button onClick={() => handleDelete(l.id)} aria-label={`${t('common.delete')}: ${l.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                        <TrashIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -305,6 +320,8 @@ const Licenses = () => {
           </div>
         </div>
       </Modal>
+
+      <EntityHistoryModal isOpen={!!historyLicense} onClose={() => setHistoryLicense(null)} entityId={historyLicense?.id} entityName={historyLicense?.name} loadHistory={licenseApi.history} />
     </div>
   );
 };

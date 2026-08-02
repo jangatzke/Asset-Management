@@ -261,16 +261,21 @@ describe('AdminService', () => {
   });
 
   describe('deleteUser', () => {
-    it('should delete user successfully', async () => {
+    it('should archive user instead of hard-deleting to preserve audit traceability', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
-      mockPrismaClient.userRole.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaClient.userGroup.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaClient.user.delete.mockResolvedValue(testUser);
+      mockPrismaClient.user.update.mockResolvedValue({ ...testUser, isArchived: true, isActive: false });
 
       const result = await adminService.deleteUser(testUser.id);
 
-      expect(result).toEqual({ message: 'User deleted successfully' });
-      expect(mockPrismaClient.user.delete).toHaveBeenCalled();
+      expect(result).toEqual({ message: 'User archived successfully' });
+      expect(mockPrismaClient.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: testUser.id },
+          data: expect.objectContaining({ isArchived: true, isActive: false }),
+        })
+      );
+      // Ensure hard delete is NOT called
+      expect(mockPrismaClient.user.delete).not.toHaveBeenCalled();
     });
 
     it('should throw an error if user not found', async () => {

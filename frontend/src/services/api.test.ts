@@ -49,6 +49,28 @@ test('api refresh interceptor retries after successful refresh exactly once and 
   expect(mockedApi.mock.calls[0][0].headers.Authorization).toBe('Bearer fresh-token');
 });
 
+test('authApi.refresh and 401 interceptor share the same refresh request', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { authApi } = await import('./api');
+
+  const error = {
+    response: { status: 401 },
+    config: { url: '/assets', headers: {}, _retry: false },
+  };
+
+  const [refreshResponse] = await Promise.all([
+    authApi.refresh(),
+    mockedApi.__handlers.response(error),
+  ]);
+
+  expect(mockedApi.post).toHaveBeenCalledTimes(1);
+  expect(mockedApi.post).toHaveBeenCalledWith('/auth/refresh');
+  expect(refreshResponse).toEqual({ data: { token: 'fresh-token' } });
+  expect(mockedApi).toHaveBeenCalledTimes(1);
+  expect(mockedApi.mock.calls[0][0].headers.Authorization).toBe('Bearer fresh-token');
+});
+
 test('phase 6 API client methods accept shared DTO contract types for target resources', async () => {
   resetApiTestState();
   const mockedApi = installAxiosMock();
@@ -108,4 +130,56 @@ test('integration API clients use backend-mounted admin integration routes', asy
   expect(mockedApi.post).toHaveBeenCalledWith('/admin/proxmox/servers/server-1/test-connection');
   expect(mockedApi.get).toHaveBeenCalledWith('/admin/vmware/credentials');
   expect(mockedApi.get).toHaveBeenCalledWith('/admin/vmware/vcenters');
+});
+
+test('admin database API client uses protected database endpoints with multipart import', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { adminApi } = await import('./api');
+  const file = new File(['{}'], 'backup.json', { type: 'application/json' });
+
+  await adminApi.getDatabaseConfig();
+  await adminApi.exportDatabase();
+  await adminApi.importDatabase(file, 'dryRun');
+  await adminApi.importDatabase(file, 'append');
+  await adminApi.importDatabase(file, 'replace');
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/admin/database/config');
+  expect(mockedApi.get).toHaveBeenCalledWith('/admin/database/export', { responseType: 'blob' });
+  expect(mockedApi.post).toHaveBeenCalledWith('/admin/database/import', expect.any(FormData), {
+    params: { mode: 'replace', dryRun: 'true' },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  expect(mockedApi.post).toHaveBeenCalledWith('/admin/database/import', expect.any(FormData), {
+    params: { mode: 'append', dryRun: undefined },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  expect(mockedApi.post).toHaveBeenCalledWith('/admin/database/import', expect.any(FormData), {
+    params: { mode: 'replace', dryRun: undefined },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+});
+
+test('incidentApi.history calls correct endpoint with optional filters', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { incidentApi } = await import('./api');
+
+  await incidentApi.history('incident-123', { action: 'UPDATE', limit: 20, offset: 10 });
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/incidents/incident-123/history', {
+    params: { action: 'UPDATE', limit: 20, offset: 10 },
+  });
+});
+
+test('incidentApi.history without params uses defaults', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { incidentApi } = await import('./api');
+
+  await incidentApi.history('incident-456');
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/incidents/incident-456/history', {
+    params: undefined,
+  });
 });

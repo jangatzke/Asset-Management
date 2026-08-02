@@ -22,6 +22,12 @@ const routeContractCases: Array<{ name: string; schema: z.ZodTypeAny; valid: obj
     invalid: { name: '', assetTypeId: 'not-a-uuid' },
   },
   {
+    name: 'AssetDeterministicDemoIds',
+    schema: CreateAssetSchema,
+    valid: { name: 'Demo Router', assetTypeId: 'demo-helio-assettype-network-device', organizationUnitId: 'demo-helio-org-it', technicalOperatorId: 'demo-helio-user-asset' },
+    invalid: { name: 'Demo Router', assetTypeId: 'not-a-uuid', organizationUnitId: 'org-it' },
+  },
+  {
     name: 'AssetRelation',
     schema: AssetRelationCreateSchema,
     valid: { targetAssetId: '11111111-1111-4111-8111-111111111111', relationshipType: 'depends_on' },

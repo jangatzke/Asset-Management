@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import {
@@ -35,9 +35,7 @@ const Layout = () => {
   }, [checkAuth]);
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/login');
-    } else if (!isLoading && user?.mustChangePasswordOnNext && location.pathname !== '/settings') {
+    if (!isLoading && user?.mustChangePasswordOnNext && location.pathname !== '/settings') {
       navigate('/settings');
     }
   }, [isLoading, user, navigate, location.pathname]);
@@ -52,6 +50,18 @@ const Layout = () => {
   }, [userMenuOpen]);
 
   const isAdmin = user?.roles?.includes('system_admin');
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-sm text-gray-600 dark:text-gray-300">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
 
   const navigation = [
     { name: t('navigation.dashboard'), href: '/', icon: HomeIcon },
@@ -98,11 +108,19 @@ const Layout = () => {
     { name: t('navigation.proxmoxConfig'), href: '/admin/proxmox' },
     { name: t('navigation.reminderSettings'), href: '/admin/reminders' },
     { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
+    { name: t('navigation.databaseBackup'), href: '/admin/database' },
   ];
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <nav className="bg-white dark:bg-gray-800 shadow-sm">
+      {/* Skip to content link for keyboard users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded shadow-md"
+      >
+        Skip to main content
+      </a>
+      <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between min-h-16 gap-3 py-2 lg:py-0">
             <div className="flex items-center flex-1 min-w-0 overflow-hidden">
@@ -133,7 +151,9 @@ const Layout = () => {
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 mr-2"
-                aria-label="Toggle navigation"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-navigation-menu"
+                aria-label="Toggle navigation menu"
               >
                 {mobileMenuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
               </button>
@@ -146,6 +166,9 @@ const Layout = () => {
                     setUserMenuOpen(!userMenuOpen);
                   }}
                   className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:outline-none"
+                  aria-haspopup="listbox"
+                  aria-expanded={userMenuOpen}
+                  aria-label="User menu"
                 >
                   <UserIcon className="h-5 w-5" />
                   <span className="font-medium">
@@ -197,7 +220,7 @@ const Layout = () => {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-3">
+            <div id="mobile-navigation-menu" className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-3" role="navigation" aria-label="Mobile navigation">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {navigation.map((item) => (
                   <Link
@@ -238,7 +261,7 @@ const Layout = () => {
           </nav>
         </div>
       )}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
         <Outlet />
       </main>
     </div>

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
 export interface CreateBusinessProcessData {
   name: string;
@@ -105,6 +106,14 @@ export class BusinessProcessService {
       },
     });
 
+    // Record entity history
+    await recordCreateHistory({
+      entityType: 'Process',
+      entityId: process.id,
+      data: { name: data.name },
+      actorId: createdBy,
+    });
+
     return process;
   }
 
@@ -119,10 +128,20 @@ export class BusinessProcessService {
       data: { ...data, updatedBy },
     });
 
+    // Record entity history for update (status-like field is status)
+    await recordUpdateHistory({
+      entityType: 'Process',
+      entityId: id,
+      oldData: toHistoryData(existing as any),
+      newData: toHistoryData(process as any),
+      statusField: 'status',
+      actorId: updatedBy,
+    });
+
     return process;
   }
 
-  async delete(id: string) {
+  async delete(id: string, deletedBy?: string) {
     const existing = await prisma.businessProcess.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Business process not found', 404);
@@ -131,6 +150,13 @@ export class BusinessProcessService {
     await prisma.businessProcess.update({
       where: { id },
       data: { isArchived: true },
+    });
+
+    // Record entity history for delete (archive)
+    await recordDeleteHistory({
+      entityType: 'Process',
+      entityId: id,
+      actorId: deletedBy,
     });
 
     return { success: true };

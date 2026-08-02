@@ -1,7 +1,9 @@
 
 import { useState, useEffect } from 'react';
+import { ClockIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { processApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
 
 interface Process {
@@ -33,6 +35,9 @@ const initialForm: ProcessForm = {
   processOwner: '',
 };
 
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
+
 const Processes = () => {
   const { t } = useI18n();
   const [processes, setProcesses] = useState<Process[]>([]);
@@ -48,6 +53,7 @@ const Processes = () => {
   const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
   const [linkedRisks, setLinkedRisks] = useState<any[]>([]);
   const [risksLoading, setRisksLoading] = useState(false);
+  const [historyProcess, setHistoryProcess] = useState<Process | null>(null);
 
   useEffect(() => { loadProcesses(); }, []);
 
@@ -213,9 +219,20 @@ const Processes = () => {
                 <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(p.status)}`}>{p.status}</span></td>
                 <td className="px-6 py-4 text-sm text-gray-500">{p.processOwner || '-'}</td>
                 <td className="px-6 py-4 text-sm">
-                  <button onClick={() => handleViewDetails(p)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.view')}</button>
-                  <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 mr-3">{t('common.edit')}</button>
-                  <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800">{t('common.delete')}</button>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleViewDetails(p)} aria-label={`${t('common.view')}: ${p.name}`} title={t('common.view')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <EyeIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                    <button onClick={() => handleEdit(p)} aria-label={`${t('common.edit')}: ${p.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                    <button onClick={() => setHistoryProcess(p)} aria-label={`${t('history.viewHistory')}: ${p.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                      <ClockIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                    <button onClick={() => handleDelete(p.id)} aria-label={`${t('common.delete')}: ${p.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                      <TrashIcon aria-hidden="true" className={actionIconClassName} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -327,6 +344,8 @@ const Processes = () => {
           </div>
         )}
       </Modal>
+
+      <EntityHistoryModal isOpen={!!historyProcess} onClose={() => setHistoryProcess(null)} entityId={historyProcess?.id} entityName={historyProcess?.name} loadHistory={processApi.history} />
     </div>
   );
 };

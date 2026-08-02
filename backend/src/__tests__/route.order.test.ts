@@ -113,6 +113,14 @@ describe('Route Order - Asset Routes (IAM-003)', () => {
       expect(response.status).toBe(200);
       expect(mockAssetService.getById).toHaveBeenCalledWith(testUuid);
     });
+
+    it('GET /assets/:id accepts deterministic non-UUID asset IDs used by demo/import data', async () => {
+      const deterministicId = 'demo-helio-asset-001';
+      const response = await request(app).get(`/assets/${deterministicId}`);
+
+      expect(response.status).toBe(200);
+      expect(mockAssetService.getById).toHaveBeenCalledWith(deterministicId);
+    });
   });
 
   describe('Cost planning route contracts', () => {

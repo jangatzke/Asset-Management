@@ -44,6 +44,7 @@
     "update": "Update",
     "back": "Back",
     "allStatuses": "All Statuses",
+    "all": "All",
     "number": "Number",
     "vendor": "Vendor",
     "dates": "Dates",
@@ -81,7 +82,56 @@
     "riskAggregation": "Risk Aggregation",
     "reminderSettings": "Reminder Automation",
     "fiscalYearSettings": "Fiscal Year",
-    "authSettings": "Authentication"
+    "authSettings": "Authentication",
+    "databaseBackup": "Database Backup"
+  },
+  "databaseAdmin": {
+    "title": "Database backup and restore",
+    "description": "Export a portable JSON backup or validate and import a backup file. Only safe database metadata is shown; credentials are never displayed.",
+    "configTitle": "Current database configuration",
+    "refreshConfig": "Refresh configuration",
+    "provider": "Provider",
+    "databaseUrlSource": "Database URL source",
+    "providerSwitchingMode": "Provider switching mode",
+    "portableBackupFormat": "Portable backup format",
+    "prismaSchema": "Prisma schema",
+    "jsonCompatibilityMode": "JSON compatibility mode",
+    "limitations": "Provider limitations",
+    "exportTitle": "Export backup",
+    "exportDescription": "Downloads a DBMS-neutral portable JSON backup with row counts and checksum metadata. Secret fields are redacted by the backend.",
+    "exportButton": "Download JSON backup",
+    "exporting": "Exporting...",
+    "importTitle": "Import or restore backup",
+    "importDescription": "Select a portable backup file and choose dry-run validation, append, or replace restore mode. Run a dry run before restoring production data.",
+    "backupFile": "Backup file",
+    "importMode": "Import mode",
+    "importButton": "Start import workflow",
+    "importing": "Importing...",
+    "replaceWarning": "Replace mode deletes existing exported models before importing rows from the backup. This is destructive and cannot be undone from the UI.",
+    "replaceConfirmationLabel": "Type RESTORE to enable replace mode",
+    "replaceConfirmationPhrase": "RESTORE",
+    "modes": {
+      "dryRun": "Dry run: validate only",
+      "append": "Append: add rows without clearing existing data",
+      "replace": "Replace: clear known models and restore backup"
+    },
+    "resultTitle": "Import validation result",
+    "resultMode": "Mode",
+    "resultChecksum": "Checksum",
+    "resultFormat": "Format",
+    "validation": "Validation",
+    "validationOk": "Checksum verified",
+    "rowCounts": "Row counts",
+    "messages": {
+      "configError": "Could not load database configuration.",
+      "exportSuccess": "Backup download started.",
+      "exportError": "Could not export database backup.",
+      "fileRequired": "Select a JSON backup file first.",
+      "replaceConfirmationRequired": "Type the confirmation phrase before using replace mode.",
+      "dryRunSuccess": "Backup validated successfully. No data was written.",
+      "importSuccess": "Backup import completed successfully.",
+      "importError": "Could not import database backup."
+    }
   },
   "ismsOperations": {
     "title": "ISMS Operations",
@@ -218,6 +268,51 @@
     "controls": "Controls",
     "incidents": "Incidents"
   },
+  "history": {
+    "title": "History",
+    "viewHistory": "View history",
+    "actionFilter": "Action",
+    "loading": "Loading history...",
+    "empty": "No history available",
+    "loadError": "Failed to load history",
+    "changes": "Changes",
+    "field": "Field",
+    "oldValue": "Old Value",
+    "newValue": "New Value",
+    "system": "System",
+    "byActor": "by {actor}",
+    "emptyValue": "—",
+    "actions": {
+      "CREATE": "Created",
+      "UPDATE": "Updated",
+      "DELETE": "Deleted",
+      "STATUS_CHANGE": "Status changed",
+      "ASSESSMENT": "Assessment",
+      "RELATION_CHANGE": "Relation changed",
+      "LIFECYCLE_CHANGE": "Lifecycle changed",
+      "CLOSE": "Closed",
+      "REOPEN": "Reopened"
+    },
+    "fields": {
+      "name": "Name",
+      "title": "Title",
+      "description": "Description",
+      "status": "Status",
+      "criticality": "Criticality",
+      "lifecycleStatus": "Lifecycle Status",
+      "implementationStatus": "Implementation Status",
+      "maturityLevel": "Maturity Level",
+      "riskLevel": "Risk Level",
+      "likelihood": "Likelihood",
+      "impact": "Impact",
+      "vendor": "Vendor",
+      "type": "Type",
+      "contractNumber": "Contract Number",
+      "licenseKey": "License Key",
+      "seats": "Seats",
+      "processOwner": "Process Owner"
+    }
+  },
   "groups": {
     "createGroup": "Create Group",
     "editGroup": "Edit Group",
@@ -225,6 +320,73 @@
     "assignRoles": "Assign Roles",
     "selectUsers": "Select users to assign to this group",
     "selectRoles": "Select roles to assign to this group"
+  },
+  "adminUsers": {
+    "title": "User Management",
+    "newUser": "+ New User",
+    "createUser": "Create User",
+    "editUser": "Edit User",
+    "loading": "Loading users...",
+    "creating": "Creating...",
+    "searchPlaceholder": "Search users...",
+    "noUsers": "No users found",
+    "userDetails": "User details",
+    "manageRolesFor": "Manage roles for",
+    "accountActions": "Account actions",
+    "saveUser": "Save User",
+    "saveRoles": "Save Roles",
+    "columns": {
+      "user": "User",
+      "email": "Email",
+      "account": "Account",
+      "roles": "Roles",
+      "groups": "Groups",
+      "status": "Status"
+    },
+    "fields": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "password": "Password",
+      "phoneOptional": "Phone (optional)",
+      "roles": "Roles"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "account": {
+      "oidc": "OIDC",
+      "local": "Local"
+    },
+    "actions": {
+      "editUser": "Edit: {name}",
+      "deleteUser": "Delete: {name}",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "resetPassword": "Reset Password"
+    },
+    "messages": {
+      "loadError": "Failed to load users",
+      "requiredUserFields": "Email, first name and last name are required",
+      "passwordRequired": "Password is required",
+      "createSuccess": "User created successfully",
+      "createError": "Failed to create user",
+      "deleteConfirm": "Are you sure you want to delete this user?",
+      "deleteSuccess": "User deleted successfully",
+      "deleteError": "Failed to delete user",
+      "activateSuccess": "User activated",
+      "deactivateSuccess": "User deactivated",
+      "updateSuccess": "User updated successfully",
+      "updateError": "Failed to update user",
+      "roleRequired": "At least one role is required",
+      "rolesUpdateSuccess": "Roles updated successfully",
+      "rolesUpdateError": "Failed to assign roles",
+      "passwordPrompt": "Enter new password:",
+      "passwordMinLength": "Password must be at least 6 characters",
+      "passwordResetSuccess": "Password reset successfully. User must change on next login.",
+      "passwordResetError": "Failed to reset password"
+    }
   },
   "oidc": {
     "noConfig": "No OIDC configuration found",
@@ -546,6 +708,7 @@
     "linkedRiskCount": "{count} linked risk(s)",
     "showLinkedRisks": "Show linked risks ({count})",
     "noLinkedRisks": "No linked risks for this implementation.",
+    "searchUsers": "Search users...",
     "addImplementation": "Add implementation",
     "createImplementation": "Create Control Implementation",
     "implementationCreateError": "Could not create control implementation",
@@ -639,6 +802,30 @@
       "status": "Status",
       "severity": "Severity",
       "detectionTime": "Detection Time"
+    },
+    "history": {
+      "title": "History",
+      "viewHistory": "View history",
+      "noHistory": "No history available",
+      "loadingHistory": "Loading history...",
+      "loadHistoryError": "Failed to load history",
+      "action": "Action",
+      "timestamp": "Timestamp",
+      "summary": "Summary",
+      "changes": "Changes",
+      "field": "Field",
+      "oldValue": "Old Value",
+      "newValue": "New Value",
+      "actions": {
+        "CREATE": "Created",
+        "UPDATE": "Updated",
+        "DELETE": "Deleted",
+        "STATUS_CHANGE": "Status changed",
+        "ASSESSMENT": "Assessment",
+        "KNOWLEDGE_TIME_CHANGE": "Knowledge time changed",
+        "CLOSE": "Closed",
+        "REOPEN": "Reopened"
+      }
     }
   },
   "dashboard": {

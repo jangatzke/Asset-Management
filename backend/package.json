@@ -8,15 +8,19 @@
     "dev": "node scripts/with-backend-env.cjs tsx watch src/index.ts",
     "build": "tsc",
     "start": "node scripts/with-backend-env.cjs node dist/index.js",
-    "pretest": "npm --workspace=shared run build && node scripts/with-backend-env.cjs prisma generate",
+    "pretest": "npm --workspace=shared run build && node scripts/prisma-provider.cjs generate",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "db:migrate": "node scripts/with-backend-env.cjs prisma migrate dev",
-    "db:deploy": "node scripts/with-backend-env.cjs prisma migrate deploy",
+    "db:migrate": "node scripts/prisma-provider.cjs migrate dev",
+    "db:deploy": "node scripts/prisma-provider.cjs migrate deploy",
     "db:seed": "node scripts/with-backend-env.cjs tsx prisma/seed.ts",
     "db:seed:demo": "node scripts/with-backend-env.cjs tsx prisma/demo-seed.ts",
-    "db:generate": "node scripts/with-backend-env.cjs prisma generate",
-    "db:setup:cost-planning": "node scripts/with-backend-env.cjs prisma migrate deploy && node scripts/with-backend-env.cjs prisma generate"
+    "db:generate": "node scripts/prisma-provider.cjs generate",
+    "db:validate": "node scripts/prisma-provider.cjs validate",
+    "db:schema:sqlserver": "node scripts/prisma-provider.cjs build-sqlserver-schema",
+    "db:migrate:sqlserver": "node scripts/prisma-provider.cjs migrate dev --name init-sqlserver",
+    "db:deploy:sqlserver": "node scripts/prisma-provider.cjs migrate deploy",
+    "db:setup:cost-planning": "node scripts/prisma-provider.cjs migrate deploy && node scripts/prisma-provider.cjs generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

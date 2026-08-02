@@ -44,14 +44,99 @@ export interface PaginatedApiResponse<T> {
   totalPages?: number;
 }
 
+/** Standardized API error types for client-side error handling */
+export interface ApiErrorDetail {
+  message: string;
+  code?: string;
+  field?: string;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    message: string;
+    code?: string;
+    details?: ApiErrorDetail[];
+    stack?: string;
+  };
+}
+
 export type ApiEntity = Record<string, JsonValue | undefined>;
-export type AssetResponse = Record<string, unknown>;
-export type RiskResponse = Record<string, unknown>;
-export type ControlResponse = Record<string, unknown>;
-export type IncidentResponse = Record<string, unknown>;
+
+/** Typed response wrappers for specific entity types */
+export type AssetResponse = Record<string, unknown> & { type?: string; criticality?: string; displayId?: string };
+export type RiskResponse = Record<string, unknown> & { riskLevel?: string; status?: string };
+export type ControlResponse = Record<string, unknown> & { status?: string; catalogId?: string };
+export type IncidentResponse = Record<string, unknown> & { severity?: string; status?: string };
 export type DeleteResponse = { success: boolean };
+
+export interface EntityHistoryFieldChange {
+  old?: unknown;
+  new?: unknown;
+  oldValue?: unknown;
+  newValue?: unknown;
+  from?: unknown;
+  to?: unknown;
+  [key: string]: unknown;
+}
+
+export interface EntityHistoryEntry {
+  id: string;
+  entityType?: string;
+  entityId?: string;
+  action: string;
+  fieldChanges?: Record<string, EntityHistoryFieldChange | unknown>;
+  summary?: string;
+  actorId?: string;
+  actorName?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type EntityHistoryParams = { action?: string; limit?: number; offset?: number };
+
+export type DatabaseImportMode = 'dryRun' | 'append' | 'replace';
+
+export interface SafeDatabaseConfig {
+  provider: string;
+  databaseUrlSource: string;
+  providerSwitchingMode: string;
+  portableBackupFormat: string;
+  prismaSchema: string;
+  jsonCompatibilityMode: string;
+  limitations: string[];
+}
+
+export interface DatabaseImportResult {
+  format: string;
+  mode: 'append' | 'replace';
+  dryRun: boolean;
+  rowCounts: Record<string, number>;
+  checksum: string;
+}
+
+/** Parameters for graph and impact analysis API calls */
 export type AssetGraphParams = { depth?: number; maxDepth?: number; direction?: string; relationTypes?: string };
 export type AssetImpactParams = { depth?: number; includeProcesses?: boolean; includeServices?: boolean };
+
+/** Generic wrapper for single-entity API responses */
+export interface ApiResponse<T> {
+  data: T | null;
+  [key: string]: unknown;
+}
+
+/** Generic wrapper for paginated API responses */
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -62,6 +147,20 @@ const api = axios.create({
 });
 
 let refreshPromise: Promise<string> | null = null;
+
+export const refreshAccessToken = (): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = api.post('/auth/refresh').then((response) => {
+      const token = response.data.token;
+      setAccessToken(token);
+      return token;
+    }).finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+};
 
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
@@ -81,17 +180,7 @@ api.interceptors.response.use(
     }
 
     originalRequest._retry = true;
-    if (!refreshPromise) {
-      refreshPromise = api.post('/auth/refresh').then((response) => {
-        const token = response.data.token;
-        setAccessToken(token);
-        return token;
-      }).finally(() => {
-        refreshPromise = null;
-      });
-    }
-
-    const token = await refreshPromise;
+    const token = await refreshAccessToken();
     originalRequest.headers.Authorization = `Bearer ${token}`;
     return api(originalRequest);
   },
@@ -111,7 +200,7 @@ export const authApi = {
     api.post('/auth/create-first-admin', data),
   hasAdmin: () => api.get('/auth/has-admin'),
   me: () => api.get('/auth/me'),
-  refresh: () => api.post('/auth/refresh'),
+  refresh: async () => ({ data: { token: await refreshAccessToken() } }),
   logout: () => api.post('/auth/logout'),
   changeOwnPassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post('/auth/me/change-password', data),
@@ -150,6 +239,7 @@ export const assetApi = {
   restore: (id: string, data: ArchiveAssetDTO) => api.post(`/assets/${id}/restore`, data),
   transitionLifecycle: (id: string, data: LifecycleTransitionDTO) => api.post(`/assets/${id}/lifecycle-transition`, data),
   setDisposalProof: (id: string, data: DisposalProofDTO) => api.post(`/assets/${id}/disposal-proof`, data),
+  history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/assets/${id}/history`, { params }),
 };
 
 export const riskApi = {
@@ -172,6 +262,7 @@ export const riskApi = {
   linkRiskControl: (data: CreateRiskControlDTO) => api.post('/risks/risk-controls', data),
   assessRiskControlFlat: (data: CreateRiskControlAssessmentDTO) => api.post('/risks/risk-control-assessments', data),
   closeAssessmentVersion: (id: string) => api.post(`/risks/assessment-versions/${id}/close`),
+  history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/risks/${id}/history`, { params }),
 };
 
 export const controlApi = {
@@ -187,6 +278,7 @@ export const controlApi = {
   createSoA: (data: CreateSoADTO) => api.post('/controls/soa', data),
   submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
+  history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/controls/${id}/history`, { params }),
 };
 
 export const catalogApi = {
@@ -251,6 +343,7 @@ export const incidentApi = {
   exportReport: (reportId: string) => api.get(`/incidents/reports/${reportId}/export`),
   createCommunication: (id: string, data: CreateIncidentCommunicationDTO) => api.post(`/incidents/${id}/communications`, data),
   close: (id: string, data: CloseIncidentDTO) => api.post(`/incidents/${id}/close`, data),
+  history: (id: string, params?: { action?: string; limit?: number; offset?: number }) => api.get(`/incidents/${id}/history`, { params }),
 };
 
 export const nis2Api = {
@@ -305,11 +398,29 @@ export const adminApi = {
     api.put(`/admin/asset-types/${id}`, data),
   deleteAssetType: (id: string) => api.delete(`/admin/asset-types/${id}`),
   archiveAssetType: (id: string) => api.post(`/admin/asset-types/${id}/archive`),
-  getFiscalYearConfig: () => api.get('/admin/fiscal-year-config'),
-  updateFiscalYearConfig: (data: { startMonth: number; startDay: number; timezone?: string }) =>
-    api.put('/admin/fiscal-year-config', data),
+  // Organization Unit Management
+  listOrganizationUnits: (includeArchived = false) => api.get('/admin/organization-units', { params: { includeArchived } }),
+  getOrganizationUnit: (id: string) => api.get(`/admin/organization-units/${id}`),
+  createOrganizationUnit: (data: { name: string; description?: string; parentId?: string; type?: string }) =>
+    api.post('/admin/organization-units', data),
+  updateOrganizationUnit: (id: string, data: { name?: string; description?: string; parentId?: string; type?: string }) =>
+    api.put(`/admin/organization-units/${id}`, data),
+  archiveOrganizationUnit: (id: string) => api.post(`/admin/organization-units/${id}/archive`),
+  restoreOrganizationUnit: (id: string) => api.post(`/admin/organization-units/${id}/restore`),
+  searchOrganizationUnits: (q = '', limit = 50) => api.get('/admin/organization-units/search', { params: { q, limit } }),
   getAuthSettings: () => api.get('/admin/auth-settings'),
   updateAuthSettings: (data: any) => api.put('/admin/auth-settings', data),
+  getDatabaseConfig: () => api.get<SafeDatabaseConfig>('/admin/database/config'),
+  exportDatabase: () => api.get('/admin/database/export', { responseType: 'blob' }),
+  importDatabase: (backup: File, mode: DatabaseImportMode) => {
+    const formData = new FormData();
+    formData.append('backup', backup);
+    const dryRun = mode === 'dryRun';
+    return api.post<DatabaseImportResult>('/admin/database/import', formData, {
+      params: { mode: dryRun ? 'replace' : mode, dryRun: dryRun ? 'true' : undefined },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export const costPlanningApi = {
@@ -362,6 +473,7 @@ export const contractApi = {
   create: (data: any) => api.post('/contracts', data),
   update: (id: string, data: any) => api.patch(`/contracts/${id}`, data),
   delete: (id: string) => api.delete(`/contracts/${id}`),
+  history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/contracts/${id}/history`, { params }),
 };
 
 // License API
@@ -372,6 +484,7 @@ export const licenseApi = {
   update: (id: string, data: any) => api.patch(`/licenses/${id}`, data),
   delete: (id: string) => api.delete(`/licenses/${id}`),
   getAssets: (id: string) => api.get(`/licenses/${id}/assets`),
+  history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/licenses/${id}/history`, { params }),
 };
 
 // Business Process API (backend uses /processes)
@@ -382,6 +495,7 @@ export const processApi = {
   update: (id: string, data: any) => api.patch(`/processes/${id}`, data),
   delete: (id: string) => api.delete(`/processes/${id}`),
   getRisks: (id: string) => api.get(`/processes/${id}/risks`),
+  history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/processes/${id}/history`, { params }),
 };
 
 // Risk Treatment API

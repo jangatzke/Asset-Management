@@ -1,8 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { DocumentPlusIcon, PencilSquareIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { incidentApi, nis2Api } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
+
+interface HistoryEntry {
+  id: string;
+  incidentId: string;
+  action: string;
+  fieldChanges?: Record<string, unknown>;
+  summary?: string;
+  actorId?: string;
+  actorName?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+}
 
 interface Incident {
   id: string;
@@ -84,6 +98,9 @@ const initialIncidentForm = (): IncidentForm => {
 
 const activeIncidentStatuses = ['new', 'under_investigation', 'contained'];
 
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionIconClassName = 'h-4 w-4';
+
 export const normalizeIncidentStatusFilter = (value: string | null) => value === 'open' ? 'open' : value ?? '';
 export const matchesIncidentStatusFilter = (incident: Pick<Incident, 'status'>, statusFilter: string) => {
   if (!statusFilter) return true;
@@ -104,6 +121,43 @@ const Incidents = () => {
   const [saving, setSaving] = useState(false);
   const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
   const [form, setForm] = useState<IncidentForm>(initialIncidentForm);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyActionFilter, setHistoryActionFilter] = useState('');
+
+  const openHistory = async (incidentId: string) => {
+    setHistoryOpen(true);
+    setHistoryEntries([]);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const params: Record<string, string | number | undefined> = { limit: 100, offset: 0 };
+      if (historyActionFilter) params.action = historyActionFilter;
+      const response = await incidentApi.history(incidentId, params);
+      setHistoryEntries(response.data.data || response.data || []);
+    } catch (err: any) {
+      setHistoryError(err.response?.data?.message || t('incidents.history.loadHistoryError'));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const loadHistoryPage = async (incidentId: string, offset: number) => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const params: Record<string, string | number | undefined> = { limit: 50, offset };
+      if (historyActionFilter) params.action = historyActionFilter;
+      const response = await incidentApi.history(incidentId, params);
+      setHistoryEntries(response.data.data || response.data || []);
+    } catch (err: any) {
+      setHistoryError(err.response?.data?.message || t('incidents.history.loadHistoryError'));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadIncidents();
@@ -402,12 +456,17 @@ const Incidents = () => {
                     {incident.significanceReasons?.length ? <div className="text-xs text-red-600 dark:text-red-400">{incident.significanceReasons.join(', ')}</div> : null}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                    <button onClick={() => openEditModal(incident)} className="px-3 py-1 mr-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                      {t('common.edit')}
-                    </button>
-                    <button onClick={() => createEarlyWarning(incident)} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-                      {t('incidents.warningDraft')}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEditModal(incident)} aria-label={`${t('common.edit')}: ${incident.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                        <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                      <button onClick={() => createEarlyWarning(incident)} aria-label={`${t('incidents.warningDraft')}: ${incident.title}`} title={t('incidents.warningDraft')} className={`${actionButtonClassName} text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300`}>
+                        <DocumentPlusIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                      <button onClick={() => openHistory(incident.id)} aria-label={`${t('incidents.history.viewHistory')}: ${incident.title}`} title={t('incidents.history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                        <ClockIcon aria-hidden="true" className={actionIconClassName} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -510,6 +569,125 @@ const Incidents = () => {
             </button>
             <button type="button" onClick={saveIncident} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
               {saving ? t('common.saving') : t('common.save')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={t('incidents.history.title')}>
+        <div className="space-y-4">
+          {historyError && (
+            <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded">
+              {historyError}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <select
+              aria-label="Filter by action"
+              value={historyActionFilter}
+              onChange={(e) => {
+                setHistoryActionFilter(e.target.value);
+              }}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onBlur={() => {
+                if (editingIncident) loadHistoryPage(editingIncident.id, 0);
+              }}
+            >
+              <option value="">{t('common.all')}</option>
+              <option value="CREATE">{t('incidents.history.actions.CREATE')}</option>
+              <option value="UPDATE">{t('incidents.history.actions.UPDATE')}</option>
+              <option value="DELETE">{t('incidents.history.actions.DELETE')}</option>
+              <option value="STATUS_CHANGE">{t('incidents.history.actions.STATUS_CHANGE')}</option>
+              <option value="ASSESSMENT">{t('incidents.history.actions.ASSESSMENT')}</option>
+              <option value="KNOWLEDGE_TIME_CHANGE">{t('incidents.history.actions.KNOWLEDGE_TIME_CHANGE')}</option>
+              <option value="CLOSE">{t('incidents.history.actions.CLOSE')}</option>
+              <option value="REOPEN">{t('incidents.history.actions.REOPEN')}</option>
+            </select>
+          </div>
+
+          {historyLoading ? (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">{t('incidents.history.loadingHistory')}</div>
+          ) : historyEntries.length === 0 ? (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">{t('incidents.history.noHistory')}</div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto space-y-3">
+              {historyEntries.map((entry) => {
+                // Exclude oldStatus/newStatus from the changes table count and rows since they are already in the summary.
+                const visibleFieldChanges = entry.fieldChanges && typeof entry.fieldChanges === 'object'
+                  ? Object.fromEntries(Object.entries(entry.fieldChanges).filter(([key]) => !['oldStatus', 'newStatus'].includes(key)))
+                  : {};
+                const hasVisibleChanges = Object.keys(visibleFieldChanges).length > 0;
+
+                // Resolve actor display name: prefer explicit actorName, fall back to actorId, then "System".
+                const actorDisplay = entry.actorName || (entry.actorId ? `User ${entry.actorId}` : 'System');
+
+                return (
+                  <div key={entry.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {t(`incidents.history.actions.${entry.action}` as any) || entry.action}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(entry.createdAt).toLocaleString()}
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 ml-2" title={actorDisplay}>
+                            by {actorDisplay}
+                          </span>
+                        </div>
+                        {entry.summary && (
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{entry.summary}</p>
+                        )}
+                        {hasVisibleChanges && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById(`changes-${entry.id}`);
+                                if (el) el.classList.toggle('hidden');
+                              }}
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              {t('incidents.history.changes')} ({Object.keys(visibleFieldChanges).length})
+                            </button>
+                            <div id={`changes-${entry.id}`} className="hidden mt-2">
+                              <table className="min-w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                    <th className="pb-1 font-medium">{t('incidents.history.field')}</th>
+                                    <th className="pb-1 font-medium">{t('incidents.history.oldValue')}</th>
+                                    <th className="pb-1 font-medium">{t('incidents.history.newValue')}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Object.entries(visibleFieldChanges).map(([field, change], idx) => (
+                                    <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
+                                      <td className="py-1 text-gray-700 dark:text-gray-300">{field}</td>
+                                      <td className="py-1 text-gray-500 dark:text-gray-400">{JSON.stringify((change as { old?: unknown }).old ?? '-')}</td>
+                                      <td className="py-1 text-gray-500 dark:text-gray-400">{JSON.stringify((change as { new?: unknown }).new ?? '-')}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(false)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              {t('common.cancel')}
             </button>
           </div>
         </div>

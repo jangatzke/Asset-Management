@@ -3,6 +3,30 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
+// ==========================================
+// Incident History (AUDIT-001)
+// ==========================================
+
+export type IncidentHistoryAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'ASSESSMENT' | 'KNOWLEDGE_TIME_CHANGE' | 'CLOSE' | 'REOPEN';
+
+export interface IncidentHistoryEntry {
+  id: string;
+  incidentId: string;
+  action: IncidentHistoryAction;
+  fieldChanges?: Record<string, { old?: unknown; new?: unknown } | unknown>[];
+  summary?: string;
+  actorId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: Date;
+}
+
+export interface GetHistoryQuery {
+  action?: IncidentHistoryAction;
+  limit?: number;
+  offset?: number;
+}
+
 export interface CreateIncidentData {
   title: string;
   description: string;
@@ -68,6 +92,8 @@ const DEFAULT_SIGNIFICANCE_RULES = {
 };
 
 export class IncidentService {
+  private readonly relationUpdateFields = ['affectedAssetIds', 'affectedServiceIds', 'affectedProcessIds'];
+
   private addHours(date: Date, hours: number) {
     return new Date(date.getTime() + hours * 60 * 60 * 1000);
   }
@@ -98,6 +124,128 @@ export class IncidentService {
       return false;
     });
     return { isSignificant: matched.length > 0, reasons: matched.map((rule: any) => rule.reason ?? rule.key), evaluatedRules: matched.map((rule: any) => rule.key) };
+  }
+
+  /**
+   * Record a history entry for an incident change.
+   * Append-only: each call creates a new record.
+   */
+  private async recordHistoryEntry(incidentId: string, action: IncidentHistoryAction, summary: string, fieldChanges: Record<string, { old?: unknown; new?: unknown } | unknown> = {}, actorId?: string, ipAddress?: string, userAgent?: string) {
+    const historyEntry = (prisma as any).incidentHistoryEntry;
+    if (!historyEntry) {
+      console.warn('IncidentService.recordHistoryEntry: incidentHistoryEntry model not available on prisma client');
+      return;
+    }
+    await historyEntry.create({
+      data: {
+        incidentId,
+        action,
+        summary,
+        fieldChanges,
+        actorId,
+        ipAddress,
+        userAgent,
+      },
+    });
+  }
+
+  private normalizeDecimalString(value: string): string {
+    const trimmed = value.trim();
+    const sign = trimmed.startsWith('-') ? '-' : '';
+    const unsigned = trimmed.replace(/^[+-]/, '');
+    const [integerPart, fractionalPart = ''] = unsigned.split('.');
+    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, '') || '0';
+    const normalizedFraction = fractionalPart.replace(/0+$/, '');
+    const normalized = normalizedFraction ? `${normalizedInteger}.${normalizedFraction}` : normalizedInteger;
+    return normalized === '0' ? '0' : `${sign}${normalized}`;
+  }
+
+  private normalizeFinancialImpactValue(value: unknown): unknown {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return '0';
+
+    const comparableValue = typeof value === 'object' && value !== null && typeof (value as any).toString === 'function'
+      ? (value as any).toString()
+      : value;
+
+    if (typeof comparableValue === 'number') {
+      if (!Number.isFinite(comparableValue)) return comparableValue;
+      return this.normalizeDecimalString(String(comparableValue));
+    }
+
+    if (typeof comparableValue === 'string') {
+      const trimmed = comparableValue.trim();
+      if (!trimmed) return '0';
+      if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(trimmed)) return this.normalizeDecimalString(trimmed);
+    }
+
+    return comparableValue;
+  }
+
+  private normalizeHistoryValue(field: string, value: unknown): unknown {
+    if (value === undefined) return undefined;
+
+    if (field === 'financialImpact') {
+      return this.normalizeFinancialImpactValue(value);
+    }
+
+    if (value === null) {
+      if (['isIntentional', 'hasCrossBorderImpact', 'personalDataImpact'].includes(field)) return false;
+      if (['affectedCustomers', 'affectedThirdParties', 'indicatorsOfCompromise', 'immediateActions', 'significanceReasons'].includes(field)) return [];
+      if (['confidentialityImpact', 'integrityImpact', 'availabilityImpact'].includes(field)) return 'none';
+      return null;
+    }
+
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value)) return value.map((item) => this.normalizeHistoryValue(field, item));
+
+    if (typeof value === 'object') {
+      const objectValue = value as any;
+      if (typeof objectValue.toJSON === 'function') {
+        return objectValue.toJSON();
+      }
+
+      return Object.fromEntries(
+        Object.entries(objectValue)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, entryValue]) => [key, this.normalizeHistoryValue(key, entryValue)])
+      );
+    }
+
+    return value;
+  }
+
+  private historyValuesEqual(field: string, oldValue: unknown, newValue: unknown) {
+    if (newValue === undefined) return true;
+    return JSON.stringify(this.normalizeHistoryValue(field, oldValue)) === JSON.stringify(this.normalizeHistoryValue(field, newValue));
+  }
+
+  /**
+   * Get the change history for a specific incident.
+   * Returns entries in chronological order (ascending by createdAt).
+   */
+  async getHistory(incidentId: string, query: GetHistoryQuery = {}) {
+    const { action, limit = 100, offset = 0 } = query;
+
+    const historyEntry = (prisma as any).incidentHistoryEntry;
+    if (!historyEntry) {
+      console.warn('IncidentService.getHistory: incidentHistoryEntry model not available on prisma client');
+      return [];
+    }
+
+    const where: any = { incidentId };
+    if (action) {
+      where.action = action;
+    }
+
+    const entries = await historyEntry.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+      skip: offset,
+    });
+
+    return entries;
   }
 
   async createSignificanceRuleVersion(data: { version: string; rules: unknown; effectiveFrom?: Date }, createdBy?: string) {
@@ -206,6 +354,9 @@ export class IncidentService {
       });
     }
 
+    // Incident history entry (AUDIT-001)
+    await this.recordHistoryEntry(incident.id, 'CREATE', `Created incident: ${data.title}`, {}, createdBy);
+
     return incident;
   }
 
@@ -217,6 +368,17 @@ export class IncidentService {
 
     if (data.knowledgeTime !== undefined && new Date(data.knowledgeTime).getTime() !== existing.knowledgeTime.getTime()) {
       throw new AppError('Knowledge time is protected and must be changed through the dedicated endpoint with reason', 400);
+    }
+
+    // Compute field changes for history (AUDIT-001)
+    const fieldChanges: Record<string, { old?: unknown; new?: unknown }> = {};
+    const allFields = Object.keys(data).filter(k => !this.relationUpdateFields.includes(k) && (data as any)[k] !== undefined);
+    for (const key of allFields) {
+      const oldVal = (existing as any)[key];
+      const newVal = (data as any)[key];
+      if (!this.historyValuesEqual(key, oldVal, newVal)) {
+        fieldChanges[key] = { old: oldVal, new: newVal };
+      }
     }
 
     // Audit log for incident update (if status or severity changed)
@@ -235,10 +397,30 @@ export class IncidentService {
     const incident = await prisma.incident.update({
       where: { id },
       data: {
-        ...Object.fromEntries(Object.entries(data).filter(([key]) => !['affectedAssetIds', 'affectedServiceIds', 'affectedProcessIds'].includes(key))),
+        ...Object.fromEntries(Object.entries(data).filter(([key]) => !this.relationUpdateFields.includes(key))),
         updatedBy,
       } as any,
     });
+
+    // Incident history entry (AUDIT-001): one summarized entry per update request.
+    const statusChanged = data.status !== undefined && !this.historyValuesEqual('status', (existing as any).status, data.status);
+    if (statusChanged) {
+      const { status: _statusChange, ...otherFieldChanges } = fieldChanges;
+      const otherChangedFields = Object.keys(otherFieldChanges);
+      // Only include otherFieldChanges in details; exclude oldStatus/newStatus from fieldChanges
+      // because they are already expressed in the summary line and would render as "-" in the generic changes table.
+      const details: Record<string, unknown> = { oldStatus: (existing as any).status, newStatus: data.status };
+      if (otherChangedFields.length > 0) {
+        for (const field of otherChangedFields) {
+          details[field] = otherFieldChanges[field];
+        }
+      }
+      const summarySuffix = otherChangedFields.length ? `; updated fields: ${otherChangedFields.join(', ')}` : '';
+      await this.recordHistoryEntry(id, 'STATUS_CHANGE', `Status changed from ${(existing as any).status} to ${data.status}${summarySuffix}`, details, updatedBy);
+    } else if (Object.keys(fieldChanges).length > 0) {
+      const changedFields = Object.keys(fieldChanges).join(', ');
+      await this.recordHistoryEntry(id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
+    }
 
     return incident;
   }
@@ -259,6 +441,9 @@ export class IncidentService {
         details: `Archived incident: ${existing.title}`,
       });
     }
+
+    // Incident history entry (AUDIT-001)
+    await this.recordHistoryEntry(id, 'DELETE', `Archived incident: ${existing.title}`, {}, deletedBy);
 
     await prisma.incident.update({
       where: { id },
@@ -303,6 +488,9 @@ export class IncidentService {
 
     await prisma.incident.update({ where: { id: incidentId }, data: { notificationStatus: data.isReportable ? 'pending_assessment' : 'not_required', isSignificant: data.isReportable, significanceReasons: evaluated.reasons } as any });
 
+    // Incident history entry (AUDIT-001)
+    await this.recordHistoryEntry(incidentId, 'ASSESSMENT', `Assessed incident: ${data.isReportable ? 'reportable' : 'not reportable'}`, { isReportable: data.isReportable, justification: data.reportingJustification }, data.assessorId);
+
     return assessment;
   }
 
@@ -338,6 +526,8 @@ export class IncidentService {
       return result;
     });
     await auditService.logEventStandalone(prisma, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: incident.knowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
+    // Incident history entry (AUDIT-001)
+    await this.recordHistoryEntry(incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: incident.knowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
     return updated;
   }
 
@@ -407,6 +597,9 @@ export class IncidentService {
     }
     const updated = await prisma.incident.update({ where: { id: incidentId }, data: { rootCause, lessonsLearned: data.lessonsLearned ?? incident.lessonsLearned, measuresEvaluation, closureSummary: data.closureSummary, status: 'closed', closedAt: new Date(), closedBy, updatedBy: closedBy } as any });
     await auditService.logEventStandalone(prisma, { userId: closedBy, action: 'INCIDENT_CLOSE', entityType: 'Incident', entityId: incidentId, details: data.closureSummary ?? 'Closed incident with root cause and measures evaluation' });
+    // Incident history entries (AUDIT-001)
+    await this.recordHistoryEntry(incidentId, 'STATUS_CHANGE', `Status changed to closed`, { oldStatus: incident.status, newStatus: 'closed' }, closedBy);
+    await this.recordHistoryEntry(incidentId, 'CLOSE', data.closureSummary ?? 'Closed incident with root cause and measures evaluation', { rootCause, measuresEvaluation, closureSummary: data.closureSummary }, closedBy);
     return updated;
   }
 
