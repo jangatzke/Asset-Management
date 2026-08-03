@@ -101,6 +101,7 @@ const Layout = () => {
     { name: t('navigation.roleManagement'), href: '/admin/roles' },
     { name: t('navigation.groupManagement'), href: '/admin/groups' },
     { name: t('navigation.assetTypes'), href: '/admin/asset-types' },
+    { name: t('navigation.organizationUnits'), href: '/admin/organization-units' },
     { name: t('navigation.oidcConfig'), href: '/admin/oidc' },
     { name: t('navigation.authSettings'), href: '/admin/auth-settings' },
     { name: t('intune.title'), href: '/admin/intune' },

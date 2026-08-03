@@ -427,7 +427,7 @@ adminRouter.delete('/business-processes/:id', authenticate, requireAdminAccess, 
 
 // ---- Organization Unit Management ----
 
-adminRouter.get('/organization-units', authenticate, requireAdminAccess, async (_req, res, next) => {
+adminRouter.get('/organization-units', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';
     const units = await adminService.listOrganizationUnits(includeArchived);

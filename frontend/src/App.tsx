@@ -14,6 +14,7 @@ const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 const AdminRoles = lazy(() => import('./pages/AdminRoles'));
 const AdminGroups = lazy(() => import('./pages/AdminGroups'));
 const AdminAssetTypes = lazy(() => import('./pages/AdminAssetTypes'));
+const AdminOrganizationUnits = lazy(() => import('./pages/AdminOrganizationUnits'));
 const AdminOIDC = lazy(() => import('./pages/AdminOIDC'));
 const AdminIntune = lazy(() => import('./pages/AdminIntune'));
 const AdminVMware = lazy(() => import('./pages/AdminVMware'));
@@ -64,6 +65,7 @@ function App() {
             <Route path="admin/roles" element={<AdminRoles />} />
             <Route path="admin/groups" element={<AdminGroups />} />
             <Route path="admin/asset-types" element={<AdminAssetTypes />} />
+            <Route path="admin/organization-units" element={<AdminOrganizationUnits />} />
             <Route path="admin/oidc" element={<AdminOIDC />} />
             <Route path="admin/intune" element={<AdminIntune />} />
             <Route path="admin/vmware" element={<AdminVMware />} />

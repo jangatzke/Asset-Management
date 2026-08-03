@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
-import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
@@ -113,6 +113,7 @@ const Controls = () => {
   const [implementationForm, setImplementationForm] = useState<ImplementationForm>(initialImplementationForm);
   const [expandedImplementationId, setExpandedImplementationId] = useState<string | null>(null);
   const [responsibleUserOption, setResponsibleUserOption] = useState<{ id: string; label: string } | null>(null);
+  const [organizationUnitOption, setOrganizationUnitOption] = useState<{ id: string; label: string } | null>(null);
   const [historyControl, setHistoryControl] = useState<Control | null>(null);
 
   useEffect(() => {
@@ -245,6 +246,7 @@ const Controls = () => {
   const openImplementationModal = (control: Control) => {
     setImplementationForm({ ...initialImplementationForm, controlId: control.id });
     setResponsibleUserOption(null);
+    setOrganizationUnitOption(null);
     setImplementationModalOpen(true);
   };
 
@@ -260,17 +262,27 @@ const Controls = () => {
     } catch { return []; }
   };
 
+  const searchOrganizationUnits = async (q: string) => {
+    try {
+      const res = await organizationApi.listUnits({ q, limit: 20 });
+      return res.data?.data ?? res.data ?? [];
+    } catch { return []; }
+  };
+
   const handleCreateImplementation = async () => {
     const responsibleUserId = responsibleUserOption?.id || implementationForm.responsibleUserId;
-    if (!implementationForm.controlId || !responsibleUserId || !implementationForm.organizationUnitId) {
+    const organizationUnitId = organizationUnitOption?.id || implementationForm.organizationUnitId;
+    if (!implementationForm.controlId || !responsibleUserId || !organizationUnitId) {
       setError(t('common.requiredField'));
       return;
     }
     setSaving(true);
     try {
-      await controlApi.createImplementation({ ...implementationForm, responsibleUserId });
+      await controlApi.createImplementation({ ...implementationForm, responsibleUserId, organizationUnitId });
       setImplementationModalOpen(false);
       setImplementationForm(initialImplementationForm);
+      setResponsibleUserOption(null);
+      setOrganizationUnitOption(null);
       await loadControls();
     } catch (err: unknown) {
       setError(getErrorMessage(err) || t('controls.implementationCreateError'));
@@ -581,8 +593,16 @@ const Controls = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.organizationUnitId')} *</label>
-              <input value={implementationForm.organizationUnitId} onChange={(e) => setImplementationForm({ ...implementationForm, organizationUnitId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
+              <EntitySearchSelect
+                label={t('controls.fields.organizationUnitId')}
+                searchEndpoint={searchOrganizationUnits}
+                value={organizationUnitOption}
+                onChange={(opt: { id: string; label: string }) => {
+                  setOrganizationUnitOption(opt);
+                  setImplementationForm({ ...implementationForm, organizationUnitId: opt.id });
+                }}
+                placeholder={t('controls.searchOrganizationUnits') || 'Search organization units...'}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.responsibleId')} *</label>

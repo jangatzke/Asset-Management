@@ -68,6 +68,7 @@
     "roleManagement": "Rollenverwaltung",
     "groupManagement": "Gruppenverwaltung",
     "assetTypes": "Asset-Typen",
+    "organizationUnits": "Organisationseinheiten",
     "oidcConfig": "OIDC-Konfiguration",
     "vmwareConfig": "VMware vCenter",
     "proxmoxConfig": "Proxmox PVE",
@@ -688,7 +689,7 @@
       "applicability": "Anwendbarkeit",
       "implementationStatus": "Umsetzungsstatus",
       "implementationDescription": "Umsetzungsbeschreibung",
-      "organizationUnitId": "Organisationseinheit-ID",
+      "organizationUnitId": "Organisationseinheit",
       "maturityLevel": "Reifegrad (0-5)",
       "assets": "Betroffene Assets",
       "risks": "Zugehörige Risiken"
@@ -732,7 +733,8 @@
     },
     "createSuccess": "Kontrolle erfolgreich erstellt",
     "updateSuccess": "Kontrolle erfolgreich aktualisiert",
-    "deleteSuccess": "Kontrolle erfolgreich gelöscht"
+    "deleteSuccess": "Kontrolle erfolgreich gelöscht",
+    "searchOrganizationUnits": "Organisationseinheiten suchen..."
   },
   "incidents": {
     "title": "Vorfallsmanagement",
@@ -1013,6 +1015,40 @@
       "Physical": "Physisch",
       "Other": "Sonstige"
     }
+  },
+  "organizationUnits": {
+    "title": "Organisationseinheiten",
+    "newUnit": "+ Neue Organisationseinheit",
+    "editUnit": "Organisationseinheit bearbeiten",
+    "searchPlaceholder": "Organisationseinheiten suchen...",
+    "includeArchived": "Archivierte einschließen",
+    "loading": "Organisationseinheiten werden geladen...",
+    "noUnits": "Keine Organisationseinheiten gefunden",
+    "archived": "Archiviert",
+    "archive": "Archivieren",
+    "restore": "Wiederherstellen",
+    "archiveConfirm": "Möchten Sie diese Organisationseinheit wirklich archivieren?",
+    "type": "Typ",
+    "typePlaceholder": "z. B. Abteilung, Team, Standort",
+    "parent": "Übergeordnete Einheit",
+    "searchParentPlaceholder": "Übergeordnete Einheit suchen...",
+    "clearParent": "Übergeordnete Einheit entfernen",
+    "description": "Beschreibung",
+    "children": "Untereinheiten",
+    "users": "Benutzer",
+    "assets": "Assets",
+    "risks": "Risiken",
+    "implementations": "Umsetzungen",
+    "noType": "Kein Typ",
+    "nameRequired": "Name ist erforderlich",
+    "loadError": "Organisationseinheiten konnten nicht geladen werden",
+    "saveError": "Organisationseinheit konnte nicht gespeichert werden",
+    "archiveError": "Organisationseinheit konnte nicht archiviert werden",
+    "restoreError": "Organisationseinheit konnte nicht wiederhergestellt werden",
+    "createSuccess": "Organisationseinheit erstellt",
+    "updateSuccess": "Organisationseinheit aktualisiert",
+    "archiveSuccess": "Organisationseinheit archiviert",
+    "restoreSuccess": "Organisationseinheit wiederhergestellt"
   },
   "licenses": {
     "title": "Lizenzen",

@@ -68,6 +68,7 @@
     "roleManagement": "Role Management",
     "groupManagement": "Group Management",
     "assetTypes": "Asset Types",
+    "organizationUnits": "Organization Units",
     "oidcConfig": "OIDC Configuration",
     "vmwareConfig": "VMware vCenter",
     "proxmoxConfig": "Proxmox PVE",
@@ -688,7 +689,7 @@
       "applicability": "Applicability",
       "implementationStatus": "Implementation Status",
       "implementationDescription": "Implementation Description",
-      "organizationUnitId": "Organization Unit ID",
+      "organizationUnitId": "Organization Unit",
       "maturityLevel": "Maturity Level (0-5)",
       "assets": "Affected Assets",
       "risks": "Related Risks"
@@ -732,7 +733,8 @@
     },
     "createSuccess": "Control created successfully",
     "updateSuccess": "Control updated successfully",
-    "deleteSuccess": "Control deleted successfully"
+    "deleteSuccess": "Control deleted successfully",
+    "searchOrganizationUnits": "Search organization units..."
   },
   "incidents": {
     "title": "Incident Management",
@@ -1013,6 +1015,40 @@
       "Physical": "Physical",
       "Other": "Other"
     }
+  },
+  "organizationUnits": {
+    "title": "Organization Units",
+    "newUnit": "+ New Organization Unit",
+    "editUnit": "Edit Organization Unit",
+    "searchPlaceholder": "Search organization units...",
+    "includeArchived": "Include archived",
+    "loading": "Loading organization units...",
+    "noUnits": "No organization units found",
+    "archived": "Archived",
+    "archive": "Archive",
+    "restore": "Restore",
+    "archiveConfirm": "Are you sure you want to archive this organization unit?",
+    "type": "Type",
+    "typePlaceholder": "e.g. Department, Team, Site",
+    "parent": "Parent unit",
+    "searchParentPlaceholder": "Search parent unit...",
+    "clearParent": "Clear parent",
+    "description": "Description",
+    "children": "Children",
+    "users": "Users",
+    "assets": "Assets",
+    "risks": "Risks",
+    "implementations": "Implementations",
+    "noType": "No type",
+    "nameRequired": "Name is required",
+    "loadError": "Failed to load organization units",
+    "saveError": "Failed to save organization unit",
+    "archiveError": "Failed to archive organization unit",
+    "restoreError": "Failed to restore organization unit",
+    "createSuccess": "Organization unit created",
+    "updateSuccess": "Organization unit updated",
+    "archiveSuccess": "Organization unit archived",
+    "restoreSuccess": "Organization unit restored"
   },
   "licenses": {
     "title": "Licenses",

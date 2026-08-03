@@ -408,6 +408,9 @@ export const adminApi = {
   archiveOrganizationUnit: (id: string) => api.post(`/admin/organization-units/${id}/archive`),
   restoreOrganizationUnit: (id: string) => api.post(`/admin/organization-units/${id}/restore`),
   searchOrganizationUnits: (q = '', limit = 50) => api.get('/admin/organization-units/search', { params: { q, limit } }),
+  getFiscalYearConfig: () => api.get('/admin/fiscal-year-config'),
+  updateFiscalYearConfig: (data: { startMonth: number; startDay: number; timezone?: string }) =>
+    api.put('/admin/fiscal-year-config', data),
   getAuthSettings: () => api.get('/admin/auth-settings'),
   updateAuthSettings: (data: any) => api.put('/admin/auth-settings', data),
   getDatabaseConfig: () => api.get<SafeDatabaseConfig>('/admin/database/config'),

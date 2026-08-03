@@ -1447,7 +1447,7 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
     };
   }
 
-  async archiveOrganizationUnit(id: string, archivedBy: string): Promise<{ message: string }> {
+  async archiveOrganizationUnit(id: string, _archivedBy: string): Promise<{ message: string }> {
     const existing = await prisma.organizationUnit.findUnique({
       where: { id },
     });
@@ -1457,13 +1457,13 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
 
     await prisma.organizationUnit.update({
       where: { id },
-      data: { isArchived: true, archivedBy },
+      data: { isArchived: true },
     });
 
     return { message: 'Organization unit archived successfully' };
   }
 
-  async restoreOrganizationUnit(id: string, restoredBy: string): Promise<{ message: string }> {
+  async restoreOrganizationUnit(id: string, _restoredBy: string): Promise<{ message: string }> {
     const existing = await prisma.organizationUnit.findUnique({
       where: { id },
     });
@@ -1473,7 +1473,7 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
 
     await prisma.organizationUnit.update({
       where: { id },
-      data: { isArchived: false, restoredBy },
+      data: { isArchived: false },
     });
 
     return { message: 'Organization unit restored successfully' };
