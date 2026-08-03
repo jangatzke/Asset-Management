@@ -1788,15 +1788,15 @@ model IncidentEscalation {
 // ==========================================
 
 model IncidentHistoryEntry {
-  id            String   @id @default(uuid())
-  incidentId    String
-  action        String   // CREATE, UPDATE, DELETE, STATUS_CHANGE, ASSESSMENT, KNOWLEDGE_TIME_CHANGE, CLOSE
-  fieldChanges  Json?    // { "field": { "old": ..., "new": ... }[] }
-  summary       String?  // human-readable summary of the change
-  actorId       String?  // user who performed the action
-  ipAddress     String?
-  userAgent     String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  incidentId   String
+  action       String // CREATE, UPDATE, DELETE, STATUS_CHANGE, ASSESSMENT, KNOWLEDGE_TIME_CHANGE, CLOSE
+  fieldChanges Json? // { "field": { "old": ..., "new": ... }[] }
+  summary      String? // human-readable summary of the change
+  actorId      String? // user who performed the action
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
 
   incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
@@ -1811,13 +1811,13 @@ model IncidentHistoryEntry {
 
 model EntityHistoryEntry {
   id           String   @id @default(uuid())
-  entityType   String   // "Asset", "Risk", "Control", "Contract", "License", "Process"
-  entityId     String   // FK to the respective entity table
-  action       String   // CREATE, UPDATE, DELETE, STATUS_CHANGE
-  fieldChanges Json?    // { "field": { "old": ..., "new": ... }[] }
-  summary      String?  // human-readable summary of the change
-  actorId      String?  // user who performed the action (nullable so history survives archival)
-  actorName    String?  // denormalized display name for readability
+  entityType   String // "Asset", "Risk", "Control", "Contract", "License", "Process"
+  entityId     String // FK to the respective entity table
+  action       String // CREATE, UPDATE, DELETE, STATUS_CHANGE
+  fieldChanges Json? // { "field": { "old": ..., "new": ... }[] }
+  summary      String? // human-readable summary of the change
+  actorId      String? // user who performed the action (nullable so history survives archival)
+  actorName    String? // denormalized display name for readability
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime @default(now())

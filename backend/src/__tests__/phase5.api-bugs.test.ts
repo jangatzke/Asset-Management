@@ -286,7 +286,7 @@ describe('Phase 5 API bug fixes', () => {
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual([{ id: 'ou-1', label: 'Produktion', name: 'Produktion' }]);
     expect(mockPrisma.organizationUnit.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { name: { contains: 'prod', mode: 'insensitive' } },
+      where: { isArchived: false, name: { contains: 'prod', mode: 'insensitive' } },
       take: 5,
     }));
   });
