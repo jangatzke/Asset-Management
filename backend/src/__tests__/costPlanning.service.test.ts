@@ -6,6 +6,7 @@ const mockPrisma: any = {
   asset: { findMany: jest.fn() },
   license: { findMany: jest.fn() },
   contract: { findMany: jest.fn() },
+  supplier: { findFirst: jest.fn() },
   auditLog: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) }, // Phase 9: hash-chain lookup
   $transaction: jest.fn(),
 };
@@ -65,5 +66,63 @@ describe('CostPlanningService', () => {
     mockPrisma.costPlan.findUnique.mockResolvedValue(null);
 
     await expect(service.getPlan('missing')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('creates a manual procurement item linked to the existing supplier and snapshots its name', async () => {
+    const tx: any = {
+      costPlan: { findUnique: jest.fn().mockResolvedValue({ id: 'plan-1' }) },
+      supplier: { findFirst: jest.fn().mockResolvedValue({ id: 'supplier-1', legalName: 'Example Supplier' }) },
+      costPlanItem: { create: jest.fn().mockResolvedValue({ id: 'item-1', title: 'New laptop' }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    mockPrisma.$transaction.mockImplementation(async (callback: any) => callback(tx));
+
+    await service.createManualItem('plan-1', { title: 'New laptop', category: 'hardware', investmentType: 'new_acquisition', plannedAmount: 1200, currency: 'EUR', supplierId: 'supplier-1' }, 'user-1');
+
+    expect(tx.supplier.findFirst).toHaveBeenCalledWith({ where: { id: 'supplier-1', isArchived: false } });
+    expect(tx.costPlanItem.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ costPlanId: 'plan-1', supplierId: 'supplier-1', supplierName: 'Example Supplier', sourceType: 'manual' }) }));
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'COST_PLAN_ITEM_CREATE',
+        sequence: 1,
+        previousHash: null,
+        entryHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    });
+  });
+
+  it('routes cost-plan creation through shared sequenced audit logging', async () => {
+    const tx: any = {
+      costPlan: { create: jest.fn().mockResolvedValue({ id: 'plan-1', displayId: 'CP-0001', items: [] }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    mockPrisma.costPlan.findUnique.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (callback: any) => callback(tx));
+
+    await service.createOrGetPlan('2026', 'user-1');
+
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'COST_PLAN_CREATE',
+        entityType: 'CostPlan',
+        entityId: 'plan-1',
+        sequence: 1,
+        previousHash: null,
+        entryHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    });
+  });
+
+  it('rejects a manual procurement item when the selected supplier is not active', async () => {
+    const tx: any = {
+      costPlan: { findUnique: jest.fn().mockResolvedValue({ id: 'plan-1' }) },
+      supplier: { findFirst: jest.fn().mockResolvedValue(null) },
+      costPlanItem: { create: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+    mockPrisma.$transaction.mockImplementation(async (callback: any) => callback(tx));
+
+    await expect(service.createManualItem('plan-1', { title: 'New laptop', plannedAmount: 1200, supplierId: 'supplier-missing' }, 'user-1')).rejects.toMatchObject({ statusCode: 400 });
+    expect(tx.costPlanItem.create).not.toHaveBeenCalled();
   });
 });

@@ -203,9 +203,15 @@
     "manualPlannedAcquisition": "Manual planned acquisition",
     "titleField": "Title",
     "supplier": "Supplier",
+    "supplierSearch": "Search supplier",
+    "createSupplier": "Create supplier",
+    "supplierCreated": "Supplier created and selected.",
+    "supplierLoadError": "Could not load suppliers.",
+    "supplierCreateError": "Could not create supplier.",
     "add": "Add",
     "candidates": "Candidates",
     "takeOverSelected": "Take over selected",
+    "selectAllCandidates": "Select all available candidates",
     "source": "Source",
     "reason": "Reason",
     "alreadyInPlan": "Already in plan",
@@ -214,7 +220,10 @@
     "invoiceNumberPrompt": "Invoice number",
     "invoiceDatePrompt": "Invoice date (YYYY-MM-DD)",
     "loadYearsError": "Could not load fiscal years.",
-    "loadPlanError": "Could not load cost plan."
+    "loadPlanError": "Could not load cost plan.",
+    "manualValidationError": "Enter a title and a positive planned amount.",
+    "manualCreateError": "Could not add the planned acquisition.",
+    "manualCreated": "Planned acquisition added."
   },
   "settings": {
     "title": "User Settings",

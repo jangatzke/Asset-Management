@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityRead, authorizeEntityWrite } from '../middleware/entityAuth';
+import { authorizeEntityRead, authorizeEntityWrite, requirePermission } from '../middleware/entityAuth';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import { costPlanningService } from '../services/costPlanning.service';
+import { supplierService } from '../services/supplier.service';
+import { CostPlanningManualItemSchema, CostPlanningSupplierCreateSchema, CostPlanningSupplierSearchSchema } from 'shared';
 
 export const costPlanningRouter = Router();
 
@@ -14,13 +16,20 @@ const PlanDetailQuerySchema = z.object({ category: z.string().optional(), status
 const CandidateQuerySchema = z.object({ fiscalYearLabel: z.string(), category: z.string().optional(), sourceType: z.string().optional(), search: z.string().optional() });
 const CreatePlanSchema = z.object({ fiscalYearLabel: z.string(), ownerUserId: z.string().uuid().optional() });
 const TakeoverSchema = z.object({ candidateKeys: z.array(z.string()).min(1) });
-const ManualItemSchema = z.object({ title: z.string().min(1), description: z.string().optional(), category: z.string(), investmentType: z.string(), plannedAmount: z.union([z.string(), z.number()]), knownAmount: z.union([z.string(), z.number()]).optional(), currency: z.string().default('EUR'), plannedDate: z.string().datetime().optional(), dueDate: z.string().datetime().optional(), supplierName: z.string().optional() });
-const UpdateItemSchema = ManualItemSchema.partial().extend({ status: z.string().optional() });
+const UpdateItemSchema = CostPlanningManualItemSchema.partial().extend({ status: z.string().optional() });
 const MarkAcquiredSchema = z.object({ supplierName: z.string().optional(), invoiceNumber: z.string().min(1), invoiceDate: z.string().datetime(), acquiredAt: z.string().datetime().optional() });
 const MarkDoneSchema = z.object({ completedAt: z.string().datetime().optional() });
 
 costPlanningRouter.get('/years', authenticate, authorizeEntityRead('costPlanning'), async (_req, res, next) => {
   try { res.json(await costPlanningService.years()); } catch (error) { next(error); }
+});
+
+costPlanningRouter.get('/suppliers', authenticate, authorizeEntityRead('costPlanning'), requirePermission('suppliers.read'), validateQuery(CostPlanningSupplierSearchSchema), async (req, res, next) => {
+  try { res.json(await supplierService.list({ ...req.query, status: 'active' })); } catch (error) { next(error); }
+});
+
+costPlanningRouter.post('/suppliers', authenticate, authorizeEntityWrite('costPlanning'), requirePermission('suppliers.write'), validateBody(CostPlanningSupplierCreateSchema), async (req: AuthRequest, res, next) => {
+  try { res.status(201).json(await supplierService.create(req.body, req.userId!)); } catch (error) { next(error); }
 });
 
 costPlanningRouter.get('/plans', authenticate, authorizeEntityRead('costPlanning'), validateQuery(PlanQuerySchema), async (req, res, next) => {
@@ -47,7 +56,7 @@ costPlanningRouter.post('/plans/:id/items/from-candidates', authenticate, author
   try { res.status(201).json(await costPlanningService.takeOverCandidates(req.params.id, req.body.candidateKeys, req.userId!)); } catch (error) { next(error); }
 });
 
-costPlanningRouter.post('/plans/:id/items', authenticate, authorizeEntityWrite('costPlanning'), validateParams(IdParamSchema), validateBody(ManualItemSchema), async (req: AuthRequest, res, next) => {
+costPlanningRouter.post('/plans/:id/items', authenticate, authorizeEntityWrite('costPlanning'), validateParams(IdParamSchema), validateBody(CostPlanningManualItemSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await costPlanningService.createManualItem(req.params.id, req.body, req.userId!)); } catch (error) { next(error); }
 });
 

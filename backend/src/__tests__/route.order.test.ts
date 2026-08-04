@@ -24,6 +24,10 @@ const mockCostPlanningService = {
   getPlan: jest.fn(() => Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440000', items: [], summary: {} })),
   candidates: jest.fn(() => Promise.resolve([])),
 };
+const mockSupplierService = {
+  list: jest.fn(() => Promise.resolve({ data: [], pagination: { total: 0 } })),
+  create: jest.fn(() => Promise.resolve({ id: '550e8400-e29b-41d4-a716-446655440001', legalName: 'Example Supplier' })),
+};
 
 const mockAssetGraphService = {
   getAssetGraph: jest.fn(() => Promise.resolve({ nodes: [], edges: [] })),
@@ -43,6 +47,8 @@ jest.mock('../services/asset.graph', () => ({
 jest.mock('../services/costPlanning.service', () => ({
   costPlanningService: mockCostPlanningService,
 }));
+
+jest.mock('../services/supplier.service', () => ({ supplierService: mockSupplierService }));
 
 jest.mock('../middleware/auth', () => ({
   authenticate: jest.fn((req: any, _res: any, next: any) => {
@@ -147,5 +153,21 @@ describe('Route Order - Asset Routes (IAM-003)', () => {
       expect(response.status).toBe(200);
       expect(mockCostPlanningService.getPlan).toHaveBeenCalledWith(testUuid, {});
     });
+  });
+});
+
+describe('Cost planning supplier endpoints', () => {
+  it('searches active suppliers through the cost planning endpoint', async () => {
+    const response = await request(app).get('/cost-planning/suppliers?search=example');
+
+    expect(response.status).toBe(200);
+    expect(mockSupplierService.list).toHaveBeenCalledWith(expect.objectContaining({ search: 'example', status: 'active' }));
+  });
+
+  it('creates an inline supplier through the cost planning endpoint', async () => {
+    const response = await request(app).post('/cost-planning/suppliers').send({ legalName: 'Example Supplier' });
+
+    expect(response.status).toBe(201);
+    expect(mockSupplierService.create).toHaveBeenCalledWith({ legalName: 'Example Supplier' }, 'user-123');
   });
 });

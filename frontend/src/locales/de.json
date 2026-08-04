@@ -203,9 +203,15 @@
     "manualPlannedAcquisition": "Manuelle geplante Beschaffung",
     "titleField": "Titel",
     "supplier": "Lieferant",
+    "supplierSearch": "Lieferant suchen",
+    "createSupplier": "Lieferant anlegen",
+    "supplierCreated": "Lieferant wurde angelegt und ausgewählt.",
+    "supplierLoadError": "Lieferanten konnten nicht geladen werden.",
+    "supplierCreateError": "Lieferant konnte nicht angelegt werden.",
     "add": "Hinzufügen",
     "candidates": "Kandidaten",
     "takeOverSelected": "Auswahl übernehmen",
+    "selectAllCandidates": "Alle verfügbaren Kandidaten auswählen",
     "source": "Quelle",
     "reason": "Grund",
     "alreadyInPlan": "Bereits im Plan",
@@ -214,7 +220,10 @@
     "invoiceNumberPrompt": "Rechnungsnummer",
     "invoiceDatePrompt": "Rechnungsdatum (JJJJ-MM-TT)",
     "loadYearsError": "Geschäftsjahre konnten nicht geladen werden.",
-    "loadPlanError": "Kostenplan konnte nicht geladen werden."
+    "loadPlanError": "Kostenplan konnte nicht geladen werden.",
+    "manualValidationError": "Bitte Titel und einen positiven geplanten Betrag eingeben.",
+    "manualCreateError": "Die geplante Beschaffung konnte nicht hinzugefügt werden.",
+    "manualCreated": "Geplante Beschaffung wurde hinzugefügt."
   },
   "settings": {
     "title": "Benutzereinstellungen",

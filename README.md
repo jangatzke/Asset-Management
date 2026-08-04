@@ -76,12 +76,14 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | Backend | Node.js, Express, TypeScript, Prisma ORM |
 | Database | PostgreSQL default; Microsoft SQL Server via generated provider-specific Prisma schema and portable JSON export/import for DBMS switching |
 | Frontend | React 18, TypeScript, Vite |
-| UI | Material UI, Tailwind CSS, Headless UI, Heroicons |
-| Routing/State | React Router DOM, Zustand |
-| Forms/i18n/Charts | React Hook Form, react-i18next, Recharts |
+| UI | Material UI v9 (@mui/material), Tailwind CSS, Headless UI v2 (@headlessui/react), Heroicons |
+| Routing/State | React Router DOM v6.30.4 (pinned), Zustand |
+| Forms/i18n/Charts | React Hook Form, react-i18next v17, Recharts |
 | HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect |
 | Tests | Jest, ts-jest, Supertest, Vitest |
 | Tooling | npm Workspaces, ESLint, Prettier, TypeScript |
+| Security/Infrastructure (Backend) | helmet, compression, prom-client, @azure/msal-node, nodemailer, multer |
+| Icon Library (Frontend) | @mui/icons-material |
 
 ---
 
@@ -372,12 +374,13 @@ SQL Server runtime is implemented through the generated provider-specific schema
 | `npm run lint --workspace=backend` | Run ESLint for backend sources |
 | `npm run db:generate --workspace=backend` | Generate Prisma Client |
 | `npm run db:deploy --workspace=backend` | Deploy Prisma migrations |
-| `npm run db:migrate --workspace=backend` | Run Prisma Migrate Dev |
+| `npm run db:migrate --workspace=backend` | Run Prisma Migrate Dev (provider-aware via prisma-provider.cjs) |
 | `npm run db:validate --workspace=backend` | Validate the provider-selected Prisma schema |
 | `npm run db:schema:sqlserver --workspace=backend` | Generate the SQL Server-compatible Prisma schema |
 | `npm run db:migrate:sqlserver --workspace=backend` | Generate an initial SQL Server migration for an empty target database |
 | `npm run db:deploy:sqlserver --workspace=backend` | Deploy SQL Server migrations with the generated SQL Server schema |
 | `npm run db:seed --workspace=backend` | Run seed script |
+| `npm run db:seed:demo --workspace=backend` | Run demo seed data script |
 | `npm run db:setup:cost-planning --workspace=backend` | Deploy cost-planning-related migrations and generate Prisma Client |
 
 ### Frontend and Shared Scripts
@@ -417,6 +420,10 @@ The API is versioned under `/api/v1`. Registered routes in the backend include, 
 | Audit and evidence | `/api/v1/audit-logs`, `/api/v1/evidence`, `/api/v1/documents` |
 | ISMS/Compliance | `/api/v1/frameworks`, `/api/v1/nis2`, `/api/v1/phase6`, `/api/v1/isms-operations`, `/api/v1/catalog` |
 | Business objects | `/api/v1/contracts`, `/api/v1/licenses`, `/api/v1/cost-planning` |
+| Business processes | `/api/v1/businessprocess` |
+| Suppliers | `/api/v1/supplier` |
+| Training | `/api/v1/training` |
+| Corrective Actions | `/api/v1/corrective-action` |
 | Integrations | `/api/v1/intune`, `/api/v1/admin/vmware`, `/api/v1/admin/proxmox`, `/api/v1/imports` |
 | Automation | `/api/v1/webhooks`, `/api/v1/service-accounts` |
 
@@ -475,6 +482,11 @@ The script runs `prisma migrate deploy` and `prisma generate` in the backend. Fo
 | [`docs/final-verification-report.md`](docs/final-verification-report.md) | Verification/validation report |
 | [`docs/refactoring-plan.md`](docs/refactoring-plan.md) | Refactoring plan |
 | [`docs/refactoring-baseline.md`](docs/refactoring-baseline.md) | Baseline for the refactoring state |
+| [`docs/repository-assessment.md`](docs/repository-assessment.md) | Repository structure and capability assessment |
+| [`docs/vulnerability-allowlist.json`](docs/vulnerability-allowlist.json) | Vulnerability exception allowlist for vulnerability-check script |
+| [`docs/baseline-artifacts/`](docs/baseline-artifacts/) | Build, test, lint, and Prisma validation baseline artifacts |
+| [`frontend/src/pages/Processes.tsx`](frontend/src/pages/Processes.tsx) | Processes page |
+| [`frontend/src/pages/RiskAggregation.tsx`](frontend/src/pages/RiskAggregation.tsx) | Risk aggregation view |
 
 Additional phase-related planning documents are located under [`docs`](docs) and [`plans`](plans).
 

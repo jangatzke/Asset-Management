@@ -120,7 +120,11 @@ export type AuditAction =
   | 'DATABASE_PORTABLE_IMPORT'
   | 'INTUNE_SYNC_RUN'
   | 'INTUNE_RESYNC'
-  | 'INTUNE_HEALTH_CHECK';
+  | 'INTUNE_HEALTH_CHECK'
+  | 'COST_PLAN_CREATE'
+  | 'COST_PLAN_CANDIDATES_TAKEOVER'
+  | 'COST_PLAN_ITEM_CREATE'
+  | 'COST_PLAN_EXPORT_CSV';
 
 export interface AuditEventParams {
   userId: string;
@@ -179,19 +183,35 @@ export class AuditService {
     tx: AuditWriteClient,
     params: AuditEventParams & { ipAddress?: string; userAgent?: string },
   ): Promise<void> {
-    let sequence: number;
     const rawClient = tx as { $queryRaw?: PrismaClient['$queryRaw']; $executeRaw?: PrismaClient['$executeRaw'] };
+    let sequence: number;
 
     if (typeof rawClient.$queryRaw === 'function' && typeof rawClient.$executeRaw === 'function') {
-      const sequenceRows = await rawClient.$queryRaw<Array<{ sequence: number }>>`
-        SELECT nextval('audit_log_sequence')::int AS sequence
-      `;
-      sequence = Number(sequenceRows[0].sequence);
-
-      await rawClient.$executeRaw`
-        SELECT pg_advisory_xact_lock(hashtext('audit_log_hash_chain'))
-      `;
+      if ((process.env.DB_PROVIDER ?? 'postgresql').trim().toLowerCase() === 'sqlserver') {
+        await rawClient.$executeRaw`
+          EXEC sp_getapplock
+            @Resource = 'audit_log_hash_chain',
+            @LockMode = 'Exclusive',
+            @LockOwner = 'Transaction';
+        `;
+        const sequenceRows = await rawClient.$queryRaw<Array<{ sequence: number }>>`
+          SELECT COALESCE(MAX([sequence]), 0) + 1 AS sequence FROM [audit_logs]
+        `;
+        sequence = Number(sequenceRows[0].sequence);
+      } else {
+        // Take the transaction-scoped lock before reading the current tail. This
+        // keeps sequence allocation and hash-chain linking in the same order.
+        await rawClient.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtext('audit_log_hash_chain'))
+        `;
+        const sequenceRows = await rawClient.$queryRaw<Array<{ sequence: number }>>`
+          SELECT COALESCE(MAX("sequence"), 0) + 1 AS sequence FROM audit_logs
+        `;
+        sequence = Number(sequenceRows[0].sequence);
+      }
     } else {
+      // Unit-test doubles without raw-query support use this deterministic
+      // fallback. Production Prisma transaction clients always expose raw APIs.
       const prevEntryForMock = await tx.auditLog.findFirst({
         orderBy: { sequence: 'desc' },
         select: { entryHash: true, sequence: true },

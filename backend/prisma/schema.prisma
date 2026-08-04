@@ -1892,7 +1892,7 @@ model AuditLog {
   ipAddress    String?
   userAgent    String?
   // Hash-chain fields for tamper-evident audit logging (Phase 9)
-  sequence     Int      @default(0)
+  sequence     Int
   previousHash String?  @db.Text
   entryHash    String   @default("") @db.Text
 
@@ -2001,6 +2001,7 @@ model CostPlanItem {
   sourceAsset    Asset?    @relation(fields: [sourceAssetId], references: [id], onDelete: SetNull)
   sourceLicense  License?  @relation(fields: [sourceLicenseId], references: [id], onDelete: SetNull)
   sourceContract Contract? @relation(fields: [sourceContractId], references: [id], onDelete: SetNull)
+  supplier       Supplier? @relation("CostPlanItemSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   completedBy    User?     @relation("CostPlanItemCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([costPlanId, sourceKey])
@@ -2012,6 +2013,7 @@ model CostPlanItem {
   @@index([sourceAssetId])
   @@index([sourceLicenseId])
   @@index([sourceContractId])
+  @@index([supplierId])
   @@map("cost_plan_items")
 }
 
@@ -2129,6 +2131,8 @@ model Supplier {
   updatedAt              DateTime  @updatedAt
   createdBy              String?
   updatedBy              String?
+
+  costPlanItems         CostPlanItem[] @relation("CostPlanItemSupplier")
 
   @@index([criticality])
   @@index([nextReviewDate])

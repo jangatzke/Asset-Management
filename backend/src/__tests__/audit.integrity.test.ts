@@ -431,7 +431,7 @@ describe('Phase 9: Audit Log Integrity', () => {
       expect(createCall.data.entryHash).toHaveLength(64); // SHA-256 hex
     });
 
-    it('should allocate sequence using database sequence and lock before creating the audit row', async () => {
+    it('should allocate the next sequence while holding the database chain lock before creating the audit row', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([{ sequence: 42 }]);
       mockPrisma.auditLog.findFirst.mockResolvedValue({ entryHash: 'prev_hash_41' });
 
@@ -448,9 +448,32 @@ describe('Phase 9: Audit Log Integrity', () => {
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPrisma.$queryRaw).toHaveBeenCalled();
       expect(mockPrisma.$executeRaw).toHaveBeenCalled();
+      expect((mockPrisma.$executeRaw as jest.Mock).mock.invocationCallOrder[0])
+        .toBeLessThan((mockPrisma.$queryRaw as jest.Mock).mock.invocationCallOrder[0]);
       const createCall = (mockPrisma.auditLog.create as jest.Mock).mock.calls[0][0];
       expect(createCall.data.sequence).toBe(42);
       expect(createCall.data.previousHash).toBe('prev_hash_41');
+    });
+
+    it('uses the SQL Server transaction lock and serialized max sequence allocation when configured', async () => {
+      const originalProvider = process.env.DB_PROVIDER;
+      process.env.DB_PROVIDER = 'sqlserver';
+      mockPrisma.$queryRaw.mockResolvedValue([{ sequence: 42 }]);
+      mockPrisma.auditLog.findFirst.mockResolvedValue({ entryHash: 'prev_hash_41' });
+
+      try {
+        const { AuditService } = require('../services/audit.service');
+        await new AuditService().logEventStandalone(mockPrisma as any, {
+          userId: 'user-1', action: 'LOGIN', entityType: 'User', entityId: 'user-1',
+        });
+
+        expect((mockPrisma.$executeRaw as jest.Mock).mock.invocationCallOrder[0])
+          .toBeLessThan((mockPrisma.$queryRaw as jest.Mock).mock.invocationCallOrder[0]);
+        expect((mockPrisma.auditLog.create as jest.Mock).mock.calls[0][0].data.sequence).toBe(42);
+      } finally {
+        if (originalProvider === undefined) delete process.env.DB_PROVIDER;
+        else process.env.DB_PROVIDER = originalProvider;
+      }
     });
 
     it('should handle first entry with empty previousHash', async () => {

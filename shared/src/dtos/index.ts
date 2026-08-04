@@ -239,6 +239,36 @@ export const SupplierCreateSchema = z.object({
 });
 export type SupplierCreateDTO = z.infer<typeof SupplierCreateSchema>;
 
+// ==========================================
+// Cost Planning DTOs
+// ==========================================
+
+export const CostPlanningSupplierSearchSchema = z.object({
+  search: z.string().trim().max(255).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type CostPlanningSupplierSearchDTO = z.infer<typeof CostPlanningSupplierSearchSchema>;
+
+export const CostPlanningSupplierCreateSchema = z.object({
+  legalName: z.string().trim().min(1).max(255),
+});
+export type CostPlanningSupplierCreateDTO = z.infer<typeof CostPlanningSupplierCreateSchema>;
+
+export const CostPlanningManualItemSchema = z.object({
+  title: z.string().trim().min(1),
+  description: z.string().optional(),
+  category: z.string().min(1),
+  investmentType: z.string().min(1),
+  plannedAmount: z.coerce.number().finite().positive(),
+  knownAmount: z.coerce.number().finite().nonnegative().optional(),
+  currency: z.string().trim().length(3).default('EUR'),
+  plannedDate: z.string().datetime().optional(),
+  dueDate: z.string().datetime().optional(),
+  supplierId: EntityIdSchema.optional(),
+  supplierName: z.string().trim().max(255).optional(),
+});
+export type CostPlanningManualItemDTO = z.infer<typeof CostPlanningManualItemSchema>;
+
 export const CorrectiveActionCreateSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),

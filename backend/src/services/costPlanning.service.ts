@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { auditService } from './audit.service';
 import { nextDisplayId } from './displayId.service';
 import { fiscalYearService } from './fiscalYear.service';
 
@@ -29,7 +30,7 @@ export class CostPlanningService {
         },
         include: { items: true, owner: true },
       });
-      await tx.auditLog.create({ data: { userId, action: 'COST_PLAN_CREATE', entityType: 'CostPlan', entityId: plan.id, details: `Created cost plan ${plan.displayId}` } as any });
+      await auditService.logEvent(tx, { userId, action: 'COST_PLAN_CREATE', entityType: 'CostPlan', entityId: plan.id, details: `Created cost plan ${plan.displayId}` });
       return this.withSummary(plan);
     });
   }
@@ -108,16 +109,26 @@ export class CostPlanningService {
         const item = await tx.costPlanItem.create({ data: { displayId, costPlanId: planId, sourceType: candidate.sourceType, sourceKey: key, sourceAssetId: candidate.sourceType === 'asset' ? key.split(':')[1] : undefined, sourceLicenseId: candidate.sourceType === 'license' ? key.split(':')[1] : undefined, sourceContractId: candidate.sourceType === 'contract' ? key.split(':')[1] : undefined, title: candidate.title, category: candidate.category, investmentType: candidate.investmentType, relevanceReason: candidate.relevanceReason, plannedAmount: candidate.plannedAmount || '0', knownAmount: candidate.knownAmount, currency: candidate.currency, dueDate: candidate.dueDate ? new Date(candidate.dueDate) : undefined, status: 'planned', createdByUserId: userId, updatedByUserId: userId } });
         created.push(item);
       }
-      await tx.auditLog.create({ data: { userId, action: 'COST_PLAN_CANDIDATES_TAKEOVER', entityType: 'CostPlan', entityId: planId, details: `Created ${created.length} items, skipped ${skipped.length}` } as any });
+      await auditService.logEvent(tx, { userId, action: 'COST_PLAN_CANDIDATES_TAKEOVER', entityType: 'CostPlan', entityId: planId, details: `Created ${created.length} items, skipped ${skipped.length}` });
       return { created, skipped };
     });
   }
 
   async createManualItem(planId: string, data: any, userId: string) {
     return prisma.$transaction(async (tx) => {
+      const plan = await tx.costPlan.findUnique({ where: { id: planId } });
+      if (!plan) throw new AppError('Cost plan not found', 404);
+
+      let supplierName = data.supplierName?.trim() || undefined;
+      if (data.supplierId) {
+        const supplier = await tx.supplier.findFirst({ where: { id: data.supplierId, isArchived: false } });
+        if (!supplier) throw new AppError('Selected supplier was not found or is archived', 400);
+        supplierName = supplier.legalName;
+      }
+
       const displayId = await nextDisplayId(tx, 'CostPlanItem');
-      const item = await tx.costPlanItem.create({ data: { ...data, displayId, costPlanId: planId, sourceType: 'manual', status: data.status || 'planned', createdByUserId: userId, updatedByUserId: userId } });
-      await tx.auditLog.create({ data: { userId, action: 'COST_PLAN_ITEM_CREATE', entityType: 'CostPlanItem', entityId: item.id, details: item.title } as any });
+      const item = await tx.costPlanItem.create({ data: { ...data, supplierName, displayId, costPlanId: planId, sourceType: 'manual', status: data.status || 'planned', createdByUserId: userId, updatedByUserId: userId }, include: { supplier: true } });
+      await auditService.logEvent(tx, { userId, action: 'COST_PLAN_ITEM_CREATE', entityType: 'CostPlanItem', entityId: item.id, details: item.title });
       return item;
     });
   }
@@ -136,7 +147,7 @@ export class CostPlanningService {
 
   async exportCsv(planId: string, filters: any, userId: string) {
     const plan = await this.getPlan(planId, filters) as any;
-    await prisma.auditLog.create({ data: { userId, action: 'COST_PLAN_EXPORT_CSV', entityType: 'CostPlan', entityId: plan.id, details: `Rows: ${plan.items.length}` } as any });
+    await auditService.logEventStandalone(prisma, { userId, action: 'COST_PLAN_EXPORT_CSV', entityType: 'CostPlan', entityId: plan.id, details: `Rows: ${plan.items.length}` });
     const rows = [['Fiscal year','Plan display ID','Item display ID','Status','Source type','Title','Category','Investment type','Planned amount','Known amount','Currency','Due date','Supplier','Invoice number','Invoice date','Acquired at','Completed at'], ...plan.items.map((i: any) => [plan.fiscalYearLabel, plan.displayId, i.displayId, i.status, i.sourceType, i.title, i.category, i.investmentType, i.plannedAmount?.toString(), i.knownAmount?.toString() || '', i.currency, i.dueDate?.toISOString() || '', i.supplierName || '', i.invoiceNumber || '', i.invoiceDate?.toISOString() || '', i.acquiredAt?.toISOString() || '', i.completedAt?.toISOString() || ''])];
     return rows.map((row) => row.map(this.csvEscape).join(',')).join('\r\n');
   }
