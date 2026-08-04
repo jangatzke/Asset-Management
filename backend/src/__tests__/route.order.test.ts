@@ -27,7 +27,10 @@ const mockCostPlanningService = {
 
 const mockAssetGraphService = {
   getAssetGraph: jest.fn(() => Promise.resolve({ nodes: [], edges: [] })),
+  getDependencyGraph: jest.fn(() => Promise.resolve({ nodes: [{ id: 'test-id', name: 'Test Asset' }], edges: [] })),
 };
+
+const mockRequireAdminAccessMiddleware = jest.fn((_req: any, _res: any, next: any) => next());
 
 jest.mock('../services/asset.service', () => ({
   assetService: mockAssetService,
@@ -58,7 +61,7 @@ jest.mock('../middleware/entityAuth', () => ({
   requireEntityPermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   requireMappedReadPermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
   requireMappedWritePermission: jest.fn(() => jest.fn((req: any, _res: any, next: any) => next())),
-  requireAdminAccess: jest.fn((req: any, _res: any, next: any) => next()),
+  requireAdminAccess: jest.fn((req: any, res: any, next: any) => mockRequireAdminAccessMiddleware(req, res, next)),
 }));
 
 import { assetRouter } from '../routes/asset.routes';
@@ -72,6 +75,7 @@ app.use('/cost-planning', costPlanningRouter);
 describe('Route Order - Asset Routes (IAM-003)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireAdminAccessMiddleware.mockImplementation((_req: any, _res: any, next: any) => next());
   });
 
   describe('Static routes are matched before parametric routes', () => {
@@ -120,6 +124,18 @@ describe('Route Order - Asset Routes (IAM-003)', () => {
 
       expect(response.status).toBe(200);
       expect(mockAssetService.getById).toHaveBeenCalledWith(deterministicId);
+    });
+
+    it('GET /assets/:id/graph uses asset read permission instead of admin-only access', async () => {
+      mockRequireAdminAccessMiddleware.mockImplementation((_req: any, res: any, _next: any) => res.status(403).json({ error: 'admin required' }));
+
+      const response = await request(app).get('/assets/demo-helio-asset-123/graph?direction=both&maxDepth=10');
+
+      expect(response.status).toBe(200);
+      expect(mockAssetGraphService.getDependencyGraph).toHaveBeenCalledWith('demo-helio-asset-123', expect.objectContaining({
+        direction: 'both',
+        maxDepth: 10,
+      }));
     });
   });
 

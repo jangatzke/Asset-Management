@@ -131,6 +131,58 @@ describe('AssetGraphService', () => {
       ]));
     });
 
+    it('should treat outgoing depends_on relations as selected asset upstream dependencies', async () => {
+      const assets = [
+        createAssetWithType({ id: 'asset-1', name: 'Application' }),
+        createAssetWithType({ id: 'asset-2', name: 'Database' }),
+        createAssetWithType({ id: 'asset-3', name: 'Storage' }),
+        createAssetWithType({ id: 'asset-4', name: 'Consumer Portal' }),
+      ];
+      mockAssetFindUnique.mockImplementation((opts: any) => Promise.resolve(assets.find((asset) => asset.id === opts.where.id) || null));
+      mockAssetFindMany.mockResolvedValue(assets);
+      mockRelationFindMany.mockResolvedValue([
+        { id: 'rel-1', sourceAssetId: 'asset-1', targetAssetId: 'asset-2', relationshipType: 'depends_on' },
+        { id: 'rel-2', sourceAssetId: 'asset-2', targetAssetId: 'asset-3', relationshipType: 'depends_on' },
+        { id: 'rel-3', sourceAssetId: 'asset-4', targetAssetId: 'asset-1', relationshipType: 'depends_on' },
+      ]);
+
+      const upstream = await service.getDependencyGraph('asset-1', { direction: 'upstream' });
+      const downstream = await service.getDependencyGraph('asset-1', { direction: 'downstream' });
+
+      expect(upstream.nodes.map((node) => node.id).sort()).toEqual(['asset-1', 'asset-2', 'asset-3']);
+      expect(upstream.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'asset-1', targetId: 'asset-2', relationType: 'depends_on' }),
+        expect.objectContaining({ sourceId: 'asset-2', targetId: 'asset-3', relationType: 'depends_on' }),
+      ]));
+      expect(downstream.nodes.map((node) => node.id).sort()).toEqual(['asset-1', 'asset-4']);
+      expect(downstream.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'asset-4', targetId: 'asset-1', relationType: 'depends_on' }),
+      ]));
+    });
+
+    it('should render the screenshot scenario with the focus asset and its two outgoing depends_on targets', async () => {
+      const assets = [
+        createAssetWithType({ id: 'demo-helio-asset-123', name: 'Helio OT System 01' }),
+        createAssetWithType({ id: 'demo-helio-asset-142', name: 'Helio Information 06' }),
+        createAssetWithType({ id: 'demo-helio-asset-141', name: 'Helio Information 05' }),
+      ];
+      mockAssetFindUnique.mockImplementation((opts: any) => Promise.resolve(assets.find((asset) => asset.id === opts.where.id) || null));
+      mockAssetFindMany.mockResolvedValue(assets);
+      mockRelationFindMany.mockResolvedValue([
+        { id: 'rel-helio-06', sourceAssetId: 'demo-helio-asset-123', targetAssetId: 'demo-helio-asset-142', relationshipType: 'depends_on' },
+        { id: 'rel-helio-05', sourceAssetId: 'demo-helio-asset-123', targetAssetId: 'demo-helio-asset-141', relationshipType: 'depends_on' },
+      ]);
+
+      const result = await service.getDependencyGraph('demo-helio-asset-123', { direction: 'both', maxDepth: 10 });
+
+      expect(result.nodes.map((node) => node.name).sort()).toEqual(['Helio Information 05', 'Helio Information 06', 'Helio OT System 01']);
+      expect(result.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'demo-helio-asset-123', targetId: 'demo-helio-asset-142', relationType: 'depends_on' }),
+        expect.objectContaining({ sourceId: 'demo-helio-asset-123', targetId: 'demo-helio-asset-141', relationType: 'depends_on' }),
+      ]));
+      expect(result.isolatedAssets?.map((node) => node.id)).not.toContain('demo-helio-asset-123');
+    });
+
     it('should handle empty graph (no relations)', async () => {
       const result = await service.getDependencyGraph('asset-1');
 

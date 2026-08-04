@@ -74,6 +74,7 @@ export interface CreateAssetData {
 
   // Network addresses (normalized) — replaces comma-separated string
   networkAddresses?: Array<{ address: string; type: string; primary?: boolean }>;
+  assetRelations?: Array<{ targetAssetId: string; relationshipType: string; description?: string }>;
 
   dataSource?: string;
   lastDetectedAt?: Date;
@@ -260,7 +261,7 @@ export class AssetService {
       const displayId = await nextDisplayId(tx, 'Asset');
       const inventoryNumber = await this.allocateInventoryNumber(tx, data.assetTypeId, data.assetSubtypeId, data.inventoryNumber);
 
-      const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, ...assetFields } = data;
+      const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, assetRelations, ...assetFields } = data;
       const assetData: any = {
         ...assetFields,
         displayId,
@@ -327,6 +328,17 @@ export class AssetService {
           data: data.licenseIds.map((licenseId) => ({
             assetId: createdAsset.id,
             licenseId,
+          })),
+        });
+      }
+
+      if (assetRelations && assetRelations.length > 0) {
+        await tx.assetRelation.createMany({
+          data: assetRelations.map((relation) => ({
+            sourceAssetId: createdAsset.id,
+            targetAssetId: relation.targetAssetId,
+            relationshipType: relation.relationshipType,
+            description: relation.description,
           })),
         });
       }
@@ -403,7 +415,7 @@ export class AssetService {
       const statusChanged = data.lifecycleStatus && data.lifecycleStatus !== existing.lifecycleStatus;
 
       // Build update data without networkAddresses (handled separately)
-      const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, ...updateFields } = data;
+      const { networkAddresses, processIds, serviceIds, contractIds, licenseIds, assetRelations, ...updateFields } = data;
       if (data.assetSubtypeId !== undefined || data.assetTypeId !== undefined || data.inventoryNumber !== undefined) {
         updateFields.inventoryNumber = await this.allocateInventoryNumber(
           tx,
@@ -488,6 +500,21 @@ export class AssetService {
             data: licenseIds.map((licenseId: string) => ({
               assetId: id,
               licenseId,
+            })),
+          });
+        }
+      }
+
+      if (assetRelations !== undefined) {
+        await tx.assetRelation.deleteMany({ where: { sourceAssetId: id } });
+        const sanitizedRelations = assetRelations.filter((relation) => relation.targetAssetId !== id);
+        if (sanitizedRelations.length > 0) {
+          await tx.assetRelation.createMany({
+            data: sanitizedRelations.map((relation) => ({
+              sourceAssetId: id,
+              targetAssetId: relation.targetAssetId,
+              relationshipType: relation.relationshipType,
+              description: relation.description,
             })),
           });
         }

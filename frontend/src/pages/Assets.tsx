@@ -45,7 +45,8 @@ interface EntityOption {
 
 interface AssetRelation {
   targetAssetId: string;
-  relationType: string;
+  relationshipType: string;
+  targetLabel?: string;
 }
 
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
@@ -221,6 +222,10 @@ const Assets = () => {
       if (form.securityResponsibleId) payload.informationSecurityResponsibleId = form.securityResponsibleId.id;
       if (form.contractId) payload.contractIds = [form.contractId.id];
       if (form.licenseId) payload.licenseIds = [form.licenseId.id];
+      payload.assetRelations = existingRelations.map((relation) => ({
+        targetAssetId: relation.targetAssetId,
+        relationshipType: relation.relationshipType,
+      }));
 
       if (editingId) {
         await assetApi.update(editingId, payload);
@@ -238,11 +243,16 @@ const Assets = () => {
   };
 
   const handleEdit = async (asset: Asset) => {
-    const openEditor = (data: any) => {
-      const contractLink = data.contractLinks?.[0];
-      const licenseLink = data.licenseLinks?.[0];
+      const openEditor = (data: any) => {
+        const contractLink = data.contractLinks?.[0];
+        const licenseLink = data.licenseLinks?.[0];
+        const sourceRelations = (data.sourceRelations ?? []).map((relation: any) => ({
+          targetAssetId: relation.targetAssetId,
+          relationshipType: relation.relationshipType,
+          targetLabel: relation.targetAsset?.name || relation.targetAsset?.displayId || relation.targetAssetId,
+        }));
 
-      setForm({
+        setForm({
         name: data.name || '',
         description: data.description || '',
         assetTypeId: data.assetTypeId || data.assetType?.id || '',
@@ -264,10 +274,11 @@ const Assets = () => {
         securityResponsibleId: data.informationSecurityResponsibleId ? { id: data.informationSecurityResponsibleId, label: data.informationSecurityResponsible?.name || data.informationSecurityResponsible?.email || data.informationSecurityResponsibleId } : null,
         contractId: contractLink?.contractId ? { id: contractLink.contractId, label: contractLink.contract?.contractNumber || contractLink.contract?.title || contractLink.contractId } : null,
         licenseId: licenseLink?.licenseId ? { id: licenseLink.licenseId, label: licenseLink.license?.licenseNumber || licenseLink.license?.title || licenseLink.licenseId } : null,
-      });
-      setEditingId(asset.id);
-      setModalOpen(true);
-    };
+        });
+        setExistingRelations(sourceRelations);
+        setEditingId(asset.id);
+        setModalOpen(true);
+      };
 
     try {
       setError('');
@@ -311,21 +322,22 @@ const Assets = () => {
   // Relation management
   const handleAddRelation = async () => {
     if (!newRelationTarget?.id) return;
-    try {
-      if (editingId) {
-        await assetApi.createRelation(editingId, {
-          targetAssetId: newRelationTarget.id,
-          relationType: newRelationType,
-        });
-      }
-      setExistingRelations(prev => [...prev, {
-        targetAssetId: newRelationTarget.id,
-        relationType: newRelationType,
-      }]);
-      setNewRelationTarget(null);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assets.addRelationError'));
+    if (editingId && newRelationTarget.id === editingId) {
+      setError(t('assets.addRelationError'));
+      return;
     }
+
+    setExistingRelations(prev => {
+      const withoutDuplicate = prev.filter((relation) =>
+        !(relation.targetAssetId === newRelationTarget.id && relation.relationshipType === newRelationType)
+      );
+      return [...withoutDuplicate, {
+        targetAssetId: newRelationTarget.id,
+        relationshipType: newRelationType,
+        targetLabel: newRelationTarget.label,
+      }];
+    });
+    setNewRelationTarget(null);
   };
 
   if (loading && !selectedAsset) {
@@ -364,7 +376,7 @@ const Assets = () => {
             </nav>
           </div>
 
-          {detailTab === 'graph' && <AssetGraph assetId={selectedAsset.id} />}
+          {detailTab === 'graph' && <AssetGraph assetId={selectedAsset.id} fallbackNode={{ id: selectedAsset.id, name: selectedAsset.name, displayId: selectedAsset.displayId, type: selectedAsset.assetType?.name, criticality: selectedAsset.criticality }} />}
           {detailTab === 'impact' && <AssetImpactAnalysis assetId={selectedAsset.id} />}
         </div>
       ) : (
@@ -641,7 +653,7 @@ const Assets = () => {
             <div className="space-y-1 mt-2">
               {existingRelations.map((rel, i) => (
                 <div key={i} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded text-sm">
-                  <span>{newRelationTarget?.label || rel.targetAssetId} → {rel.relationType}</span>
+                  <span>{rel.targetLabel || rel.targetAssetId} → {rel.relationshipType}</span>
                   <button onClick={() => setExistingRelations(prev => prev.filter((_, j) => j !== i))} className="text-red-600 hover:text-red-800">×</button>
                 </div>
               ))}
@@ -662,13 +674,13 @@ const Assets = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={!!graphViewerAsset} onClose={() => setGraphViewerAsset(null)} title={graphViewerAsset ? `${t('assets.assetTreeViewer')}: ${graphViewerAsset.name}` : t('assets.assetTreeViewer')} maxWidthClassName="max-w-6xl">
+      <Modal isOpen={!!graphViewerAsset} onClose={() => setGraphViewerAsset(null)} title={graphViewerAsset ? `${t('assets.assetTreeViewer')}: ${graphViewerAsset.name}` : t('assets.assetTreeViewer')} maxWidthClassName="max-w-[96vw]" maxHeightClassName="max-h-[95vh]">
         {graphViewerAsset && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {t('assets.assetTreeViewerDescription')}
             </p>
-            <AssetGraph assetId={graphViewerAsset.id} focusAssetId={graphViewerAsset.id} heightClassName="h-[42rem]" height="672px" />
+            <AssetGraph assetId={graphViewerAsset.id} fallbackNode={{ id: graphViewerAsset.id, name: graphViewerAsset.name, displayId: graphViewerAsset.displayId, type: graphViewerAsset.assetType?.name, criticality: graphViewerAsset.criticality }} focusAssetId={graphViewerAsset.id} heightClassName="h-[44rem]" height="704px" />
           </div>
         )}
       </Modal>

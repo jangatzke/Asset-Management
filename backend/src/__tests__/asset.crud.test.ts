@@ -42,6 +42,10 @@ var mockPrisma = {
     create: jest.fn(),
     findMany: jest.fn(),
   },
+  assetRelation: {
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   displayIdCounter: {
     upsert: jest.fn(),
   },
@@ -339,6 +343,25 @@ describe('AssetService - CRUD Operations', () => {
 
       expect(mockPrisma.assetProcess.deleteMany).toHaveBeenCalled();
       expect(mockPrisma.assetProcess.createMany).toHaveBeenCalled();
+    });
+
+    it('should sync asset dependency relations on update', async () => {
+      mockPrisma.assetRelation.deleteMany.mockResolvedValue({ count: 0 } as any);
+      mockPrisma.assetRelation.createMany.mockResolvedValue({ count: 1 } as any);
+
+      await assetService.update('asset-123', {
+        assetRelations: [{ targetAssetId: 'asset-456', relationshipType: 'depends_on' }],
+      }, 'user-123');
+
+      expect(mockPrisma.assetRelation.deleteMany).toHaveBeenCalledWith({ where: { sourceAssetId: 'asset-123' } });
+      expect(mockPrisma.assetRelation.createMany).toHaveBeenCalledWith({
+        data: [{
+          sourceAssetId: 'asset-123',
+          targetAssetId: 'asset-456',
+          relationshipType: 'depends_on',
+          description: undefined,
+        }],
+      });
     });
 
     it('should log lifecycle status change in transaction', async () => {

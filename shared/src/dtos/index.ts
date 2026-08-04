@@ -83,6 +83,11 @@ export const AssetRelationCreateSchema = z.object({
 });
 export type AssetRelationCreateDTO = z.infer<typeof AssetRelationCreateSchema>;
 
+export const AssetRelationUpdateSchema = AssetRelationCreateSchema.extend({
+  id: EntityIdSchema.optional(),
+});
+export type AssetRelationUpdateDTO = z.infer<typeof AssetRelationUpdateSchema>;
+
 export const ConfirmAssetResponsibilitySchema = z.object({
   role: z.string().max(100).optional(),
 });
@@ -142,6 +147,7 @@ export const CreateAssetSchema = z.object({
 
   // Network addresses (normalized) — replaces comma-separated string
   networkAddresses: z.array(NetworkAddressCreateSchema).optional(),
+  assetRelations: z.array(AssetRelationUpdateSchema).optional(),
 
   dataSource: z.string().max(100).optional(),
   lastDetectedAt: z.coerce.date().optional(),

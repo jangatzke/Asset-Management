@@ -1088,7 +1088,43 @@
     "noDependencies": "No dependencies found",
     "focusAsset": "Focused asset",
     "incomingDependencies": "Depends on this asset",
-    "outgoingDependencies": "This asset depends on"
+    "outgoingDependencies": "This asset depends on",
+    "neutralDependencies": "Other relations",
+    "reset": "Reset",
+    "filters": {
+      "maxDepth": "Max Depth",
+      "direction": "Direction",
+      "directionBoth": "Both",
+      "directionUpstream": "Dependencies",
+      "directionDownstream": "Dependent assets",
+      "relationType": "Relation Type",
+      "all": "All",
+      "criticality": {
+        "all": "All",
+        "critical": "Only critical",
+        "high": "Minimum high",
+        "medium": "Minimum medium"
+      }
+    },
+    "details": {
+      "title": "Selected asset",
+      "assetInformation": "Asset information",
+      "connections": "Direct connections",
+      "displayId": "Display ID",
+      "type": "Type",
+      "category": "Category",
+      "criticality": "Criticality",
+      "status": "Status",
+      "lifecycleStatus": "Lifecycle",
+      "owner": "Owner",
+      "technicalOwner": "Technical owner",
+      "organizationUnit": "Organization unit",
+      "description": "Description",
+      "metadata": "Metadata",
+      "noAdditionalInformation": "No additional asset information available.",
+      "noConnections": "No direct graph connections available for this asset.",
+      "noneInSection": "None"
+    }
   },
   "entityPicker": {
     "searchPlaceholder": "Search...",

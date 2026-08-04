@@ -223,7 +223,7 @@ assetRouter.post('/:id/relations', authenticate, requireEntityPermission('assets
 // ==========================================
 
 // AST-011: Graph visualization data - centered on specific asset with BFS traversal and options
-assetRouter.get('/:id/graph', authenticate, requireAdminAccess, async (req, res, next) => {
+assetRouter.get('/:id/graph', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
   try {
     const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth as string) : undefined;
     const direction = ['both', 'upstream', 'downstream'].includes(req.query.direction as string)

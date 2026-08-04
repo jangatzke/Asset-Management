@@ -546,6 +546,14 @@ export class AssetGraphService {
     const add = (from: string, to: string): void => { adjacency.set(from, [...(adjacency.get(from) ?? []), to]); };
     for (const rel of relations) {
       if (allowed && !allowed.has(rel.relationshipType)) continue;
+      if (isDependencyRelation(rel.relationshipType)) {
+        // sourceAsset depends on targetAsset. For graph traversal, upstream means the
+        // dependencies required by the selected asset; downstream means dependents
+        // that would be affected by the selected asset.
+        if (direction !== 'downstream') add(rel.sourceAssetId, rel.targetAssetId);
+        if (direction !== 'upstream') add(rel.targetAssetId, rel.sourceAssetId);
+        continue;
+      }
       if (direction !== 'upstream') add(rel.sourceAssetId, rel.targetAssetId);
       if (direction !== 'downstream') add(rel.targetAssetId, rel.sourceAssetId);
       if (relationDirection(rel.relationshipType) === 'bidirectional') {

@@ -1088,7 +1088,43 @@
     "noDependencies": "Keine Abhängigkeiten gefunden",
     "focusAsset": "Fokus-Asset",
     "incomingDependencies": "Hängt von diesem Asset ab",
-    "outgoingDependencies": "Dieses Asset hängt ab von"
+    "outgoingDependencies": "Dieses Asset hängt ab von",
+    "neutralDependencies": "Andere Beziehungen",
+    "reset": "Zurücksetzen",
+    "filters": {
+      "maxDepth": "Max. Tiefe",
+      "direction": "Richtung",
+      "directionBoth": "Beide",
+      "directionUpstream": "Abhängigkeiten",
+      "directionDownstream": "Abhängige Assets",
+      "relationType": "Beziehungstyp",
+      "all": "Alle",
+      "criticality": {
+        "all": "Alle",
+        "critical": "Nur kritisch",
+        "high": "Mindestens hoch",
+        "medium": "Mindestens mittel"
+      }
+    },
+    "details": {
+      "title": "Ausgewähltes Asset",
+      "assetInformation": "Asset-Informationen",
+      "connections": "Direkte Verbindungen",
+      "displayId": "Anzeige-ID",
+      "type": "Typ",
+      "category": "Kategorie",
+      "criticality": "Kritikalität",
+      "status": "Status",
+      "lifecycleStatus": "Lebenszyklus",
+      "owner": "Verantwortlicher",
+      "technicalOwner": "Technischer Verantwortlicher",
+      "organizationUnit": "Organisationseinheit",
+      "description": "Beschreibung",
+      "metadata": "Metadaten",
+      "noAdditionalInformation": "Keine zusätzlichen Asset-Informationen verfügbar.",
+      "noConnections": "Für dieses Asset sind keine direkten Graph-Verbindungen verfügbar.",
+      "noneInSection": "Keine"
+    }
   },
   "entityPicker": {
     "searchPlaceholder": "Suchen...",

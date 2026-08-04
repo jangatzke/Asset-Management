@@ -6,9 +6,10 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   maxWidthClassName?: string;
+  maxHeightClassName?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidthClassName = 'max-w-2xl' }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidthClassName = 'max-w-2xl', maxHeightClassName = 'max-h-[90vh]' }) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const backdropPointerDownRef = useRef(false);
 
@@ -46,7 +47,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} max-h-[90vh] overflow-y-auto border border-transparent dark:border-gray-700`}
+      <div className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} ${maxHeightClassName} overflow-y-auto border border-transparent dark:border-gray-700`}
         tabIndex={-1}
       >
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
