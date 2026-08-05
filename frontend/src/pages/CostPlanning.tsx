@@ -1,22 +1,17 @@
 import axios from 'axios';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useI18n } from '../context/I18nContext';
-import { costPlanningApi, assetApi } from '../services/api';
+import { costPlanningApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import {
   PencilSquareIcon,
-  TrashIcon,
   CheckIcon,
   DocumentArrowDownIcon,
   ChevronUpIcon,
   ChevronDownIcon,
   ChevronUpDownIcon,
   FunnelIcon,
-  XMarkIcon,
   CurrencyDollarIcon,
-  UserCircleIcon,
-  DocumentTextIcon,
-  ClockIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
@@ -355,7 +350,7 @@ const CostPlanning = () => {
       const bVal = b[sortConfig.key];
       if (aVal == null) return 1;
       if (bVal == null) return -1;
-      const comparison = typeof aVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal));
+      const comparison = typeof aVal === 'number' && typeof bVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal));
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
     return items;
