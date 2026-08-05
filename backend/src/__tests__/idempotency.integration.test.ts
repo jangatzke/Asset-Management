@@ -8,12 +8,26 @@ import {
 import { idempotency, IDEMPOTENCY_KEY_HEADER } from '../middleware/idempotency';
 
 /**
+ * Mock authentication middleware that sets req.userId.
+ * Simulates what the real JWT authentication middleware does.
+ */
+function mockAuthMiddleware(req: Request, _res: Response, next: NextFunction): void {
+  // Simulate JWT decoding - in tests, accept any request and set a mock user ID
+  (req as any).userId = 'test-user-123';
+  next();
+}
+
+/**
  * Create a mock Express app with idempotency middleware.
  * This allows testing the middleware in isolation without database dependencies.
  */
 function createMockApp(): Application {
   const app: Application = express();
   app.use(express.json());
+
+  // Apply mock auth middleware BEFORE idempotency middleware
+  // This simulates the real middleware chain where auth runs first
+  app.use('/api/v1/test', mockAuthMiddleware);
 
   // Apply idempotency middleware to a test route
   app.use('/api/v1/test', idempotency());

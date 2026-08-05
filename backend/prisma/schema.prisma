@@ -3536,6 +3536,7 @@ model Webhook {
   updatedBy          String?
 
   deliveries WebhookDelivery[]
+  attempts   WebhookDeliveryAttempt[]
 
   @@index([status, isActive])
   @@index([events])
@@ -3571,11 +3572,37 @@ model WebhookDelivery {
   updatedAt       DateTime             @updatedAt
 
   webhook         Webhook              @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  attempts        WebhookDeliveryAttempt[]
 
   @@index([webhookId, status])
   @@index([status])
   @@index([eventId])
   @@map("webhook_deliveries")
+}
+
+model WebhookDeliveryAttempt {
+  id             String  @id @default(uuid())
+  deliveryId     String
+  webhookId      String
+  eventPayloadId String
+  eventType      String
+  payload        String  @db.Text
+  attemptNumber  Int
+  status         String
+  errorMessage   String?
+  responseStatus Int?
+  responseHeaders String? @db.Text
+  durationMs     Int?
+  startedAt      DateTime
+  completedAt    DateTime
+
+  webhook  Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  delivery WebhookDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, status])
+  @@index([deliveryId])
+  @@index([status])
+  @@map("webhook_delivery_attempts")
 }
 
 model ApiRateLimit {

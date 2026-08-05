@@ -55,10 +55,49 @@ export function generateIdempotencyKey(
 }
 
 /**
+ * Recursively canonicalize an object by sorting keys at all nesting levels.
+ * Uses a WeakSet to detect and prevent infinite loops on circular references.
+ * This ensures that two objects with the same structure but different key ordering
+ * produce the same JSON serialization, and that nested objects are properly included.
+ */
+export function canonicalizeObject(value: unknown, seen = new WeakSet()): unknown {
+  if (value === null || value === undefined) return value;
+  
+  // Primitives are returned as-is
+  if (typeof value !== 'object') return value;
+  
+  // Detect circular references to prevent infinite loops
+  if (typeof value === 'object') {
+    if (seen.has(value)) {
+      // Break circular reference by returning null
+      return null;
+    }
+    seen.add(value);
+  }
+  
+  // Arrays: recursively canonicalize each element
+  if (Array.isArray(value)) {
+    return value.map(item => canonicalizeObject(item, seen));
+  }
+  
+  // Plain objects: sort keys recursively at all nesting levels
+  const sorted: Record<string, unknown> = {};
+  const keys = Object.keys(value as object).sort();
+  for (const key of keys) {
+    sorted[key] = canonicalizeObject((value as Record<string, unknown>)[key], seen);
+  }
+  return sorted;
+}
+
+/**
  * Generate a SHA-256 hash from a request body string or object.
+ * Uses recursive canonicalization to ensure that nested objects with
+ * different key ordering produce the same hash, preventing hash collisions.
  */
 export function generateRequestBodyHash(body: unknown): string {
-  const normalized = typeof body === 'string' ? body : JSON.stringify(body, Object.keys(body as object).sort());
+  const normalized = typeof body === 'string'
+    ? body
+    : JSON.stringify(canonicalizeObject(body));
   return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 

@@ -183,12 +183,27 @@ export async function deliverWebhook(
       timeout: config.timeoutMs || 10000,
       httpAgent: undefined,
       httpsAgent: undefined,
-      // Follow redirects but limit to 5
-      maxRedirects: 5,
+      // Disable redirect following to prevent SSRF via redirect to internal IPs
+      maxRedirects: 0,
       validateStatus: () => true, // Don't throw on any status
     };
 
     const response = await axios(axiosConfig);
+
+    // Explicitly reject redirects (3xx) - with maxRedirects: 0, axios won't follow them
+    // but the server may still return a 3xx status. We treat this as a failure.
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.location || 'unknown';
+      console.warn(`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`);
+      return {
+        success: false,
+        statusCode: response.status,
+        errorMessage: `Redirect not followed: server returned ${response.status} (Location: ${location}). Redirect following is disabled for SSRF protection.`,
+        durationMs: Date.now() - startTime,
+        attemptNumber: 1,
+        signature,
+      };
+    }
 
     const success = response.status >= 200 && response.status < 300;
 

@@ -121,7 +121,7 @@ router.post('/', requireScopes('webhooks:write'), async (req: Request, res: Resp
 
     // Log the secret once - return it in the response
     // In production, consider a secure out-of-band delivery mechanism
-    console.info(`[Webhook] Created webhook ${displayId} with secret: ${secret}`);
+    console.info(`[Webhook] Created webhook ${displayId} - secret generated (shown once in response)`);
 
     res.status(201).json({ 
       data: {
@@ -172,7 +172,7 @@ router.post('/broadcast', requireScopes('webhooks:write'), async (req: Request, 
         status: 'active',
         events: { has: eventType },
       },
-      select: { id: true, url: true, secret: true, maxRetries: true, timeoutMs: true },
+      select: { id: true, url: true, maxRetries: true, timeoutMs: true },
     });
 
     // Create payload
@@ -377,7 +377,7 @@ router.get('/deliveries/:deliveryId', requireScopes('webhooks:read'), async (req
   try {
     const delivery = await prisma.webhookDelivery.findUnique({
       where: { id: req.params.deliveryId },
-      include: { webhook: true },
+      include: { webhook: { select: { id: true, name: true, displayId: true } } },
     });
 
     if (!delivery) {
@@ -385,7 +385,17 @@ router.get('/deliveries/:deliveryId', requireScopes('webhooks:read'), async (req
       return;
     }
 
-    res.json({ data: delivery });
+    // Exclude sensitive webhook fields (secret) from response
+    res.json({
+      data: {
+        ...delivery,
+        webhook: delivery.webhook ? {
+          id: delivery.webhook.id,
+          name: delivery.webhook.name,
+          displayId: delivery.webhook.displayId,
+        } : null,
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error', message: String(error) });
   }

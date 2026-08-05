@@ -87,7 +87,7 @@ describe('Webhook Service', () => {
 
       mockedAxios.mockResolvedValue({ status: 204 } as any);
 
-      const result = await deliverWebhook(payload, { url: 'https://example.invalid/webhook', timeoutMs: 1000 });
+      const result = await deliverWebhook(payload, { url: 'https://example.invalid/webhook', secret: 'test-secret', timeoutMs: 1000 });
       
       expect(result.success).toBe(true);
       expect(result).toHaveProperty('attemptNumber', 1);
@@ -104,7 +104,7 @@ describe('Webhook Service', () => {
 
       mockedAxios.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
-      const result = await deliverWebhook(payload, { url: 'https://example.invalid/test', timeoutMs: 2000 });
+      const result = await deliverWebhook(payload, { url: 'https://example.invalid/test', secret: 'test-secret', timeoutMs: 2000 });
       
       expect(result.success).toBe(false);
       expect(result.errorMessage).toBeDefined();
@@ -125,11 +125,12 @@ describe('Webhook Service', () => {
         data: {},
       };
 
-      const result = await deliverWebhookWithRetry(payload, { 
-        url: 'https://example.invalid/test', 
-        maxRetries: 2,
-        timeoutMs: 500 
-      });
+      const result = await deliverWebhookWithRetry(payload, {
+              url: 'https://example.invalid/test',
+              secret: 'test-secret',
+              maxRetries: 2,
+              timeoutMs: 500
+            });
       
       expect(result.success).toBe(false);
       expect(mockedAxios).toHaveBeenCalledTimes(2);
@@ -143,11 +144,12 @@ describe('Webhook Service', () => {
         data: {},
       };
 
-      const result = await deliverWebhookWithRetry(payload, { 
-        url: 'https://example.invalid/test', 
-        maxRetries: 1,
-        timeoutMs: 500 
-      });
+      const result = await deliverWebhookWithRetry(payload, {
+              url: 'https://example.invalid/test',
+              secret: 'test-secret',
+              maxRetries: 1,
+              timeoutMs: 500
+            });
       
       expect(result.attemptNumber).toBeGreaterThanOrEqual(1);
     }, 5000);

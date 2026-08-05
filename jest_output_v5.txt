@@ -1,0 +1,442 @@
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 302 -> https://new-location.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:391:22)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 300 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:449:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 301 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:449:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 302 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:449:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 303 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:449:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 307 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:449:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 308 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:449:24)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 300s (attempt 2/3)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:380:11)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 300s (attempt 2/5)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:380:11)
+
+  console.debug
+    [WebhookQueue] DNS check passed for example.com: resolved to 93.184.216.34
+
+      at processWebhookDeliveryJob (src/services/webhookQueue.service.ts:204:15)
+
+  console.debug
+    [WebhookQueue] DNS check passed for example.com: resolved to 93.184.216.34
+
+      at processWebhookDeliveryJob (src/services/webhookQueue.service.ts:204:15)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 300s (attempt 2/3)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:380:11)
+
+  console.warn
+    [WebhookQueue] Circuit breaker triggered for webhook webhook-1 after 2 retries (maxRetries=2)
+
+    [0m [90m 361 |[39m         }[33m,[39m
+     [90m 362 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 363 |[39m       console[33m.[39mwarn([32m`[WebhookQueue] Circuit breaker triggered for webhook ${webhookId} after ${maxRetries} retries (maxRetries=${maxRetries})`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 364 |[39m     } [36mcatch[39m {
+     [90m 365 |[39m       [90m// Webhook may have been deleted[39m
+     [90m 366 |[39m     }[0m
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:363:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:1184:7)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-a in 300s (attempt 2/3)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:380:11)
+
+  console.warn
+    [WebhookQueue] Circuit breaker triggered for webhook webhook-b after 1 retries (maxRetries=1)
+
+    [0m [90m 361 |[39m         }[33m,[39m
+     [90m 362 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 363 |[39m       console[33m.[39mwarn([32m`[WebhookQueue] Circuit breaker triggered for webhook ${webhookId} after ${maxRetries} retries (maxRetries=${maxRetries})`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 364 |[39m     } [36mcatch[39m {
+     [90m 365 |[39m       [90m// Webhook may have been deleted[39m
+     [90m 366 |[39m     }[0m
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:363:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:1254:7)
+
+FAIL src/__tests__/webhook.security.remediation.test.ts
+  SSRF Protection
+    IPv6 Private Range Detection
+      fc00::/7 (Unique Local Addresses)
+        ÔêÜ should block fd00::/8 (sub-range of fc00::/7) (1 ms)
+        ÔêÜ should block fc00:: (start of fc00::/7)
+        ÔêÜ should block fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff (end of fc00::/7)
+        ÔêÜ should block fc00::1
+      ::1 (loopback)
+        ÔêÜ should block ::1 (1 ms)
+        ÔêÜ should block ::1 with full expansion
+      fe80::/10 (link-local)
+        ÔêÜ should block fe80:: (start of fe80::/10)
+        ÔêÜ should block fe80:1234::5678
+        ÔêÜ should block feb0:: (end of fe80::/10)
+        ÔêÜ should block fe80::1
+    Public IPv6 Addresses
+      ÔêÜ should allow 2001:db8::1 (documentation prefix, but not in blocked ranges)
+      ÔêÜ should allow 2001:4860:4860::8888 (Google DNS IPv6)
+      ÔêÜ should allow 2606:4700::1111 (Cloudflare IPv6)
+    IPv4-mapped IPv6 Private Addresses
+      ÔêÜ should block ::ffff:10.0.0.1 (IPv4-mapped private)
+      ÔêÜ should block ::ffff:192.168.1.1 (IPv4-mapped private)
+      ÔêÜ should block ::ffff:127.0.0.1 (IPv4-mapped loopback)
+    IPv4 Private Range Detection
+      10.0.0.0/8
+        ÔêÜ should block 10.0.0.0
+        ÔêÜ should block 10.0.0.1 (1 ms)
+        ÔêÜ should block 10.255.255.255
+      172.16.0.0/12
+        ÔêÜ should block 172.16.0.0
+        ÔêÜ should block 172.16.0.1
+        ÔêÜ should block 172.31.255.255
+        ÔêÜ should block 172.20.10.5
+      192.168.0.0/16
+        ÔêÜ should block 192.168.0.0
+        ÔêÜ should block 192.168.1.1
+        ÔêÜ should block 192.168.255.255
+      127.0.0.0/8 (loopback)
+        ÔêÜ should block 127.0.0.1
+        ÔêÜ should block 127.0.0.0
+        ÔêÜ should block 127.255.255.255
+    Public IPv4 Addresses
+      ÔêÜ should allow 8.8.8.8 (Google DNS)
+      ÔêÜ should allow 1.1.1.1 (Cloudflare DNS)
+      ÔêÜ should allow 93.184.216.34 (example.com)
+    AWS Metadata IP
+      ÔêÜ should block 169.254.169.254 (AWS metadata)
+    DNS Fail-Closed Behavior
+      ├ù should return { blocked: true } when DNS resolution throws an error
+      ├ù should return { blocked: true } when DNS returns NXDOMAIN
+      ├ù should NOT proceed with delivery when DNS fails
+    Redirect Handling
+      ÔêÜ should set maxRedirects: 0 in webhook delivery configuration (1 ms)
+      ÔêÜ should detect 3xx responses and mark as failed (24 ms)
+      ÔêÜ should log the Location header when a redirect occurs
+      ÔêÜ should reject all 3xx status codes (300, 301, 302, 303, 307, 308) (7 ms)
+    Dual-Stack DNS Resolution
+      ├ù should use dns.resolve() (not just resolve4)
+      ├ù should resolve both A and AAAA records (1 ms)
+      ├ù should BLOCK delivery if an address has both A (public) and AAAA (private) records
+      ├ù should BLOCK delivery if AAAA record is in fc00::/7 range
+      ├ù should allow delivery when both A and AAAA are public
+  Secret Exposure Prevention
+    Secret Not in Server Logs
+      ÔêÜ should NOT log the secret value to console when creating a webhook
+      ÔêÜ should log "secret generated" but not the actual secret value (1 ms)
+    Delivery Detail Endpoint Excludes Secret
+      ÔêÜ should NOT return the webhook secret in GET /webhooks/deliveries/:deliveryId response
+      ÔêÜ should exclude secret even when using spread operator on delivery object
+    Broadcast Query Excludes Secret
+      ÔêÜ should NOT select the secret field in the broadcast query
+      ├ù should mock Prisma query without secret in select clause (2 ms)
+    Create Response Still Returns Secret Once
+      ÔêÜ should return _secret in the webhook CREATE response
+      ÔêÜ should include a warning about one-time secret display
+  Queue Retry Mechanism
+    Backoff Delay Applied
+      ├ù should set scheduledAt to now + backoffDelay when a delivery fails and is retried (3 ms)
+      ├ù should verify the backoff delay increases with each retry (exponential backoff) (1 ms)
+      ÔêÜ should use the RETRY_BACKOFF array values correctly
+    Unique Job ID per Attempt
+      ├ù should create different jobIds for different attempts: webhook-delivery-{id}-{payloadId}-attempt{N} (1 ms)
+      ÔêÜ should include attempt number in the jobId (1 ms)
+      ÔêÜ should have unique jobIds for each attempt number
+    WebhookDeliveryAttempt Records Created
+      ÔêÜ should create a WebhookDeliveryAttempt record for each delivery attempt (1 ms)
+      ÔêÜ should track multiple attempts for the same delivery separately (4 ms)
+      ÔêÜ should increment attemptNumber correctly across attempts
+    maxRetries From Webhook Config
+      ÔêÜ should use webhook.maxRetries (not a hardcoded global value) (1 ms)
+      ÔêÜ should NOT attempt further retries when maxRetries is reached (1 ms)
+      ÔêÜ should allow different webhooks to have different maxRetries values (2 ms)
+    Composite Unique Constraint
+      ÔêÜ should allow same (webhookId, eventId) with different attemptNumbers (1 ms)
+      ÔêÜ should reject duplicate (webhookId, eventId, attemptNumber)
+      ÔêÜ should allow same (webhookId, attemptNumber) with different eventIds
+      ÔêÜ should allow same (eventId, attemptNumber) with different webhookIds
+      ÔêÜ should verify the Prisma unique constraint definition
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should return { blocked: true } when DNS resolution throws an error
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      317 |     beforeEach(() => {
+      318 |       jest.clearAllMocks();
+    > 319 |       mockDns.resolve.mockReset();
+          |                       ^
+      320 |     });
+      321 |
+      322 |     it('should return { blocked: true } when DNS resolution throws an error', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:319:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should return { blocked: true } when DNS returns NXDOMAIN
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      317 |     beforeEach(() => {
+      318 |       jest.clearAllMocks();
+    > 319 |       mockDns.resolve.mockReset();
+          |                       ^
+      320 |     });
+      321 |
+      322 |     it('should return { blocked: true } when DNS resolution throws an error', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:319:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should NOT proceed with delivery when DNS fails
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      317 |     beforeEach(() => {
+      318 |       jest.clearAllMocks();
+    > 319 |       mockDns.resolve.mockReset();
+          |                       ^
+      320 |     });
+      321 |
+      322 |     it('should return { blocked: true } when DNS resolution throws an error', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:319:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should use dns.resolve() (not just resolve4)
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      462 |     beforeEach(() => {
+      463 |       jest.clearAllMocks();
+    > 464 |       mockDns.resolve.mockReset();
+          |                       ^
+      465 |     });
+      466 |
+      467 |     it('should use dns.resolve() (not just resolve4)', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:464:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should resolve both A and AAAA records
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      462 |     beforeEach(() => {
+      463 |       jest.clearAllMocks();
+    > 464 |       mockDns.resolve.mockReset();
+          |                       ^
+      465 |     });
+      466 |
+      467 |     it('should use dns.resolve() (not just resolve4)', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:464:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should BLOCK delivery if an address has both A (public) and AAAA (private) records
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      462 |     beforeEach(() => {
+      463 |       jest.clearAllMocks();
+    > 464 |       mockDns.resolve.mockReset();
+          |                       ^
+      465 |     });
+      466 |
+      467 |     it('should use dns.resolve() (not just resolve4)', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:464:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should BLOCK delivery if AAAA record is in fc00::/7 range
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      462 |     beforeEach(() => {
+      463 |       jest.clearAllMocks();
+    > 464 |       mockDns.resolve.mockReset();
+          |                       ^
+      465 |     });
+      466 |
+      467 |     it('should use dns.resolve() (not just resolve4)', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:464:23)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should allow delivery when both A and AAAA are public
+
+    TypeError: Cannot read properties of undefined (reading 'mockReset')
+
+      462 |     beforeEach(() => {
+      463 |       jest.clearAllMocks();
+    > 464 |       mockDns.resolve.mockReset();
+          |                       ^
+      465 |     });
+      466 |
+      467 |     it('should use dns.resolve() (not just resolve4)', async () => {
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:464:23)
+
+  ÔùÅ Secret Exposure Prevention ÔÇ║ Broadcast Query Excludes Secret ÔÇ║ should mock Prisma query without secret in select clause
+
+    expect(jest.fn()).toHaveBeenCalled()
+
+    Expected number of calls: >= 1
+    Received number of calls:    0
+
+      694 |       // Verify the result does not contain secret
+      695 |       // (The mock returns the correct shape without secret)
+    > 696 |       expect(mockPrisma.webhook.findMany).toHaveBeenCalled();
+          |                                           ^
+      697 |     });
+      698 |   });
+      699 |
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:696:43)
+
+  ÔùÅ Queue Retry Mechanism ÔÇ║ Backoff Delay Applied ÔÇ║ should set scheduledAt to now + backoffDelay when a delivery fails and is retried
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: ClockDate
+
+    Received value has no prototype
+    Received value: undefined
+
+      787 |       // So scheduledAt is at the top level of the first argument
+      788 |       const createCall = (mockPrisma.jobRun.create as jest.Mock).mock.calls[0][0];
+    > 789 |       expect(createCall.scheduledAt).toBeInstanceOf(Date);
+          |                                      ^
+      790 |
+      791 |       // Verify the scheduledAt is approximately now + 60000ms (1 minute backoff)
+      792 |       // Use approximate matching to account for test execution time variance
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:789:38)
+
+  ÔùÅ Queue Retry Mechanism ÔÇ║ Backoff Delay Applied ÔÇ║ should verify the backoff delay increases with each retry (exponential backoff)
+
+    TypeError: Cannot read properties of undefined (reading 'getTime')
+
+      834 |       // Use approximate matching to account for test execution time variance
+      835 |       // scheduledAt is at the top level of the call argument, not inside data
+    > 836 |       expect(firstCall.scheduledAt.getTime()).toBeGreaterThanOrEqual(now + firstDelay - 1000);
+          |                                    ^
+      837 |       expect(firstCall.scheduledAt.getTime()).toBeLessThanOrEqual(now + firstDelay + 1000);
+      838 |
+      839 |       // Reset and retry again
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:836:36)
+
+  ÔùÅ Queue Retry Mechanism ÔÇ║ Unique Job ID per Attempt ÔÇ║ should create different jobIds for different attempts: webhook-delivery-{id}-{payloadId}-attempt{N}
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: ObjectContaining {"jobId": "webhook-delivery-webhook-abc-payload-xyz-attempt2"}
+    Received: {"data": {"attempt": 2, "data": "{\"webhookId\":\"webhook-abc\",\"payload\":{\"id\":\"payload-xyz\",\"type\":\"asset.created\",\"timestamp\":\"2026-08-05T20:35:38.641Z\",\"data\":{}}}", "jobId": "webhook-delivery-webhook-abc-payload-xyz-attempt2", "jobType": "webhook", "scheduledAt": 2026-08-05T20:35:38.641Z, "status": "pending", "workerId": undefined}}
+
+    Number of calls: 1
+
+      935 |       }, 2);
+      936 |
+    > 937 |       expect(mockPrisma.jobRun.create).toHaveBeenCalledWith(
+          |                                        ^
+      938 |         expect.objectContaining({
+      939 |           jobId: `webhook-delivery-${webhookId}-${payloadId}-attempt2`,
+      940 |         })
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:937:40)
+
+Test Suites: 1 failed, 1 total
+Tests:       12 failed, 58 passed, 70 total
+Snapshots:   0 total
+Time:        2.585 s
+Ran all test suites matching /webhook.security.remediation/i.

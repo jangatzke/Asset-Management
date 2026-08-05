@@ -3,6 +3,12 @@
  *
  * Uses the existing JobRun/JobLease infrastructure for distributed
  * job execution with lease protection.
+ *
+ * Changes in this version:
+ * - Issue 3.2: Unique jobId per retry attempt (includes attempt number)
+ * - Issue 3.1: scheduledAt backoff delay is applied for retries
+ * - Issue 3.4/3.5: Uses webhook.maxRetries instead of hardcoded MAX_DELIVERY_ATTEMPTS
+ * - Issue 3.6: Creates WebhookDeliveryAttempt records per attempt instead of WebhookDelivery
  */
 
 import { prisma } from '../config/database';
@@ -12,15 +18,14 @@ import {
   WebhookDeliveryResult,
   deliverWebhook,
 } from './webhook.service';
-import { checkResolvedIp, validateWebhookUrl } from './urlValidator';
+import { validateWebhookUrl, resolveAndCheckHostname } from './urlValidator';
 
 // Queue configuration
 const QUEUE_POLL_INTERVAL_MS = parseInt(process.env.WEBHOOK_QUEUE_POLL_INTERVAL_MS || '5000', 10);
 const QUEUE_CONCURRENCY = 5; // Max concurrent webhook deliveries
-const MAX_DELIVERY_ATTEMPTS = 10;
 
 // Retry backoff schedule (in milliseconds)
-const RETRY_BACKOFF = [
+export const RETRY_BACKOFF = [
   60_000,     // 1 min
   300_000,    // 5 min
   900_000,    // 15 min
@@ -38,13 +43,19 @@ let activeJobs = 0;
 
 /**
  * Queue a single webhook delivery as a JobRun record.
+ * @param webhookId - The webhook ID to deliver to
+ * @param payload - The webhook payload
+ * @param attempt - The attempt number (1-based)
+ * @param scheduledAt - Optional custom scheduled time (for backoff delay)
  */
 export async function queueWebhookDelivery(
   webhookId: string,
   payload: WebhookPayload,
-  attempt: number = 1
+  attempt: number = 1,
+  scheduledAt?: Date
 ): Promise<string> {
-  const jobId = `webhook-delivery-${webhookId}-${payload.id}`;
+  // Issue 3.2: Include attempt number in jobId to avoid collision on retry
+  const jobId = `webhook-delivery-${webhookId}-${payload.id}-attempt${attempt}`;
 
   const jobRun = await prisma.jobRun.create({
     data: {
@@ -52,7 +63,8 @@ export async function queueWebhookDelivery(
       jobType: 'webhook',
       status: 'pending',
       workerId: undefined,
-      scheduledAt: new Date(),
+      // Issue 3.1: Use provided scheduledAt or default to now (immediate delivery)
+      scheduledAt: scheduledAt || new Date(),
       attempt,
       data: JSON.stringify({ webhookId, payload }),
     },
@@ -62,15 +74,52 @@ export async function queueWebhookDelivery(
 }
 
 /**
+ * Ensure a WebhookDelivery record exists for this webhook+payload combination.
+ * Creates a new delivery record if none exists.
+ */
+async function ensureDeliveryRecord(
+  webhookId: string,
+  payload: WebhookPayload,
+  attempt: number
+): Promise<string> {
+  // Check if a delivery record already exists for this webhook+eventId
+  let delivery = await prisma.webhookDelivery.findFirst({
+    where: { webhookId, eventId: payload.id },
+    select: { id: true },
+  });
+
+  if (!delivery) {
+    const newDelivery = await prisma.webhookDelivery.create({
+      data: {
+        webhookId,
+        eventId: payload.id,
+        eventType: payload.type,
+        payload: JSON.stringify(payload),
+        url: '', // Will be set from webhook config at delivery time
+        status: 'delivering',
+        attemptNumber: attempt,
+      },
+    });
+    delivery = newDelivery;
+  }
+
+  return delivery.id;
+}
+
+/**
  * Process a single webhook delivery job.
  * Includes SSRF re-validation at delivery time.
  */
 export async function processWebhookDeliveryJob(
   _jobRunId: string,
   webhookId: string,
-  payload: WebhookPayload
+  payload: WebhookPayload,
+  attempt: number
 ): Promise<WebhookDeliveryResult> {
   const db = prisma;
+
+  // Ensure delivery record exists before attempting delivery
+  const deliveryId = await ensureDeliveryRecord(webhookId, payload, attempt);
 
   try {
     // Get webhook config from DB
@@ -79,60 +128,100 @@ export async function processWebhookDeliveryJob(
     });
 
     if (!webhook) {
+      // Create failed attempt record
+      await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
+        success: false,
+        errorMessage: `Webhook ${webhookId} not found in database`,
+        attemptNumber: attempt,
+      });
+
+      await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
+
       return {
         success: false,
         errorMessage: `Webhook ${webhookId} not found in database`,
-        attemptNumber: 1,
+        attemptNumber: attempt,
       };
     }
 
     if (!webhook.isActive || webhook.isArchived || webhook.status === 'paused') {
+      await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
+        success: false,
+        errorMessage: `Webhook ${webhookId} is not active`,
+        attemptNumber: attempt,
+      });
+
+      await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
+
       return {
         success: false,
         errorMessage: `Webhook ${webhookId} is not active`,
-        attemptNumber: 1,
+        attemptNumber: attempt,
       };
     }
 
     // SSRF re-validation at delivery time (DNS rebinding protection)
     const urlValidation = validateWebhookUrl(webhook.url);
     if (!urlValidation.valid) {
+      await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
+        success: false,
+        errorMessage: `URL validation failed: ${urlValidation.reason}`,
+        attemptNumber: attempt,
+      });
+
+      await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
+
       return {
         success: false,
         errorMessage: `URL validation failed: ${urlValidation.reason}`,
-        attemptNumber: 1,
+        attemptNumber: attempt,
       };
     }
 
-    // Resolve hostname and verify IPs haven't changed to private ranges
+    // Resolve hostname and verify IPs haven't changed to private ranges (DNS rebinding protection)
+    // Fail-closed: any DNS resolution error causes delivery to fail
+    const url = new URL(webhook.url);
+    const hostname = url.hostname.replace(/\.$/, '');
+
     try {
-      const dns = await import('dns');
-      const { promisify } = await import('util');
-      const resolve4 = promisify(dns.resolve4);
+      const dnsResult = await resolveAndCheckHostname(hostname);
+      if (dnsResult.blocked) {
+        await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
+          success: false,
+          errorMessage: `DNS rebinding detected: ${hostname} resolved to blocked IP: ${dnsResult.reason}`,
+          attemptNumber: attempt,
+        });
 
-      const url = new URL(webhook.url);
-      const hostname = url.hostname.replace(/\.$/, '');
+        await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
 
-      try {
-        const ips = await resolve4(hostname);
-        for (const ip of ips) {
-          const ipCheck = checkResolvedIp(ip);
-          if (!ipCheck.safe) {
-            return {
-              success: false,
-              errorMessage: `DNS rebinding detected: ${hostname} resolved to blocked IP ${ip}: ${ipCheck.reason}`,
-              attemptNumber: 1,
-            };
-          }
-        }
-      } catch {
-        // DNS resolution failed - allow delivery but log warning
-        console.warn(`[WebhookQueue] DNS resolution failed for ${hostname}, proceeding with delivery`);
+        return {
+          success: false,
+          errorMessage: `DNS rebinding detected: ${hostname} resolved to blocked IP: ${dnsResult.reason}`,
+          attemptNumber: attempt,
+        };
       }
+      // DNS resolution succeeded and all IPs are public - proceed with delivery
+      console.debug(`[WebhookQueue] DNS check passed for ${hostname}: resolved to ${dnsResult.resolvedIps?.join(', ') || 'unknown'}`);
     } catch (error) {
-      console.warn(`[WebhookQueue] SSRF check failed for ${webhook.url}:`, error);
-      // Don't block delivery if SSRF check module fails
+      // Fail-closed: any error from DNS resolution causes delivery to fail
+      console.error(`[WebhookQueue] DNS resolution error for ${hostname}:`, error);
+      await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
+        success: false,
+        errorMessage: `DNS resolution failed for ${hostname}: ${error instanceof Error ? error.message : String(error)}`,
+        attemptNumber: attempt,
+      });
+
+      await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
+
+      return {
+        success: false,
+        errorMessage: `DNS resolution failed for ${hostname}: ${error instanceof Error ? error.message : String(error)}`,
+        attemptNumber: attempt,
+      };
     }
+
+    // Issue 3.4: Use webhook.maxRetries from the webhook record
+    const maxRetries = webhook.maxRetries;
 
     // Deliver with HMAC signature
     const result = await deliverWebhook(payload, {
@@ -142,21 +231,14 @@ export async function processWebhookDeliveryJob(
       timeoutMs: webhook.timeoutMs,
     });
 
-    // Update delivery record
-    await db.webhookDelivery.create({
-      data: {
-        webhookId,
-        eventId: payload.id,
-        eventType: payload.type,
-        payload: JSON.stringify(payload),
-        signature: result.signature,
-        url: webhook.url,
-        status: result.success ? 'success' : 'failed',
-        responseStatus: result.statusCode,
-        errorMessage: result.errorMessage,
-        durationMs: result.durationMs,
-        attemptNumber: result.attemptNumber,
-      },
+    const finalResult = {
+      ...result,
+      attemptNumber: attempt,
+    };
+
+    // Create attempt record with delivery details
+    await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, finalResult, {
+      responseHeaders: undefined, // Will be captured if needed
     });
 
     // Update webhook stats
@@ -170,50 +252,115 @@ export async function processWebhookDeliveryJob(
       },
     });
 
-    return result;
+    if (result.success) {
+      await updateDeliveryStatus(db, deliveryId, 'success', attempt);
+    }
+
+    return finalResult;
   } catch (error) {
-    await db.webhookDelivery.create({
-      data: {
-        webhookId,
-        eventId: payload.id,
-        eventType: payload.type,
-        payload: JSON.stringify(payload),
-        url: '',
-        status: 'failed',
-        errorMessage: error instanceof Error ? error.message : String(error),
-        attemptNumber: 1,
-      },
+    await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
+      success: false,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      attemptNumber: attempt,
     });
+
+    await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
 
     return {
       success: false,
       errorMessage: error instanceof Error ? error.message : String(error),
-      attemptNumber: 1,
+      attemptNumber: attempt,
     };
   }
 }
 
 /**
- * Retry a failed webhook delivery with backoff.
+ * Create a WebhookDeliveryAttempt record for tracking individual delivery attempts.
  */
-async function retryFailedDelivery(
+async function createAttemptRecord(
+  db: typeof prisma,
+  deliveryId: string,
+  webhookId: string,
+  payload: WebhookPayload,
+  attemptNumber: number,
+  result: WebhookDeliveryResult,
+  extra?: { responseHeaders?: string }
+): Promise<void> {
+  await db.webhookDeliveryAttempt.create({
+    data: {
+      deliveryId,
+      webhookId,
+      eventPayloadId: payload.id,
+      eventType: payload.type,
+      payload: JSON.stringify(payload),
+      attemptNumber,
+      status: result.success ? 'success' : 'failed',
+      errorMessage: result.errorMessage,
+      responseStatus: result.statusCode,
+      responseHeaders: extra?.responseHeaders,
+      durationMs: result.durationMs,
+      startedAt: new Date(),
+      completedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Update the WebhookDelivery status based on the latest attempt result.
+ */
+async function updateDeliveryStatus(
+  db: typeof prisma,
+  deliveryId: string,
+  status: 'pending' | 'delivering' | 'success' | 'failed' | 'expired',
+  attemptNumber: number
+): Promise<void> {
+  await db.webhookDelivery.update({
+    where: { id: deliveryId },
+    data: {
+      status,
+      attemptNumber,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Retry a failed webhook delivery with backoff.
+ * Uses webhook.maxRetries instead of hardcoded MAX_DELIVERY_ATTEMPTS.
+ */
+export async function retryFailedDelivery(
   webhookId: string,
   payload: WebhookPayload,
   currentAttempt: number
 ): Promise<void> {
+  const db = prisma;
+
+  // Get webhook to check maxRetries
+  const webhook = await db.webhook.findUnique({
+    where: { id: webhookId },
+    select: { maxRetries: true, isActive: true, isArchived: true, status: true },
+  });
+
+  if (!webhook) {
+    console.warn(`[WebhookQueue] Webhook ${webhookId} not found for retry decision`);
+    return;
+  }
+
+  const maxRetries = webhook.maxRetries;
   const nextAttempt = currentAttempt + 1;
 
-  if (nextAttempt > MAX_DELIVERY_ATTEMPTS) {
+  // Issue 3.4/3.5: Use webhook.maxRetries instead of hardcoded MAX_DELIVERY_ATTEMPTS
+  if (nextAttempt > maxRetries) {
     // Circuit breaker: mark webhook as paused
     try {
-      await prisma.webhook.update({
+      await db.webhook.update({
         where: { id: webhookId },
         data: {
           status: 'paused',
           updatedAt: new Date(),
         },
       });
-      console.warn(`[WebhookQueue] Circuit breaker triggered for webhook ${webhookId} after ${MAX_DELIVERY_ATTEMPTS} failures`);
+      console.warn(`[WebhookQueue] Circuit breaker triggered for webhook ${webhookId} after ${maxRetries} retries (maxRetries=${maxRetries})`);
     } catch {
       // Webhook may have been deleted
     }
@@ -223,10 +370,14 @@ async function retryFailedDelivery(
   // Calculate backoff delay
   const backoffIndex = Math.min(nextAttempt - 1, RETRY_BACKOFF.length - 1);
   const delayMs = RETRY_BACKOFF[backoffIndex];
-  // Re-queue with scheduled delay
-  await queueWebhookDelivery(webhookId, payload, nextAttempt);
 
-  console.log(`[WebhookQueue] Retrying webhook ${webhookId} in ${delayMs / 1000}s (attempt ${nextAttempt}/${MAX_DELIVERY_ATTEMPTS})`);
+  // Issue 3.1: Calculate the scheduledAt time with backoff delay
+  const scheduledAt = new Date(Date.now() + delayMs);
+
+  // Issue 3.2: queueWebhookDelivery now includes attempt number in jobId
+  await queueWebhookDelivery(webhookId, payload, nextAttempt, scheduledAt);
+
+  console.log(`[WebhookQueue] Retrying webhook ${webhookId} in ${delayMs / 1000}s (attempt ${nextAttempt}/${maxRetries})`);
 }
 
 /**
@@ -278,7 +429,8 @@ async function processPendingJobs(): Promise<void> {
           throw new Error('Invalid job data: missing webhookId or payload');
         }
 
-        const result = await processWebhookDeliveryJob(job.id, jobData.webhookId, jobData.payload);
+        // Issue 3.2: Pass attempt number from job to processor
+        const result = await processWebhookDeliveryJob(job.id, jobData.webhookId, jobData.payload, job.attempt);
 
         if (result.success) {
           await db.jobRun.update({

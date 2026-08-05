@@ -8,9 +8,9 @@
 
 import dns from 'dns';
 import { promisify } from 'util';
+import net from 'net';
 
-const resolvePromise = promisify(dns.resolve4);
-const resolve6Promise = promisify(dns.resolve6);
+const resolvePromise = promisify(dns.resolve);
 
 // SSRF-blocked IP ranges (CIDR notation)
 const PRIVATE_RANGES: { start: number[]; end: number[]; isV6: boolean }[] = [
@@ -70,29 +70,53 @@ function ipv4ToBytes(ip: string): number[] | null {
 }
 
 /**
- * Convert IPv6 address to 16-byte array for comparison
+ * Expand an IPv6 address to its full 8-group form (no :: shorthand).
  */
-function ipv6ToBytes(ip: string): number[] | null {
-  // Normalize IPv6
-  let normalized = ip.toLowerCase();
+function expandIPv6(ip: string): string | null {
+  let normalized = ip.toLowerCase().trim();
   
+  // Remove brackets if present (e.g., [::1] -> ::1)
+  if (normalized.startsWith('[') && normalized.endsWith(']')) {
+    normalized = normalized.slice(1, -1);
+  }
+
   // Handle :: expansion
   if (normalized.includes('::')) {
     const [left, right] = normalized.split('::');
     const leftParts = left ? left.split(':') : [];
     const rightParts = right ? right.split(':') : [];
     const missing = 8 - leftParts.length - rightParts.length;
+    if (missing < 0) return null; // Invalid: too many groups
     const parts = [...leftParts, ...Array(missing).fill('0'), ...rightParts];
-    normalized = parts.join(':');
+    return parts.join(':');
   }
 
   const parts = normalized.split(':');
   if (parts.length !== 8) return null;
+  return normalized;
+}
 
-  return parts.map(p => {
-    const n = parseInt(p, 16);
-    return isNaN(n) ? -1 : n;
-  });
+/**
+ * Convert IPv6 address to 16-byte array for comparison.
+ * Each byte is a separate element in the returned array.
+ */
+function ipv6ToBytes(ip: string): number[] | null {
+  const expanded = expandIPv6(ip);
+  if (!expanded) return null;
+
+  const groups = expanded.split(':');
+  const bytes: number[] = [];
+
+  for (const group of groups) {
+    // Pad group to 4 characters to handle abbreviated IPv6 (e.g., '0' -> '0000', '1' -> '0001')
+    const paddedGroup = group.padStart(4, '0');
+    const hi = parseInt(paddedGroup.substring(0, 2), 16);
+    const lo = parseInt(paddedGroup.substring(2, 4), 16);
+    if (isNaN(hi) || isNaN(lo)) return null;
+    bytes.push(hi, lo);
+  }
+
+  return bytes;
 }
 
 /**
@@ -112,7 +136,8 @@ function isPrivateIPv4(ip: string): boolean {
 }
 
 /**
- * Check if an IPv6 address falls within any blocked range
+ * Check if an IPv6 address falls within any blocked range.
+ * Compares 16-byte arrays directly against PRIVATE_RANGES entries.
  */
 function isPrivateIPv6(ip: string): boolean {
   // Expand IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
@@ -122,17 +147,12 @@ function isPrivateIPv6(ip: string): boolean {
   }
 
   const bytes = ipv6ToBytes(ip);
-  if (!bytes || bytes.some(b => b < 0 || b > 255)) return false;
-
-  // Convert to 8-byte pairs for comparison
-  const v6Parts: number[] = [];
-  for (let i = 0; i < bytes.length; i += 2) {
-    v6Parts.push((bytes[i] << 8) | bytes[i + 1]);
-  }
+  if (!bytes || bytes.length !== 16) return false;
 
   for (const range of PRIVATE_RANGES) {
     if (!range.isV6) continue;
-    if (v6Parts.every((b, i) => b >= range.start[i] && b <= range.end[i])) {
+    if (range.start.length !== 16 || range.end.length !== 16) continue;
+    if (bytes.every((b, i) => b >= range.start[i] && b <= range.end[i])) {
       return true;
     }
   }
@@ -225,37 +245,55 @@ function isBlockedIP(ip: string): { blocked: boolean; reason?: string } {
 }
 
 /**
- * Resolve hostname to IP addresses and check if any are blocked
+ * Resolve hostname to IP addresses (both A and AAAA records) and check if any are blocked.
+ * Uses dns.resolve() to get all record types in a single call.
+ *
+ * Returns:
+ * - blocked: true if hostname couldn't resolve or any resolved IP is private/cloud-metadata
+ * - blocked: false if all IPs are public
+ * - resolvedIps: list of all resolved IP addresses (both IPv4 and IPv6)
  */
-async function resolveAndCheckHostname(hostname: string): Promise<{ blocked: boolean; reason?: string; resolvedIps?: string[] }> {
+export async function resolveAndCheckHostname(hostname: string): Promise<{ blocked: boolean; reason?: string; resolvedIps?: string[] }> {
+  let records: string[];
   try {
-    // Try IPv4 first
-    let ips: string[];
-    try {
-      ips = await resolvePromise(hostname);
-    } catch {
-      // Try IPv6
-      try {
-        const ipv6Addrs = await resolve6Promise(hostname);
-        ips = ipv6Addrs.map(ip => `::ffff:${ip}`);
-      } catch {
-        return { blocked: true, reason: `Could not resolve hostname: ${hostname}` };
-      }
-    }
-
-    const resolvedIps = ips.filter(ip => !ip.startsWith('::ffff:')) || ips;
-
-    for (const ip of resolvedIps) {
-      const check = isBlockedIP(ip);
-      if (check.blocked) {
-        return check;
-      }
-    }
-
-    return { blocked: false, resolvedIps };
-  } catch (error) {
-    return { blocked: true, reason: `Failed to resolve hostname: ${hostname}` };
+    records = await resolvePromise(hostname);
+  } catch {
+    return { blocked: true, reason: `Could not resolve hostname: ${hostname}` };
   }
+
+  // dns.resolve() returns strings: IPv4 addresses as "x.x.x.x" and IPv6 as full expanded form
+  const ipv4Records: string[] = [];
+  const ipv6Records: string[] = [];
+
+  for (const record of records) {
+    const ipType = net.isIP(record);
+    if (ipType === 4) {
+      ipv4Records.push(record);
+    } else if (ipType === 6) {
+      ipv6Records.push(record);
+    }
+    // If net.isIP returns 0, it's neither a valid IPv4 nor IPv6 - skip it
+  }
+
+  const allResolvedIps: string[] = [...ipv4Records, ...ipv6Records];
+
+  // Check IPv4 addresses
+  for (const ip of ipv4Records) {
+    const check = isBlockedIP(ip);
+    if (check.blocked) {
+      return check;
+    }
+  }
+
+  // Check IPv6 addresses natively (no ::ffff: prefix wrapping)
+  for (const ip of ipv6Records) {
+    const check = isBlockedIP(ip);
+    if (check.blocked) {
+      return check;
+    }
+  }
+
+  return { blocked: false, resolvedIps: allResolvedIps.length > 0 ? allResolvedIps : undefined };
 }
 
 /**
