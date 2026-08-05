@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, ShareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { assetApi, contractApi, licenseApi, adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -96,6 +97,7 @@ const initialForm: CreateAssetForm = {
 };
 
 const Assets = () => {
+  const location = useLocation();
   const { t } = useI18n();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetTypes, setAssetTypes] = useState<AssetType[]>([]);
@@ -121,6 +123,22 @@ const Assets = () => {
   useEffect(() => { loadAssets(); loadAssetTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial asset page load only; loaders use current translation fallback for this mount.
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editAssetId = params.get('editAsset');
+    if (editAssetId && assets.length > 0) {
+      const asset = assets.find((a) => a.id === editAssetId);
+      if (asset) {
+        handleEdit(asset);
+        // Clean up the query parameter from the URL
+        params.delete('editAsset');
+        const newUrl = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState(null, '', newUrl);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only trigger after assets are loaded.
+  }, [loading, assets.length]);
 
   const loadAssets = async () => {
     try {

@@ -67,26 +67,36 @@ export class CostPlanningService {
     if (!filters.sourceType || filters.sourceType === 'asset') {
       const assets = await prisma.asset.findMany({ where: { isArchived: false, OR: [{ lifecycleStatus: { in: ['planned', 'ordered'] } }, { endOfLifeDate: inPeriod[0] }, { endOfSupportDate: inPeriod[0] }] } });
       for (const asset of assets) {
+        const key = `asset:${asset.id}`;
+        if (existingKeys.has(key)) continue;
         candidates.push({
-          candidateKey: `asset:${asset.id}`,
+          candidateKey: key,
           sourceType: 'asset', sourceDisplayId: asset.displayId, sourceLabel: asset.name,
           title: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? `Asset procurement: ${asset.name}` : `Replacement: ${asset.name}`,
           category: 'hardware', investmentType: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? 'new_acquisition' : 'replacement',
           relevanceReason: asset.endOfLifeDate || asset.endOfSupportDate ? 'Lifecycle date in selected fiscal year' : 'Asset is planned or ordered',
           plannedAmount: null, knownAmount: null, currency: 'EUR', dueDate: (asset.endOfLifeDate || asset.endOfSupportDate)?.toISOString() ?? null,
-          alreadyInPlan: existingKeys.has(`asset:${asset.id}`),
+          alreadyInPlan: false,
         });
       }
     }
 
     if (!filters.sourceType || filters.sourceType === 'license') {
       const licenses = await prisma.license.findMany({ where: { isArchived: false, OR: [{ renewalDate: inPeriod[0] }, { endDate: inPeriod[0] }] } });
-      for (const license of licenses) candidates.push({ candidateKey: `license:${license.id}`, sourceType: 'license', sourceDisplayId: license.displayId, sourceLabel: license.title, title: `License renewal: ${license.title}`, category: 'license', investmentType: 'renewal', relevanceReason: 'License renewal/end date in selected fiscal year', plannedAmount: license.cost?.toString() ?? null, knownAmount: license.cost?.toString() ?? null, currency: license.currency || 'EUR', dueDate: (license.renewalDate || license.endDate)?.toISOString() ?? null, alreadyInPlan: existingKeys.has(`license:${license.id}`) });
+      for (const license of licenses) {
+        const key = `license:${license.id}`;
+        if (existingKeys.has(key)) continue;
+        candidates.push({ candidateKey: key, sourceType: 'license', sourceDisplayId: license.displayId, sourceLabel: license.title, title: `License renewal: ${license.title}`, category: 'license', investmentType: 'renewal', relevanceReason: 'License renewal/end date in selected fiscal year', plannedAmount: license.cost?.toString() ?? null, knownAmount: license.cost?.toString() ?? null, currency: license.currency || 'EUR', dueDate: (license.renewalDate || license.endDate)?.toISOString() ?? null, alreadyInPlan: false });
+      }
     }
 
     if (!filters.sourceType || filters.sourceType === 'contract') {
       const contracts = await prisma.contract.findMany({ where: { isArchived: false, OR: [{ renewalDate: inPeriod[0] }, { endDate: inPeriod[0] }] } });
-      for (const contract of contracts) candidates.push({ candidateKey: `contract:${contract.id}`, sourceType: 'contract', sourceDisplayId: contract.displayId, sourceLabel: contract.title, title: `Contract renewal: ${contract.title}`, category: 'contract', investmentType: 'renewal', relevanceReason: 'Contract renewal/end date in selected fiscal year', plannedAmount: contract.value?.toString() ?? null, knownAmount: contract.value?.toString() ?? null, currency: contract.currency || 'EUR', dueDate: (contract.renewalDate || contract.endDate)?.toISOString() ?? null, alreadyInPlan: existingKeys.has(`contract:${contract.id}`) });
+      for (const contract of contracts) {
+        const key = `contract:${contract.id}`;
+        if (existingKeys.has(key)) continue;
+        candidates.push({ candidateKey: key, sourceType: 'contract', sourceDisplayId: contract.displayId, sourceLabel: contract.title, title: `Contract renewal: ${contract.title}`, category: 'contract', investmentType: 'renewal', relevanceReason: 'Contract renewal/end date in selected fiscal year', plannedAmount: contract.value?.toString() ?? null, knownAmount: contract.value?.toString() ?? null, currency: contract.currency || 'EUR', dueDate: (contract.renewalDate || contract.endDate)?.toISOString() ?? null, alreadyInPlan: false });
+      }
     }
 
     return candidates.filter((c) => (!filters.category || c.category === filters.category) && (!filters.search || `${c.title} ${c.sourceDisplayId} ${c.sourceLabel}`.toLowerCase().includes(filters.search.toLowerCase())));

@@ -266,6 +266,8 @@ export const CostPlanningManualItemSchema = z.object({
   dueDate: z.string().datetime().optional(),
   supplierId: EntityIdSchema.optional(),
   supplierName: z.string().trim().max(255).optional(),
+  quoteNumber: z.string().trim().max(100).optional(),
+  remark: z.string().max(2000).optional(),
 });
 export type CostPlanningManualItemDTO = z.infer<typeof CostPlanningManualItemSchema>;
 

@@ -1987,7 +1987,9 @@ model CostPlanItem {
   status            String    @default("planned")
   supplierId        String?
   supplierName      String?
+  quoteNumber       String?  // Angebotsnummer
   invoiceNumber     String?
+  remark            String?  // Bemerkung
   invoiceDate       DateTime?
   acquiredAt        DateTime?
   completedAt       DateTime?

@@ -80,7 +80,7 @@ export class FiscalYearService {
     const startYear = date >= fiscalStartThisYear ? calendarYear : calendarYear - 1;
     const periodStart = toUtcDate(startYear, config.startMonth, config.startDay);
     const periodEnd = toUtcDate(startYear + 1, config.startMonth, config.startDay);
-    const label = config.startMonth === 1 && config.startDay === 1 ? String(startYear) : `FY${startYear + 1}`;
+    const label = config.startMonth === 1 && config.startDay === 1 ? String(startYear) : `${startYear}/${startYear + 1}`;
     return { label, periodStart, periodEnd };
   }
 
@@ -91,13 +91,26 @@ export class FiscalYearService {
 
   async getFiscalYearByLabel(label: string): Promise<FiscalYearPeriod> {
     const config = await this.getConfig();
-    const year = Number(label.replace(/^FY/i, ''));
-    if (!Number.isInteger(year) || year < 1900 || year > 9999) {
-      throw new AppError('Invalid fiscal year label', 400);
+    const isCalendar = config.startMonth === 1 && config.startDay === 1;
+    let startYear: number;
+    if (isCalendar) {
+      startYear = Number(label);
+      if (!Number.isInteger(startYear) || startYear < 1900 || startYear > 9999) {
+        throw new AppError('Invalid fiscal year label', 400);
+      }
+    } else {
+      const parts = label.split('/');
+      if (parts.length !== 2) {
+        throw new AppError('Invalid fiscal year label', 400);
+      }
+      const first = Number(parts[0]);
+      if (!Number.isInteger(first) || first < 1900 || first > 9999) {
+        throw new AppError('Invalid fiscal year label', 400);
+      }
+      startYear = first;
     }
-    const startYear = config.startMonth === 1 && config.startDay === 1 ? year : year - 1;
     return {
-      label: config.startMonth === 1 && config.startDay === 1 ? String(startYear) : `FY${startYear + 1}`,
+      label: isCalendar ? String(startYear) : `${startYear}/${startYear + 1}`,
       periodStart: toUtcDate(startYear, config.startMonth, config.startDay),
       periodEnd: toUtcDate(startYear + 1, config.startMonth, config.startDay),
     };

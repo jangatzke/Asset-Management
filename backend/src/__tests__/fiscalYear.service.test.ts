@@ -52,7 +52,7 @@ describe('FiscalYearService', () => {
   it('calculates shifted fiscal-year periods', () => {
     const period = service.getPeriodForDate(new Date('2026-03-31T23:00:00Z'), { startMonth: 4, startDay: 1 });
 
-    expect(period.label).toBe('FY2026');
+    expect(period.label).toBe('2025/2026');
     expect(period.periodStart.toISOString()).toBe('2025-04-01T00:00:00.000Z');
     expect(period.periodEnd.toISOString()).toBe('2026-04-01T00:00:00.000Z');
   });
