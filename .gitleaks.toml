@@ -1,0 +1,15 @@
+# Gitleaks configuration
+# Exclude test files from scanning - these contain mock data, not real secrets
+
+[ignore]
+  paths = [
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test.js",
+    "**/*.test.jsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/*.spec.js",
+    "**/*.spec.jsx",
+  ]
