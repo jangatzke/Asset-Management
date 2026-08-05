@@ -217,6 +217,16 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
           // Return cached response immediately
           res.set('X-Idempotency-Cache', 'hit');
+          if (!existingReservation.response) {
+            res.status(500).json({
+              success: false,
+              error: {
+                message: 'Internal error: cached response is incomplete',
+                code: 'IDEMPOTENCY_CACHE_INCOMPLETE',
+              },
+            });
+            return;
+          }
           res.status(existingReservation.response.status).json(existingReservation.response.body);
           return;
         }

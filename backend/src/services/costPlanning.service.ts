@@ -68,16 +68,32 @@ export class CostPlanningService {
       const assets = await prisma.asset.findMany({ where: { isArchived: false, OR: [{ lifecycleStatus: { in: ['planned', 'ordered'] } }, { endOfLifeDate: inPeriod[0] }, { endOfSupportDate: inPeriod[0] }] } });
       for (const asset of assets) {
         const key = `asset:${asset.id}`;
-        if (existingKeys.has(key)) continue;
-        candidates.push({
-          candidateKey: key,
-          sourceType: 'asset', sourceDisplayId: asset.displayId, sourceLabel: asset.name,
-          title: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? `Asset procurement: ${asset.name}` : `Replacement: ${asset.name}`,
-          category: 'hardware', investmentType: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? 'new_acquisition' : 'replacement',
-          relevanceReason: asset.endOfLifeDate || asset.endOfSupportDate ? 'Lifecycle date in selected fiscal year' : 'Asset is planned or ordered',
-          plannedAmount: null, knownAmount: null, currency: 'EUR', dueDate: (asset.endOfLifeDate || asset.endOfSupportDate)?.toISOString() ?? null,
-          alreadyInPlan: false,
-        });
+        const isInPlan = existingKeys.has(key);
+        if (isInPlan) {
+          // Include already-planned assets with alreadyInPlan: true
+          const existingItem = existingPlan?.items.find((item: any) => item.sourceKey === key);
+          candidates.push({
+            candidateKey: key,
+            sourceType: 'asset', sourceDisplayId: asset.displayId, sourceLabel: asset.name,
+            title: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? `Asset procurement: ${asset.name}` : `Replacement: ${asset.name}`,
+            category: 'hardware', investmentType: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? 'new_acquisition' : 'replacement',
+            relevanceReason: asset.endOfLifeDate || asset.endOfSupportDate ? 'Lifecycle date in selected fiscal year' : 'Asset is planned or ordered',
+            plannedAmount: existingItem?.plannedAmount?.toString() ?? null,
+            knownAmount: existingItem?.knownAmount?.toString() ?? null,
+            currency: 'EUR', dueDate: (asset.endOfLifeDate || asset.endOfSupportDate)?.toISOString() ?? null,
+            alreadyInPlan: true,
+          });
+        } else {
+          candidates.push({
+            candidateKey: key,
+            sourceType: 'asset', sourceDisplayId: asset.displayId, sourceLabel: asset.name,
+            title: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? `Asset procurement: ${asset.name}` : `Replacement: ${asset.name}`,
+            category: 'hardware', investmentType: asset.lifecycleStatus === 'planned' || asset.lifecycleStatus === 'ordered' ? 'new_acquisition' : 'replacement',
+            relevanceReason: asset.endOfLifeDate || asset.endOfSupportDate ? 'Lifecycle date in selected fiscal year' : 'Asset is planned or ordered',
+            plannedAmount: null, knownAmount: null, currency: 'EUR', dueDate: (asset.endOfLifeDate || asset.endOfSupportDate)?.toISOString() ?? null,
+            alreadyInPlan: false,
+          });
+        }
       }
     }
 

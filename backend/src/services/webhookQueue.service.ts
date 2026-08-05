@@ -220,9 +220,6 @@ export async function processWebhookDeliveryJob(
       };
     }
 
-    // Issue 3.4: Use webhook.maxRetries from the webhook record
-    const maxRetries = webhook.maxRetries;
-
     // Deliver with HMAC signature
     const result = await deliverWebhook(payload, {
       url: webhook.url,

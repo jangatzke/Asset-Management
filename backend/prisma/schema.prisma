@@ -1987,9 +1987,9 @@ model CostPlanItem {
   status            String    @default("planned")
   supplierId        String?
   supplierName      String?
-  quoteNumber       String?  // Angebotsnummer
+  quoteNumber       String? // Angebotsnummer
   invoiceNumber     String?
-  remark            String?  // Bemerkung
+  remark            String? // Bemerkung
   invoiceDate       DateTime?
   acquiredAt        DateTime?
   completedAt       DateTime?
@@ -2134,7 +2134,7 @@ model Supplier {
   createdBy              String?
   updatedBy              String?
 
-  costPlanItems         CostPlanItem[] @relation("CostPlanItemSupplier")
+  costPlanItems CostPlanItem[] @relation("CostPlanItemSupplier")
 
   @@index([criticality])
   @@index([nextReviewDate])
@@ -3454,9 +3454,9 @@ model ServiceAccount {
   createdBy       String?
   updatedBy       String?
 
-  user              User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  apiAuditLogs      ApiAuditLog[]
-  idempotencyKeys   IdempotencyKey[]
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiAuditLogs    ApiAuditLog[]
+  idempotencyKeys IdempotencyKey[]
 
   @@index([isActive])
   @@index([isArchived])
@@ -3520,12 +3520,12 @@ model Webhook {
   name               String
   description        String?
   url                String
-  secret             String        // HMAC signing secret for this webhook
+  secret             String // HMAC signing secret for this webhook
   events             String[]      @db.Text
   status             WebhookStatus @default(active)
   isActive           Boolean       @default(true)
   isArchived         Boolean       @default(false)
-  lastDeliveryStatus String?       // "success" | "failed"
+  lastDeliveryStatus String? // "success" | "failed"
   lastDeliveredAt    DateTime?
   failureCount       Int           @default(0)
   maxRetries         Int           @default(5)
@@ -3552,27 +3552,27 @@ enum WebhookDeliveryStatus {
 }
 
 model WebhookDelivery {
-  id              String               @id @default(uuid())
+  id              String                @id @default(uuid())
   webhookId       String
-  eventId         String               @unique // idempotency key
+  eventId         String                @unique // idempotency key
   eventType       String
-  payload         String               @db.Text // JSON-serialized payload
-  signature       String?              // HMAC signature sent with delivery
+  payload         String                @db.Text // JSON-serialized payload
+  signature       String? // HMAC signature sent with delivery
   url             String
-  httpMethod      String               @default("POST")
-  requestHeaders  String               @db.Text @default("{}")
+  httpMethod      String                @default("POST")
+  requestHeaders  String                @default("{}") @db.Text
   requestBodyHash String?
   responseStatus  Int?
-  responseHeaders String?              @db.Text
+  responseHeaders String?               @db.Text
   errorMessage    String?
   durationMs      Int?
-  attemptNumber   Int                  @default(1)
+  attemptNumber   Int                   @default(1)
   status          WebhookDeliveryStatus @default(pending)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
-  webhook         Webhook              @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-  attempts        WebhookDeliveryAttempt[]
+  webhook  Webhook                  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  attempts WebhookDeliveryAttempt[]
 
   @@index([webhookId, status])
   @@index([status])
@@ -3581,22 +3581,22 @@ model WebhookDelivery {
 }
 
 model WebhookDeliveryAttempt {
-  id             String  @id @default(uuid())
-  deliveryId     String
-  webhookId      String
-  eventPayloadId String
-  eventType      String
-  payload        String  @db.Text
-  attemptNumber  Int
-  status         String
-  errorMessage   String?
-  responseStatus Int?
-  responseHeaders String? @db.Text
-  durationMs     Int?
-  startedAt      DateTime
-  completedAt    DateTime
+  id              String   @id @default(uuid())
+  deliveryId      String
+  webhookId       String
+  eventPayloadId  String
+  eventType       String
+  payload         String   @db.Text
+  attemptNumber   Int
+  status          String
+  errorMessage    String?
+  responseStatus  Int?
+  responseHeaders String?  @db.Text
+  durationMs      Int?
+  startedAt       DateTime
+  completedAt     DateTime
 
-  webhook  Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  webhook  Webhook         @relation(fields: [webhookId], references: [id], onDelete: Cascade)
   delivery WebhookDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
 
   @@index([webhookId, status])
