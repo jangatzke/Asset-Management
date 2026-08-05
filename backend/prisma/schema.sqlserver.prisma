@@ -1979,7 +1979,9 @@ model CostPlanItem {
   status            String    @default("planned")
   supplierId        String?
   supplierName      String?
+  quoteNumber       String?  // Angebotsnummer
   invoiceNumber     String?
+  remark            String?  // Bemerkung
   invoiceDate       DateTime?
   acquiredAt        DateTime?
   completedAt       DateTime?
@@ -3447,7 +3449,6 @@ model ServiceAccount {
   user              User?             @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   apiAuditLogs      ApiAuditLog[]
   idempotencyKeys   IdempotencyKey[]
-  webhookDeliveries WebhookDelivery[]
 
   @@index([isActive])
   @@index([isArchived])
@@ -3500,53 +3501,57 @@ model IdempotencyKey {
 }
 
 model Webhook {
-  id                 String    @id @default(uuid())
-  displayId          String    @unique @default("")
+  id                 String        @id @default(uuid())
+  displayId          String        @unique @default("")
   name               String
   description        String?
   url                String
-  secret             String
-  events             String      @default("[]") @db.NVarChar(Max)
-  isActive           Boolean   @default(true)
-  isArchived         Boolean   @default(false)
-  lastDeliveryStatus String?
+  secret             String        // HMAC signing secret for this webhook
+  events             String @default("[]") @db.NVarChar(Max)      @db.NVarChar(Max)
+  status             String @default(active)
+  isActive           Boolean       @default(true)
+  isArchived         Boolean       @default(false)
+  lastDeliveryStatus String?       // "success" | "failed"
   lastDeliveredAt    DateTime?
-  failureCount       Int       @default(0)
-  maxRetries         Int       @default(3)
-  timeoutMs          Int       @default(10000)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  failureCount       Int           @default(0)
+  maxRetries         Int           @default(5)
+  timeoutMs          Int           @default(10000)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
   createdBy          String?
   updatedBy          String?
 
-  webhookDeliveries WebhookDelivery[]
+  deliveries WebhookDelivery[]
 
-  @@index([isActive])
+  @@index([status, isActive])
   @@map("webhooks")
 }
 
 model WebhookDelivery {
-  id              String   @id @default(uuid())
+  id              String               @id @default(uuid())
   webhookId       String
-  eventId         String
+  eventId         String               @unique // idempotency key
+  eventType       String
+  payload         String               @db.NVarChar(Max) // JSON-serialized payload
+  signature       String?              // HMAC signature sent with delivery
   url             String
-  httpMethod      String   @default("POST")
-  requestHeaders  String     @default("{}") @db.NVarChar(Max)
-  requestBodyHash String
+  httpMethod      String               @default("POST")
+  requestHeaders  String               @db.NVarChar(Max) @default("{}")
+  requestBodyHash String?
   responseStatus  Int?
-  responseHeaders String? @db.NVarChar(Max)
+  responseHeaders String?              @db.NVarChar(Max)
   errorMessage    String?
   durationMs      Int?
-  attemptNumber   Int      @default(1)
-  createdAt       DateTime @default(now())
+  attemptNumber   Int                  @default(1)
+  status          String @default(pending)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  webhook          Webhook         @relation(fields: [webhookId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  ServiceAccount   ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onUpdate: NoAction)
-  serviceAccountId String?
+  webhook         Webhook              @relation(fields: [webhookId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([webhookId])
+  @@index([webhookId, status])
+  @@index([status])
   @@index([eventId])
-  @@index([createdAt])
   @@map("webhook_deliveries")
 }
 
@@ -3621,11 +3626,12 @@ model JobRun {
   jobType     String // category: "sync", "reminder", "webhook-retry", "import"
   status      String    @default("pending") // pending | running | completed | failed | skipped
   workerId    String? // hostname + pid or container id
-  scheduledAt DateTime  @default(now())
+  scheduledAt DateTime? // null means run immediately
   startedAt   DateTime?
   finishedAt  DateTime?
   error       String?   @db.NVarChar(Max)
   attempt     Int       @default(1)
+  data        String?   @db.NVarChar(Max) // JSON-serialized job payload
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

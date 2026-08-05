@@ -1,6 +1,7 @@
 import { Express } from 'express';
 import prisma from '../config/database';
 import { stopIdempotencyCleanup } from '../services/idempotency.service';
+import { stopWebhookQueueWorker } from '../services/webhookQueue.service';
 
 export interface GracefulShutdownOptions {
   signalTimeout?: number; // Maximum time to wait for connections to close (ms)
@@ -59,6 +60,9 @@ async function gracefulShutdown(
     
     // Clean up idempotency cleanup interval
     stopIdempotencyCleanup();
+
+    // Stop webhook queue worker
+    stopWebhookQueueWorker();
 
     // Disconnect from database
     try {

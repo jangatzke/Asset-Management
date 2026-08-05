@@ -3,6 +3,11 @@ import {
   validateIdempotencyKey, 
   storeIdempotencyResponse,
   getIdempotencyResponse,
+  getIdempotencyEntry,
+  generateIdempotencyKey,
+  generateRequestBodyHash,
+  shouldCacheResponse,
+  requestBodyMatches,
   startIdempotencyCleanup,
   stopIdempotencyCleanup 
 } from '../services/idempotency.service';
@@ -34,8 +39,8 @@ describe('Idempotency Service', () => {
   });
 
   describe('getIdempotencyResponse', () => {
-    test('should return stored response for valid key', () => {
-      const responseData = { status: 201, body: { id: 'new-asset' }, headers: {} };
+    test('should return only entry.data.response for valid key', () => {
+      const responseData = { status: 201, headers: { 'content-type': 'application/json' }, body: { id: 'new-asset' } };
       
       storeIdempotencyResponse({
         key: 'unique-key',
@@ -44,16 +49,14 @@ describe('Idempotency Service', () => {
         requestBodyHash: 'hash1',
       }, responseData);
 
-      // The store wraps data in { data: { response, keyOptions, createdAt }, expiresAt }
-      // getIdempotencyResponse returns entry?.data which is { response, keyOptions, createdAt }
-      const result = getIdempotencyResponse<{ response: typeof responseData; keyOptions: unknown; createdAt: number }>('unique-key');
+      // getIdempotencyResponse now returns ONLY entry.data.response
+      const result = getIdempotencyResponse<typeof responseData>('unique-key');
       
       expect(result).toBeDefined();
-      if (result) {
-        expect(result.response).toEqual(responseData);
-        expect(result.keyOptions).toHaveProperty('httpMethod', 'POST');
-        expect(typeof result.createdAt).toBe('number');
-      }
+      expect(result).toEqual(responseData);
+      // Should NOT contain keyOptions or createdAt at the top level
+      expect(result).not.toHaveProperty('keyOptions');
+      expect(result).not.toHaveProperty('createdAt');
     });
 
     test('should return undefined for non-existent key', () => {
@@ -68,13 +71,34 @@ describe('Idempotency Service', () => {
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash1',
         ttlMs: 50, // 50ms TTL for testing
-      }, { data: 'test' });
+      }, { status: 201, headers: {}, body: { data: 'test' } });
 
       setTimeout(() => {
         const result = getIdempotencyResponse('expiring-key');
         expect(result).toBeUndefined();
         done();
       }, 100);
+    });
+  });
+
+  describe('getIdempotencyEntry (internal)', () => {
+    test('should return full entry.data including keyOptions and createdAt', () => {
+      storeIdempotencyResponse({
+        key: 'entry-key',
+        httpMethod: 'POST',
+        routePattern: '/api/v1/assets',
+        requestBodyHash: 'hash1',
+      }, { status: 201, headers: {}, body: { data: 'test' } });
+
+      const result = getIdempotencyEntry<{ response: unknown; keyOptions: unknown; createdAt: number }>('entry-key');
+      
+      expect(result).toBeDefined();
+      if (result) {
+        expect(result.response).toEqual({ status: 201, headers: {}, body: { data: 'test' } });
+        expect(result.keyOptions).toHaveProperty('httpMethod', 'POST');
+        expect(result.keyOptions).toHaveProperty('requestBodyHash', 'hash1');
+        expect(typeof result.createdAt).toBe('number');
+      }
     });
   });
 
@@ -85,13 +109,116 @@ describe('Idempotency Service', () => {
         httpMethod: 'POST',
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash1',
-      }, { data: 'test' });
+      }, { status: 201, headers: {}, body: { data: 'test' } });
 
       expect(validateIdempotencyKey('valid-key')).toBe(true);
     });
 
     test('should return false for non-existent key', () => {
       expect(validateIdempotencyKey('non-existent')).toBe(false);
+    });
+  });
+
+  describe('generateIdempotencyKey', () => {
+    test('should generate a consistent key from principal + method + route + idempotency-key', () => {
+      const key1 = generateIdempotencyKey('user-123', 'POST', '/api/v1/assets', 'req-abc');
+      const key2 = generateIdempotencyKey('user-123', 'POST', '/api/v1/assets', 'req-abc');
+      const key3 = generateIdempotencyKey('user-456', 'POST', '/api/v1/assets', 'req-abc');
+      const key4 = generateIdempotencyKey('user-123', 'PUT', '/api/v1/assets', 'req-abc');
+      const key5 = generateIdempotencyKey('user-123', 'POST', '/api/v1/assets', 'req-def');
+
+      // Same inputs should produce same key
+      expect(key1).toBe(key2);
+
+      // Different principal should produce different key
+      expect(key1).not.toBe(key3);
+
+      // Different method should produce different key
+      expect(key1).not.toBe(key4);
+
+      // Different route should produce different key
+      const key6 = generateIdempotencyKey('user-123', 'POST', '/api/v1/users', 'req-abc');
+      expect(key1).not.toBe(key6);
+
+      // Different idempotency key should produce different key
+      expect(key1).not.toBe(key5);
+    });
+
+    test('should handle anonymous (undefined) principal', () => {
+      const keyWithPrincipal = generateIdempotencyKey('user-123', 'POST', '/api/v1/assets', 'req-abc');
+      const keyAnonymous = generateIdempotencyKey(undefined, 'POST', '/api/v1/assets', 'req-abc');
+      
+      expect(keyWithPrincipal).not.toBe(keyAnonymous);
+      expect(keyAnonymous).toHaveLength(64); // SHA-256 hex digest length
+    });
+
+    test('should return hex string of correct length', () => {
+      const key = generateIdempotencyKey('user', 'POST', '/api', 'key');
+      expect(key).toMatch(/^[a-f0-9]{64}$/);
+    });
+  });
+
+  describe('generateRequestBodyHash', () => {
+    test('should generate consistent hash for same object', () => {
+      const obj = { name: 'test', value: 123 };
+      const hash1 = generateRequestBodyHash(obj);
+      const hash2 = generateRequestBodyHash(obj);
+      expect(hash1).toBe(hash2);
+    });
+
+    test('should generate different hash for different objects', () => {
+      const hash1 = generateRequestBodyHash({ name: 'test1' });
+      const hash2 = generateRequestBodyHash({ name: 'test2' });
+      expect(hash1).not.toBe(hash2);
+    });
+
+    test('should handle string input', () => {
+      const hash = generateRequestBodyHash('raw-string');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('should sort object keys for consistency', () => {
+      const hash1 = generateRequestBodyHash({ a: 1, b: 2 });
+      const hash2 = generateRequestBodyHash({ b: 2, a: 1 });
+      expect(hash1).toBe(hash2);
+    });
+  });
+
+  describe('shouldCacheResponse', () => {
+    test('should cache 2xx responses', () => {
+      expect(shouldCacheResponse(200)).toBe(true);
+      expect(shouldCacheResponse(201)).toBe(true);
+      expect(shouldCacheResponse(204)).toBe(true);
+    });
+
+    test('should cache 3xx responses', () => {
+      expect(shouldCacheResponse(301)).toBe(true);
+      expect(shouldCacheResponse(302)).toBe(true);
+      expect(shouldCacheResponse(304)).toBe(true);
+    });
+
+    test('should NOT cache 4xx responses', () => {
+      expect(shouldCacheResponse(400)).toBe(false);
+      expect(shouldCacheResponse(401)).toBe(false);
+      expect(shouldCacheResponse(403)).toBe(false);
+      expect(shouldCacheResponse(404)).toBe(false);
+      expect(shouldCacheResponse(409)).toBe(false);
+    });
+
+    test('should NOT cache 5xx responses', () => {
+      expect(shouldCacheResponse(500)).toBe(false);
+      expect(shouldCacheResponse(502)).toBe(false);
+      expect(shouldCacheResponse(503)).toBe(false);
+    });
+  });
+
+  describe('requestBodyMatches', () => {
+    test('should return true for matching hashes', () => {
+      expect(requestBodyMatches('abc123', 'abc123')).toBe(true);
+    });
+
+    test('should return false for non-matching hashes', () => {
+      expect(requestBodyMatches('abc123', 'def456')).toBe(false);
     });
   });
 
@@ -104,7 +231,7 @@ describe('Idempotency Service', () => {
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash1',
         ttlMs: 50,
-      }, { data: 'test' });
+      }, { status: 201, headers: {}, body: { data: 'test' } });
 
       // Add entry with long TTL
       storeIdempotencyResponse({
@@ -113,7 +240,7 @@ describe('Idempotency Service', () => {
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash2',
         ttlMs: 60000,
-      }, { data: 'test2' });
+      }, { status: 201, headers: {}, body: { data: 'test2' } });
 
       expect(idempotencyStore.getSize()).toBe(2);
 
@@ -142,7 +269,7 @@ describe('Idempotency Service', () => {
         httpMethod: 'POST',
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash1',
-      }, { data: 'test' });
+      }, { status: 201, headers: {}, body: { data: 'test' } });
 
       expect(idempotencyStore.getSize()).toBe(1);
     });
@@ -153,14 +280,14 @@ describe('Idempotency Service', () => {
         httpMethod: 'POST',
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash1',
-      }, { data: 'test' });
+      }, { status: 201, headers: {}, body: { data: 'test' } });
 
       storeIdempotencyResponse({
         key: 'key-2',
         httpMethod: 'POST',
         routePattern: '/api/v1/assets',
         requestBodyHash: 'hash2',
-      }, { data: 'test2' });
+      }, { status: 201, headers: {}, body: { data: 'test2' } });
 
       idempotencyStore.clear();
       expect(idempotencyStore.getSize()).toBe(0);
@@ -174,6 +301,26 @@ describe('Idempotency Service', () => {
       stopIdempotencyCleanup();
       // Should not throw if already stopped
       expect(() => stopIdempotencyCleanup()).not.toThrow();
+    });
+  });
+
+  describe('Atomic reservation (first-write-wins)', () => {
+    test('should return true for first write and false for duplicate', () => {
+      const options = {
+        key: 'atomic-key',
+        httpMethod: 'POST',
+        routePattern: '/api/v1/assets',
+      };
+
+      const firstWrite = storeIdempotencyResponse(options, { status: 201, headers: {}, body: { data: 'first' } });
+      expect(firstWrite).toBe(true);
+
+      const secondWrite = storeIdempotencyResponse(options, { status: 201, headers: {}, body: { data: 'second' } });
+      expect(secondWrite).toBe(false);
+
+      // Verify the first value is preserved
+      const result = getIdempotencyResponse<{ status: number; headers: Record<string, string>; body: { data: string } }>('atomic-key');
+      expect(result?.body.data).toBe('first');
     });
   });
 });

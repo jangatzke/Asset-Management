@@ -52,45 +52,7 @@ describe('Phase 11: Metrics Authentication', () => {
     });
   });
 
-  describe('token configured - query parameter', () => {
-    beforeEach(() => {
-      process.env.METRICS_TOKEN = 'test-metrics-token-123';
-    });
-
-    test('should allow access with correct token in query parameter', async () => {
-      const middleware = createMetricsAuthMiddleware();
-      mockReq.query = { token: 'test-metrics-token-123' };
-      
-      middleware(mockReq, mockRes, nextFn);
-      
-      expect(nextFn).toHaveBeenCalled();
-      expect(mockRes.status).not.toHaveBeenCalled();
-    });
-
-    test('should reject access with wrong token in query parameter', async () => {
-      const middleware = createMetricsAuthMiddleware();
-      mockReq.query = { token: 'wrong-token' };
-      
-      middleware(mockReq, mockRes, nextFn);
-      
-      expect(nextFn).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(401);
-      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
-      expect(callArgs.error).toBe('unauthorized');
-    });
-
-    test('should reject access with no token in query parameter', async () => {
-      const middleware = createMetricsAuthMiddleware();
-      mockReq.query = {};
-      
-      middleware(mockReq, mockRes, nextFn);
-      
-      expect(nextFn).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(401);
-    });
-  });
-
-  describe('token configured - Bearer header', () => {
+  describe('token configured - Bearer header ONLY (query token removed)', () => {
     beforeEach(() => {
       process.env.METRICS_TOKEN = 'bearer-token-456';
     });
@@ -125,15 +87,26 @@ describe('Phase 11: Metrics Authentication', () => {
       expect(mockRes.status).toHaveBeenCalledWith(401);
     });
 
-    test('should accept query token even with wrong Bearer header', async () => {
+    // Query token authentication is intentionally removed for security
+    test('should reject access with correct token in query parameter (query token removed)', async () => {
       const middleware = createMetricsAuthMiddleware();
-      mockReq.headers = { authorization: 'Bearer wrong-token' };
       mockReq.query = { token: 'bearer-token-456' };
       
       middleware(mockReq, mockRes, nextFn);
       
-      // Query token should take precedence or at least be checked
-      expect(nextFn).toHaveBeenCalled();
+      // Query token is no longer accepted - this is by design
+      expect(nextFn).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(401);
+    });
+
+    test('should reject access with wrong token in query parameter', async () => {
+      const middleware = createMetricsAuthMiddleware();
+      mockReq.query = { token: 'wrong-token' };
+      
+      middleware(mockReq, mockRes, nextFn);
+      
+      expect(nextFn).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(401);
     });
   });
 
@@ -144,12 +117,23 @@ describe('Phase 11: Metrics Authentication', () => {
 
     test('should not include token value in error response', async () => {
       const middleware = createMetricsAuthMiddleware();
-      mockReq.query = {};
+      mockReq.headers = {};
       
       middleware(mockReq, mockRes, nextFn);
       
       const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
       expect(JSON.stringify(callArgs)).not.toContain('secret-token-789');
+    });
+
+    test('error message should not mention query parameter token', async () => {
+      const middleware = createMetricsAuthMiddleware();
+      mockReq.headers = {};
+      
+      middleware(mockReq, mockRes, nextFn);
+      
+      const callArgs = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(callArgs.message).not.toContain('?token=');
+      expect(callArgs.message).not.toContain('token=<value>');
     });
   });
 

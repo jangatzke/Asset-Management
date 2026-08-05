@@ -38,6 +38,7 @@ import { adminRouter } from './routes/admin.routes';
 import { intuneRouter } from './routes/intune.routes';
 import { initializeScheduler } from './services/intune.scheduler';
 import { initializeReminderScheduler } from './services/reminder.scheduler';
+import { startWebhookQueueWorker } from './services/webhookQueue.service';
 import { vmwareRouter } from './routes/vmware.routes';
 import { proxmoxRouter } from './routes/proxmox.routes';
 // ISO 27001 Phase 2 routes
@@ -232,6 +233,7 @@ async function startServer(): Promise<void> {
       await scheduler.start();
       const reminderScheduler = initializeReminderScheduler();
       await reminderScheduler.start();
+      startWebhookQueueWorker();
       console.log('Background services initialized');
     } catch (error) {
       console.error('Failed to initialize background services:', error);

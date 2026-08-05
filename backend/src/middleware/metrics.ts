@@ -114,13 +114,80 @@ export function getMetrics(): MetricCounts {
   return { ...metrics };
 }
 
+// ==================== Known Route Patterns for Classification ====================
+
+/**
+ * Express route path patterns used by the application.
+ * Used for metrics endpoint classification to prevent cardinality explosion.
+ */
+const KNOWN_ROUTE_PATTERNS: RegExp[] = [
+  // Health & system endpoints
+  /^\/health(?:\/.*)?$/,
+  /^\/metrics$/,
+  // Auth & Users
+  /^\/api\/v1\/auth(?:\/.*)?$/,
+  /^\/api\/v1\/users(?:\/.*)?$/,
+  // Core entities
+  /^\/api\/v1\/assets(?:\/.*)?$/,
+  /^\/api\/v1\/risks(?:\/.*)?$/,
+  /^\/api\/v1\/controls(?:\/.*)?$/,
+  /^\/api\/v1\/incidents(?:\/.*)?$/,
+  // Organization & Admin
+  /^\/api\/v1\/organization(?:\/.*)?$/,
+  /^\/api\/v1\/admin(?:\/.*)?$/,
+  // Audit & Monitoring
+  /^\/api\/v1\/audit-logs(?:\/.*)?$/,
+  // Integrations
+  /^\/api\/v1\/intune(?:\/.*)?$/,
+  /^\/api\/v1\/admin\/vmware(?:\/.*)?$/,
+  /^\/api\/v1\/admin\/proxmox(?:\/.*)?$/,
+  // ISO 27001
+  /^\/api\/v1\/contracts(?:\/.*)?$/,
+  /^\/api\/v1\/licenses(?:\/.*)?$/,
+  /^\/api\/v1\/processes(?:\/.*)?$/,
+  /^\/api\/v1\/treatments(?:\/.*)?$/,
+  /^\/api\/v1\/methods(?:\/.*)?$/,
+  /^\/api\/v1\/imports(?:\/.*)?$/,
+  /^\/api\/v1\/frameworks(?:\/.*)?$/,
+  /^\/api\/v1\/evidence(?:\/.*)?$/,
+  /^\/api\/v1\/documents(?:\/.*)?$/,
+  /^\/api\/v1\/nis2(?:\/.*)?$/,
+  /^\/api\/v1\/phase6(?:\/.*)?$/,
+  /^\/api\/v1\/isms-operations(?:\/.*)?$/,
+  /^\/api\/v1\/catalog(?:\/.*)?$/,
+  /^\/api\/v1\/cost-planning(?:\/.*)?$/,
+  // Phase 8
+  /^\/api\/v1\/webhooks(?:\/.*)?$/,
+  /^\/api\/v1\/service-accounts(?:\/.*)?$/,
+];
+
+/**
+ * Classify a normalized path into a known endpoint pattern or __unknown__.
+ * This prevents cardinality explosion from dynamic IDs, query strings, or
+ * arbitrary path segments that would otherwise create unique label values.
+ */
+function classifyEndpoint(normalizedPath: string): string {
+  for (const pattern of KNOWN_ROUTE_PATTERNS) {
+    if (pattern.test(normalizedPath)) {
+      return normalizedPath;
+    }
+  }
+  return '__unknown__';
+}
+
 // ==================== Metrics Middleware ====================
 
 /**
  * Normalize URL path by replacing dynamic segments with placeholders.
+ * Strips query strings and replaces UUIDs/numeric IDs with :id placeholder.
  */
 function normalizePath(url: string): string {
-  const parts = url.split('/');
+  // Strip query string and hash to prevent them from appearing in labels
+  const cleanPath = url.split('?')[0].split('#')[0];
+
+  // If path is empty after stripping, return root
+  const path = cleanPath || '/';
+  const parts = path.split('/');
   const normalized: string[] = [];
 
   for (const part of parts) {
@@ -141,12 +208,17 @@ function normalizePath(url: string): string {
 /**
  * Metrics Middleware
  * Collects request counts, response times, and error rates.
+ * Uses req.path (not req.originalUrl) to prevent query string leakage.
+ * Classifies endpoints to prevent cardinality explosion.
  */
 export const metricsMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const start = Date.now();
 
-  // Normalize endpoint pattern for grouping
-  const normalizedPath = normalizePath(req.originalUrl || req.url);
+  // Use req.path instead of req.originalUrl to prevent query string leakage.
+  // req.path does not include query parameters or the hostname.
+  const cleanPath = req.path || '/';
+  const normalizedPath = normalizePath(cleanPath);
+  const classifiedEndpoint = classifyEndpoint(normalizedPath);
   const method = req.method;
 
   res.on('finish', () => {
@@ -157,7 +229,7 @@ export const metricsMiddleware = (req: Request, res: Response, next: NextFunctio
     // Update in-memory counters (for backward compatibility and testing)
     metrics.totalRequests++;
     metrics.requestsByMethod[method] = (metrics.requestsByMethod[method] || 0) + 1;
-    metrics.requestsByEndpoint[normalizedPath] = (metrics.requestsByEndpoint[normalizedPath] || 0) + 1;
+    metrics.requestsByEndpoint[classifiedEndpoint] = (metrics.requestsByEndpoint[classifiedEndpoint] || 0) + 1;
     metrics.requestsByStatusCode[statusCode] = (metrics.requestsByStatusCode[statusCode] || 0) + 1;
 
     if (parseInt(statusCode) >= 400) {
@@ -167,9 +239,10 @@ export const metricsMiddleware = (req: Request, res: Response, next: NextFunctio
     metrics.totalResponseTimeMs += duration;
 
     // Update Prometheus counters/histograms
-    httpRequestsTotal.inc({ method, status: statusCode, endpoint: normalizedPath });
+    // Use classifiedEndpoint to prevent cardinality explosion from unknown routes
+    httpRequestsTotal.inc({ method, status: statusCode, endpoint: classifiedEndpoint });
     httpRequestDuration.observe(
-      { method, status: statusCode, endpoint: normalizedPath },
+      { method, status: statusCode, endpoint: classifiedEndpoint },
       durationSeconds
     );
 
@@ -187,7 +260,11 @@ export const metricsMiddleware = (req: Request, res: Response, next: NextFunctio
 /**
  * Create a metrics token authentication middleware.
  * In production, METRICS_TOKEN is required and absence fails closed.
- * If METRICS_TOKEN is set, requires ?token=<value> or Authorization: Bearer <token>.
+ * If METRICS_TOKEN is set, requires Authorization: Bearer <token> ONLY.
+ *
+ * Security decisions:
+ * - Query parameter tokens removed to prevent token leakage in URLs, logs, and Prometheus labels.
+ * - Only Bearer header authentication is accepted.
  */
 export function createMetricsAuthMiddleware() {
   const metricsToken = process.env.METRICS_TOKEN;
@@ -208,14 +285,7 @@ export function createMetricsAuthMiddleware() {
   }
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    // Check query parameter token
-    const queryToken = req.query.token as string | undefined;
-    if (queryToken && queryToken === metricsToken) {
-      next();
-      return;
-    }
-
-    // Check Authorization header
+    // Check Authorization header (Bearer token ONLY)
     const authHeader = req.headers.authorization;
     if (authHeader && /^Bearer\s+/i.test(authHeader)) {
       const token = authHeader.replace(/^Bearer\s+/i, '');
@@ -227,7 +297,7 @@ export function createMetricsAuthMiddleware() {
 
     res.status(401).json({
       error: 'unauthorized',
-      message: 'Missing or invalid METRICS_TOKEN. Provide ?token=<value> or Authorization: Bearer <token>.',
+      message: 'Missing or invalid METRICS_TOKEN. Provide Authorization: Bearer <token>.',
     });
   };
 }

@@ -3457,7 +3457,6 @@ model ServiceAccount {
   user              User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
   apiAuditLogs      ApiAuditLog[]
   idempotencyKeys   IdempotencyKey[]
-  webhookDeliveries WebhookDelivery[]
 
   @@index([isActive])
   @@index([isArchived])
@@ -3509,55 +3508,73 @@ model IdempotencyKey {
   @@map("idempotency_keys")
 }
 
+enum WebhookStatus {
+  active
+  paused
+  archived
+}
+
 model Webhook {
-  id                 String    @id @default(uuid())
-  displayId          String    @unique @default("")
+  id                 String        @id @default(uuid())
+  displayId          String        @unique @default("")
   name               String
   description        String?
   url                String
-  secret             String
-  events             Json      @default("[]")
-  isActive           Boolean   @default(true)
-  isArchived         Boolean   @default(false)
-  lastDeliveryStatus String?
+  secret             String        // HMAC signing secret for this webhook
+  events             String[]      @db.Text
+  status             WebhookStatus @default(active)
+  isActive           Boolean       @default(true)
+  isArchived         Boolean       @default(false)
+  lastDeliveryStatus String?       // "success" | "failed"
   lastDeliveredAt    DateTime?
-  failureCount       Int       @default(0)
-  maxRetries         Int       @default(3)
-  timeoutMs          Int       @default(10000)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  failureCount       Int           @default(0)
+  maxRetries         Int           @default(5)
+  timeoutMs          Int           @default(10000)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
   createdBy          String?
   updatedBy          String?
 
-  webhookDeliveries WebhookDelivery[]
+  deliveries WebhookDelivery[]
 
-  @@index([isActive])
+  @@index([status, isActive])
   @@index([events])
   @@map("webhooks")
 }
 
+enum WebhookDeliveryStatus {
+  pending
+  delivering
+  success
+  failed
+  expired
+}
+
 model WebhookDelivery {
-  id              String   @id @default(uuid())
+  id              String               @id @default(uuid())
   webhookId       String
-  eventId         String
+  eventId         String               @unique // idempotency key
+  eventType       String
+  payload         String               @db.Text // JSON-serialized payload
+  signature       String?              // HMAC signature sent with delivery
   url             String
-  httpMethod      String   @default("POST")
-  requestHeaders  Json     @default("{}")
-  requestBodyHash String
+  httpMethod      String               @default("POST")
+  requestHeaders  String               @db.Text @default("{}")
+  requestBodyHash String?
   responseStatus  Int?
-  responseHeaders Json?
+  responseHeaders String?              @db.Text
   errorMessage    String?
   durationMs      Int?
-  attemptNumber   Int      @default(1)
-  createdAt       DateTime @default(now())
+  attemptNumber   Int                  @default(1)
+  status          WebhookDeliveryStatus @default(pending)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  webhook          Webhook         @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-  ServiceAccount   ServiceAccount? @relation(fields: [serviceAccountId], references: [id])
-  serviceAccountId String?
+  webhook         Webhook              @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
-  @@index([webhookId])
+  @@index([webhookId, status])
+  @@index([status])
   @@index([eventId])
-  @@index([createdAt])
   @@map("webhook_deliveries")
 }
 
@@ -3632,11 +3649,12 @@ model JobRun {
   jobType     String // category: "sync", "reminder", "webhook-retry", "import"
   status      String    @default("pending") // pending | running | completed | failed | skipped
   workerId    String? // hostname + pid or container id
-  scheduledAt DateTime  @default(now())
+  scheduledAt DateTime? // null means run immediately
   startedAt   DateTime?
   finishedAt  DateTime?
   error       String?   @db.Text
   attempt     Int       @default(1)
+  data        String?   @db.Text // JSON-serialized job payload
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

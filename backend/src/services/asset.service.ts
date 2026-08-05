@@ -4,6 +4,20 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { nextDisplayId } from './displayId.service';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
+import { authorizationService } from './authorization.service';
+import type { ScopeConstraints } from './authorization.service';
+
+async function resolveOrganizationUnitScope(organizationUnitId: string): Promise<ScopeConstraints> {
+  const organizationUnit = await prisma.organizationUnit.findUnique({ where: { id: organizationUnitId }, select: { id: true, legalEntityId: true } });
+  if (!organizationUnit) throw new AppError('Organization unit not found', 404);
+  return { legalEntityId: organizationUnit.legalEntityId ?? null, organizationUnitId, siteId: null, scopeId: null };
+}
+
+async function resolveLocationScope(locationId: string): Promise<ScopeConstraints> {
+  const location = await prisma.site.findUnique({ where: { id: locationId }, select: { id: true, organizationUnitId: true } });
+  if (!location) throw new AppError('Location not found', 404);
+  return { legalEntityId: null, organizationUnitId: location.organizationUnitId, siteId: null, scopeId: null };
+}
 
 // Lifecycle status transitions allowed (AST-030)
 const LIFECYCLE_TRANSITIONS: Record<string, string[]> = {
@@ -256,6 +270,14 @@ export class AssetService {
   // ==========================================
 
   async create(data: CreateAssetData, createdBy?: string) {
+    // Validate scope for asset creation - check if user has write permission for the target scope
+    if (createdBy && data.organizationUnitId) {
+      await authorizationService.requireForScope(createdBy, 'assets.write', await resolveOrganizationUnitScope(data.organizationUnitId));
+    }
+    if (createdBy && data.locationId) {
+      await authorizationService.requireForScope(createdBy, 'assets.write', await resolveLocationScope(data.locationId));
+    }
+
     const asset = await prisma.$transaction(async (tx) => {
       // Generate sequential display ID (ASSET-0001, ASSET-0002, ...)
       const displayId = await nextDisplayId(tx, 'Asset');
@@ -392,6 +414,19 @@ export class AssetService {
     // Cannot update archived assets (except unarchive — use restore method)
     if ((existing as any).archivedAt || existing.isArchived) {
       throw new AppError('Cannot modify archived asset. Restore it first.', 409);
+    }
+
+    // If organizationUnitId or locationId is being changed, validate write permission for the NEW scope
+    if (updatedBy) {
+      const newOrgUnitId = data.organizationUnitId ?? existing.organizationUnitId;
+      const newLocationId = data.locationId ?? existing.locationId;
+
+      if (newOrgUnitId !== existing.organizationUnitId && newOrgUnitId != null) {
+        await authorizationService.requireForScope(updatedBy, 'assets.write', await resolveOrganizationUnitScope(newOrgUnitId));
+      }
+      if (newLocationId !== existing.locationId && newLocationId != null) {
+        await authorizationService.requireForScope(updatedBy, 'assets.write', await resolveLocationScope(newLocationId));
+      }
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -834,7 +869,7 @@ export class AssetService {
     targetAssetId: string;
     relationshipType: string;
     description?: string;
-  }) {
+  }, userId?: string) {
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) {
       throw new AppError('Source asset not found', 404);
@@ -843,6 +878,11 @@ export class AssetService {
     const target = await prisma.asset.findUnique({ where: { id: relationData.targetAssetId } });
     if (!target) {
       throw new AppError('Target asset not found', 404);
+    }
+
+    // Validate write permission for the target asset
+    if (userId) {
+      await authorizationService.requireForEntity(userId, 'assets.write', 'assets', target.id);
     }
 
     const relation = await prisma.assetRelation.create({

@@ -211,7 +211,7 @@ assetRouter.get('/:id/relations', authenticate, requireEntityPermission('assets.
 
 assetRouter.post('/:id/relations', authenticate, requireEntityPermission('assets.write', 'assets'), validateBody(AssetRelationCreateSchema), async (req: AuthRequest, res, next) => {
   try {
-    const relation = await assetService.createRelation(req.params.id, req.body);
+    const relation = await assetService.createRelation(req.params.id, req.body, req.userId);
     res.status(201).json(relation);
   } catch (error) {
     next(error);
