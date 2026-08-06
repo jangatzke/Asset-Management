@@ -7,10 +7,7 @@
  */
 
 import dns from 'dns';
-import { promisify } from 'util';
 import net from 'net';
-
-const resolvePromise = promisify(dns.resolve);
 
 // SSRF-blocked IP ranges (CIDR notation)
 const PRIVATE_RANGES: { start: number[]; end: number[]; isV6: boolean }[] = [
@@ -246,7 +243,8 @@ function isBlockedIP(ip: string): { blocked: boolean; reason?: string } {
 
 /**
  * Resolve hostname to IP addresses (both A and AAAA records) and check if any are blocked.
- * Uses dns.resolve() to get all record types in a single call.
+ * Uses dns.resolve4() for IPv4 (A) records and dns.resolve6() for IPv6 (AAAA) records separately,
+ * then merges all resolved IPs and checks each one against the blocked list.
  *
  * Returns:
  * - blocked: true if hostname couldn't resolve or any resolved IP is private/cloud-metadata
@@ -254,25 +252,28 @@ function isBlockedIP(ip: string): { blocked: boolean; reason?: string } {
  * - resolvedIps: list of all resolved IP addresses (both IPv4 and IPv6)
  */
 export async function resolveAndCheckHostname(hostname: string): Promise<{ blocked: boolean; reason?: string; resolvedIps?: string[] }> {
-  let records: string[];
-  try {
-    records = await resolvePromise(hostname);
-  } catch {
-    return { blocked: true, reason: `Could not resolve hostname: ${hostname}` };
-  }
-
-  // dns.resolve() returns strings: IPv4 addresses as "x.x.x.x" and IPv6 as full expanded form
   const ipv4Records: string[] = [];
   const ipv6Records: string[] = [];
 
-  for (const record of records) {
-    const ipType = net.isIP(record);
-    if (ipType === 4) {
-      ipv4Records.push(record);
-    } else if (ipType === 6) {
-      ipv6Records.push(record);
-    }
-    // If net.isIP returns 0, it's neither a valid IPv4 nor IPv6 - skip it
+  // Resolve A records (IPv4)
+  try {
+    const aRecords = await dns.resolve4(hostname);
+    ipv4Records.push(...aRecords);
+  } catch {
+    // Hostname may not have A records — continue to AAAA resolution
+  }
+
+  // Resolve AAAA records (IPv6)
+  try {
+    const aaaaRecords = await dns.resolve6(hostname);
+    ipv6Records.push(...aaaaRecords);
+  } catch {
+    // Hostname may not have AAAA records — this is fine if we have A records
+  }
+
+  // If neither resolution succeeded, the hostname couldn't be resolved
+  if (ipv4Records.length === 0 && ipv6Records.length === 0) {
+    return { blocked: true, reason: `Could not resolve hostname: ${hostname}` };
   }
 
   const allResolvedIps: string[] = [...ipv4Records, ...ipv6Records];

@@ -14,9 +14,17 @@ async function resolveOrganizationUnitScope(organizationUnitId: string): Promise
 }
 
 async function resolveLocationScope(locationId: string): Promise<ScopeConstraints> {
-  const location = await prisma.site.findUnique({ where: { id: locationId }, select: { id: true, organizationUnitId: true } });
+  const location = await prisma.site.findUnique({
+    where: { id: locationId },
+    select: {
+      id: true,
+      organizationUnitId: true,
+      organizationUnit: { select: { legalEntityId: true } }
+    }
+  });
   if (!location) throw new AppError('Location not found', 404);
-  return { legalEntityId: null, organizationUnitId: location.organizationUnitId, siteId: null, scopeId: null };
+  const legalEntityId = location.organizationUnit?.legalEntityId ?? null;
+  return { legalEntityId, organizationUnitId: location.organizationUnitId, siteId: locationId, scopeId: null };
 }
 
 // Lifecycle status transitions allowed (AST-030)
@@ -354,15 +362,41 @@ export class AssetService {
         });
       }
 
+      // Validate assetRelations before creating: check targetAssetId exists and user has read access
       if (assetRelations && assetRelations.length > 0) {
-        await tx.assetRelation.createMany({
-          data: assetRelations.map((relation) => ({
-            sourceAssetId: createdAsset.id,
-            targetAssetId: relation.targetAssetId,
-            relationshipType: relation.relationshipType,
-            description: relation.description,
-          })),
-        });
+        // Filter out self-references
+        const validRelations = assetRelations.filter((relation) => relation.targetAssetId !== createdAsset.id);
+        if (validRelations.length > 0) {
+          // Validate each target asset exists and user has read access
+          const targetAssetIds = validRelations.map((relation) => relation.targetAssetId);
+          const targetAssets = await tx.asset.findMany({
+            where: { id: { in: targetAssetIds } },
+            select: { id: true },
+          });
+          const existingAssetIds = new Set((targetAssets ?? []).map((a) => a.id));
+          
+          // Check that all target assets exist
+          const missingTargets = validRelations.filter((relation) => !existingAssetIds.has(relation.targetAssetId));
+          if (missingTargets.length > 0) {
+            throw new AppError(`Cannot create relation to non-existent asset(s): ${missingTargets.map((r) => r.targetAssetId).join(', ')}`, 400);
+          }
+          
+          // Check read access for each target asset (if createdBy is provided)
+          if (createdBy) {
+            for (const relation of validRelations) {
+              await authorizationService.requireForEntity(createdBy, 'assets.read', 'assets', relation.targetAssetId);
+            }
+          }
+          
+          await tx.assetRelation.createMany({
+            data: validRelations.map((relation) => ({
+              sourceAssetId: createdAsset.id,
+              targetAssetId: relation.targetAssetId,
+              relationshipType: relation.relationshipType,
+              description: relation.description,
+            })),
+          });
+        }
       }
 
       // AST-030: Log initial lifecycle status in transaction
@@ -418,14 +452,26 @@ export class AssetService {
 
     // If organizationUnitId or locationId is being changed, validate write permission for the NEW scope
     if (updatedBy) {
-      const newOrgUnitId = data.organizationUnitId ?? existing.organizationUnitId;
-      const newLocationId = data.locationId ?? existing.locationId;
-
-      if (newOrgUnitId !== existing.organizationUnitId && newOrgUnitId != null) {
-        await authorizationService.requireForScope(updatedBy, 'assets.write', await resolveOrganizationUnitScope(newOrgUnitId));
+      // Check if organizationUnitId is being explicitly changed (including to null)
+      if ('organizationUnitId' in data) {
+        const newOrgUnitId = data.organizationUnitId;
+        if (newOrgUnitId !== existing.organizationUnitId) {
+          if (newOrgUnitId != null) {
+            await authorizationService.requireForScope(updatedBy, 'assets.write', await resolveOrganizationUnitScope(newOrgUnitId));
+          }
+          // If newOrgUnitId is null, no scope check needed (clearing org unit)
+        }
       }
-      if (newLocationId !== existing.locationId && newLocationId != null) {
-        await authorizationService.requireForScope(updatedBy, 'assets.write', await resolveLocationScope(newLocationId));
+      
+      // Check if locationId is being explicitly changed (including to null)
+      if ('locationId' in data) {
+        const newLocationId = data.locationId;
+        if (newLocationId !== existing.locationId) {
+          if (newLocationId != null) {
+            await authorizationService.requireForScope(updatedBy, 'assets.write', await resolveLocationScope(newLocationId));
+          }
+          // If newLocationId is null, no scope check needed (clearing location)
+        }
       }
     }
 
@@ -542,8 +588,30 @@ export class AssetService {
 
       if (assetRelations !== undefined) {
         await tx.assetRelation.deleteMany({ where: { sourceAssetId: id } });
+        // Filter out self-references and validate target assets
         const sanitizedRelations = assetRelations.filter((relation) => relation.targetAssetId !== id);
         if (sanitizedRelations.length > 0) {
+          // Validate each target asset exists and user has read access
+          const targetAssetIds = sanitizedRelations.map((relation) => relation.targetAssetId);
+          const targetAssets = await tx.asset.findMany({
+            where: { id: { in: targetAssetIds } },
+            select: { id: true },
+          });
+          const existingAssetIds = new Set((targetAssets ?? []).map((a) => a.id));
+          
+          // Check that all target assets exist
+          const missingTargets = sanitizedRelations.filter((relation) => !existingAssetIds.has(relation.targetAssetId));
+          if (missingTargets.length > 0) {
+            throw new AppError(`Cannot create relation to non-existent asset(s): ${missingTargets.map((r) => r.targetAssetId).join(', ')}`, 400);
+          }
+          
+          // Check read access for each target asset (if updatedBy is provided)
+          if (updatedBy) {
+            for (const relation of sanitizedRelations) {
+              await authorizationService.requireForEntity(updatedBy, 'assets.read', 'assets', relation.targetAssetId);
+            }
+          }
+          
           await tx.assetRelation.createMany({
             data: sanitizedRelations.map((relation) => ({
               sourceAssetId: id,

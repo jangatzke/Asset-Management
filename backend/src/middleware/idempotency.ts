@@ -6,7 +6,13 @@ import {
   shouldCacheResponse,
   requestBodyMatches,
   startIdempotencyCleanup,
+  IdempotencyEntry,
 } from '../services/idempotency.service';
+import {
+  createRedisIdempotencyClient,
+  isRedisConfigured,
+  RedisIdempotencyClient,
+} from '../services/idempotency-redis-client';
 
 export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
 
@@ -69,6 +75,13 @@ function extractTrustedPrincipal(req: Request): string | undefined {
  * Key: compositeKey, Value: IdempotencyReservation
  */
 const inFlightReservations = new Map<string, IdempotencyReservation>();
+
+/**
+ * Global Redis client for distributed idempotency.
+ * Used for cross-process distributed atomicity (first-write-wins).
+ * Falls back to in-memory store if Redis is unavailable.
+ */
+let redisClient: RedisIdempotencyClient | null = null;
 
 /**
  * Idempotency Middleware Factory
@@ -285,24 +298,51 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
           // Only cache successful responses (2xx and 3xx)
           if (shouldCacheResponse(capturedStatus)) {
-            // Store with atomic reservation (first write wins at store level)
-            const stored = storeIdempotencyResponse({
-              key: compositeKey,
-              principal,
-              httpMethod: req.method,
-              routePattern,
-              requestBodyHash,
-              ttlMs,
-            }, responseBody);
+            // Use dual-store strategy:
+            // 1. In-memory store: for same-process deduplication (fast, always available)
+            // 2. Redis store: for cross-process distributed atomicity (first-write-wins)
+            //
+            // Note: This is async because Redis SET NX provides distributed atomicity.
+            // The in-flight reservation Map handles same-process deduplication synchronously.
+            try {
+              const stored = await storeIdempotencyResponseDual(
+                compositeKey,
+                {
+                  data: {
+                    response: responseBody,
+                    keyOptions: {
+                      principal,
+                      httpMethod: req.method,
+                      routePattern,
+                      requestBodyHash,
+                    },
+                    createdAt: Date.now(),
+                  },
+                  expiresAt: Date.now() + ttlMs,
+                },
+                principal,
+                req.method,
+                routePattern,
+                requestBodyHash,
+                ttlMs
+              );
 
-            if (stored) {
-              // Successfully stored - update reservation state to completed
+              if (stored) {
+                // Successfully stored - update reservation state to completed
+                reservation.state = 'completed';
+                reservation.completedAt = Date.now();
+                reservation.response = responseBody;
+              }
+              // If not stored (another instance won the race),
+              // the result promise still resolves so waiting requests get the response.
+            } catch (storeError) {
+              // Storage failed - reservation still resolved, just no caching
+              console.debug('[Idempotency] Store error (request will not be cached):', storeError);
+              // Still mark as completed so we don't keep waiting
               reservation.state = 'completed';
               reservation.completedAt = Date.now();
               reservation.response = responseBody;
             }
-            // If not stored (another instance won the race at Redis SET NX level),
-            // the result promise still resolves so waiting requests get the response.
           } else {
             // Failed/unsuccessful response - mark as failed
             reservation.state = 'failed';
@@ -360,8 +400,82 @@ export function cleanupExpiredReservations(ttlMs: number = DEFAULT_TTL_MS): numb
 }
 
 /**
+ * Store a response in both in-memory store and Redis (if available).
+ * Uses dual-write strategy:
+ * 1. In-memory store: for same-process deduplication (fast, always available)
+ * 2. Redis store: for cross-process distributed atomicity (first-write-wins)
+ *
+ * Returns true if the entry was newly created in at least one store,
+ * false if it already existed in the in-memory store.
+ */
+async function storeIdempotencyResponseDual(
+  key: string,
+  entry: IdempotencyEntry,
+  principal: string | undefined,
+  httpMethod: string,
+  routePattern: string,
+  requestBodyHash: string | undefined,
+  ttlMs: number
+): Promise<boolean> {
+  // Always try in-memory store first (fast, same-process)
+  const inMemoryStored = storeIdempotencyResponse({
+    key,
+    principal,
+    httpMethod,
+    routePattern,
+    requestBodyHash,
+    ttlMs,
+  }, {
+    data: entry.data,
+    expiresAt: entry.expiresAt,
+  });
+
+  // Try Redis store for distributed atomicity (only if in-memory store accepted it)
+  if (inMemoryStored && redisClient && redisClient.isConnected()) {
+    try {
+      await redisClient.set(key, {
+        data: entry.data,
+        expiresAt: entry.expiresAt,
+      });
+    } catch (error) {
+      // Redis write failed - in-memory store still has it
+      console.debug('[Idempotency] Redis write failed, using in-memory only:', error);
+    }
+  }
+
+  return inMemoryStored;
+}
+
+/**
+ * Initialize the Redis client for distributed idempotency.
+ * Called during server startup to establish Redis connection.
+ */
+export async function initializeRedisClient(): Promise<void> {
+  if (!isRedisConfigured()) {
+    console.log('[Idempotency] No REDIS_HOST configured - using in-memory store only');
+    return;
+  }
+
+  try {
+    redisClient = createRedisIdempotencyClient();
+    const connected = await redisClient.initialize();
+    
+    if (connected) {
+      console.log('[Idempotency] Redis client initialized for distributed idempotency');
+    } else {
+      console.log('[Idempotency] Redis initialization failed - falling back to in-memory store');
+      redisClient = null;
+    }
+  } catch (error) {
+    console.error('[Idempotency] Redis initialization error:', error);
+    redisClient = null;
+  }
+}
+
+/**
  * Start idempotency cleanup on server start.
  * Cleans up both the idempotency store AND in-flight reservations.
+ * Also initializes Redis client if configured.
  */
 export function initializeIdempotency(): void {
   startIdempotencyCleanup(60000); // Clean up store every minute
@@ -378,4 +492,35 @@ export function initializeIdempotency(): void {
   if (reservationCleanupInterval.unref) {
     reservationCleanupInterval.unref();
   }
+}
+
+/**
+ * Get the current Redis client status (for testing/monitoring).
+ */
+export function getIdempotencyRedisStatus(): { connected: boolean; usingFallback: boolean } {
+  if (!redisClient) {
+    return { connected: false, usingFallback: true };
+  }
+  const status = redisClient.getStatus();
+  return {
+    connected: status.connected,
+    usingFallback: status.usingFallback,
+  };
+}
+
+/**
+ * Close the Redis client (for graceful shutdown/testing).
+ */
+export async function closeRedisClient(): Promise<void> {
+  if (redisClient) {
+    await redisClient.close();
+    redisClient = null;
+  }
+}
+
+/**
+ * Set the Redis client directly (for testing).
+ */
+export function setRedisClient(client: RedisIdempotencyClient | null): void {
+  redisClient = client;
 }

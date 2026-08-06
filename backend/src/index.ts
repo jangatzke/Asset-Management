@@ -22,7 +22,7 @@ import {
   getHealthState,
 } from './middleware/health';
 import { setupGracefulShutdown } from './middleware/gracefulShutdown';
-import { initializeIdempotency } from './middleware/idempotency';
+import { initializeIdempotency, initializeRedisClient } from './middleware/idempotency';
 
 // Existing imports
 import { errorHandler } from './middleware/errorHandler';
@@ -189,8 +189,11 @@ app.use('/api/v1/catalog', catalogRouter);
 app.use('/api/v1/cost-planning', costPlanningRouter);
 
 // Phase 8 Routes - Webhooks & Service Accounts (with idempotency)
-app.use('/api/v1/webhooks', idempotency(), webhookRouter);
-app.use('/api/v1/service-accounts', idempotency(), serviceAccountRouter);
+// Note: requireTrustedPrincipal is set to false because auth runs inside the router handlers,
+// not as global middleware. The middleware handles principal=undefined correctly by using
+// 'anonymous' as the principal prefix in the composite key.
+app.use('/api/v1/webhooks', idempotency({ requireTrustedPrincipal: false }), webhookRouter);
+app.use('/api/v1/service-accounts', idempotency({ requireTrustedPrincipal: false }), serviceAccountRouter);
 
 // ==================== Error Handling ====================
 app.use(errorHandler);
@@ -215,8 +218,13 @@ async function startServer(): Promise<void> {
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log('Phase 8 features enabled: correlation-id, json-logging, metrics, health-checks');
 
-    // Initialize idempotency cleanup
+    // Initialize idempotency cleanup and Redis client
     initializeIdempotency();
+    
+    // Initialize Redis client for distributed idempotency (non-blocking)
+    initializeRedisClient().catch(error => {
+      console.error('[Idempotency] Failed to initialize Redis client:', error);
+    });
 
     try {
       await ensureStandardAssetTypes(prisma);

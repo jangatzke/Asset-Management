@@ -30,60 +30,96 @@ import axios from 'axios';
 
 jest.mock('axios');
 
-// DNS mock that works with promisify(dns.resolve)
-// promisify wraps the callback-style dns.resolve(hostname, callback) into a Promise
-// So our mock MUST accept a callback parameter and invoke it.
-// This factory creates a self-contained mock with internal state.
-// The mock is created inline in the jest.mock() factory to avoid hoisting issues.
-
+// DNS mock for dns.resolve4 and dns.resolve6
+// Each method has its own independent state for resolved/rejected values.
 jest.mock('dns', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const state: { resolved?: any; rejected?: Error | null } = {};
-  
+  const state4: { resolved?: any; rejected?: Error | null } = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockFn: any = jest.fn(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (hostname: string, callback?: (err: Error | null, addresses?: string[]) => void) => {
-      // promisify always passes a callback
-      if (typeof callback === 'function') {
-        if (state.rejected) {
-          callback(state.rejected);
-        } else {
-          callback(null, state.resolved || []);
+  const state6: { resolved?: any; rejected?: Error | null } = {};
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockResolve4: any = jest.fn(() => {
+    if (state6) { /* noop — state4 check */ }
+    return {
+      then: function (onfulfilled: (v: any) => any) {
+        if (state4.rejected) {
+          return Promise.reject(state4.rejected);
         }
-      }
-    }
-  );
+        return Promise.resolve(state4.resolved);
+      },
+    };
+  });
 
-  // Custom mockResolvedValue - stores resolved value
-  mockFn.mockResolvedValue = function (value: any) {
-    state.resolved = value;
-    state.rejected = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockResolve6: any = jest.fn(() => {
+    return {
+      then: function (onfulfilled: (v: any) => any) {
+        if (state6.rejected) {
+          return Promise.reject(state6.rejected);
+        }
+        return Promise.resolve(state6.resolved);
+      },
+    };
+  });
+
+  // Custom mockResolvedValue for resolve4
+  mockResolve4.mockResolvedValue = function (value: any) {
+    state4.resolved = value;
+    state4.rejected = null;
     return this;
   };
 
-  // Custom mockRejectedValue - stores rejection error
-  mockFn.mockRejectedValue = function (err: Error) {
-    state.resolved = undefined;
-    state.rejected = err;
+  // Custom mockRejectedValue for resolve4
+  mockResolve4.mockRejectedValue = function (err: Error) {
+    state4.resolved = undefined;
+    state4.rejected = err;
     return this;
   };
 
-  // Custom mockClear - clears call history but keeps state
-  mockFn.mockClear = function () {
-    state.resolved = undefined;
-    state.rejected = null;
+  // Custom mockClear for resolve4
+  mockResolve4.mockClear = function () {
+    state4.resolved = undefined;
+    state4.rejected = null;
     return this;
   };
 
-  // Custom mockReset - resets everything
-  mockFn.mockReset = function () {
-    state.resolved = undefined;
-    state.rejected = null;
+  // Custom mockReset for resolve4
+  mockResolve4.mockReset = function () {
+    state4.resolved = undefined;
+    state4.rejected = null;
     return this;
   };
 
-  return { resolve: mockFn };
+  // Custom mockResolvedValue for resolve6
+  mockResolve6.mockResolvedValue = function (value: any) {
+    state6.resolved = value;
+    state6.rejected = null;
+    return this;
+  };
+
+  // Custom mockRejectedValue for resolve6
+  mockResolve6.mockRejectedValue = function (err: Error) {
+    state6.resolved = undefined;
+    state6.rejected = err;
+    return this;
+  };
+
+  // Custom mockClear for resolve6
+  mockResolve6.mockClear = function () {
+    state6.resolved = undefined;
+    state6.rejected = null;
+    return this;
+  };
+
+  // Custom mockReset for resolve6
+  mockResolve6.mockReset = function () {
+    state6.resolved = undefined;
+    state6.rejected = null;
+    return this;
+  };
+
+  return { resolve4: mockResolve4, resolve6: mockResolve6 };
 });
 jest.mock('../config/database', () => ({
   prisma: {
@@ -316,11 +352,12 @@ describe('SSRF Protection', () => {
   describe('DNS Fail-Closed Behavior', () => {
     beforeEach(() => {
       jest.clearAllMocks();
-      mockDns.resolve.mockReset();
+      mockDns.resolve4.mockReset();
+      mockDns.resolve6.mockReset();
     });
 
     it('should return { blocked: true } when DNS resolution throws an error', async () => {
-      mockDns.resolve.mockRejectedValue(new Error('ENOTFOUND nonexist.example.com'));
+      mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND nonexist.example.com'));
 
       const result = await resolveAndCheckHostname('nonexist.example.com');
 
@@ -329,7 +366,7 @@ describe('SSRF Protection', () => {
     });
 
     it('should return { blocked: true } when DNS returns NXDOMAIN', async () => {
-      mockDns.resolve.mockRejectedValue(new Error('NXDOMAIN'));
+      mockDns.resolve4.mockRejectedValue(new Error('NXDOMAIN'));
 
       const result = await resolveAndCheckHostname('nxdomain.example.com');
 
@@ -337,12 +374,32 @@ describe('SSRF Protection', () => {
     });
 
     it('should NOT proceed with delivery when DNS fails', async () => {
-      mockDns.resolve.mockRejectedValue(new Error('ECONNREFUSED'));
+      mockDns.resolve4.mockRejectedValue(new Error('ECONNREFUSED'));
 
       const result = await resolveAndCheckHostname('unreachable.example.com');
 
       expect(result.blocked).toBe(true);
       expect(result.resolvedIps).toBeUndefined();
+    });
+
+    it('should handle IPv4-only hosts (resolve6 fails gracefully)', async () => {
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve6.mockRejectedValue(new Error('ENOTFOUND'));
+
+      const result = await resolveAndCheckHostname('ipv4-only.example.com');
+
+      expect(result.blocked).toBe(false);
+      expect(result.resolvedIps).toContain('93.184.216.34');
+    });
+
+    it('should handle IPv6-only hosts (resolve4 fails gracefully)', async () => {
+      mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND'));
+      mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
+
+      const result = await resolveAndCheckHostname('ipv6-only.example.com');
+
+      expect(result.blocked).toBe(false);
+      expect(result.resolvedIps).toContain('2606:2800:220:1:248:1893:25c8:1946');
     });
   });
 
@@ -461,20 +518,24 @@ describe('SSRF Protection', () => {
   describe('Dual-Stack DNS Resolution', () => {
     beforeEach(() => {
       jest.clearAllMocks();
-      mockDns.resolve.mockReset();
+      mockDns.resolve4.mockReset();
+      mockDns.resolve6.mockReset();
     });
 
-    it('should use dns.resolve() (not just resolve4)', async () => {
-      mockDns.resolve.mockResolvedValue(['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946']);
+    it('should call both dns.resolve4() and dns.resolve6()', async () => {
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
 
       await resolveAndCheckHostname('example.com');
 
-      // The DNS mock is called with (hostname, callback) due to promisify
-      expect(mockDns.resolve).toHaveBeenCalledWith('example.com', expect.any(Function));
+      // The DNS mock should be called with the hostname
+      expect(mockDns.resolve4).toHaveBeenCalledWith('example.com');
+      expect(mockDns.resolve6).toHaveBeenCalledWith('example.com');
     });
 
     it('should resolve both A and AAAA records', async () => {
-      mockDns.resolve.mockResolvedValue(['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946']);
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
 
       const result = await resolveAndCheckHostname('example.com');
 
@@ -485,10 +546,8 @@ describe('SSRF Protection', () => {
 
     it('should BLOCK delivery if an address has both A (public) and AAAA (private) records', async () => {
       // Simulate a dual-stack host where IPv4 is public but IPv6 is link-local
-      mockDns.resolve.mockResolvedValue([
-        '93.184.216.34',   // public IPv4
-        'fe80::1',         // link-local IPv6 (should trigger block)
-      ]);
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve6.mockResolvedValue(['fe80::1']);
 
       const result = await resolveAndCheckHostname('dualstack.example.com');
 
@@ -496,10 +555,8 @@ describe('SSRF Protection', () => {
     });
 
     it('should BLOCK delivery if AAAA record is in fc00::/7 range', async () => {
-      mockDns.resolve.mockResolvedValue([
-        '93.184.216.34',   // public IPv4
-        'fd00::1',         // Unique Local Address IPv6 (should trigger block)
-      ]);
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve6.mockResolvedValue(['fd00::1']);
 
       const result = await resolveAndCheckHostname('dualstack-ula.example.com');
 
@@ -507,10 +564,8 @@ describe('SSRF Protection', () => {
     });
 
     it('should allow delivery when both A and AAAA are public', async () => {
-      mockDns.resolve.mockResolvedValue([
-        '93.184.216.34',
-        '2606:2800:220:1:248:1893:25c8:1946',
-      ]);
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
 
       const result = await resolveAndCheckHostname('fully-public.example.com');
 
@@ -980,7 +1035,7 @@ describe('Queue Retry Mechanism', () => {
       };
 
       // Mock DNS resolution for example.com -> public IPv4
-      mockDns.resolve.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
 
       // Mock findFirst to return null (no existing delivery)
       mockPrisma.webhookDelivery.findFirst.mockResolvedValue(null);
@@ -1047,7 +1102,7 @@ describe('Queue Retry Mechanism', () => {
       };
 
       // Mock DNS resolution for example.com -> public IPv4
-      mockDns.resolve.mockResolvedValue(['93.184.216.34']);
+      mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
 
       // Mock existing delivery
       mockPrisma.webhookDelivery.findFirst.mockResolvedValue({

@@ -64,6 +64,19 @@ jest.mock('../services/audit.service', () => ({
   auditService: mockAuditService,
 }));
 
+// Mock authorization service
+var mockAuthorizationService = {
+  requireForScope: jest.fn().mockResolvedValue(undefined),
+  requireForEntity: jest.fn().mockResolvedValue(undefined),
+  require: jest.fn().mockResolvedValue(undefined),
+  can: jest.fn().mockResolvedValue(true),
+  canForEntity: jest.fn().mockResolvedValue(true),
+};
+
+jest.mock('../services/authorization.service', () => ({
+  authorizationService: mockAuthorizationService,
+}));
+
 // Mock displayId service
 jest.mock('../services/displayId.service', () => ({
   nextDisplayId: jest.fn().mockResolvedValue('ASSET-0001'),
@@ -348,6 +361,8 @@ describe('AssetService - CRUD Operations', () => {
     it('should sync asset dependency relations on update', async () => {
       mockPrisma.assetRelation.deleteMany.mockResolvedValue({ count: 0 } as any);
       mockPrisma.assetRelation.createMany.mockResolvedValue({ count: 1 } as any);
+      // Mock asset.findMany to return the target asset (required by validation)
+      mockPrisma.asset.findMany.mockResolvedValue([{ id: 'asset-456' }]);
 
       await assetService.update('asset-123', {
         assetRelations: [{ targetAssetId: 'asset-456', relationshipType: 'depends_on' }],
