@@ -3554,7 +3554,7 @@ enum WebhookDeliveryStatus {
 model WebhookDelivery {
   id              String                @id @default(uuid())
   webhookId       String
-  eventId         String                // idempotency key (unique constraint dropped by migration 20260805150000)
+  eventId         String // idempotency key (unique constraint dropped by migration 20260805150000)
   eventType       String
   payload         String                @db.Text // JSON-serialized payload
   signature       String? // HMAC signature sent with delivery
@@ -3574,10 +3574,10 @@ model WebhookDelivery {
   webhook  Webhook                  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
   attempts WebhookDeliveryAttempt[]
 
+  @@unique([webhookId, eventId, attemptNumber]) // added by migration 20260805170000
   @@index([webhookId, status])
   @@index([status])
   @@index([eventId])
-  @@unique([webhookId, eventId, attemptNumber]) // added by migration 20260805170000
   @@map("webhook_deliveries")
 }
 

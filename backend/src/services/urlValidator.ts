@@ -7,7 +7,6 @@
  */
 
 import dns from 'dns';
-import net from 'net';
 
 // SSRF-blocked IP ranges (CIDR notation)
 const PRIVATE_RANGES: { start: number[]; end: number[]; isV6: boolean }[] = [
@@ -257,7 +256,7 @@ export async function resolveAndCheckHostname(hostname: string): Promise<{ block
 
   // Resolve A records (IPv4)
   try {
-    const aRecords = await dns.resolve4(hostname);
+    const aRecords = await dns.promises.resolve4(hostname);
     ipv4Records.push(...aRecords);
   } catch {
     // Hostname may not have A records — continue to AAAA resolution
@@ -265,7 +264,7 @@ export async function resolveAndCheckHostname(hostname: string): Promise<{ block
 
   // Resolve AAAA records (IPv6)
   try {
-    const aaaaRecords = await dns.resolve6(hostname);
+    const aaaaRecords = await dns.promises.resolve6(hostname);
     ipv6Records.push(...aaaaRecords);
   } catch {
     // Hostname may not have AAAA records — this is fine if we have A records
