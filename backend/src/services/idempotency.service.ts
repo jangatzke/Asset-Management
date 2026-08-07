@@ -42,15 +42,28 @@ export interface IdempotencyEntry {
  * This ensures that the same idempotency key sent to different endpoints or by different
  * principals is treated separately.
  */
+/**
+ * Generate a unique idempotency key from principal + HTTP method + route + idempotency-key.
+ *
+ * SECURITY: This function NEVER falls back to 'anonymous'. If principal is undefined,
+ * it returns undefined to signal that the caller must reject the request. This ensures
+ * that each principal (user or service account) has a completely isolated idempotency
+ * namespace, preventing cross-client collision attacks.
+ *
+ * @returns undefined if principal is undefined (caller must reject)
+ */
 export function generateIdempotencyKey(
   principal: string | undefined,
   httpMethod: string,
   routePattern: string,
   idempotencyKey: string
-): string {
-  const safePrincipal = principal || 'anonymous';
+): string | undefined {
+  // SECURITY: Never fall back to 'anonymous'. If no principal, return undefined.
+  if (!principal) {
+    return undefined;
+  }
   const hash = crypto.createHash('sha256');
-  hash.update(`${safePrincipal}:${httpMethod}:${routePattern}:${idempotencyKey}`);
+  hash.update(`${principal}:${httpMethod}:${routePattern}:${idempotencyKey}`);
   return hash.digest('hex');
 }
 

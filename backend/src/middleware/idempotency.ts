@@ -1,10 +1,8 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import {
-  storeIdempotencyResponse,
   generateIdempotencyKey,
   generateRequestBodyHash,
-  shouldCacheResponse,
-  requestBodyMatches,
   startIdempotencyCleanup,
   IdempotencyEntry,
 } from '../services/idempotency.service';
@@ -12,18 +10,37 @@ import {
   createRedisIdempotencyClient,
   isRedisConfigured,
   RedisIdempotencyClient,
+  IdempotencyReservation as RedisReservation,
+  IdempotencyAlreadyExists,
+  IdempotencyNotReserved,
 } from '../services/idempotency-redis-client';
 
 export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
 
 /** Default TTL for idempotency entries: 24 hours */
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+/** Poll interval for waiting on winner (ms) */
+const POLL_INTERVAL_MS = 100;
+/** Max wait time before giving up (ms) */
+const MAX_WAIT_MS = 30000;
 
 export type IdempotencyState = 'pending' | 'completed' | 'failed';
 
-export interface IdempotencyReservation {
+/**
+ * Unified reservation result type that covers all possible outcomes:
+ * - We won the reservation (RedisReservation)
+ * - Response already exists (IdempotencyAlreadyExists)
+ * - Someone else has the reservation (IdempotencyNotReserved)
+ */
+type ReservationResult = RedisReservation | IdempotencyAlreadyExists | IdempotencyNotReserved;
+
+/**
+ * In-memory reservation tracking for same-process deduplication.
+ * Key: compositeKey, Value: InMemoryReservation
+ */
+interface InMemoryReservation {
   state: IdempotencyState;
-  principal: string | undefined;
+  principal: string;
   httpMethod: string;
   routePattern: string;
   requestBodyHash: string | undefined;
@@ -35,17 +52,13 @@ export interface IdempotencyReservation {
     body: unknown;
   };
   resultPromise?: Promise<{ status: number; headers: Record<string, string>; body: unknown }>;
+  resolvePromise?: (value: { status: number; headers: Record<string, string>; body: unknown }) => void;
+  rejectPromise?: (error: unknown) => void;
 }
 
 interface IdempotencyOptions {
   ttlMs?: number;
   keyHeader?: string;
-  /**
-   * When true (default), requires a trusted principal from auth middleware.
-   * Returns 401 if no trusted principal is set.
-   * When false, allows anonymous idempotency (e.g., for webhook endpoints).
-   */
-  requireTrustedPrincipal?: boolean;
 }
 
 /**
@@ -56,9 +69,14 @@ interface IdempotencyOptions {
  * The principal is derived from:
  * 1. Service account: req.serviceAccount.id (set by service account auth middleware)
  * 2. User: req.userId (set by JWT authentication middleware)
+ * 3. Webhook principal: req.webhookPrincipal (set by webhook auth middleware)
  */
 function extractTrustedPrincipal(req: Request): string | undefined {
-  // Check for service account ID in request context (set by auth middleware)
+  // Check for webhook principal in request context (set by webhook auth middleware)
+  const webhookPrincipal = (req as any).webhookPrincipal;
+  if (webhookPrincipal) return String(webhookPrincipal);
+
+  // Check for service account ID in request context (set by service account auth middleware)
   const serviceAccountId = (req as any).serviceAccount?.id;
   if (serviceAccountId) return String(serviceAccountId);
 
@@ -72,9 +90,9 @@ function extractTrustedPrincipal(req: Request): string | undefined {
 /**
  * In-memory store for in-flight idempotency reservations.
  * Tracks the state machine: missing → processing → completed/failed
- * Key: compositeKey, Value: IdempotencyReservation
+ * Key: compositeKey, Value: InMemoryReservation
  */
-const inFlightReservations = new Map<string, IdempotencyReservation>();
+const inFlightReservations = new Map<string, InMemoryReservation>();
 
 /**
  * Global Redis client for distributed idempotency.
@@ -85,27 +103,29 @@ let redisClient: RedisIdempotencyClient | null = null;
 
 /**
  * Idempotency Middleware Factory
- * Ensures that requests with the same idempotency key are processed only once.
  *
- * State machine: missing → processing → completed/failed
- * - First request with a key atomically reserves it (state: pending)
+ * CRITICAL FIX: Redis SET NX now happens BEFORE next() is called,
+ * ensuring distributed atomic reservation before the business operation executes.
+ *
+ * State machine: missing → pending → completed/failed
+ * - First request with a key atomically reserves it in Redis (state: pending)
  * - Subsequent requests with the same key:
- *   - If body matches and still pending: wait for the in-flight result
- *   - If body matches and completed: return cached response immediately
+ *   - If reserved by someone else: poll until winner completes
+ *   - If response already exists: return cached response immediately
  *   - If body differs: return 409 Conflict
  * - Completed/failed entries are cleaned up after TTL
  *
  * Key features:
- * - Atomic reservation via synchronous Map.set() (safe in Node.js single-threaded event loop)
- * - For multi-instance deployments: the Redis store's SET NX provides distributed atomicity
- * - Trusted principal extraction ONLY from auth middleware context (not raw headers)
+ * - Atomic reservation via Redis SET NX BEFORE next() (distributed atomicity)
+ * - Losers poll and wait for winner to complete
+ * - Trusted principal extraction ONLY from auth middleware context
  * - Recursive canonical body hash for collision-resistant request comparison
  * - Only caches 2xx/3xx responses (not 4xx/5xx)
  */
 export function idempotency(options: IdempotencyOptions = {}) {
-  const ttlMs = options.ttlMs || 24 * 60 * 60 * 1000; // Default 24 hours
+  const ttlMs = options.ttlMs || DEFAULT_TTL_MS;
+  const ttlSeconds = Math.ceil(ttlMs / 1000);
   const keyHeader = (options.keyHeader || IDEMPOTENCY_KEY_HEADER).toLowerCase();
-  const requireTrustedPrincipal = options.requireTrustedPrincipal !== false; // Default true
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -136,8 +156,8 @@ export function idempotency(options: IdempotencyOptions = {}) {
       // Extract trusted principal ONLY from auth middleware context
       const principal = extractTrustedPrincipal(req);
 
-      // Enforce trusted principal requirement if configured
-      if (requireTrustedPrincipal && !principal) {
+      // Require trusted principal - never allow anonymous idempotency
+      if (!principal) {
         res.status(401).json({
           success: false,
           error: {
@@ -152,7 +172,21 @@ export function idempotency(options: IdempotencyOptions = {}) {
       const routePattern = req.route?.path || req.originalUrl.split('?')[0];
 
       // Generate composite key from principal + method + route + idempotency-key
+      // NOTE: generateIdempotencyKey now returns undefined if principal is undefined,
+      // but we already check for principal above and return 401, so this should never be undefined here.
       const compositeKey = generateIdempotencyKey(principal, req.method, routePattern, idempotencyKey);
+      
+      // Safety check: if compositeKey is somehow undefined, reject the request
+      if (!compositeKey) {
+        res.status(500).json({
+          success: false,
+          error: {
+            message: 'Internal error: could not generate idempotency key',
+            code: 'IDEMPOTENCY_KEY_GENERATION_FAILED',
+          },
+        });
+        return;
+      }
 
       // Generate request body hash for comparison
       let requestBodyHash: string | undefined;
@@ -160,104 +194,69 @@ export function idempotency(options: IdempotencyOptions = {}) {
         requestBodyHash = generateRequestBodyHash(req.body);
       }
 
-      // ===== STATE MACHINE: missing → pending → completed/failed =====
+      const requestId = crypto.randomUUID();
 
-      // Check for existing reservation
-      const existingReservation = inFlightReservations.get(compositeKey);
-
-      if (existingReservation) {
-        // ===== ALREADY RESERVED (pending, completed, or failed) =====
-
-        // Handle failed reservations: remove and let the request retry
-        if (existingReservation.state === 'failed') {
-          inFlightReservations.delete(compositeKey);
-          // Fall through to create a new reservation below
-        } else if (existingReservation.state === 'pending') {
-          // Check body hash match for pending reservations
-          if (requestBodyHash) {
-            if (!existingReservation.requestBodyHash) {
-              existingReservation.requestBodyHash = requestBodyHash;
-            } else if (!requestBodyMatches(requestBodyHash, existingReservation.requestBodyHash)) {
-              // Body mismatch - return error
-              res.status(409).json({
-                success: false,
-                error: {
-                  message: 'Idempotency key reused with different request body',
-                  code: 'IDEMPOTENCY_BODY_MISMATCH',
-                },
-              });
-              return;
-            }
-          }
-
-          // If pending and has a result promise, wait for it
-          if (existingReservation.resultPromise) {
-            try {
-              const result = await existingReservation.resultPromise;
-              res.set('X-Idempotency-Cache', 'waiting');
-              res.status(result.status).json(result.body);
-              return;
-            } catch (error) {
-              next(error);
-              return;
-            }
-          }
-
-          // Pending without promise - return 425
-          res.status(425).json({
-            success: false,
-            error: {
-              message: 'Idempotency key reservation is still being processed',
-              code: 'IDEMPOTENCY_RESERVATION_IN_PROGRESS',
-            },
-          });
-          return;
-        } else if (existingReservation.state === 'completed') {
-          // Check body hash match for completed reservations
-          if (requestBodyHash && existingReservation.requestBodyHash) {
-            if (!requestBodyMatches(requestBodyHash, existingReservation.requestBodyHash)) {
-              // Body mismatch - return error
-              res.status(409).json({
-                success: false,
-                error: {
-                  message: 'Idempotency key reused with different request body',
-                  code: 'IDEMPOTENCY_BODY_MISMATCH',
-                },
-              });
-              return;
-            }
-          }
-
-          // Return cached response immediately
-          res.set('X-Idempotency-Cache', 'hit');
-          if (!existingReservation.response) {
-            res.status(500).json({
-              success: false,
-              error: {
-                message: 'Internal error: cached response is incomplete',
-                code: 'IDEMPOTENCY_CACHE_INCOMPLETE',
-              },
-            });
-            return;
-          }
-          res.status(existingReservation.response.status).json(existingReservation.response.body);
-          return;
+      // ===== STEP 1: ATOMIC REDIS RESERVATION (BEFORE next()) =====
+      // This is the CRITICAL FIX: Redis SET NX happens BEFORE the operation
+      
+      let reservationResult: ReservationResult;
+      
+      if (redisClient && redisClient.isConnected()) {
+        try {
+          reservationResult = await redisClient.reserve(
+            compositeKey,
+            principal,
+            req.method,
+            routePattern,
+            requestId,
+            ttlSeconds
+          );
+        } catch (error) {
+          console.error('[Idempotency] Redis reservation failed, falling back to in-memory:', error);
+          // Fall through to in-memory only mode
+          reservationResult = await reserveInMemory(compositeKey, principal, req.method, routePattern, requestId, ttlMs);
         }
+      } else {
+        // No Redis - use in-memory only
+        reservationResult = await reserveInMemory(compositeKey, principal, req.method, routePattern, requestId, ttlMs);
       }
 
-      // ===== CREATE RESERVATION (missing → pending) =====
-      // In Node.js single-threaded event loop, Map.set() is atomic for synchronous code.
-      // For multi-instance deployments with Redis, the store's SET NX provides distributed atomicity.
+      // Handle reservation result
+      if (!reservationResult.reserved) {
+        // We didn't win the reservation
+        if ('exists' in reservationResult && reservationResult.exists) {
+          // Response already exists - return it immediately
+          res.set('X-Idempotency-Cache', 'hit');
+          const cachedResponse = reservationResult.entry.data.response;
+          res.status(cachedResponse.status).json(cachedResponse.body);
+          return;
+        }
+        
+        // Someone else has the reservation - wait for them to complete
+        res.set('X-Idempotency-Cache', 'waiting');
+        const result = await waitForWinner(
+          compositeKey,
+          reservationResult.existingReservation,
+          requestBodyHash,
+          req
+        );
+        
+        if (result) {
+          res.status(result.status).json(result.body);
+        }
+        return;
+      }
 
-      // Create a promise that will resolve when the handler completes
-      let resolvePromise: (value: { status: number; headers: Record<string, string>; body: unknown }) => void;
-      let rejectPromise: (error: unknown) => void;
+      // We won the reservation - proceed with the operation
+      // Create in-memory tracking for this reservation
+      let resolvePromise: ((value: { status: number; headers: Record<string, string>; body: unknown }) => void) | undefined;
+      let rejectPromise: ((error: unknown) => void) | undefined;
       const resultPromise = new Promise<{ status: number; headers: Record<string, string>; body: unknown }>((resolve, reject) => {
         resolvePromise = resolve;
         rejectPromise = reject;
       });
 
-      const reservation: IdempotencyReservation = {
+      const memoryReservation: InMemoryReservation = {
         state: 'pending',
         principal,
         httpMethod: req.method,
@@ -265,15 +264,15 @@ export function idempotency(options: IdempotencyOptions = {}) {
         requestBodyHash,
         createdAt: Date.now(),
         resultPromise,
+        resolvePromise,
+        rejectPromise,
       };
 
-      // Atomically reserve the key
-      inFlightReservations.set(compositeKey, reservation);
+      inFlightReservations.set(compositeKey, memoryReservation);
 
       // Store original methods to capture response
       const originalJson = res.json.bind(res);
       const originalStatus = res.status;
-
       let capturedStatus = 200;
 
       // Intercept status calls
@@ -297,81 +296,59 @@ export function idempotency(options: IdempotencyOptions = {}) {
           }
 
           // Only cache successful responses (2xx and 3xx)
-          if (shouldCacheResponse(capturedStatus)) {
-            // Use dual-store strategy:
-            // 1. In-memory store: for same-process deduplication (fast, always available)
-            // 2. Redis store: for cross-process distributed atomicity (first-write-wins)
-            //
-            // Note: This is async because Redis SET NX provides distributed atomicity.
-            // The in-flight reservation Map handles same-process deduplication synchronously.
+          if (capturedStatus >= 200 && capturedStatus < 400) {
             try {
-              const stored = await storeIdempotencyResponseDual(
-                compositeKey,
-                {
+              // Store the response in Redis
+              if (redisClient && redisClient.isConnected()) {
+                const entry: IdempotencyEntry = {
                   data: {
                     response: responseBody,
-                    keyOptions: {
-                      principal,
-                      httpMethod: req.method,
-                      routePattern,
-                      requestBodyHash,
-                    },
+                    keyOptions: { ttlMs, httpMethod: req.method, routePattern, principal },
                     createdAt: Date.now(),
                   },
                   expiresAt: Date.now() + ttlMs,
-                },
-                principal,
-                req.method,
-                routePattern,
-                requestBodyHash,
-                ttlMs
-              );
-
-              if (stored) {
-                // Successfully stored - update reservation state to completed
-                reservation.state = 'completed';
-                reservation.completedAt = Date.now();
-                reservation.response = responseBody;
+                };
+                await redisClient.storeResponse(compositeKey, entry, requestId);
               }
-              // If not stored (another instance won the race),
-              // the result promise still resolves so waiting requests get the response.
+              
+              // Update in-memory state
+              memoryReservation.state = 'completed';
+              memoryReservation.completedAt = Date.now();
+              memoryReservation.response = responseBody;
             } catch (storeError) {
-              // Storage failed - reservation still resolved, just no caching
-              console.debug('[Idempotency] Store error (request will not be cached):', storeError);
-              // Still mark as completed so we don't keep waiting
-              reservation.state = 'completed';
-              reservation.completedAt = Date.now();
-              reservation.response = responseBody;
+              console.debug('[Idempotency] Store error (response still resolved):', storeError);
+              memoryReservation.state = 'completed';
+              memoryReservation.completedAt = Date.now();
+              memoryReservation.response = responseBody;
             }
           } else {
-            // Failed/unsuccessful response - mark as failed
-            reservation.state = 'failed';
-            reservation.completedAt = Date.now();
+            memoryReservation.state = 'failed';
+            memoryReservation.completedAt = Date.now();
           }
         } catch (error) {
-          reservation.state = 'failed';
-          reservation.completedAt = Date.now();
+          memoryReservation.state = 'failed';
+          memoryReservation.completedAt = Date.now();
           console.error('Idempotency store error:', error);
         }
 
         return originalJson(body);
       };
 
-      // Handle request errors - reject the promise so waiting requests know
+      // Handle request errors
       req.on('close', () => {
-        if (reservation.state === 'pending' && !reservation.response) {
-          // Request was aborted without sending response
+        if (memoryReservation.state === 'pending' && !memoryReservation.response) {
           if (rejectPromise) {
             rejectPromise(new Error('Request closed without response'));
           }
-          reservation.state = 'failed';
-          reservation.completedAt = Date.now();
+          memoryReservation.state = 'failed';
+          memoryReservation.completedAt = Date.now();
         }
       });
 
       // Override json to capture response
       (res as any).json = captureJson;
 
+      // ===== STEP 2: EXECUTE THE BUSINESS OPERATION =====
       next();
     } catch (error) {
       next(error);
@@ -380,70 +357,114 @@ export function idempotency(options: IdempotencyOptions = {}) {
 }
 
 /**
- * Clean up expired in-flight reservations.
- * Removes reservations that have been pending for longer than the TTL.
- * Returns the number of removed entries.
+ * Reserve in an in-memory Map (fallback when Redis is unavailable).
  */
-export function cleanupExpiredReservations(ttlMs: number = DEFAULT_TTL_MS): number {
-  const now = Date.now();
-  let removed = 0;
+async function reserveInMemory(
+  key: string,
+  principal: string,
+  httpMethod: string,
+  routePattern: string,
+  requestId: string,
+  ttlMs: number
+): Promise<ReservationResult> {
+  const existing = inFlightReservations.get(key);
 
-  for (const [key, reservation] of inFlightReservations.entries()) {
-    const age = now - reservation.createdAt;
-    if (age > ttlMs) {
-      inFlightReservations.delete(key);
-      removed++;
+  if (existing) {
+    if (existing.state === 'completed' && existing.response) {
+      return {
+        reserved: false,
+        exists: true,
+        entry: {
+          data: {
+            response: existing.response,
+            keyOptions: { ttlMs, httpMethod: existing.httpMethod, routePattern: existing.routePattern, principal: existing.principal },
+            createdAt: existing.createdAt,
+          },
+          expiresAt: existing.createdAt + ttlMs,
+        },
+      };
+    }
+    
+    if (existing.state === 'pending') {
+      return {
+        reserved: false,
+        exists: false,
+        existingReservation: {
+          principal: existing.principal,
+          requestId: existing.resultPromise ? 'pending' : requestId,
+          expiresAt: existing.createdAt + ttlMs,
+        },
+      };
     }
   }
 
-  return removed;
-}
+  // Create reservation
+  let resolvePromise: ((value: { status: number; headers: Record<string, string>; body: unknown }) => void) | undefined;
+  let rejectPromise: ((error: unknown) => void) | undefined;
+  const resultPromise = new Promise<{ status: number; headers: Record<string, string>; body: unknown }>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
 
-/**
- * Store a response in both in-memory store and Redis (if available).
- * Uses dual-write strategy:
- * 1. In-memory store: for same-process deduplication (fast, always available)
- * 2. Redis store: for cross-process distributed atomicity (first-write-wins)
- *
- * Returns true if the entry was newly created in at least one store,
- * false if it already existed in the in-memory store.
- */
-async function storeIdempotencyResponseDual(
-  key: string,
-  entry: IdempotencyEntry,
-  principal: string | undefined,
-  httpMethod: string,
-  routePattern: string,
-  requestBodyHash: string | undefined,
-  ttlMs: number
-): Promise<boolean> {
-  // Always try in-memory store first (fast, same-process)
-  const inMemoryStored = storeIdempotencyResponse({
+  inFlightReservations.set(key, {
+    state: 'pending',
+    principal,
+    httpMethod,
+    routePattern,
+    requestBodyHash: undefined,
+    createdAt: Date.now(),
+    resultPromise,
+    resolvePromise,
+    rejectPromise,
+  });
+
+  return {
+    reserved: true,
     key,
     principal,
     httpMethod,
     routePattern,
-    requestBodyHash,
-    ttlMs,
-  }, {
-    data: entry.data,
-    expiresAt: entry.expiresAt,
-  });
+    requestId,
+    expiresAt: Date.now() + ttlMs,
+  };
+}
 
-  // Try Redis store for distributed atomicity (only if in-memory store accepted it)
-  if (inMemoryStored && redisClient && redisClient.isConnected()) {
-    try {
-      await redisClient.set(key, {
-        data: entry.data,
-        expiresAt: entry.expiresAt,
-      });
-    } catch (error) {
-      // Redis write failed - in-memory store still has it
-      console.debug('[Idempotency] Redis write failed, using in-memory only:', error);
+/**
+ * Wait for the winner to complete their operation.
+ */
+async function waitForWinner(
+  key: string,
+  _existingReservation: { principal: string; requestId: string; expiresAt: number },
+  _requestBodyHash: string | undefined,
+  req: Request
+): Promise<{ status: number; headers: Record<string, string>; body: unknown } | null> {
+  const startTime = Date.now();
+  const localReservations = inFlightReservations;
+
+  while (Date.now() - startTime < MAX_WAIT_MS) {
+    const current = localReservations.get(key);
+
+    if (!current) {
+      // Reservation expired or deleted
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+      continue;
     }
+
+    if (current.state === 'completed' && current.response) {
+      req.res?.set('X-Idempotency-Cache', 'waiting');
+      return current.response;
+    }
+
+    if (current.state === 'failed') {
+      localReservations.delete(key);
+      return null; // Let the caller handle retry
+    }
+
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
 
-  return inMemoryStored;
+  // Timeout - return error
+  return null;
 }
 
 /**
@@ -474,7 +495,7 @@ export async function initializeRedisClient(): Promise<void> {
 
 /**
  * Start idempotency cleanup on server start.
- * Cleans up both the idempotency store AND in-flight reservations.
+ * Cleans up in-flight reservations periodically.
  * Also initializes Redis client if configured.
  */
 export function initializeIdempotency(): void {
@@ -482,7 +503,17 @@ export function initializeIdempotency(): void {
   
   // Also clean up in-flight reservations every minute
   const reservationCleanupInterval = setInterval(() => {
-    const removed = cleanupExpiredReservations();
+    const now = Date.now();
+    let removed = 0;
+    
+    for (const [key, reservation] of inFlightReservations.entries()) {
+      const age = now - reservation.createdAt;
+      if (age > DEFAULT_TTL_MS) {
+        inFlightReservations.delete(key);
+        removed++;
+      }
+    }
+    
     if (removed > 0) {
       console.debug(`Idempotency: cleaned up ${removed} expired in-flight reservations`);
     }
@@ -523,4 +554,18 @@ export async function closeRedisClient(): Promise<void> {
  */
 export function setRedisClient(client: RedisIdempotencyClient | null): void {
   redisClient = client;
+}
+
+/**
+ * Get the number of in-flight reservations (for testing/monitoring).
+ */
+export function getInFlightReservationCount(): number {
+  return inFlightReservations.size;
+}
+
+/**
+ * Clear in-flight reservations (for testing).
+ */
+export function clearInFlightReservations(): void {
+  inFlightReservations.clear();
 }

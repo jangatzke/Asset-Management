@@ -16,11 +16,40 @@ import { IdempotencyEntry } from './idempotency.service';
 export interface RedisClientInterface {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number; NX: boolean }): Promise<string | null>;
+  setXX(key: string, value: string, options: { EX: number }): Promise<string | null>;
   del(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
   keys(pattern: string): Promise<string[]>;
-  quit?(): Promise<void>;
   ping?(): Promise<string>;
+  quit?(): Promise<void>;
+  rawCommand?(...args: string[]): Promise<string | null>;
+  getset?(key: string, value: string): Promise<string | null>;
+}
+
+export interface IdempotencyReservation {
+  reserved: true;
+  key: string;
+  principal: string;
+  httpMethod: string;
+  routePattern: string;
+  requestId: string;
+  expiresAt: number;
+}
+
+export interface IdempotencyAlreadyExists {
+  reserved: false;
+  exists: true;
+  entry: IdempotencyEntry;
+}
+
+export interface IdempotencyNotReserved {
+  reserved: false;
+  exists: false;
+  existingReservation: {
+    principal: string;
+    requestId: string;
+    expiresAt: number;
+  };
 }
 
 export interface RedisIdempotencyClientOptions {
@@ -117,13 +146,16 @@ export class RedisIdempotencyClient {
 
       this.client = {
         get: (key: string) => client.get(key),
-        set: (key: string, value: string, options: { EX: number; NX: boolean }) => 
+        set: (key: string, value: string, options: { EX: number; NX: boolean }) =>
           client.set(key, value, options.EX ? ['EX', options.EX] : [], options.NX ? ['NX'] : []),
+        setXX: (key: string, value: string, options: { EX: number }) =>
+          client.set(key, value, ['XX', 'EX', options.EX]),
         del: (key: string) => client.del(key),
         expire: (key: string, seconds: number) => client.expire(key, seconds),
         keys: (pattern: string) => client.keys(pattern),
         quit: () => client.quit(),
         ping: () => client.ping(),
+        rawCommand: (...args: string[]) => client.sendCommand(args),
       };
 
       return true;
@@ -172,11 +204,18 @@ export class RedisIdempotencyClient {
           // redis v4+ set returns 'OK' or null
           return (await client.set(...args)) as string;
         },
+        setXX: async (key: string, value: string, options: { EX: number }) => {
+          const args: string[] = [key, value, 'XX', 'EX', String(options.EX)];
+          return (await client.set(...args)) as string;
+        },
         del: (key: string) => client.del(key),
         expire: (key: string, seconds: number) => client.expire(key, seconds),
         keys: (pattern: string) => client.keys(pattern),
         quit: () => client.quit(),
         ping: () => client.ping(),
+        rawCommand: async (...args: string[]) => {
+          return (await client.sendCommand(args)) as string;
+        },
       };
 
       return true;
@@ -353,6 +392,171 @@ export class RedisIdempotencyClient {
       error: this.initializationError,
       usingFallback: !this.connected,
     };
+  }
+
+  /**
+   * Atomically reserve an idempotency key for this backend instance.
+   *
+   * This is the core of distributed idempotency - only ONE backend instance
+   * can win the reservation. Losers must wait for the winner to complete.
+   *
+   * Returns:
+   * - { reserved: true } if this instance won the reservation
+   * - { exists: true, entry } if a response already exists (return cached)
+   * - { exists: false, existingReservation } if someone else reserved it (wait)
+   */
+  async reserve(
+    key: string,
+    principal: string,
+    httpMethod: string,
+    routePattern: string,
+    requestId: string,
+    ttlSeconds: number
+  ): Promise<IdempotencyReservation | IdempotencyAlreadyExists | IdempotencyNotReserved> {
+    if (!this.client || !this.connected) {
+      throw new Error('Redis client not initialized');
+    }
+
+    const redisKey = this.makeKey(key);
+    const now = Date.now();
+    const expirationTimestamp = now + (ttlSeconds * 1000);
+    
+    // Serialize reservation metadata
+    const reservationData = JSON.stringify({
+      principal,
+      httpMethod,
+      routePattern,
+      requestId,
+      reservedAt: now,
+      expiresAt: expirationTimestamp,
+    });
+
+    try {
+      // Atomic SET NX - only sets if key doesn't exist
+      // Using raw command for maximum compatibility
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const setResult: any = await (this.client as any).rawCommand?.(
+        'SET', redisKey, reservationData, 'NX', 'EX', ttlSeconds
+      ) ?? await (this.client as any).set(redisKey, reservationData, ['NX', 'EX', ttlSeconds]);
+
+      const acquired = (setResult === 'OK' || setResult === '1' || setResult === true);
+
+      if (acquired) {
+        // We won the reservation
+        return {
+          reserved: true,
+          key,
+          principal,
+          httpMethod,
+          routePattern,
+          requestId,
+          expiresAt: expirationTimestamp,
+        };
+      }
+
+      // Key already exists - fetch the existing data
+      const existingSerialized = await this.client.get(redisKey);
+      
+      if (existingSerialized === null) {
+        // Race condition: key was deleted between SET and GET
+        // Try again with exponential backoff
+        return {
+          reserved: false,
+          exists: false,
+          existingReservation: {
+            principal: 'unknown',
+            requestId: 'unknown',
+            expiresAt: now + (ttlSeconds * 1000),
+          },
+        };
+      }
+
+      const existingData = JSON.parse(existingSerialized);
+
+      if (existingData.response) {
+        // A response already exists - return it
+        return {
+          reserved: false,
+          exists: true,
+          entry: existingData.response,
+        };
+      }
+
+      // Someone else has the reservation - they're executing the operation
+      return {
+        reserved: false,
+        exists: false,
+        existingReservation: {
+          principal: existingData.principal,
+          requestId: existingData.requestId,
+          expiresAt: existingData.expiresAt,
+        },
+      };
+    } catch (error) {
+      console.error('[Idempotency] Redis RESERVE failed:', error);
+      this.connected = false;
+      throw new Error('Redis RESERVE failed - falling back to in-memory store');
+    }
+  }
+
+  /**
+   * Store a response for a previously reserved idempotency key.
+   *
+   * This replaces the reservation metadata with the actual response.
+   * Uses atomic GET to verify we still hold the reservation.
+   */
+  async storeResponse(
+    key: string,
+    response: IdempotencyEntry,
+    requestId: string
+  ): Promise<boolean> {
+    if (!this.client || !this.connected) {
+      throw new Error('Redis client not initialized');
+    }
+
+    const redisKey = this.makeKey(key);
+
+    try {
+      // Atomic GET-SET with verification:
+      // 1. GET the current value
+      // 2. Verify it matches our requestId
+      // 3. SET the new value with response embedded
+      
+      const currentSerialized = await this.client.get(redisKey);
+      
+      if (currentSerialized === null) {
+        // Key was deleted - someone else took over
+        return false;
+      }
+
+      const currentData = JSON.parse(currentSerialized);
+
+      if (currentData.requestId !== requestId) {
+        // We no longer hold the reservation
+        return false;
+      }
+
+      // Store the response, keeping the metadata
+      const updatedData = {
+        ...currentData,
+        response,
+        completedAt: Date.now(),
+      };
+
+      const ttlMs = response.expiresAt - Date.now();
+      const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (this.client as any).rawCommand?.(
+        'SET', redisKey, JSON.stringify(updatedData), 'EX', ttlSeconds
+      ) ?? await (this.client as any).set(redisKey, JSON.stringify(updatedData), ['EX', ttlSeconds]);
+
+      return true;
+    } catch (error) {
+      console.error('[Idempotency] Redis STORE_RESPONSE failed:', error);
+      this.connected = false;
+      return false;
+    }
   }
 
   /**

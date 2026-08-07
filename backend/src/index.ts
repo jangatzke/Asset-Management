@@ -13,6 +13,8 @@ import { metricsMiddleware, metricsEndpoint, createMetricsAuthMiddleware, attach
 import { idempotency } from './middleware/idempotency';
 import { etag } from './middleware/etag';
 import { scopeAudit } from './middleware/apiScopes';
+import { authenticateServiceAccount } from './middleware/serviceAccountAuth';
+import { authenticateWebhook } from './middleware/webhookAuth';
 import { 
   healthBasic, 
   healthLive, 
@@ -188,12 +190,11 @@ app.use('/api/v1/isms-operations', phase6Router);
 app.use('/api/v1/catalog', catalogRouter);
 app.use('/api/v1/cost-planning', costPlanningRouter);
 
-// Phase 8 Routes - Webhooks & Service Accounts (with idempotency)
-// Note: requireTrustedPrincipal is set to false because auth runs inside the router handlers,
-// not as global middleware. The middleware handles principal=undefined correctly by using
-// 'anonymous' as the principal prefix in the composite key.
-app.use('/api/v1/webhooks', idempotency({ requireTrustedPrincipal: false }), webhookRouter);
-app.use('/api/v1/service-accounts', idempotency({ requireTrustedPrincipal: false }), serviceAccountRouter);
+// Phase 8 Routes - Webhooks & Service Accounts (with idempotency + auth)
+// Auth middleware runs BEFORE idempotency to ensure principal is set.
+// Idempotency middleware now requires trusted principal (never allows anonymous).
+app.use('/api/v1/webhooks', authenticateWebhook, idempotency(), webhookRouter);
+app.use('/api/v1/service-accounts', authenticateServiceAccount, idempotency(), serviceAccountRouter);
 
 // ==================== Error Handling ====================
 app.use(errorHandler);
