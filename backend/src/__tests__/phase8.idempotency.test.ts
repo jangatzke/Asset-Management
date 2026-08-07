@@ -149,7 +149,7 @@ describe('Idempotency Service', () => {
       const keyAnonymous = generateIdempotencyKey(undefined, 'POST', '/api/v1/assets', 'req-abc');
       
       expect(keyWithPrincipal).not.toBe(keyAnonymous);
-      expect(keyAnonymous).toHaveLength(64); // SHA-256 hex digest length
+      expect(keyAnonymous).toBeUndefined(); // SECURITY: Never falls back to 'anonymous'
     });
 
     test('should return hex string of correct length', () => {

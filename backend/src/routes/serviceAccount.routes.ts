@@ -35,13 +35,34 @@ function serializeScopes(scopes: string[]): string {
 }
 /**
  * Generate a new access token for a service account.
+ * Returns token, hash, salt, and the UUID part for lookup.
  */
-function generateAccessToken(): { token: string; hash: string; salt: string } {
+function generateAccessToken(): { token: string; hash: string; salt: string; uuid: string } {
+  const uuid = crypto.randomUUID();
   const salt = crypto.randomBytes(32).toString('hex');
-  const token = `${process.env.SERVICE_ACCOUNT_PREFIX || 'svc'}_${crypto.randomUUID()}_${Date.now()}`;
+  const token = `${process.env.SERVICE_ACCOUNT_PREFIX || 'svc'}_${uuid}_${Date.now()}`;
   const combined = `${token}${salt}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
-  return { token, hash, salt };
+  return { token, hash, salt, uuid };
+}
+
+/**
+ * Extract the account UUID from a service account token.
+ * Token format: svc_<uuid>_<timestamp>
+ * Returns the UUID part or null if token format is invalid.
+ */
+function extractAccountUuidFromToken(token: string): string | null {
+  const parts = token.split('_');
+  // Expected format: ['svc', '<uuid>', '<timestamp>']
+  // UUIDs contain hyphens (not underscores), so splitting by '_' gives clean parts
+  if (parts.length >= 3) {
+    // Validate it looks like a proper UUID (8-4-4-4-12 pattern)
+    const uuid = parts[1];
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
+      return uuid;
+    }
+  }
+  return null;
 }
 
 // ==================== Service Account Routes ====================
@@ -119,10 +140,11 @@ router.post(
       }
 
       // Generate token with random salt
-      const { token, hash, salt } = generateAccessToken();
+      const { token, hash, salt, uuid } = generateAccessToken();
 
       const account = await prisma.serviceAccount.create({
         data: {
+          displayId: uuid,
           name,
           description: description || undefined,
           userId: userId || undefined,
@@ -432,19 +454,20 @@ router.post(
         return;
       }
 
-      // Extract salt from environment
-      const envSalt = process.env.SERVICE_ACCOUNT_TOKEN_SALT || '';
+      // Extract the UUID from the token for lookup
+      const accountUuid = extractAccountUuidFromToken(accessToken);
+      if (!accountUuid) {
+        res.status(401).json({
+          error: 'Authentication Failed',
+          message: 'Invalid token format',
+        });
+        return;
+      }
 
-      // Hash the incoming token with env salt
-      const tokenHash = crypto
-        .createHash('sha256')
-        .update(`${accessToken}${envSalt}`)
-        .digest('hex');
-
-      // Find matching service account in Prisma
+      // Look up the account by displayId (UUID)
       const account = await prisma.serviceAccount.findFirst({
         where: {
-          accessTokenHash: tokenHash,
+          displayId: accountUuid,
           isActive: true,
           isArchived: false,
           OR: [
@@ -457,10 +480,26 @@ router.post(
           displayId: true,
           name: true,
           scopes: true,
+          accessTokenSalt: true,
+          accessTokenHash: true,
         },
       });
 
       if (!account) {
+        res.status(401).json({
+          error: 'Authentication Failed',
+          message: 'Invalid access token',
+        });
+        return;
+      }
+
+      // Verify using stored salt
+      const computedHash = crypto
+        .createHash('sha256')
+        .update(`${accessToken}${account.accessTokenSalt}`)
+        .digest('hex');
+
+      if (computedHash !== account.accessTokenHash) {
         res.status(401).json({
           error: 'Authentication Failed',
           message: 'Invalid access token',

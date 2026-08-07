@@ -38,21 +38,48 @@ export async function authenticateWebhook(
     const token = authHeader.slice(7);
 
     // Validate against webhook service accounts
+    // Use lookup-by-UUID approach to handle per-account random salts
     const { prisma } = await import('../config/database');
-    const account = await prisma.serviceAccount.findFirst({
-      where: {
-        accessTokenHash: hashWebhookToken(token),
-        isActive: true,
-        isArchived: false,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
-      },
-      select: { id: true, name: true },
-    });
+    
+    // Extract UUID from token format: svc_<uuid>_<timestamp>
+    const parts = token.split('_');
+    const accountUuid = parts.length >= 3 &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[1])
+      ? parts[1]
+      : null;
+
+    let account: { id: string; name: string; accessTokenSalt: string; accessTokenHash: string } | null = null;
+    
+    if (accountUuid) {
+      // Look up by displayId (UUID)
+      account = await prisma.serviceAccount.findFirst({
+        where: {
+          displayId: accountUuid,
+          isActive: true,
+          isArchived: false,
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } },
+          ],
+        },
+        select: { id: true, name: true, accessTokenSalt: true, accessTokenHash: true },
+      });
+
+      if (account) {
+        // Verify using stored salt
+        const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
+        if (computedHash !== account.accessTokenHash) {
+          account = null;
+        }
+      }
+    }
 
     if (account) {
+      await prisma.serviceAccount.update({
+        where: { id: account.id },
+        data: { lastUsedAt: new Date() },
+      }).catch(() => {});
+
       req.webhookPrincipal = {
         type: 'webhook',
         source: `sa:${account.id}`,
@@ -85,11 +112,3 @@ export async function authenticateWebhook(
   });
 }
 
-/**
- * Hash a webhook token for database lookup.
- * Uses the same hashing method as service accounts.
- */
-function hashWebhookToken(token: string): string {
-  const salt = process.env.SERVICE_ACCOUNT_TOKEN_SALT || '';
-  return crypto.createHash('sha256').update(`${token}${salt}`).digest('hex');
-}

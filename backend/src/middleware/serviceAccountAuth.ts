@@ -62,14 +62,30 @@ export async function authenticateServiceAccount(
     return;
   }
 
-  // Hash the incoming token with server-side salt for secure lookup
-  const salt = process.env.SERVICE_ACCOUNT_TOKEN_SALT || '';
-  const tokenHash = crypto.createHash('sha256').update(`${token}${salt}`).digest('hex');
+  // Extract the UUID from the token for lookup
+  // Token format: svc_<uuid>_<timestamp>
+  const parts = token.split('_');
+  // UUIDs contain hyphens (not underscores), so splitting by '_' gives ['svc', '<uuid>', '<timestamp>']
+  const accountUuid = parts.length >= 3 &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[1])
+    ? parts[1]
+    : null;
 
-  // Look up service account by access token hash in Prisma
+  if (!accountUuid) {
+    res.status(401).json({
+      success: false,
+      error: {
+        message: 'Invalid token format',
+        code: 'INVALID_TOKEN',
+      },
+    });
+    return;
+  }
+
+  // Look up the account by displayId (UUID)
   const account = await prisma.serviceAccount.findFirst({
     where: {
-      accessTokenHash: tokenHash,
+      displayId: accountUuid,
       isActive: true,
       isArchived: false,
       OR: [
@@ -82,10 +98,25 @@ export async function authenticateServiceAccount(
       displayId: true,
       name: true,
       scopes: true,
+      accessTokenSalt: true,
+      accessTokenHash: true,
     },
   });
 
   if (!account) {
+    res.status(401).json({
+      success: false,
+      error: {
+        message: 'Invalid or expired service account token',
+        code: 'INVALID_TOKEN',
+      },
+    });
+    return;
+  }
+
+  // Verify using stored salt
+  const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
+  if (computedHash !== account.accessTokenHash) {
     res.status(401).json({
       success: false,
       error: {
@@ -125,6 +156,10 @@ export async function authenticateServiceAccount(
     ...account,
     scopes,
   };
+
+  // Set serviceAccountScopes so that requireScopes() can read them
+  // (requireScopes() looks at req.serviceAccountScopes, not req.serviceAccount.scopes)
+  (req as ServiceAccountRequest & { serviceAccountScopes?: string[] }).serviceAccountScopes = scopes;
 
   next();
 }

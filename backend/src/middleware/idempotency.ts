@@ -233,16 +233,19 @@ export function idempotency(options: IdempotencyOptions = {}) {
         }
         
         // Someone else has the reservation - wait for them to complete
-        res.set('X-Idempotency-Cache', 'waiting');
-        const result = await waitForWinner(
-          compositeKey,
-          reservationResult.existingReservation,
-          requestBodyHash,
-          req
-        );
-        
-        if (result) {
-          res.status(result.status).json(result.body);
+        // Type narrowing: only IdempotencyNotReserved has 'existingReservation'
+        if ('existingReservation' in reservationResult) {
+          res.set('X-Idempotency-Cache', 'waiting');
+          const result = await waitForWinner(
+            compositeKey,
+            reservationResult.existingReservation,
+            requestBodyHash,
+            req
+          );
+          
+          if (result) {
+            res.status(result.status).json(result.body);
+          }
         }
         return;
       }
