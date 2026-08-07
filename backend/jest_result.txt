@@ -1,0 +1,518 @@
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 302 -> https://new-location.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:452:22)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 300 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:510:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 301 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:510:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 302 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:510:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 303 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:510:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 307 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:510:24)
+
+  console.warn
+    [Webhook] Redirect encountered for https://example.com/webhook: 308 -> https://redirect.example.com/. Redirect following is disabled (maxRedirects: 0).
+
+    [0m [90m 195 |[39m     [36mif[39m (response[33m.[39mstatus [33m>=[39m [35m300[39m [33m&&[39m response[33m.[39mstatus [33m<[39m [35m400[39m) {
+     [90m 196 |[39m       [36mconst[39m location [33m=[39m response[33m.[39mheaders[33m.[39mlocation [33m||[39m [32m'unknown'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 197 |[39m       console[33m.[39mwarn([32m`[Webhook] Redirect encountered for ${config.url}: ${response.status} -> ${location}. Redirect following is disabled (maxRedirects: 0).`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 198 |[39m       [36mreturn[39m {
+     [90m 199 |[39m         success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 200 |[39m         statusCode[33m:[39m response[33m.[39mstatus[33m,[39m[0m
+
+      at deliverWebhook (src/services/webhook.service.ts:197:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:510:24)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 300s (attempt 2/3)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:377:11)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 300s (attempt 2/5)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:377:11)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 900s (attempt 3/5)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:377:11)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-1 in 300s (attempt 2/3)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:377:11)
+
+  console.warn
+    [WebhookQueue] Circuit breaker triggered for webhook webhook-1 after 2 retries (maxRetries=2)
+
+    [0m [90m 358 |[39m         }[33m,[39m
+     [90m 359 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 360 |[39m       console[33m.[39mwarn([32m`[WebhookQueue] Circuit breaker triggered for webhook ${webhookId} after ${maxRetries} retries (maxRetries=${maxRetries})`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 361 |[39m     } [36mcatch[39m {
+     [90m 362 |[39m       [90m// Webhook may have been deleted[39m
+     [90m 363 |[39m     }[0m
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:360:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:1239:7)
+
+  console.log
+    [WebhookQueue] Retrying webhook webhook-a in 300s (attempt 2/3)
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:377:11)
+
+  console.warn
+    [WebhookQueue] Circuit breaker triggered for webhook webhook-b after 1 retries (maxRetries=1)
+
+    [0m [90m 358 |[39m         }[33m,[39m
+     [90m 359 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 360 |[39m       console[33m.[39mwarn([32m`[WebhookQueue] Circuit breaker triggered for webhook ${webhookId} after ${maxRetries} retries (maxRetries=${maxRetries})`[39m)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 361 |[39m     } [36mcatch[39m {
+     [90m 362 |[39m       [90m// Webhook may have been deleted[39m
+     [90m 363 |[39m     }[0m
+
+      at retryFailedDelivery (src/services/webhookQueue.service.ts:360:15)
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:1309:7)
+
+FAIL src/__tests__/webhook.security.remediation.test.ts (55478.158 s)
+  SSRF Protection
+    IPv6 Private Range Detection
+      fc00::/7 (Unique Local Addresses)
+        ÔêÜ should block fd00::/8 (sub-range of fc00::/7) (2 ms)
+        ÔêÜ should block fc00:: (start of fc00::/7)
+        ÔêÜ should block fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff (end of fc00::/7)
+        ÔêÜ should block fc00::1
+      ::1 (loopback)
+        ÔêÜ should block ::1
+        ÔêÜ should block ::1 with full expansion
+      fe80::/10 (link-local)
+        ÔêÜ should block fe80:: (start of fe80::/10)
+        ÔêÜ should block fe80:1234::5678
+        ÔêÜ should block feb0:: (end of fe80::/10)
+        ÔêÜ should block fe80::1
+    Public IPv6 Addresses
+      ÔêÜ should allow 2001:db8::1 (documentation prefix, but not in blocked ranges)
+      ÔêÜ should allow 2001:4860:4860::8888 (Google DNS IPv6)
+      ÔêÜ should allow 2606:4700::1111 (Cloudflare IPv6)
+    IPv4-mapped IPv6 Private Addresses
+      ÔêÜ should block ::ffff:10.0.0.1 (IPv4-mapped private)
+      ÔêÜ should block ::ffff:192.168.1.1 (IPv4-mapped private)
+      ÔêÜ should block ::ffff:127.0.0.1 (IPv4-mapped loopback)
+    IPv4 Private Range Detection
+      10.0.0.0/8
+        ÔêÜ should block 10.0.0.0
+        ÔêÜ should block 10.0.0.1
+        ÔêÜ should block 10.255.255.255
+      172.16.0.0/12
+        ÔêÜ should block 172.16.0.0
+        ÔêÜ should block 172.16.0.1
+        ÔêÜ should block 172.31.255.255
+        ÔêÜ should block 172.20.10.5
+      192.168.0.0/16
+        ÔêÜ should block 192.168.0.0
+        ÔêÜ should block 192.168.1.1
+        ÔêÜ should block 192.168.255.255
+      127.0.0.0/8 (loopback)
+        ÔêÜ should block 127.0.0.1
+        ÔêÜ should block 127.0.0.0
+        ÔêÜ should block 127.255.255.255
+    Public IPv4 Addresses
+      ÔêÜ should allow 8.8.8.8 (Google DNS)
+      ÔêÜ should allow 1.1.1.1 (Cloudflare DNS)
+      ÔêÜ should allow 93.184.216.34 (example.com)
+    AWS Metadata IP
+      ÔêÜ should block 169.254.169.254 (AWS metadata)
+    DNS Fail-Closed Behavior
+      ├ù should return { blocked: true } when DNS resolution throws an error (5009 ms)
+      ├ù should return { blocked: true } when DNS returns NXDOMAIN (5013 ms)
+      ├ù should NOT proceed with delivery when DNS fails (5007 ms)
+      ├ù should handle IPv4-only hosts (resolve6 fails gracefully) (5008 ms)
+      ├ù should handle IPv6-only hosts (resolve4 fails gracefully) (5008 ms)
+    Redirect Handling
+      ÔêÜ should set maxRedirects: 0 in webhook delivery configuration (2 ms)
+      ÔêÜ should detect 3xx responses and mark as failed (18 ms)
+      ÔêÜ should log the Location header when a redirect occurs (1 ms)
+      ÔêÜ should reject all 3xx status codes (300, 301, 302, 303, 307, 308) (9 ms)
+    Dual-Stack DNS Resolution
+      ├ù should call both dns.resolve4() and dns.resolve6() (5008 ms)
+      ├ù should resolve both A and AAAA records (5007 ms)
+      ├ù should BLOCK delivery if an address has both A (public) and AAAA (private) records (5008 ms)
+      ├ù should BLOCK delivery if AAAA record is in fc00::/7 range (5006 ms)
+      ├ù should allow delivery when both A and AAAA are public (5009 ms)
+  Secret Exposure Prevention
+    Secret Not in Server Logs
+      ÔêÜ should NOT log the secret value to console when creating a webhook (1 ms)
+      ÔêÜ should log "secret generated" but not the actual secret value
+    Delivery Detail Endpoint Excludes Secret
+      ÔêÜ should NOT return the webhook secret in GET /webhooks/deliveries/:deliveryId response (1 ms)
+      ÔêÜ should exclude secret even when using spread operator on delivery object
+    Broadcast Query Excludes Secret
+      ÔêÜ should NOT select the secret field in the broadcast query
+      ÔêÜ should mock Prisma query without secret in select clause (1 ms)
+    Create Response Still Returns Secret Once
+      ÔêÜ should return _secret in the webhook CREATE response
+      ÔêÜ should include a warning about one-time secret display (1 ms)
+  Queue Retry Mechanism
+    Backoff Delay Applied
+      ÔêÜ should set scheduledAt to now + backoffDelay when a delivery fails and is retried (3 ms)
+      ÔêÜ should verify the backoff delay increases with each retry (exponential backoff) (1 ms)
+      ÔêÜ should use the RETRY_BACKOFF array values correctly (1 ms)
+    Unique Job ID per Attempt
+      ÔêÜ should create different jobIds for different attempts: webhook-delivery-{id}-{payloadId}-attempt{N} (1 ms)
+      ÔêÜ should include attempt number in the jobId
+      ÔêÜ should have unique jobIds for each attempt number
+    WebhookDeliveryAttempt Records Created
+      ├ù should create a WebhookDeliveryAttempt record for each delivery attempt (5011 ms)
+      ├ù should track multiple attempts for the same delivery separately (5013 ms)
+      ÔêÜ should increment attemptNumber correctly across attempts
+    maxRetries From Webhook Config
+      ÔêÜ should use webhook.maxRetries (not a hardcoded global value) (1 ms)
+      ÔêÜ should NOT attempt further retries when maxRetries is reached (55416095 ms)
+      ÔêÜ should allow different webhooks to have different maxRetries values (5 ms)
+    Composite Unique Constraint
+      ÔêÜ should allow same (webhookId, eventId) with different attemptNumbers
+      ÔêÜ should reject duplicate (webhookId, eventId, attemptNumber)
+      ÔêÜ should allow same (webhookId, attemptNumber) with different eventIds
+      ÔêÜ should allow same (eventId, attemptNumber) with different webhookIds (1 ms)
+      ÔêÜ should verify the Prisma unique constraint definition
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should return { blocked: true } when DNS resolution throws an error
+
+    ENOTFOUND nonexist.example.com
+
+      362 |
+      363 |     it('should return { blocked: true } when DNS resolution throws an error', async () => {
+    > 364 |       mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND nonexist.example.com'));
+          |                                          ^
+      365 |
+      366 |       const result = await resolveAndCheckHostname('nonexist.example.com');
+      367 |
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:364:42)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should return { blocked: true } when DNS resolution throws an error
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      361 |     });
+      362 |
+    > 363 |     it('should return { blocked: true } when DNS resolution throws an error', async () => {
+          |     ^
+      364 |       mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND nonexist.example.com'));
+      365 |
+      366 |       const result = await resolveAndCheckHostname('nonexist.example.com');
+
+      at src/__tests__/webhook.security.remediation.test.ts:363:5
+      at src/__tests__/webhook.security.remediation.test.ts:356:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should return { blocked: true } when DNS returns NXDOMAIN
+
+    NXDOMAIN
+
+      371 |
+      372 |     it('should return { blocked: true } when DNS returns NXDOMAIN', async () => {
+    > 373 |       mockDns.resolve4.mockRejectedValue(new Error('NXDOMAIN'));
+          |                                          ^
+      374 |
+      375 |       const result = await resolveAndCheckHostname('nxdomain.example.com');
+      376 |
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:373:42)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should return { blocked: true } when DNS returns NXDOMAIN
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      370 |     });
+      371 |
+    > 372 |     it('should return { blocked: true } when DNS returns NXDOMAIN', async () => {
+          |     ^
+      373 |       mockDns.resolve4.mockRejectedValue(new Error('NXDOMAIN'));
+      374 |
+      375 |       const result = await resolveAndCheckHostname('nxdomain.example.com');
+
+      at src/__tests__/webhook.security.remediation.test.ts:372:5
+      at src/__tests__/webhook.security.remediation.test.ts:356:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should NOT proceed with delivery when DNS fails
+
+    ECONNREFUSED
+
+      379 |
+      380 |     it('should NOT proceed with delivery when DNS fails', async () => {
+    > 381 |       mockDns.resolve4.mockRejectedValue(new Error('ECONNREFUSED'));
+          |                                          ^
+      382 |
+      383 |       const result = await resolveAndCheckHostname('unreachable.example.com');
+      384 |
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:381:42)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should NOT proceed with delivery when DNS fails
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      378 |     });
+      379 |
+    > 380 |     it('should NOT proceed with delivery when DNS fails', async () => {
+          |     ^
+      381 |       mockDns.resolve4.mockRejectedValue(new Error('ECONNREFUSED'));
+      382 |
+      383 |       const result = await resolveAndCheckHostname('unreachable.example.com');
+
+      at src/__tests__/webhook.security.remediation.test.ts:380:5
+      at src/__tests__/webhook.security.remediation.test.ts:356:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should handle IPv4-only hosts (resolve6 fails gracefully)
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      387 |     });
+      388 |
+    > 389 |     it('should handle IPv4-only hosts (resolve6 fails gracefully)', async () => {
+          |     ^
+      390 |       mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      391 |       mockDns.resolve6.mockRejectedValue(new Error('ENOTFOUND'));
+      392 |
+
+      at src/__tests__/webhook.security.remediation.test.ts:389:5
+      at src/__tests__/webhook.security.remediation.test.ts:356:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should handle IPv6-only hosts (resolve4 fails gracefully)
+
+    ENOTFOUND
+
+      398 |
+      399 |     it('should handle IPv6-only hosts (resolve4 fails gracefully)', async () => {
+    > 400 |       mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND'));
+          |                                          ^
+      401 |       mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
+      402 |
+      403 |       const result = await resolveAndCheckHostname('ipv6-only.example.com');
+
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:400:42)
+
+  ÔùÅ SSRF Protection ÔÇ║ DNS Fail-Closed Behavior ÔÇ║ should handle IPv6-only hosts (resolve4 fails gracefully)
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      397 |     });
+      398 |
+    > 399 |     it('should handle IPv6-only hosts (resolve4 fails gracefully)', async () => {
+          |     ^
+      400 |       mockDns.resolve4.mockRejectedValue(new Error('ENOTFOUND'));
+      401 |       mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
+      402 |
+
+      at src/__tests__/webhook.security.remediation.test.ts:399:5
+      at src/__tests__/webhook.security.remediation.test.ts:356:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should call both dns.resolve4() and dns.resolve6()
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      527 |     });
+      528 |
+    > 529 |     it('should call both dns.resolve4() and dns.resolve6()', async () => {
+          |     ^
+      530 |       mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      531 |       mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
+      532 |
+
+      at src/__tests__/webhook.security.remediation.test.ts:529:5
+      at src/__tests__/webhook.security.remediation.test.ts:522:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should resolve both A and AAAA records
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      538 |     });
+      539 |
+    > 540 |     it('should resolve both A and AAAA records', async () => {
+          |     ^
+      541 |       mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      542 |       mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
+      543 |
+
+      at src/__tests__/webhook.security.remediation.test.ts:540:5
+      at src/__tests__/webhook.security.remediation.test.ts:522:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should BLOCK delivery if an address has both A (public) and AAAA (private) records
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      549 |     });
+      550 |
+    > 551 |     it('should BLOCK delivery if an address has both A (public) and AAAA (private) records', async () => {
+          |     ^
+      552 |       // Simulate a dual-stack host where IPv4 is public but IPv6 is link-local
+      553 |       mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      554 |       mockDns.resolve6.mockResolvedValue(['fe80::1']);
+
+      at src/__tests__/webhook.security.remediation.test.ts:551:5
+      at src/__tests__/webhook.security.remediation.test.ts:522:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should BLOCK delivery if AAAA record is in fc00::/7 range
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      559 |     });
+      560 |
+    > 561 |     it('should BLOCK delivery if AAAA record is in fc00::/7 range', async () => {
+          |     ^
+      562 |       mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      563 |       mockDns.resolve6.mockResolvedValue(['fd00::1']);
+      564 |
+
+      at src/__tests__/webhook.security.remediation.test.ts:561:5
+      at src/__tests__/webhook.security.remediation.test.ts:522:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ SSRF Protection ÔÇ║ Dual-Stack DNS Resolution ÔÇ║ should allow delivery when both A and AAAA are public
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      568 |     });
+      569 |
+    > 570 |     it('should allow delivery when both A and AAAA are public', async () => {
+          |     ^
+      571 |       mockDns.resolve4.mockResolvedValue(['93.184.216.34']);
+      572 |       mockDns.resolve6.mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946']);
+      573 |
+
+      at src/__tests__/webhook.security.remediation.test.ts:570:5
+      at src/__tests__/webhook.security.remediation.test.ts:522:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:164:1)
+
+  ÔùÅ Queue Retry Mechanism ÔÇ║ WebhookDeliveryAttempt Records Created ÔÇ║ should create a WebhookDeliveryAttempt record for each delivery attempt
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      1029 |     });
+      1030 |
+    > 1031 |     it('should create a WebhookDeliveryAttempt record for each delivery attempt', async () => {
+           |     ^
+      1032 |       const deliveryId = 'delivery-123';
+      1033 |       const webhookId = 'webhook-456';
+      1034 |       const payload: WebhookPayload = {
+
+      at src/__tests__/webhook.security.remediation.test.ts:1031:5
+      at src/__tests__/webhook.security.remediation.test.ts:1026:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:792:1)
+
+  ÔùÅ Queue Retry Mechanism ÔÇ║ WebhookDeliveryAttempt Records Created ÔÇ║ should track multiple attempts for the same delivery separately
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      1096 |     });
+      1097 |
+    > 1098 |     it('should track multiple attempts for the same delivery separately', async () => {
+           |     ^
+      1099 |       const deliveryId = 'delivery-123';
+      1100 |       const webhookId = 'webhook-456';
+      1101 |       const payload: WebhookPayload = {
+
+      at src/__tests__/webhook.security.remediation.test.ts:1098:5
+      at src/__tests__/webhook.security.remediation.test.ts:1026:3
+      at Object.<anonymous> (src/__tests__/webhook.security.remediation.test.ts:792:1)
+
+Test Suites: 1 failed, 1 total
+Tests:       12 failed, 60 passed, 72 total
+Snapshots:   0 total
+Time:        55478.292 s
+Ran all test suites matching /webhook.security.remediation/i.
