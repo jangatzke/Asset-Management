@@ -36,6 +36,17 @@ const mockAssetGraphService = {
 
 const mockRequireAdminAccessMiddleware = jest.fn((_req: any, _res: any, next: any) => next());
 
+const mockWebhookDelivery = {
+  findMany: jest.fn(() => Promise.resolve([])),
+  count: jest.fn(() => Promise.resolve(0)),
+  findUnique: jest.fn(),
+};
+
+const mockWebhook = {
+  findUnique: jest.fn(),
+  findMany: jest.fn(),
+};
+
 jest.mock('../services/asset.service', () => ({
   assetService: mockAssetService,
 }));
@@ -70,13 +81,22 @@ jest.mock('../middleware/entityAuth', () => ({
   requireAdminAccess: jest.fn((req: any, res: any, next: any) => mockRequireAdminAccessMiddleware(req, res, next)),
 }));
 
+jest.mock('../config/database', () => ({
+  prisma: {
+    webhook: mockWebhook,
+    webhookDelivery: mockWebhookDelivery,
+  },
+}));
+
 import { assetRouter } from '../routes/asset.routes';
 import { costPlanningRouter } from '../routes/costPlanning.routes';
+import { webhookRouter } from '../routes/webhook.routes';
 
 const app = express();
 app.use(express.json());
 app.use('/assets', assetRouter);
 app.use('/cost-planning', costPlanningRouter);
+app.use('/api/v1/webhooks', webhookRouter);
 
 describe('Route Order - Asset Routes (IAM-003)', () => {
   beforeEach(() => {
@@ -169,5 +189,26 @@ describe('Cost planning supplier endpoints', () => {
 
     expect(response.status).toBe(201);
     expect(mockSupplierService.create).toHaveBeenCalledWith({ legalName: 'Example Supplier' }, 'user-123');
+  });
+});
+
+describe('Route Order - Webhook Delivery Routes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockWebhookDelivery.findMany.mockResolvedValue([]);
+    mockWebhookDelivery.count.mockResolvedValue(0);
+  });
+
+  it('GET /api/v1/webhooks/deliveries matches the delivery-list handler, not GET /:id', async () => {
+    const response = await request(app).get('/api/v1/webhooks/deliveries');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: [],
+      pagination: { total: 0, limit: 50, offset: 0 },
+    });
+    expect(mockWebhookDelivery.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+    expect(mockWebhookDelivery.count).toHaveBeenCalledWith({ where: {} });
+    expect(mockWebhook.findUnique).not.toHaveBeenCalled();
   });
 });

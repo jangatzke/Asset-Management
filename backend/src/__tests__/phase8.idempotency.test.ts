@@ -1,4 +1,4 @@
-import { 
+import {
   idempotencyStore, 
   validateIdempotencyKey, 
   storeIdempotencyResponse,
@@ -11,6 +11,7 @@ import {
   startIdempotencyCleanup,
   stopIdempotencyCleanup 
 } from '../services/idempotency.service';
+import { RedisIdempotencyClient } from '../services/idempotency-redis-client';
 
 describe('Idempotency Service', () => {
   beforeEach(() => {
@@ -321,6 +322,36 @@ describe('Idempotency Service', () => {
       // Verify the first value is preserved
       const result = getIdempotencyResponse<{ status: number; headers: Record<string, string>; body: { data: string } }>('atomic-key');
       expect(result?.body.data).toBe('first');
+    });
+  });
+
+  describe('owner-aware reservation release', () => {
+    test('does not delete a reservation reacquired by a different request', async () => {
+      const values = new Map<string, string>();
+      const redisKey = 'idempotency:release-key';
+      values.set(redisKey, JSON.stringify({ requestId: 'new-owner' }));
+
+      const client = new RedisIdempotencyClient();
+      (client as any).connected = true;
+      (client as any).client = {
+        rawCommand: async (...args: string[]): Promise<number> => {
+          expect(args[0]).toBe('EVAL');
+          const key = args[3];
+          const expectedRequestId = args[4];
+          const stored = values.get(key);
+          if (!stored) return 0;
+          const data = JSON.parse(stored);
+          if (data.requestId !== expectedRequestId || data.response) return 0;
+          values.delete(key);
+          return 1;
+        },
+      };
+
+      await expect(client.releaseReservation('release-key', 'stale-owner')).resolves.toBe(false);
+      expect(values.get(redisKey)).toContain('new-owner');
+
+      await expect(client.releaseReservation('release-key', 'new-owner')).resolves.toBe(true);
+      expect(values.has(redisKey)).toBe(false);
     });
   });
 });

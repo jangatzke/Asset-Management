@@ -163,12 +163,6 @@ router.post('/broadcast', async (req: Request, res: Response) => {
 
     const { eventType, data } = parsed.data;
 
-    // Handle case where prisma.webhook model is not available (e.g., in tests)
-    if (!prisma.webhook) {
-      res.status(200).json({ data: [] });
-      return;
-    }
-
     // Find active webhooks that listen to this event type
     const matchingWebhooks = await prisma.webhook.findMany({
       where: {
@@ -202,6 +196,71 @@ router.post('/broadcast', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[Webhook] Error broadcasting event:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: String(error) });
+  }
+});
+
+/**
+ * GET /api/v1/webhooks/deliveries/:deliveryId - Get delivery status
+ */
+router.get('/deliveries/:deliveryId', async (req: Request, res: Response) => {
+  try {
+    const delivery = await prisma.webhookDelivery.findUnique({
+      where: { id: req.params.deliveryId },
+      include: { webhook: { select: { id: true, name: true, displayId: true } } },
+    });
+
+    if (!delivery) {
+      res.status(404).json({ error: 'Not Found', message: 'Delivery not found' });
+      return;
+    }
+
+    // Exclude sensitive webhook fields (secret) from response
+    res.json({
+      data: {
+        ...delivery,
+        webhook: delivery.webhook ? {
+          id: delivery.webhook.id,
+          name: delivery.webhook.name,
+          displayId: delivery.webhook.displayId,
+        } : null,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal Server Error', message: String(error) });
+  }
+});
+
+/**
+ * GET /api/v1/webhooks/deliveries - List deliveries with filtering
+ */
+router.get('/deliveries', async (req: Request, res: Response) => {
+  try {
+    const { webhookId, status, limit = 50, offset = 0 } = req.query;
+
+    const where: Record<string, unknown> = {};
+    if (webhookId) {
+      where.webhookId = webhookId as string;
+    }
+    if (status) {
+      where.status = status as string;
+    }
+
+    const [deliveries, total] = await Promise.all([
+      prisma.webhookDelivery.findMany({
+        where,
+        take: Math.min(parseInt(limit as string, 10), 100),
+        skip: parseInt(offset as string, 10),
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.webhookDelivery.count({ where }),
+    ]);
+
+    res.json({
+      data: deliveries,
+      pagination: { total, limit: parseInt(limit as string, 10), offset: parseInt(offset as string, 10) }
+    });
+  } catch (error) {
     res.status(500).json({ error: 'Internal Server Error', message: String(error) });
   }
 });
@@ -371,71 +430,6 @@ router.post('/:id/test', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[Webhook] Error testing webhook:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: String(error) });
-  }
-});
-
-/**
- * GET /api/v1/webhooks/deliveries/:deliveryId - Get delivery status
- */
-router.get('/deliveries/:deliveryId', async (req: Request, res: Response) => {
-  try {
-    const delivery = await prisma.webhookDelivery.findUnique({
-      where: { id: req.params.deliveryId },
-      include: { webhook: { select: { id: true, name: true, displayId: true } } },
-    });
-
-    if (!delivery) {
-      res.status(404).json({ error: 'Not Found', message: 'Delivery not found' });
-      return;
-    }
-
-    // Exclude sensitive webhook fields (secret) from response
-    res.json({
-      data: {
-        ...delivery,
-        webhook: delivery.webhook ? {
-          id: delivery.webhook.id,
-          name: delivery.webhook.name,
-          displayId: delivery.webhook.displayId,
-        } : null,
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal Server Error', message: String(error) });
-  }
-});
-
-/**
- * GET /api/v1/webhooks/deliveries - List deliveries with filtering
- */
-router.get('/deliveries', async (req: Request, res: Response) => {
-  try {
-    const { webhookId, status, limit = 50, offset = 0 } = req.query;
-
-    const where: Record<string, unknown> = {};
-    if (webhookId) {
-      where.webhookId = webhookId as string;
-    }
-    if (status) {
-      where.status = status as string;
-    }
-
-    const [deliveries, total] = await Promise.all([
-      prisma.webhookDelivery.findMany({
-        where,
-        take: Math.min(parseInt(limit as string, 10), 100),
-        skip: parseInt(offset as string, 10),
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.webhookDelivery.count({ where }),
-    ]);
-
-    res.json({ 
-      data: deliveries, 
-      pagination: { total, limit: parseInt(limit as string, 10), offset: parseInt(offset as string, 10) } 
-    });
-  } catch (error) {
     res.status(500).json({ error: 'Internal Server Error', message: String(error) });
   }
 });

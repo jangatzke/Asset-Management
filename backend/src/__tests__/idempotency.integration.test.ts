@@ -6,6 +6,7 @@ import {
 } from '../services/idempotency.service';
 import {
   clearInFlightReservations,
+  getInFlightReservationCount,
   idempotency,
   IDEMPOTENCY_KEY_HEADER,
 } from '../middleware/idempotency';
@@ -260,6 +261,17 @@ describe('Idempotency Middleware Integration', () => {
 
       expect(secondResponse.status).toBe(500);
       expect(secondResponse.headers['x-idempotency-cache']).toBeUndefined();
+    });
+
+    test('releases the pending reservation after an error response', async () => {
+      const idempotencyKey = 'released-error-key';
+
+      await request(app)
+        .post('/api/v1/test/error')
+        .set(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+        .expect(400);
+
+      expect(getInFlightReservationCount()).toBe(0);
     });
   });
 

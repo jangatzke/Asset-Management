@@ -40,6 +40,7 @@ type ReservationResult = RedisReservation | IdempotencyAlreadyExists | Idempoten
  */
 interface InMemoryReservation {
   state: IdempotencyState;
+  requestId: string;
   principal: string;
   httpMethod: string;
   routePattern: string;
@@ -297,6 +298,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
       const memoryReservation: InMemoryReservation = {
         state: 'pending',
+        requestId,
         principal,
         httpMethod: req.method,
         routePattern,
@@ -308,6 +310,33 @@ export function idempotency(options: IdempotencyOptions = {}) {
       };
 
       inFlightReservations.set(compositeKey, memoryReservation);
+
+      let released = false;
+      const releaseReservation = async (reason: string): Promise<void> => {
+        if (released || memoryReservation.state !== 'pending') {
+          return;
+        }
+        released = true;
+        memoryReservation.state = 'failed';
+        memoryReservation.completedAt = Date.now();
+        if (rejectPromise) {
+          rejectPromise(new Error(`Idempotency reservation released: ${reason}`));
+        }
+
+        // Do not delete a newer local reservation created after this request
+        // released or timed out.
+        if (inFlightReservations.get(compositeKey)?.requestId === requestId) {
+          inFlightReservations.delete(compositeKey);
+        }
+
+        if (redisClient && redisClient.isConnected()) {
+          try {
+            await redisClient.releaseReservation(compositeKey, requestId);
+          } catch (error) {
+            console.debug('[Idempotency] Failed to release Redis reservation:', error);
+          }
+        }
+      };
 
       // Store original methods to capture response
       const originalJson = res.json.bind(res);
@@ -361,26 +390,27 @@ export function idempotency(options: IdempotencyOptions = {}) {
               memoryReservation.response = responseBody;
             }
           } else {
-            memoryReservation.state = 'failed';
-            memoryReservation.completedAt = Date.now();
+            await releaseReservation(`business response status ${capturedStatus}`);
           }
         } catch (error) {
-          memoryReservation.state = 'failed';
-          memoryReservation.completedAt = Date.now();
+          await releaseReservation('response capture error');
           console.error('Idempotency store error:', error);
         }
 
         return originalJson(body);
       };
 
-      // Handle request errors
-      req.on('close', () => {
-        if (memoryReservation.state === 'pending' && !memoryReservation.response) {
-          if (rejectPromise) {
-            rejectPromise(new Error('Request closed without response'));
-          }
-          memoryReservation.state = 'failed';
-          memoryReservation.completedAt = Date.now();
+      // Handle failures that bypass json(), including thrown errors handled by
+      // Express, non-JSON error responses, and client disconnects.
+      res.on('finish', () => {
+        if (res.statusCode >= 400) {
+          void releaseReservation(`business response status ${res.statusCode}`);
+        }
+      });
+      req.on('aborted', () => void releaseReservation('client request aborted'));
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          void releaseReservation('client response closed before completion');
         }
       });
 
@@ -388,7 +418,12 @@ export function idempotency(options: IdempotencyOptions = {}) {
       (res as any).json = captureJson;
 
       // ===== STEP 2: EXECUTE THE BUSINESS OPERATION =====
-      next();
+      try {
+        next();
+      } catch (error) {
+        await releaseReservation('request processing threw');
+        next(error);
+      }
     } catch (error) {
       next(error);
     }
@@ -455,6 +490,7 @@ async function reserveInMemory(
 
   inFlightReservations.set(key, {
     state: 'pending',
+    requestId,
     principal,
     httpMethod,
     routePattern,

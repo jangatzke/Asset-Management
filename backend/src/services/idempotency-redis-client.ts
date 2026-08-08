@@ -23,7 +23,7 @@ export interface RedisClientInterface {
   ttl(key: string): Promise<number>;
   ping?(): Promise<string>;
   quit?(): Promise<void>;
-  rawCommand?(...args: string[]): Promise<string | null>;
+  rawCommand?(...args: string[]): Promise<unknown>;
   getset?(key: string, value: string): Promise<string | null>;
 }
 
@@ -559,6 +559,39 @@ export class RedisIdempotencyClient {
       return true;
     } catch (error) {
       console.error('[Idempotency] Redis STORE_RESPONSE failed:', error);
+      this.connected = false;
+      return false;
+    }
+  }
+
+  /**
+   * Atomically release a pending reservation only when it is still owned by
+   * requestId. This prevents a delayed failure handler from deleting a key
+   * that was released, then acquired by a later request.
+   */
+  async releaseReservation(key: string, requestId: string): Promise<boolean> {
+    if (!this.client || !this.connected) {
+      return false;
+    }
+
+    const redisKey = this.makeKey(key);
+    const compareAndDeleteReservation = [
+      "local current = redis.call('GET', KEYS[1])",
+      'if not current then return 0 end',
+      'local ok, data = pcall(cjson.decode, current)',
+      'if not ok or data.requestId ~= ARGV[1] or data.response then return 0 end',
+      "return redis.call('DEL', KEYS[1])",
+    ].join('\n');
+
+    try {
+      // EVAL executes the owner comparison and deletion as one Redis atomic
+      // operation; a GET followed by DEL would permit a stale-owner race.
+      const result = await this.client.rawCommand?.(
+        'EVAL', compareAndDeleteReservation, '1', redisKey, requestId
+      );
+      return result === 1 || result === '1';
+    } catch (error) {
+      console.error('[Idempotency] Redis RELEASE_RESERVATION failed:', error);
       this.connected = false;
       return false;
     }
