@@ -7,6 +7,8 @@
  */
 
 import dns from 'dns';
+import https from 'https';
+import net from 'net';
 
 // SSRF-blocked IP ranges (CIDR notation)
 const PRIVATE_RANGES: { start: number[]; end: number[]; isV6: boolean }[] = [
@@ -22,6 +24,10 @@ const PRIVATE_RANGES: { start: number[]; end: number[]; isV6: boolean }[] = [
   { start: [169, 254, 0, 0], end: [169, 254, 255, 255], isV6: false },
   // IPv4 any (0.0.0.0/8)
   { start: [0, 0, 0, 0], end: [0, 255, 255, 255], isV6: false },
+  // IPv4 shared address space / CGNAT (100.64.0.0/10)
+  { start: [100, 64, 0, 0], end: [100, 127, 255, 255], isV6: false },
+  // IPv4 protocol assignments and special-use space (192.0.0.0/24)
+  { start: [192, 0, 0, 0], end: [192, 0, 0, 255], isV6: false },
   // IPv4 broadcast (255.255.255.255)
   { start: [255, 255, 255, 255], end: [255, 255, 255, 255], isV6: false },
   // IPv6 loopback ::1
@@ -30,8 +36,12 @@ const PRIVATE_RANGES: { start: number[]; end: number[]; isV6: boolean }[] = [
   { start: [0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], end: [0xfd, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff], isV6: true },
   // IPv6 link-local fe80::/10
   { start: [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], end: [0xfe, 0xbf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff], isV6: true },
+  // IPv6 site-local fec0::/10 (deprecated but still non-public)
+  { start: [0xfe, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], end: [0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff], isV6: true },
   // IPv6 unspecified ::
   { start: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], end: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], isV6: true },
+  // IPv6 multicast ff00::/8
+  { start: [0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], end: [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff], isV6: true },
 ];
 
 // Cloud metadata endpoints - known IPs
@@ -60,6 +70,7 @@ function ipv4ToBytes(ip: string): number[] | null {
   const parts = ip.split('.');
   if (parts.length !== 4) return null;
   return parts.map(p => {
+    if (!/^\d+$/.test(p)) return -1;
     const n = parseInt(p, 10);
     return isNaN(n) ? -1 : n;
   });
@@ -97,6 +108,15 @@ function expandIPv6(ip: string): string | null {
  * Each byte is a separate element in the returned array.
  */
 function ipv6ToBytes(ip: string): number[] | null {
+  // Convert the dotted-decimal tail accepted by Node (for example
+  // ::ffff:127.0.0.1) into its two hexadecimal groups before expansion.
+  const dottedTail = ip.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dottedTail) {
+    const ipv4 = ipv4ToBytes(dottedTail[2]);
+    if (!ipv4 || ipv4.some(byte => byte < 0 || byte > 255)) return null;
+    ip = `${dottedTail[1]}${((ipv4[0] << 8) | ipv4[1]).toString(16)}:${((ipv4[2] << 8) | ipv4[3]).toString(16)}`;
+  }
+
   const expanded = expandIPv6(ip);
   if (!expanded) return null;
 
@@ -128,7 +148,15 @@ function isPrivateIPv4(ip: string): boolean {
       return true;
     }
   }
-  return false;
+
+  // Benchmarking, documentation, multicast, and reserved space must not be
+  // reachable through a generic webhook destination.
+  return (bytes[0] === 198 && bytes[1] >= 18 && bytes[1] <= 19)
+    || (bytes[0] === 192 && bytes[1] === 0 && bytes[2] === 2)
+    || (bytes[0] === 198 && bytes[1] === 51 && bytes[2] === 100)
+    || (bytes[0] === 203 && bytes[1] === 0 && bytes[2] === 113)
+    || bytes[0] >= 224
+    || (bytes[0] === 192 && bytes[1] === 88 && bytes[2] === 99);
 }
 
 /**
@@ -136,14 +164,18 @@ function isPrivateIPv4(ip: string): boolean {
  * Compares 16-byte arrays directly against PRIVATE_RANGES entries.
  */
 function isPrivateIPv6(ip: string): boolean {
-  // Expand IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
-  const ipv4Mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (ipv4Mapped) {
-    return isPrivateIPv4(ipv4Mapped[1]);
-  }
-
   const bytes = ipv6ToBytes(ip);
   if (!bytes || bytes.length !== 16) return false;
+
+  // IPv4-compatible and IPv4-mapped IPv6 addresses can be represented with
+  // either dotted-decimal or hexadecimal final groups. Inspect their bytes so
+  // that forms such as ::ffff:7f00:1 cannot bypass IPv4 policy.
+  const isIpv4Compatible = bytes.slice(0, 12).every(byte => byte === 0);
+  const isIpv4Mapped = bytes.slice(0, 10).every(byte => byte === 0)
+    && bytes[10] === 0xff && bytes[11] === 0xff;
+  if (isIpv4Compatible || isIpv4Mapped) {
+    return isPrivateIPv4(bytes.slice(12).join('.'));
+  }
 
   for (const range of PRIVATE_RANGES) {
     if (!range.isV6) continue;
@@ -179,6 +211,19 @@ function validateProtocol(url: URL): { valid: boolean; reason?: string } {
     return { valid: false, reason: `Only HTTPS URLs are allowed. Received: ${protocol}` };
   }
   
+  return { valid: true };
+}
+
+/** Validate URL authority fields that are unsafe or unsupported for delivery. */
+function validateAuthority(url: URL): { valid: boolean; reason?: string } {
+  if (url.username || url.password) {
+    return { valid: false, reason: 'Webhook URLs must not include credentials' };
+  }
+
+  if (url.port && url.port !== '443') {
+    return { valid: false, reason: 'Webhook URLs must use the default HTTPS port (443)' };
+  }
+
   return { valid: true };
 }
 
@@ -323,6 +368,11 @@ export function validateWebhookUrl(urlString: string): { valid: boolean; reason?
     return protocolCheck;
   }
 
+  const authorityCheck = validateAuthority(url);
+  if (!authorityCheck.valid) {
+    return authorityCheck;
+  }
+
   // Check hostname format
   const hostname = url.hostname.replace(/\.$/, ''); // Remove trailing dot
   if (!hostname || hostname.length === 0) {
@@ -391,9 +441,61 @@ export function validateRedirectUrl(redirectUrl: string): { valid: boolean; reas
  * @returns Object with check result and optional reason
  */
 export function checkResolvedIp(ip: string): { safe: boolean; reason?: string } {
+  if (net.isIP(ip) === 0) {
+    return { safe: false, reason: `Blocked: ${ip} is not a valid IP address` };
+  }
+
   const check = isBlockedIP(ip);
   if (check.blocked) {
     return { safe: false, reason: check.reason };
   }
   return { safe: true };
+}
+
+/**
+ * Resolve an outbound webhook hostname at the exact moment Node opens a new
+ * socket. The returned address, rather than the hostname, is passed to the
+ * connection layer, closing the validation-to-connect DNS rebinding window.
+ */
+export async function resolveSafeWebhookAddress(
+  hostname: string,
+  family?: number
+): Promise<{ address: string; family: 4 | 6 }> {
+  const result = await resolveAndCheckHostname(hostname);
+  if (result.blocked || !result.resolvedIps?.length) {
+    throw new Error(result.reason || `Could not resolve hostname: ${hostname}`);
+  }
+
+  const candidates = result.resolvedIps.filter(address => {
+    const addressFamily = net.isIP(address);
+    return (family === 4 || family === 6) ? addressFamily === family : addressFamily === 4 || addressFamily === 6;
+  });
+  const address = candidates[0];
+  const addressFamily = address ? net.isIP(address) : 0;
+  if (!address || (addressFamily !== 4 && addressFamily !== 6)) {
+    throw new Error(`No usable IPv${family || '4/6'} address resolved for hostname: ${hostname}`);
+  }
+
+  console.debug(`[Webhook] Point-of-connection DNS check passed for ${hostname}: ${address}`);
+  return { address, family: addressFamily };
+}
+
+/**
+ * Creates the HTTPS transport used only for webhooks. Its custom lookup pins
+ * each connection to a just-validated public IP and preserves the original
+ * hostname for TLS SNI/certificate validation.
+ */
+export function createWebhookHttpsAgent(): https.Agent {
+  const lookup = (
+    hostname: string,
+    options: number | { family?: number },
+    callback: (error: NodeJS.ErrnoException | null, address: string, family: 0 | 4 | 6) => void
+  ) => {
+    const family = typeof options === 'object' ? options.family : undefined;
+    resolveSafeWebhookAddress(hostname, family)
+      .then(({ address, family: resolvedFamily }) => callback(null, address, resolvedFamily))
+      .catch(error => callback(error as NodeJS.ErrnoException, '', 0));
+  };
+
+  return new https.Agent({ lookup: lookup as never });
 }

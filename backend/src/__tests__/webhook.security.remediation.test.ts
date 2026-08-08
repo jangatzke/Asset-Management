@@ -13,6 +13,8 @@ import {
   validateWebhookUrl,
   checkResolvedIp,
   resolveAndCheckHostname,
+  resolveSafeWebhookAddress,
+  createWebhookHttpsAgent,
 } from '../services/urlValidator';
 import {
   generateHmacSignature,
@@ -243,6 +245,11 @@ describe('SSRF Protection', () => {
       const result = checkResolvedIp('::ffff:127.0.0.1');
       expect(result.safe).toBe(false);
     });
+
+    it('should block hexadecimal IPv4-mapped loopback ::ffff:7f00:1', () => {
+      const result = checkResolvedIp('::ffff:7f00:1');
+      expect(result.safe).toBe(false);
+    });
   });
 
   describe('IPv4 Private Range Detection', () => {
@@ -317,6 +324,21 @@ describe('SSRF Protection', () => {
         const result = checkResolvedIp('127.255.255.255');
         expect(result.safe).toBe(false);
       });
+    });
+  });
+
+  describe('Other non-public address space', () => {
+    it.each([
+      '100.64.0.1',
+      '192.0.0.8',
+      '198.18.0.1',
+      '192.0.2.1',
+      '224.0.0.1',
+      '240.0.0.1',
+      'fec0::1',
+      'ff02::1',
+    ])('blocks non-public destination %s', (address) => {
+      expect(checkResolvedIp(address).safe).toBe(false);
     });
   });
 
@@ -398,6 +420,58 @@ describe('SSRF Protection', () => {
     });
   });
 
+  describe('Outbound URL authority policy', () => {
+    it.each([
+      'https://user:password@example.com/webhook',
+      'https://example.com:8443/webhook',
+    ])('rejects unsafe authority form %s', (url) => {
+      expect(validateWebhookUrl(url).valid).toBe(false);
+    });
+
+    it('allows the explicit default HTTPS port', () => {
+      expect(validateWebhookUrl('https://example.com:443/webhook').valid).toBe(true);
+    });
+  });
+
+  describe('DNS pinning at connection time', () => {
+    beforeEach(() => {
+      mockDns.promises.resolve4.mockReset();
+      mockDns.promises.resolve6.mockReset();
+    });
+
+    it('returns a fresh, validated concrete address instead of a hostname', async () => {
+      mockDns.promises.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.promises.resolve6.mockRejectedValue(new Error('ENODATA'));
+
+      await expect(resolveSafeWebhookAddress('rebind.example.com')).resolves.toEqual({
+        address: '93.184.216.34',
+        family: 4,
+      });
+    });
+
+    it('fails closed when the connection-time answer is private', async () => {
+      mockDns.promises.resolve4.mockResolvedValue(['127.0.0.1']);
+      mockDns.promises.resolve6.mockRejectedValue(new Error('ENODATA'));
+
+      await expect(resolveSafeWebhookAddress('rebind.example.com')).rejects.toThrow('Blocked');
+    });
+
+    it('configures the HTTPS agent lookup to use the validated, pinned address', async () => {
+      mockDns.promises.resolve4.mockResolvedValue(['93.184.216.34']);
+      mockDns.promises.resolve6.mockRejectedValue(new Error('ENODATA'));
+      const agent = createWebhookHttpsAgent() as any;
+
+      await new Promise<void>((resolve, reject) => {
+        agent.options.lookup('rebind.example.com', { family: 4 }, (error: Error | null, address: string, family: number) => {
+          if (error) return reject(error);
+          expect(address).toBe('93.184.216.34');
+          expect(family).toBe(4);
+          resolve();
+        });
+      });
+    });
+  });
+
   describe('Redirect Handling', () => {
     beforeEach(() => {
       mockedAxios.mockReset();
@@ -422,6 +496,8 @@ describe('SSRF Protection', () => {
       expect(axios).toHaveBeenCalledWith(
         expect.objectContaining({
           maxRedirects: 0,
+          proxy: false,
+          httpsAgent: expect.anything(),
         })
       );
     });

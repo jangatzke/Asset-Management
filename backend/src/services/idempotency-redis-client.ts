@@ -523,8 +523,10 @@ export class RedisIdempotencyClient {
   /**
    * Store a response for a previously reserved idempotency key.
    *
-   * This replaces the reservation metadata with the actual response.
-   * Uses atomic GET to verify we still hold the reservation.
+   * This replaces the reservation metadata with the actual response only when
+   * the caller still owns it. The comparison, update, and TTL preservation are
+   * one Redis operation so an expired reservation reacquired by another
+   * request cannot be overwritten by a stale winner.
    */
   async storeResponse(
     key: string,
@@ -536,43 +538,34 @@ export class RedisIdempotencyClient {
     }
 
     const redisKey = this.makeKey(key);
+    const compareAndStoreResponse = [
+      "local current = redis.call('GET', KEYS[1])",
+      'if not current then return 0 end',
+      'local currentOk, currentData = pcall(cjson.decode, current)',
+      'if not currentOk or currentData.requestId ~= ARGV[1] then return 0 end',
+      'local responseOk, responseData = pcall(cjson.decode, ARGV[2])',
+      'if not responseOk then return 0 end',
+      "local ttl = redis.call('PTTL', KEYS[1])",
+      'if ttl <= 0 then return 0 end',
+      'currentData.response = responseData',
+      'currentData.completedAt = tonumber(ARGV[3])',
+      "redis.call('SET', KEYS[1], cjson.encode(currentData), 'PX', ttl)",
+      'return 1',
+    ].join('\n');
 
     try {
-      // Atomic GET-SET with verification:
-      // 1. GET the current value
-      // 2. Verify it matches our requestId
-      // 3. SET the new value with response embedded
-      
-      const currentSerialized = await this.client.get(redisKey);
-      
-      if (currentSerialized === null) {
-        // Key was deleted - someone else took over
-        return false;
-      }
-
-      const currentData = JSON.parse(currentSerialized);
-
-      if (currentData.requestId !== requestId) {
-        // We no longer hold the reservation
-        return false;
-      }
-
-      // Store the response, keeping the metadata
-      const updatedData = {
-        ...currentData,
-        response,
-        completedAt: Date.now(),
-      };
-
-      const ttlMs = response.expiresAt - Date.now();
-      const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (this.client as any).rawCommand?.(
-        'SET', redisKey, JSON.stringify(updatedData), 'EX', ttlSeconds
-      ) ?? await (this.client as any).set(redisKey, JSON.stringify(updatedData), ['EX', ttlSeconds]);
-
-      return true;
+      // EVAL prevents a stale request from observing its reservation, losing
+      // it to expiry/reacquisition, then replacing the later owner's value.
+      const result = await this.client.rawCommand?.(
+        'EVAL',
+        compareAndStoreResponse,
+        '1',
+        redisKey,
+        requestId,
+        JSON.stringify(response),
+        String(Date.now()),
+      );
+      return result === 1 || result === '1';
     } catch (error) {
       console.error('[Idempotency] Redis STORE_RESPONSE failed:', error);
       this.connected = false;

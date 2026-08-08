@@ -9,6 +9,7 @@
 
 import crypto from 'crypto';
 import axios, { AxiosRequestConfig } from 'axios';
+import { createWebhookHttpsAgent, validateWebhookUrl } from './urlValidator';
 
 export type WebhookEvent =
   | 'asset.created' | 'asset.updated' | 'asset.deleted'
@@ -50,9 +51,26 @@ const DEFAULT_MAX_SIGNATURE_AGE_MS = 5 * 60 * 1000;
 // Maximum allowed signature age (30 minutes absolute limit)
 const MAX_ALLOWED_SIGNATURE_AGE_MS = 30 * 60 * 1000;
 
+// Permit modest sender/receiver clock skew, but never accept a signature that
+// is arbitrarily far in the future (which would otherwise remain valid until
+// its timestamp enters the normal replay window).
+const MAX_FUTURE_SIGNATURE_SKEW_MS = 5 * 60 * 1000;
+
+const HMAC_SHA256_HEX_LENGTH = 64;
+
+/**
+ * Produce the exact canonical JSON representation covered by a signature.
+ * This representation is also used as the HTTP request body so recipients
+ * which verify the received raw body can reproduce the MAC without guessing
+ * JSON key insertion order.
+ */
+function serializeWebhookPayload(payload: unknown): string {
+  return JSON.stringify(sortObjectKeys(payload));
+}
+
 /**
  * Generate HMAC-SHA256 signature for webhook payload.
- * Signature format: t=<unix_timestamp>,s=<hex_hmac>
+ * Signature format: t=<unix_timestamp_ms>,s=<hex_hmac>
  * The signature covers the timestamp and the JSON-serialized payload.
  *
  * @param secret - The HMAC secret key
@@ -61,9 +79,7 @@ const MAX_ALLOWED_SIGNATURE_AGE_MS = 30 * 60 * 1000;
  */
 export function generateHmacSignature(secret: string, payload: WebhookPayload): string {
   const timestamp = Date.now();
-  // Sort payload keys for deterministic signing
-  const sortedPayload = sortObjectKeys(payload);
-  const message = `${timestamp}.${JSON.stringify(sortedPayload)}`;
+  const message = `${timestamp}.${serializeWebhookPayload(payload)}`;
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(message);
   return `t=${timestamp},s=${hmac.digest('hex')}`;
@@ -94,13 +110,13 @@ function sortObjectKeys(obj: unknown): unknown {
  *
  * Validates:
  * 1. Signature format (t=<timestamp>,s=<hex>)
- * 2. Timestamp age (rejects signatures older than maxAgeMs)
+ * 2. Timestamp age/skew (rejects expired and excessively future signatures)
  * 3. HMAC-SHA256 match
  *
  * @param secret - The shared secret
  * @param payload - The received payload
  * @param signature - The signature header value
- * @param maxAgeMs - Maximum allowed age in ms (default: 5 min)
+ * @param maxAgeMs - Maximum allowed age in milliseconds (default: 5 min)
  * @returns true if signature is valid and not expired
  */
 export function verifyHmacSignature(
@@ -109,37 +125,50 @@ export function verifyHmacSignature(
   signature: string,
   maxAgeMs: number = DEFAULT_MAX_SIGNATURE_AGE_MS
 ): boolean {
-  // Enforce absolute maximum age
-  const effectiveMaxAge = Math.min(maxAgeMs, MAX_ALLOWED_SIGNATURE_AGE_MS);
+  // Treat a malformed runtime value as the secure default; prevent a negative
+  // value from being used to widen the accepted replay window.
+  const effectiveMaxAge = Number.isFinite(maxAgeMs)
+    ? Math.min(Math.max(0, maxAgeMs), MAX_ALLOWED_SIGNATURE_AGE_MS)
+    : DEFAULT_MAX_SIGNATURE_AGE_MS;
 
   try {
     if (!signature || typeof signature !== 'string') {
       return false;
     }
 
-    const timestampMatch = signature.match(/^t=(\d+),s=([a-f0-9]+)$/);
+    const timestampMatch = signature.match(new RegExp(`^t=(\\d{1,16}),s=([a-f0-9]{${HMAC_SHA256_HEX_LENGTH}})$`));
     if (!timestampMatch) {
       return false;
     }
 
-    const signatureTimestamp = parseInt(timestampMatch[1], 10);
+    const timestampText = timestampMatch[1];
+    const signatureTimestamp = Number(timestampText);
+    if (!Number.isSafeInteger(signatureTimestamp)) {
+      return false;
+    }
+
     const now = Date.now();
 
-    // Replay attack protection: reject old signatures
+    // Replay protection: reject expired timestamps and timestamps too far in
+    // the future. The latter also prevents an attacker with a valid old MAC
+    // from extending its usable replay period by choosing a distant timestamp.
     if (now - signatureTimestamp > effectiveMaxAge) {
       return false;
     }
 
-    // Recompute expected signature
-    const sortedPayload = sortObjectKeys(payload);
-    const expectedMessage = `${signatureTimestamp}.${JSON.stringify(sortedPayload)}`;
-    const expectedHmac = crypto.createHmac('sha256', secret).update(expectedMessage).digest('hex');
-    const expectedSignature = `t=${signatureTimestamp},s=${expectedHmac}`;
+    if (signatureTimestamp - now > MAX_FUTURE_SIGNATURE_SKEW_MS) {
+      return false;
+    }
 
-    // Timing-safe comparison
+    // Recompute expected signature
+    const expectedMessage = `${timestampText}.${serializeWebhookPayload(payload)}`;
+    const expectedHmac = crypto.createHmac('sha256', secret).update(expectedMessage).digest('hex');
+
+    // Both values are fixed-size, decoded SHA-256 digests. This avoids a
+    // variable-length header comparison and preserves constant-time equality.
     return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
+      Buffer.from(timestampMatch[2], 'hex'),
+      Buffer.from(expectedHmac, 'hex')
     );
   } catch {
     return false;
@@ -165,9 +194,22 @@ export async function deliverWebhook(
   const startTime = Date.now();
 
   try {
+    // Delivery may occur long after a webhook was created. Validate the URL
+    // again before constructing its outbound-only transport.
+    const urlValidation = validateWebhookUrl(config.url);
+    if (!urlValidation.valid) {
+      return {
+        success: false,
+        errorMessage: `URL validation failed: ${urlValidation.reason}`,
+        durationMs: Date.now() - startTime,
+        attemptNumber: 1,
+      };
+    }
+
     // Generate HMAC signature
     const signature = generateHmacSignature(config.secret, payload);
     const timestamp = parseInt(signature.match(/^t=(\d+)/)?.[1] || String(Date.now()), 10);
+    const serializedPayload = serializeWebhookPayload(payload);
 
     const axiosConfig: AxiosRequestConfig = {
       method: 'POST',
@@ -179,10 +221,17 @@ export async function deliverWebhook(
         'X-Webhook-Signature': signature,
         'X-Webhook-Id': payload.id,
       },
-      data: payload,
+      // Sign and send exactly the same bytes. Axios would otherwise serialize
+      // the original object using insertion order while the signature uses
+      // canonical key order, making raw-body verification unreliable.
+      data: serializedPayload,
       timeout: config.timeoutMs || 10000,
-      httpAgent: undefined,
-      httpsAgent: undefined,
+      // This agent resolves and validates DNS immediately before socket
+      // creation, then connects to that concrete address to prevent rebinding.
+      httpsAgent: createWebhookHttpsAgent(),
+      // Do not honor HTTP(S)_PROXY/NO_PROXY environment variables. A proxy
+      // would resolve the hostname outside the validated connection path.
+      proxy: false,
       // Disable redirect following to prevent SSRF via redirect to internal IPs
       maxRedirects: 0,
       validateStatus: () => true, // Don't throw on any status

@@ -18,7 +18,7 @@ import {
   WebhookDeliveryResult,
   deliverWebhook,
 } from './webhook.service';
-import { validateWebhookUrl, resolveAndCheckHostname } from './urlValidator';
+import { validateWebhookUrl } from './urlValidator';
 
 // Queue configuration
 const QUEUE_POLL_INTERVAL_MS = parseInt(process.env.WEBHOOK_QUEUE_POLL_INTERVAL_MS || '5000', 10);
@@ -178,49 +178,9 @@ export async function processWebhookDeliveryJob(
       };
     }
 
-    // Resolve hostname and verify IPs haven't changed to private ranges (DNS rebinding protection)
-    // Fail-closed: any DNS resolution error causes delivery to fail
-    const url = new URL(webhook.url);
-    const hostname = url.hostname.replace(/\.$/, '');
-
-    try {
-      const dnsResult = await resolveAndCheckHostname(hostname);
-      if (dnsResult.blocked) {
-        await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
-          success: false,
-          errorMessage: `DNS rebinding detected: ${hostname} resolved to blocked IP: ${dnsResult.reason}`,
-          attemptNumber: attempt,
-        });
-
-        await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
-
-        return {
-          success: false,
-          errorMessage: `DNS rebinding detected: ${hostname} resolved to blocked IP: ${dnsResult.reason}`,
-          attemptNumber: attempt,
-        };
-      }
-      // DNS resolution succeeded and all IPs are public - proceed with delivery
-      console.debug(`[WebhookQueue] DNS check passed for ${hostname}: resolved to ${dnsResult.resolvedIps?.join(', ') || 'unknown'}`);
-    } catch (error) {
-      // Fail-closed: any error from DNS resolution causes delivery to fail
-      console.error(`[WebhookQueue] DNS resolution error for ${hostname}:`, error);
-      await createAttemptRecord(db, deliveryId, webhookId, payload, attempt, {
-        success: false,
-        errorMessage: `DNS resolution failed for ${hostname}: ${error instanceof Error ? error.message : String(error)}`,
-        attemptNumber: attempt,
-      });
-
-      await updateDeliveryStatus(db, deliveryId, 'failed', attempt);
-
-      return {
-        success: false,
-        errorMessage: `DNS resolution failed for ${hostname}: ${error instanceof Error ? error.message : String(error)}`,
-        attemptNumber: attempt,
-      };
-    }
-
-    // Deliver with HMAC signature
+    // The transport in deliverWebhook resolves immediately before each socket
+    // connection and pins it to the validated address. Do not pre-resolve here:
+    // that would only reintroduce a validation-to-connect TOCTOU window.
     const result = await deliverWebhook(payload, {
       url: webhook.url,
       secret: webhook.secret,

@@ -426,6 +426,51 @@ describe('Idempotency Middleware Integration', () => {
   });
 
   describe('Distributed reservation regression coverage', () => {
+    test('does not let a stale owner store over a reacquired Redis reservation', async () => {
+      const client = new RedisIdempotencyClient();
+      const redisKey = 'idempotency:stale-owner-key';
+      const reacquiredReservation = {
+        principal: 'test-user-123',
+        httpMethod: 'POST',
+        routePattern: '/assets',
+        requestId: 'new-owner',
+        requestBodyHash: 'new-body',
+        reservedAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+      };
+      let storedValue = JSON.stringify(reacquiredReservation);
+      const rawCommand = jest.fn(async (...args: string[]): Promise<number> => {
+        expect(args[0]).toBe('EVAL');
+        expect(args[2]).toBe('1');
+        expect(args[3]).toBe(redisKey);
+        // Simulate the Lua owner check against the value that was reacquired
+        // after the stale winner had originally reserved the key.
+        return JSON.parse(storedValue).requestId === args[4] ? 1 : 0;
+      });
+      (client as any).connected = true;
+      (client as any).client = { rawCommand };
+
+      const stored = await client.storeResponse('stale-owner-key', {
+        data: {
+          response: { status: 201, headers: {}, body: { id: 'stale-response' } },
+          keyOptions: {
+            ttlMs: 60_000,
+            httpMethod: 'POST',
+            routePattern: '/assets',
+            principal: 'test-user-123',
+            requestBodyHash: 'old-body',
+          },
+          createdAt: Date.now(),
+        },
+        expiresAt: Date.now() + 60_000,
+      }, 'stale-owner');
+
+      expect(stored).toBe(false);
+      expect(JSON.parse(storedValue)).toEqual(reacquiredReservation);
+      expect(rawCommand).toHaveBeenCalledTimes(1);
+      expect(rawCommand.mock.calls[0][1]).toContain("redis.call('PTTL', KEYS[1])");
+    });
+
     test('unwraps and replays the winner HTTP response from a Redis poll', async () => {
       const idempotencyKey = 'distributed-winner-key';
       const requestBody = { name: 'winner' };
@@ -547,6 +592,35 @@ describe('Idempotency Middleware Integration', () => {
       } finally {
         process.off('unhandledRejection', onUnhandledRejection);
       }
+    });
+
+    test('returns a body mismatch rather than replaying a completed local reacquisition', async () => {
+      const delayedApp = express();
+      delayedApp.use(express.json());
+      delayedApp.use(mockAuthMiddleware);
+      delayedApp.use(idempotency());
+      delayedApp.post('/reacquire', (req: Request, res: Response) => {
+        if (req.body.name === 'first') {
+          setTimeout(() => res.status(400).json({ success: false }), 10);
+          return;
+        }
+        res.status(201).json({ success: true, data: { name: req.body.name } });
+      });
+
+      const key = 'local-reacquisition-key';
+      const first = request(delayedApp).post('/reacquire').set(IDEMPOTENCY_KEY_HEADER, key).send({ name: 'first' });
+      await new Promise(resolve => setTimeout(resolve, 1));
+      const waiting = request(delayedApp).post('/reacquire').set(IDEMPOTENCY_KEY_HEADER, key).send({ name: 'first' });
+      await first.expect(400);
+      await request(delayedApp)
+        .post('/reacquire')
+        .set(IDEMPOTENCY_KEY_HEADER, key)
+        .send({ name: 'reacquired' })
+        .expect(201);
+
+      const response = await waiting;
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('IDEMPOTENCY_BODY_MISMATCH');
     });
   });
 });

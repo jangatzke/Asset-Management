@@ -7,6 +7,7 @@ import {
   WebhookEvent
 } from '../services/webhook.service';
 import axios from 'axios';
+import crypto from 'crypto';
 
 jest.mock('axios');
 
@@ -70,6 +71,56 @@ describe('Webhook Service', () => {
       expect(verifyHmacSignature('secret', payload, '')).toBe(false);
       expect(verifyHmacSignature('secret', payload, 'invalid-format')).toBe(false);
     });
+
+    test('should reject a validly signed timestamp beyond the permitted future clock skew', () => {
+      const secret = 'my-secret-key';
+      const now = 1_700_000_000_000;
+      const futureTimestamp = now + (5 * 60 * 1000) + 1;
+      const payload: WebhookPayload = {
+        id: 'test',
+        type: 'system.health.check' as WebhookEvent,
+        timestamp: new Date(now).toISOString(),
+        data: {},
+      };
+      const canonicalPayload = JSON.stringify({
+        data: {},
+        id: payload.id,
+        timestamp: payload.timestamp,
+        type: payload.type,
+      });
+      const digest = crypto.createHmac('sha256', secret)
+        .update(`${futureTimestamp}.${canonicalPayload}`)
+        .digest('hex');
+
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+      expect(verifyHmacSignature(secret, payload, `t=${futureTimestamp},s=${digest}`)).toBe(false);
+      jest.restoreAllMocks();
+    });
+
+    test('should fall back to the secure default age for a non-finite runtime max age', () => {
+      const secret = 'my-secret-key';
+      const now = 1_700_000_000_000;
+      const oldTimestamp = now - (6 * 60 * 1000);
+      const payload: WebhookPayload = {
+        id: 'test',
+        type: 'system.health.check' as WebhookEvent,
+        timestamp: new Date(oldTimestamp).toISOString(),
+        data: {},
+      };
+      const canonicalPayload = JSON.stringify({
+        data: {},
+        id: payload.id,
+        timestamp: payload.timestamp,
+        type: payload.type,
+      });
+      const digest = crypto.createHmac('sha256', secret)
+        .update(`${oldTimestamp}.${canonicalPayload}`)
+        .digest('hex');
+
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+      expect(verifyHmacSignature(secret, payload, `t=${oldTimestamp},s=${digest}`, Number.NaN)).toBe(false);
+      jest.restoreAllMocks();
+    });
   });
 
   describe('deliverWebhook', () => {
@@ -108,6 +159,36 @@ describe('Webhook Service', () => {
       
       expect(result.success).toBe(false);
       expect(result.errorMessage).toBeDefined();
+    });
+
+    test('should sign the exact canonical JSON body and expose the same millisecond timestamp in both headers', async () => {
+      const timestamp = 1_700_000_000_123;
+      const payload: WebhookPayload = {
+        id: 'test-evt',
+        type: 'system.health.check' as WebhookEvent,
+        timestamp: new Date(timestamp).toISOString(),
+        data: { z: 2, a: 1 },
+      };
+      jest.spyOn(Date, 'now').mockReturnValue(timestamp);
+      mockedAxios.mockResolvedValue({ status: 200 } as any);
+
+      await deliverWebhook(payload, { url: 'https://example.invalid/webhook', secret: 'test-secret' });
+
+      const request = mockedAxios.mock.calls[0][0] as any;
+      const canonicalBody = JSON.stringify({
+        data: { a: 1, z: 2 },
+        id: payload.id,
+        timestamp: payload.timestamp,
+        type: payload.type,
+      });
+      const expectedDigest = crypto.createHmac('sha256', 'test-secret')
+        .update(`${timestamp}.${canonicalBody}`)
+        .digest('hex');
+
+      expect(request.data).toBe(canonicalBody);
+      expect(request.headers['X-Webhook-Timestamp']).toBe(String(timestamp));
+      expect(request.headers['X-Webhook-Signature']).toBe(`t=${timestamp},s=${expectedDigest}`);
+      jest.restoreAllMocks();
     });
   });
 

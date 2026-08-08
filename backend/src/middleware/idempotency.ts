@@ -312,7 +312,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
       inFlightReservations.set(compositeKey, memoryReservation);
 
       let released = false;
-      const releaseReservation = async (reason: string): Promise<void> => {
+      const releaseReservation = async (_reason: string): Promise<void> => {
         if (released || memoryReservation.state !== 'pending') {
           return;
         }
@@ -519,6 +519,11 @@ async function waitForWinner(
     
     if (localReservation) {
       if (localReservation.state === 'completed' && localReservation.response) {
+        // The local entry may belong to a later reacquisition after the
+        // reservation this waiter originally observed expired or was released.
+        if (hasBodyMismatch(localReservation.requestBodyHash, requestBodyHash)) {
+          return 'body-mismatch';
+        }
         localReservation.response.headers['X-Idempotency-Cache'] = 'waiting';
         return localReservation.response;
       }
