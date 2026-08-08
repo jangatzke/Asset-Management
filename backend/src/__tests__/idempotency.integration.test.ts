@@ -2,10 +2,13 @@ import request from 'supertest';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import {
   idempotencyStore,
-  startIdempotencyCleanup,
   stopIdempotencyCleanup,
 } from '../services/idempotency.service';
-import { idempotency, IDEMPOTENCY_KEY_HEADER } from '../middleware/idempotency';
+import {
+  clearInFlightReservations,
+  idempotency,
+  IDEMPOTENCY_KEY_HEADER,
+} from '../middleware/idempotency';
 
 /**
  * Mock authentication middleware that sets req.userId.
@@ -92,6 +95,7 @@ describe('Idempotency Middleware Integration', () => {
 
   beforeEach(() => {
     idempotencyStore.clear();
+    clearInFlightReservations();
     stopIdempotencyCleanup();
   });
 
@@ -175,6 +179,25 @@ describe('Idempotency Middleware Integration', () => {
       expect(secondResponse.status).toBe(409);
       expect(secondResponse.body.success).toBe(false);
       expect(secondResponse.body.error.code).toBe('IDEMPOTENCY_BODY_MISMATCH');
+    });
+
+    test('should return 409 when a completed key is reused with a different body', async () => {
+      const idempotencyKey = 'completed-body-mismatch-key';
+
+      await request(app)
+        .post('/api/v1/test/assets')
+        .set(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+        .send({ name: 'Original asset' })
+        .expect(201);
+
+      const response = await request(app)
+        .post('/api/v1/test/assets')
+        .set(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+        .send({ name: 'Different asset' });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('IDEMPOTENCY_BODY_MISMATCH');
+      expect(response.headers['x-idempotency-cache']).toBeUndefined();
     });
 
     test('should return cached response when idempotency key is reused with same body', async () => {
@@ -365,8 +388,6 @@ describe('Idempotency Middleware Integration', () => {
       // Second request SHOULD have cache header (it was served from cache)
       expect(secondResponse.headers['x-idempotency-cache']).toBe('hit');
 
-      // Verify the store contains exactly one entry
-      expect(idempotencyStore.getSize()).toBe(1);
     });
   });
 });

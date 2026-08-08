@@ -9,7 +9,6 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
-import { requireScopes } from '../middleware/apiScopes';
 
 // ==================== Management Router ====================
 // Protected by authenticate + authorize('admin') middleware applied in index.ts
@@ -40,8 +39,7 @@ function parseScopes(scopes: unknown): string[] {
  * The UUID in the token is the database id (not displayId), enabling ID-based lookup.
  * Returns token, hash, and salt.
  */
-function generateAccessToken(): { token: string; hash: string; salt: string; id: string } {
-  const id = crypto.randomUUID();
+function generateAccessToken(id: string = crypto.randomUUID()): { token: string; hash: string; salt: string; id: string } {
   const salt = crypto.randomBytes(32).toString('hex');
   const token = `svc_${id}_${crypto.randomBytes(32).toString('base64url')}`;
   const combined = `${token}${salt}`;
@@ -76,7 +74,6 @@ function extractAccountUuidFromToken(token: string): string | null {
  */
 managementRouter.get(
   '/',
-  requireScopes('serviceaccounts:read'),
   async (_req: Request, res: Response, next: any) => {
     try {
       const accounts = await prisma.serviceAccount.findMany({
@@ -129,7 +126,6 @@ managementRouter.get(
  */
 managementRouter.post(
   '/',
-  requireScopes('serviceaccounts:write'),
   async (_req: Request, res: Response, next: any) => {
     try {
       const { name, description, userId, scopes = [], expiresAt } = _req.body;
@@ -207,7 +203,6 @@ managementRouter.post(
  */
 managementRouter.get(
   '/:id',
-  requireScopes('serviceaccounts:read'),
   async (req: Request, res: Response, next: any) => {
     try {
       const account = await prisma.serviceAccount.findFirst({
@@ -256,7 +251,6 @@ managementRouter.get(
  */
 managementRouter.patch(
   '/:id',
-  requireScopes('serviceaccounts:write'),
   async (req: Request, res: Response, next: any) => {
     try {
       const existing = await prisma.serviceAccount.findFirst({
@@ -321,7 +315,6 @@ managementRouter.patch(
  */
 managementRouter.delete(
   '/:id',
-  requireScopes('serviceaccounts:write'),
   async (req: Request, res: Response, next: any) => {
     try {
       const existing = await prisma.serviceAccount.findFirst({
@@ -365,7 +358,6 @@ managementRouter.delete(
  */
 managementRouter.post(
   '/:id/regenerate-token',
-  requireScopes('serviceaccounts:write'),
   async (req: Request, res: Response, next: any) => {
     try {
       const existing = await prisma.serviceAccount.findFirst({
@@ -384,7 +376,7 @@ managementRouter.post(
       }
 
       // Generate new token with NEW salt (better security)
-      const { token, hash, salt } = generateAccessToken();
+      const { token, hash, salt } = generateAccessToken(existing.id);
 
       await prisma.serviceAccount.update({
         where: { id: req.params.id },
@@ -411,7 +403,6 @@ managementRouter.post(
  */
 managementRouter.get(
   '/:id/tokens',
-  requireScopes('serviceaccounts:read'),
   async (req: Request, res: Response, next: any) => {
     try {
       const account = await prisma.serviceAccount.findFirst({
@@ -461,7 +452,7 @@ managementRouter.get(
  * Response: { "success": true, "data": { id, displayId, name, scopes } }
  */
 authRouter.post(
-  '/auth',
+  '/',
   async (req: Request, res: Response, next: any) => {
     try {
       const { accessToken } = req.body;

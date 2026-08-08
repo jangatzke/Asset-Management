@@ -189,10 +189,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
       }
 
       // Generate request body hash for comparison
-      let requestBodyHash: string | undefined;
-      if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
-        requestBodyHash = generateRequestBodyHash(req.body);
-      }
+      const requestBodyHash = generateRequestBodyHash(req.body ?? null);
 
       const requestId = crypto.randomUUID();
 
@@ -215,17 +212,30 @@ export function idempotency(options: IdempotencyOptions = {}) {
         } catch (error) {
           console.error('[Idempotency] Redis reservation failed, falling back to in-memory:', error);
           // Fall through to in-memory only mode
-          reservationResult = await reserveInMemory(compositeKey, principal, req.method, routePattern, requestId, ttlMs);
+          reservationResult = await reserveInMemory(compositeKey, principal, req.method, routePattern, requestId, ttlMs, requestBodyHash);
         }
       } else {
         // No Redis - use in-memory only
-        reservationResult = await reserveInMemory(compositeKey, principal, req.method, routePattern, requestId, ttlMs);
+        reservationResult = await reserveInMemory(compositeKey, principal, req.method, routePattern, requestId, ttlMs, requestBodyHash);
       }
 
       // Handle reservation result
       if (!reservationResult.reserved) {
         // We didn't win the reservation
         if ('exists' in reservationResult && reservationResult.exists) {
+          const cachedBodyHash = reservationResult.entry.data.keyOptions.requestBodyHash;
+          if (cachedBodyHash !== requestBodyHash) {
+            res.status(409).json({
+              success: false,
+              error: {
+                message: 'Request body mismatch for idempotency key',
+                code: 'IDEMPOTENCY_BODY_MISMATCH',
+                hint: 'The original request with this Idempotency-Key had a different body',
+              },
+            });
+            return;
+          }
+
           // Response already exists - return it immediately
           res.set('X-Idempotency-Cache', 'hit');
           const cachedResponse = reservationResult.entry.data.response;
@@ -332,7 +342,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
                 const entry: IdempotencyEntry = {
                   data: {
                     response: responseBody,
-                    keyOptions: { ttlMs, httpMethod: req.method, routePattern, principal },
+                    keyOptions: { ttlMs, httpMethod: req.method, routePattern, principal, requestBodyHash },
                     createdAt: Date.now(),
                   },
                   expiresAt: Date.now() + ttlMs,
@@ -394,7 +404,8 @@ async function reserveInMemory(
   httpMethod: string,
   routePattern: string,
   requestId: string,
-  ttlMs: number
+  ttlMs: number,
+  requestBodyHash: string
 ): Promise<ReservationResult> {
   const existing = inFlightReservations.get(key);
 
@@ -406,7 +417,13 @@ async function reserveInMemory(
         entry: {
           data: {
             response: existing.response,
-            keyOptions: { ttlMs, httpMethod: existing.httpMethod, routePattern: existing.routePattern, principal: existing.principal },
+            keyOptions: {
+              ttlMs,
+              httpMethod: existing.httpMethod,
+              routePattern: existing.routePattern,
+              principal: existing.principal,
+              requestBodyHash: existing.requestBodyHash,
+            },
             createdAt: existing.createdAt,
           },
           expiresAt: existing.createdAt + ttlMs,
@@ -441,7 +458,7 @@ async function reserveInMemory(
     principal,
     httpMethod,
     routePattern,
-    requestBodyHash: undefined,
+    requestBodyHash,
     createdAt: Date.now(),
     resultPromise,
     resolvePromise,

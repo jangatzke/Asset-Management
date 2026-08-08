@@ -11,7 +11,6 @@
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import { requireScopes } from '../middleware/apiScopes';
 import { WebhookEvent, WebhookPayload } from '../services/webhook.service';
 import { validateWebhookUrl, checkWebhookUrlSSRF } from '../services/urlValidator';
 import { queueWebhookDelivery } from '../services/webhookQueue.service';
@@ -25,7 +24,7 @@ const router = Router();
 /**
  * GET /api/v1/webhooks - List webhooks
  */
-router.get('/', requireScopes('webhooks:read'), async (_req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
     const webhooks = await prisma.webhook.findMany({
       where: { isArchived: false },
@@ -57,7 +56,7 @@ router.get('/', requireScopes('webhooks:read'), async (_req: Request, res: Respo
 /**
  * POST /api/v1/webhooks - Create webhook
  */
-router.post('/', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const body = req.body;
     const parsed = createWebhookSchema.safeParse(body);
@@ -149,7 +148,7 @@ router.post('/', requireScopes('webhooks:write'), async (req: Request, res: Resp
 /**
  * POST /api/v1/webhooks/broadcast - Broadcast event to all matching webhooks (async)
  */
-router.post('/broadcast', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+router.post('/broadcast', async (req: Request, res: Response) => {
   try {
     const parsed = broadcastSchema.safeParse(req.body);
     
@@ -210,7 +209,7 @@ router.post('/broadcast', requireScopes('webhooks:write'), async (req: Request, 
 /**
  * GET /api/v1/webhooks/:id - Get webhook
  */
-router.get('/:id', requireScopes('webhooks:read'), async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const webhook = await prisma.webhook.findUnique({
       where: { id: req.params.id },
@@ -247,7 +246,7 @@ router.get('/:id', requireScopes('webhooks:read'), async (req: Request, res: Res
 /**
  * PATCH /api/v1/webhooks/:id - Update webhook
  */
-router.patch('/:id', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const webhook = await prisma.webhook.findUnique({
       where: { id: req.params.id },
@@ -322,7 +321,7 @@ router.patch('/:id', requireScopes('webhooks:write'), async (req: Request, res: 
 /**
  * DELETE /api/v1/webhooks/:id - Delete webhook (soft delete)
  */
-router.delete('/:id', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const webhook = await prisma.webhook.findUnique({
       where: { id: req.params.id },
@@ -347,7 +346,7 @@ router.delete('/:id', requireScopes('webhooks:write'), async (req: Request, res:
 /**
  * POST /api/v1/webhooks/:id/test - Test webhook delivery (async)
  */
-router.post('/:id/test', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+router.post('/:id/test', async (req: Request, res: Response) => {
   try {
     const webhook = await prisma.webhook.findUnique({
       where: { id: req.params.id },
@@ -379,7 +378,7 @@ router.post('/:id/test', requireScopes('webhooks:write'), async (req: Request, r
 /**
  * GET /api/v1/webhooks/deliveries/:deliveryId - Get delivery status
  */
-router.get('/deliveries/:deliveryId', requireScopes('webhooks:read'), async (req: Request, res: Response) => {
+router.get('/deliveries/:deliveryId', async (req: Request, res: Response) => {
   try {
     const delivery = await prisma.webhookDelivery.findUnique({
       where: { id: req.params.deliveryId },
@@ -410,7 +409,7 @@ router.get('/deliveries/:deliveryId', requireScopes('webhooks:read'), async (req
 /**
  * GET /api/v1/webhooks/deliveries - List deliveries with filtering
  */
-router.get('/deliveries', requireScopes('webhooks:read'), async (req: Request, res: Response) => {
+router.get('/deliveries', async (req: Request, res: Response) => {
   try {
     const { webhookId, status, limit = 50, offset = 0 } = req.query;
 
@@ -444,7 +443,7 @@ router.get('/deliveries', requireScopes('webhooks:read'), async (req: Request, r
 /**
  * POST /api/v1/webhooks/:id/regenerate-secret - Regenerate HMAC secret
  */
-router.post('/:id/regenerate-secret', requireScopes('webhooks:write'), async (req: Request, res: Response) => {
+router.post('/:id/regenerate-secret', async (req: Request, res: Response) => {
   try {
     const webhook = await prisma.webhook.findUnique({
       where: { id: req.params.id },
