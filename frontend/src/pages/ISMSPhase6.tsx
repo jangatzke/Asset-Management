@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -426,6 +426,8 @@ const ISMSPhase6 = () => {
   const [deleteRow, setDeleteRow] = useState<any>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const previousResource = useRef(resource);
+  const latestRequestId = useRef(0);
 
   // Form state for create/edit
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -442,6 +444,8 @@ const ISMSPhase6 = () => {
   // ─── Data fetching ──────────────────────────────────────────────────────
 
   const fetchData = useCallback(async () => {
+    const requestId = latestRequestId.current + 1;
+    latestRequestId.current = requestId;
     setLoading(true);
     setError(null);
     try {
@@ -450,22 +454,27 @@ const ISMSPhase6 = () => {
       if (statusFilter) params.status = statusFilter;
       if (overdueFilter) params.overdue = true;
       const res = await phase6Api.list(resource, params);
+      if (requestId !== latestRequestId.current) return;
       const data = res.data.data ?? res.data ?? [];
       setRows(Array.isArray(data) ? data : []);
-      // Try to infer total pages from response
-      if (res.data.totalPages) setTotalPages(res.data.totalPages);
-      else setTotalPages(1);
+      setTotalPages(res.data.pagination?.totalPages ?? 1);
     } catch (err: unknown) {
+      if (requestId !== latestRequestId.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestId.current) setLoading(false);
     }
   }, [resource, page, limit, search, statusFilter, overdueFilter]);
 
   useEffect(() => {
-    setPage(1);
     fetchData();
-  }, [resource, fetchData]);
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (previousResource.current === resource) return;
+    previousResource.current = resource;
+    setPage(1);
+  }, [resource]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────
 
@@ -526,14 +535,20 @@ const ISMSPhase6 = () => {
             else delete payload[f.key];
           }
           if (f.type === 'json' && typeof payload[f.key] === 'string') {
-            try { payload[f.key] = JSON.parse(payload[f.key] as string); } catch { delete payload[f.key]; }
+            try {
+              payload[f.key] = JSON.parse(payload[f.key] as string);
+            } catch {
+              throw new Error(`${f.label} must contain valid JSON.`);
+            }
           }
           // Remove empty strings
           if (typeof payload[f.key] === 'string' && !payload[f.key]) delete payload[f.key];
         });
       }
-      // Remove empty/null/undefined
-      Object.keys(payload).forEach((k) => { if (!payload[k]) delete payload[k]; });
+      // Preserve legitimate false and 0 values; omit only absent values and empty strings.
+      Object.keys(payload).forEach((k) => {
+        if (payload[k] === null || payload[k] === undefined || payload[k] === '') delete payload[k];
+      });
 
       if (editRow) {
         await phase6Api.update(resource, editRow.id, payload);
@@ -544,8 +559,8 @@ const ISMSPhase6 = () => {
       setEditModalOpen(false);
       setCreateFormOpen(false);
       setFormData({});
-      setPage(1);
-      fetchData();
+      if (page === 1) await fetchData();
+      else setPage(1);
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -561,8 +576,8 @@ const ISMSPhase6 = () => {
       await phase6Api.delete(resource, deleteRow.id);
       setDeleteModalOpen(false);
       setDeleteRow(null);
-      setPage(1);
-      fetchData();
+      if (page === 1) await fetchData();
+      else setPage(1);
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to delete');
     } finally {
