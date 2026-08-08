@@ -10,12 +10,18 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { requireScopes } from '../middleware/apiScopes';
-import { authenticateServiceAccount } from '../middleware/serviceAccountAuth';
 
-const router = Router();
+// ==================== Management Router ====================
+// Protected by authenticate + authorize('admin') middleware applied in index.ts
+// Middleware order: authenticate → authorize → idempotency → managementRouter
+const managementRouter = Router();
 
-// All routes require service account authentication
-router.use(authenticateServiceAccount);
+// ==================== Auth Router (unprotected) ====================
+// POST /auth is the service account token verification endpoint — it must NOT
+// require admin authentication; it performs its own token lookup & verification.
+const authRouter = Router();
+
+// ==================== Shared helpers ====================
 
 /**
  * Parse scopes from JSON field
@@ -29,15 +35,18 @@ function parseScopes(scopes: unknown): string[] {
 
 /**
  * Generate a new access token for a service account.
+ *
+ * Token format: svc_${id}_${randomBytes(32).toString('base64url')}
+ * The UUID in the token is the database id (not displayId), enabling ID-based lookup.
  * Returns token, hash, and salt.
  */
-function generateAccessToken(): { token: string; hash: string; salt: string } {
-  const uuid = crypto.randomUUID();
+function generateAccessToken(): { token: string; hash: string; salt: string; id: string } {
+  const id = crypto.randomUUID();
   const salt = crypto.randomBytes(32).toString('hex');
-  const token = `${process.env.SERVICE_ACCOUNT_PREFIX || 'svc'}_${uuid}_${Date.now()}`;
+  const token = `svc_${id}_${crypto.randomBytes(32).toString('base64url')}`;
   const combined = `${token}${salt}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
-  return { token, hash, salt };
+  return { token, hash, salt, id };
 }
 
 /**
@@ -59,13 +68,13 @@ function extractAccountUuidFromToken(token: string): string | null {
   return null;
 }
 
-// ==================== Service Account Routes ====================
+// ==================== Management Routes ====================
 
 /**
  * GET /api/v1/service-accounts - List service accounts
- * Requires: serviceaccounts:read scope
+ * Requires: admin authentication + serviceaccounts:read scope
  */
-router.get(
+managementRouter.get(
   '/',
   requireScopes('serviceaccounts:read'),
   async (_req: Request, res: Response, next: any) => {
@@ -116,9 +125,9 @@ router.get(
 
 /**
  * POST /api/v1/service-accounts - Create service account
- * Requires: serviceaccounts:write scope
+ * Requires: admin authentication + serviceaccounts:write scope
  */
-router.post(
+managementRouter.post(
   '/',
   requireScopes('serviceaccounts:write'),
   async (_req: Request, res: Response, next: any) => {
@@ -133,10 +142,10 @@ router.post(
         return;
       }
 
-      // Generate token with random salt
-      const { token, hash, salt } = generateAccessToken();
+      // Generate token with random salt — produce the DB UUID first
+      const { token, hash, salt, id: accountUuid } = generateAccessToken();
 
-      // Generate displayId in SVC-xxxx format (Fix 7)
+      // Generate displayId in SVC-xxxx format
       // Query the next sequential number to avoid unique constraint violations
       const lastAccount = await prisma.serviceAccount.findFirst({
         where: { isArchived: false },
@@ -152,11 +161,12 @@ router.post(
 
       const account = await prisma.serviceAccount.create({
         data: {
+          id: accountUuid,            // store the same UUID that is embedded in the token
           displayId,
           name,
           description: description || undefined,
           userId: userId || undefined,
-          scopes: scopes as string[], // Fix 6: Prisma JSON field expects array directly, not JSON.stringify()
+          scopes: scopes as string[],
           expiresAt: expiresAt ? new Date(expiresAt) : undefined,
           accessTokenHash: hash,
           accessTokenSalt: salt,
@@ -193,9 +203,9 @@ router.post(
 
 /**
  * GET /api/v1/service-accounts/:id - Get service account
- * Requires: serviceaccounts:read scope
+ * Requires: admin authentication + serviceaccounts:read scope
  */
-router.get(
+managementRouter.get(
   '/:id',
   requireScopes('serviceaccounts:read'),
   async (req: Request, res: Response, next: any) => {
@@ -242,9 +252,9 @@ router.get(
 
 /**
  * PATCH /api/v1/service-accounts/:id - Update service account
- * Requires: serviceaccounts:write scope
+ * Requires: admin authentication + serviceaccounts:write scope
  */
-router.patch(
+managementRouter.patch(
   '/:id',
   requireScopes('serviceaccounts:write'),
   async (req: Request, res: Response, next: any) => {
@@ -307,9 +317,9 @@ router.patch(
 
 /**
  * DELETE /api/v1/service-accounts/:id - Soft delete service account
- * Requires: serviceaccounts:write scope
+ * Requires: admin authentication + serviceaccounts:write scope
  */
-router.delete(
+managementRouter.delete(
   '/:id',
   requireScopes('serviceaccounts:write'),
   async (req: Request, res: Response, next: any) => {
@@ -348,12 +358,12 @@ router.delete(
 
 /**
  * POST /api/v1/service-accounts/:id/regenerate-token - Regenerate access token
- * Requires: serviceaccounts:write scope
- * 
+ * Requires: admin authentication + serviceaccounts:write scope
+ *
  * IMPORTANT: This invalidates the old token and issues a new one.
  * The new token is only returned ONCE!
  */
-router.post(
+managementRouter.post(
   '/:id/regenerate-token',
   requireScopes('serviceaccounts:write'),
   async (req: Request, res: Response, next: any) => {
@@ -397,9 +407,9 @@ router.post(
 
 /**
  * GET /api/v1/service-accounts/:id/tokens - Get service account token info (masked)
- * Requires: serviceaccounts:read scope
+ * Requires: admin authentication + serviceaccounts:read scope
  */
-router.get(
+managementRouter.get(
   '/:id/tokens',
   requireScopes('serviceaccounts:read'),
   async (req: Request, res: Response, next: any) => {
@@ -439,16 +449,18 @@ router.get(
   }
 );
 
+// ==================== Auth Route (unprotected - performs its own token verification) ====================
+
 /**
  * POST /api/v1/service-accounts/auth - Authenticate service account
- * 
- * This endpoint is NO LONGER "for testing" - it's the primary authentication
- * method for service account Bearer token validation.
- * 
+ *
+ * This endpoint is the primary authentication method for service account Bearer token validation.
+ * It is intentionally UNPROTECTED — it performs its own token lookup & verification.
+ *
  * Request: { "accessToken": "svc_..." }
  * Response: { "success": true, "data": { id, displayId, name, scopes } }
  */
-router.post(
+authRouter.post(
   '/auth',
   async (req: Request, res: Response, next: any) => {
     try {
@@ -462,7 +474,7 @@ router.post(
         return;
       }
 
-      // Extract the UUID from the token for lookup
+      // Extract the UUID from the token — it is now the DB id
       const accountUuid = extractAccountUuidFromToken(accessToken);
       if (!accountUuid) {
         res.status(401).json({
@@ -472,10 +484,10 @@ router.post(
         return;
       }
 
-      // Look up the account by displayId (UUID)
+      // Look up the account by id (the UUID embedded in the token)
       const account = await prisma.serviceAccount.findFirst({
         where: {
-          displayId: accountUuid,
+          id: accountUuid,
           isActive: true,
           isArchived: false,
           OR: [
@@ -536,4 +548,5 @@ router.post(
   }
 );
 
-export const serviceAccountRouter = router;
+export const serviceAccountRouter = managementRouter;
+export const serviceAccountAuthRouter = authRouter;

@@ -40,8 +40,7 @@ export async function authenticateWebhook(
     // Validate against webhook service accounts
     // Use lookup-by-UUID approach to handle per-account random salts
     const { prisma } = await import('../config/database');
-    
-    // Extract UUID from token format: svc_<uuid>_<timestamp>
+    // Extract UUID from token format: svc_<uuid>_<random> — the UUID is the DB id
     const parts = token.split('_');
     const accountUuid = parts.length >= 3 &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[1])
@@ -51,10 +50,10 @@ export async function authenticateWebhook(
     let account: { id: string; name: string; accessTokenSalt: string; accessTokenHash: string } | null = null;
     
     if (accountUuid) {
-      // Look up by displayId (UUID)
+      // Look up by id (the UUID embedded in the token is the DB id)
       account = await prisma.serviceAccount.findFirst({
         where: {
-          displayId: accountUuid,
+          id: accountUuid,
           isActive: true,
           isArchived: false,
           OR: [

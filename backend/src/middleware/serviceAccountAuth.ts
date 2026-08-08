@@ -61,39 +61,38 @@ export async function authenticateServiceAccount(
     });
     return;
   }
+// Extract the UUID from the token for lookup
+// Token format: svc_<uuid>_<random>  — the UUID is the DB id
+const parts = token.split('_');
+// UUIDs contain hyphens (not underscores), so splitting by '_' gives ['svc', '<uuid>', '<random>']
+const accountUuid = parts.length >= 3 &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[1])
+  ? parts[1]
+  : null;
 
-  // Extract the UUID from the token for lookup
-  // Token format: svc_<uuid>_<timestamp>
-  const parts = token.split('_');
-  // UUIDs contain hyphens (not underscores), so splitting by '_' gives ['svc', '<uuid>', '<timestamp>']
-  const accountUuid = parts.length >= 3 &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[1])
-    ? parts[1]
-    : null;
-
-  if (!accountUuid) {
-    res.status(401).json({
-      success: false,
-      error: {
-        message: 'Invalid token format',
-        code: 'INVALID_TOKEN',
-      },
-    });
-    return;
-  }
-
-  // Look up the account by displayId (UUID)
-  const account = await prisma.serviceAccount.findFirst({
-    where: {
-      displayId: accountUuid,
-      isActive: true,
-      isArchived: false,
-      OR: [
-        { expiresAt: null },
-        { expiresAt: { gt: new Date() } },
-      ],
+if (!accountUuid) {
+  res.status(401).json({
+    success: false,
+    error: {
+      message: 'Invalid token format',
+      code: 'INVALID_TOKEN',
     },
-    select: {
+  });
+  return;
+}
+
+// Look up the account by id (the UUID embedded in the token is the DB id)
+const account = await prisma.serviceAccount.findFirst({
+  where: {
+    id: accountUuid,
+    isActive: true,
+    isArchived: false,
+    OR: [
+      { expiresAt: null },
+      { expiresAt: { gt: new Date() } },
+    ],
+  },
+  select: {
       id: true,
       displayId: true,
       name: true,
