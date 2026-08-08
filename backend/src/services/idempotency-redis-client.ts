@@ -20,6 +20,7 @@ export interface RedisClientInterface {
   del(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
   keys(pattern: string): Promise<string[]>;
+  ttl(key: string): Promise<number>;
   ping?(): Promise<string>;
   quit?(): Promise<void>;
   rawCommand?(...args: string[]): Promise<string | null>;
@@ -49,6 +50,7 @@ export interface IdempotencyNotReserved {
     principal: string;
     requestId: string;
     expiresAt: number;
+    requestBodyHash?: string;
   };
 }
 
@@ -153,6 +155,7 @@ export class RedisIdempotencyClient {
         del: (key: string) => client.del(key),
         expire: (key: string, seconds: number) => client.expire(key, seconds),
         keys: (pattern: string) => client.keys(pattern),
+        ttl: (key: string) => client.ttl(key),
         quit: () => client.quit(),
         ping: () => client.ping(),
         rawCommand: (...args: string[]) => client.sendCommand(args),
@@ -194,29 +197,29 @@ export class RedisIdempotencyClient {
       });
 
       await client.connect();
-
       this.client = {
         get: (key: string) => client.get(key),
-        set: async (key: string, value: string, options: { EX: number; NX: boolean }) => {
-          const args: string[] = [key, value];
-          if (options.NX) args.push('NX');
-          if (options.EX) args.push('EX', String(options.EX));
-          // redis v4+ set returns 'OK' or null
-          return (await client.set(...args)) as string;
-        },
-        setXX: async (key: string, value: string, options: { EX: number }) => {
-          const args: string[] = [key, value, 'XX', 'EX', String(options.EX)];
-          return (await client.set(...args)) as string;
-        },
-        del: (key: string) => client.del(key),
-        expire: (key: string, seconds: number) => client.expire(key, seconds),
-        keys: (pattern: string) => client.keys(pattern),
-        quit: () => client.quit(),
-        ping: () => client.ping(),
-        rawCommand: async (...args: string[]) => {
-          return (await client.sendCommand(args)) as string;
-        },
-      };
+  set: async (key: string, value: string, options: { EX: number; NX: boolean }) => {
+    const args: string[] = [key, value];
+    if (options.NX) args.push('NX');
+    if (options.EX) args.push('EX', String(options.EX));
+    // redis v4+ set returns 'OK' or null
+    return (await client.set(...args)) as string;
+  },
+  setXX: async (key: string, value: string, options: { EX: number }) => {
+    const args: string[] = [key, value, 'XX', 'EX', String(options.EX)];
+    return (await client.set(...args)) as string;
+  },
+  del: (key: string) => client.del(key),
+  expire: (key: string, seconds: number) => client.expire(key, seconds),
+  keys: (pattern: string) => client.keys(pattern),
+  ttl: (key: string) => client.ttl(key),
+  quit: () => client.quit(),
+  ping: () => client.ping(),
+  rawCommand: async (...args: string[]) => {
+    return (await client.sendCommand(args)) as string;
+  },
+};
 
       return true;
     } catch (error) {
@@ -411,7 +414,8 @@ export class RedisIdempotencyClient {
     httpMethod: string,
     routePattern: string,
     requestId: string,
-    ttlSeconds: number
+    ttlSeconds: number,
+    requestBodyHash?: string
   ): Promise<IdempotencyReservation | IdempotencyAlreadyExists | IdempotencyNotReserved> {
     if (!this.client || !this.connected) {
       throw new Error('Redis client not initialized');
@@ -421,12 +425,13 @@ export class RedisIdempotencyClient {
     const now = Date.now();
     const expirationTimestamp = now + (ttlSeconds * 1000);
     
-    // Serialize reservation metadata
+    // Serialize reservation metadata (includes requestBodyHash for body mismatch detection)
     const reservationData = JSON.stringify({
       principal,
       httpMethod,
       routePattern,
       requestId,
+      requestBodyHash,
       reservedAt: now,
       expiresAt: expirationTimestamp,
     });
@@ -556,6 +561,43 @@ export class RedisIdempotencyClient {
       console.error('[Idempotency] Redis STORE_RESPONSE failed:', error);
       this.connected = false;
       return false;
+    }
+  }
+
+  /**
+   * Poll a reservation from Redis by key.
+   * Returns the reservation metadata, or null if the key doesn't exist.
+   * This is used by waitForWinner() to poll Redis instead of a local Map,
+   * enabling distributed multi-instance idempotency.
+   */
+  async pollReservation(key: string): Promise<{
+    principal: string;
+    requestId: string;
+    requestBodyHash?: string;
+    httpMethod: string;
+    routePattern: string;
+    reservedAt: number;
+    expiresAt: number;
+    response?: { status: number; headers: Record<string, string>; body: unknown };
+  } | null> {
+    if (!this.client || !this.connected) {
+      return null;
+    }
+
+    const redisKey = this.makeKey(key);
+
+    try {
+      const serialized = await this.client.get(redisKey);
+
+      if (serialized === null) {
+        return null;
+      }
+
+      return JSON.parse(serialized);
+    } catch (error) {
+      console.error('[Idempotency] Redis POLL failed:', error);
+      this.connected = false;
+      return null;
     }
   }
 

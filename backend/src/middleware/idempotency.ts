@@ -209,7 +209,8 @@ export function idempotency(options: IdempotencyOptions = {}) {
             req.method,
             routePattern,
             requestId,
-            ttlSeconds
+            ttlSeconds,
+            requestBodyHash
           );
         } catch (error) {
           console.error('[Idempotency] Redis reservation failed, falling back to in-memory:', error);
@@ -235,6 +236,21 @@ export function idempotency(options: IdempotencyOptions = {}) {
         // Someone else has the reservation - wait for them to complete
         // Type narrowing: only IdempotencyNotReserved has 'existingReservation'
         if ('existingReservation' in reservationResult) {
+          // Check for body mismatch before waiting
+          if (reservationResult.existingReservation.requestBodyHash && requestBodyHash) {
+            if (reservationResult.existingReservation.requestBodyHash !== requestBodyHash) {
+              res.status(409).json({
+                success: false,
+                error: {
+                  message: 'Request body mismatch for idempotency key',
+                  code: 'BODY_MISMATCH',
+                  hint: 'The original request with this Idempotency-Key had a different body',
+                },
+              });
+              return;
+            }
+          }
+          
           res.set('X-Idempotency-Cache', 'waiting');
           const result = await waitForWinner(
             compositeKey,
@@ -245,6 +261,16 @@ export function idempotency(options: IdempotencyOptions = {}) {
           
           if (result) {
             res.status(result.status).json(result.body);
+          } else {
+            // Winner did not complete successfully - return 504 Gateway Timeout
+            res.status(504).json({
+              success: false,
+              error: {
+                message: 'Idempotency operation timed out waiting for winner',
+                code: 'IDEMPOTENCY_TIMEOUT',
+                hint: 'The original operation did not complete within the timeout period. Retry with a new Idempotency-Key.',
+              },
+            });
           }
         }
         return;
@@ -396,6 +422,7 @@ async function reserveInMemory(
           principal: existing.principal,
           requestId: existing.resultPromise ? 'pending' : requestId,
           expiresAt: existing.createdAt + ttlMs,
+          requestBodyHash: existing.requestBodyHash,
         },
       };
     }
@@ -434,39 +461,76 @@ async function reserveInMemory(
 
 /**
  * Wait for the winner to complete their operation.
+ *
+ * CRITICAL FIX: Polls Redis for the reservation state, not just the local Map.
+ * This enables distributed multi-instance idempotency where Instance A wins the
+ * reservation and Instance B must poll Redis to see the result.
+ *
+ * Returns null if timeout occurs or the reservation disappears from Redis.
  */
 async function waitForWinner(
   key: string,
-  _existingReservation: { principal: string; requestId: string; expiresAt: number },
-  _requestBodyHash: string | undefined,
-  req: Request
+  existingReservation: { principal: string; requestId: string; expiresAt: number; requestBodyHash?: string },
+  requestBodyHash: string | undefined,
+  _req: Request
 ): Promise<{ status: number; headers: Record<string, string>; body: unknown } | null> {
   const startTime = Date.now();
-  const localReservations = inFlightReservations;
+
+  // Body mismatch check (Fix 4)
+  if (existingReservation.requestBodyHash && requestBodyHash) {
+    if (existingReservation.requestBodyHash !== requestBodyHash) {
+      // Return 409 via a special response marker
+      // Note: The 409 should have been handled earlier, but as a safety net:
+      return null; // Let caller handle
+    }
+  }
 
   while (Date.now() - startTime < MAX_WAIT_MS) {
-    const current = localReservations.get(key);
+    // First, try local in-memory reservation (fast path for same-process dedup)
+    const localReservation = inFlightReservations.get(key);
+    
+    if (localReservation) {
+      if (localReservation.state === 'completed' && localReservation.response) {
+        localReservation.response.headers['X-Idempotency-Cache'] = 'waiting';
+        return localReservation.response;
+      }
 
-    if (!current) {
-      // Reservation expired or deleted
-      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-      continue;
+      if (localReservation.state === 'failed') {
+        inFlightReservations.delete(key);
+        return null; // Let the caller handle retry
+      }
     }
 
-    if (current.state === 'completed' && current.response) {
-      req.res?.set('X-Idempotency-Cache', 'waiting');
-      return current.response;
-    }
+    // Second, poll Redis for distributed cross-instance coordination (Fix 3)
+    if (redisClient && redisClient.isConnected()) {
+      try {
+        const redisEntry = await redisClient.pollReservation(key);
 
-    if (current.state === 'failed') {
-      localReservations.delete(key);
-      return null; // Let the caller handle retry
+        if (redisEntry === null) {
+          // Key expired or never existed - reservation lost
+          // Check if body mismatch was stored instead
+          return null;
+        }
+
+        // If the winner has a response stored, return it
+        if (redisEntry.response) {
+          return redisEntry.response;
+        }
+
+        // If the reservation expired (expiresAt in the past), treat as gone
+        if (Date.now() > redisEntry.expiresAt) {
+          return null;
+        }
+      } catch (error) {
+        console.debug('[Idempotency] Redis poll failed during waitForWinner:', error);
+        // Continue with local polling only
+      }
     }
 
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
   }
 
-  // Timeout - return error
+  // Timeout - let the caller return 504
   return null;
 }
 

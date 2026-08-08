@@ -1,4 +1,4 @@
-import express, { Application } from 'express';
+import express, { Application, NextFunction, Request, Response } from 'express';
 import 'dotenv/config';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -13,9 +13,7 @@ import { metricsMiddleware, metricsEndpoint, createMetricsAuthMiddleware, attach
 import { idempotency } from './middleware/idempotency';
 import { etag } from './middleware/etag';
 import { scopeAudit } from './middleware/apiScopes';
-import { authenticateServiceAccount } from './middleware/serviceAccountAuth';
-import { authenticateWebhook } from './middleware/webhookAuth';
-import { 
+import {
   healthBasic, 
   healthLive, 
   healthReady, 
@@ -190,11 +188,32 @@ app.use('/api/v1/isms-operations', phase6Router);
 app.use('/api/v1/catalog', catalogRouter);
 app.use('/api/v1/cost-planning', costPlanningRouter);
 
+// ==================== Webhook Management Auth Middleware ====================
+// Webhook management API uses normal user/service-account auth.
+// This is distinct from inbound webhook authentication (handled in webhookQueue.service).
+function authenticateWebhookManagement(req: Request, res: Response, next: NextFunction): void {
+  // Accept if user auth is present (set by auth middleware earlier in the chain)
+  if ((req as any).userId) return next();
+  // Accept if service account auth is present
+  if ((req as any).serviceAccount) return next();
+  // Reject if neither is present
+  res.status(401).json({
+    success: false,
+    error: {
+      message: 'Authentication required for webhook management',
+      code: 'AUTHENTICATION_REQUIRED',
+      hint: 'Send a valid user Bearer token or service account Bearer token',
+    },
+  });
+}
+
 // Phase 8 Routes - Webhooks & Service Accounts (with idempotency + auth)
 // Auth middleware runs BEFORE idempotency to ensure principal is set.
 // Idempotency middleware now requires trusted principal (never allows anonymous).
-app.use('/api/v1/webhooks', authenticateWebhook, idempotency(), webhookRouter);
-app.use('/api/v1/service-accounts', authenticateServiceAccount, idempotency(), serviceAccountRouter);
+// Webhook management routes use normal user/service-account auth (not webhook inbound auth).
+// Service account management routes: router applies authenticateServiceAccount internally.
+app.use('/api/v1/webhooks', authenticateWebhookManagement, idempotency(), webhookRouter);
+app.use('/api/v1/service-accounts', idempotency(), serviceAccountRouter);
 
 // ==================== Error Handling ====================
 app.use(errorHandler);

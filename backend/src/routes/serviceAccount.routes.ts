@@ -28,22 +28,16 @@ function parseScopes(scopes: unknown): string[] {
 }
 
 /**
- * Serialize scopes for JSON storage
- */
-function serializeScopes(scopes: string[]): string {
-  return JSON.stringify(scopes);
-}
-/**
  * Generate a new access token for a service account.
- * Returns token, hash, salt, and the UUID part for lookup.
+ * Returns token, hash, and salt.
  */
-function generateAccessToken(): { token: string; hash: string; salt: string; uuid: string } {
+function generateAccessToken(): { token: string; hash: string; salt: string } {
   const uuid = crypto.randomUUID();
   const salt = crypto.randomBytes(32).toString('hex');
   const token = `${process.env.SERVICE_ACCOUNT_PREFIX || 'svc'}_${uuid}_${Date.now()}`;
   const combined = `${token}${salt}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
-  return { token, hash, salt, uuid };
+  return { token, hash, salt };
 }
 
 /**
@@ -140,15 +134,29 @@ router.post(
       }
 
       // Generate token with random salt
-      const { token, hash, salt, uuid } = generateAccessToken();
+      const { token, hash, salt } = generateAccessToken();
+
+      // Generate displayId in SVC-xxxx format (Fix 7)
+      // Query the next sequential number to avoid unique constraint violations
+      const lastAccount = await prisma.serviceAccount.findFirst({
+        where: { isArchived: false },
+        orderBy: { displayId: 'desc' },
+        select: { displayId: true },
+      });
+
+      let displayId = 'SVC-0001';
+      if (lastAccount?.displayId && /^SVC-\d{4}$/.test(lastAccount.displayId)) {
+        const num = parseInt(lastAccount.displayId.split('-')[1], 10) + 1;
+        displayId = `SVC-${String(num).padStart(4, '0')}`;
+      }
 
       const account = await prisma.serviceAccount.create({
         data: {
-          displayId: uuid,
+          displayId,
           name,
           description: description || undefined,
           userId: userId || undefined,
-          scopes: serializeScopes(scopes as string[]),
+          scopes: scopes as string[], // Fix 6: Prisma JSON field expects array directly, not JSON.stringify()
           expiresAt: expiresAt ? new Date(expiresAt) : undefined,
           accessTokenHash: hash,
           accessTokenSalt: salt,
@@ -264,7 +272,7 @@ router.patch(
           name: name || undefined,
           description: description !== undefined ? description : undefined,
           userId: userId !== undefined ? userId : undefined,
-          scopes: scopes !== undefined ? serializeScopes(scopes as string[]) : undefined,
+          scopes: scopes !== undefined ? (scopes as string[]) : undefined, // Fix 6: Prisma JSON field expects array directly
           expiresAt: expiresAt !== undefined ? new Date(expiresAt) : undefined,
           isActive: isActive !== undefined ? isActive : undefined,
           updatedAt: new Date(),
