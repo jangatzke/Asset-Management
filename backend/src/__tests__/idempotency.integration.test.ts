@@ -2,14 +2,34 @@ import request from 'supertest';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import {
   idempotencyStore,
+  IdempotencyEntry,
+  generateIdempotencyKey,
+  generateRequestBodyHash,
   stopIdempotencyCleanup,
 } from '../services/idempotency.service';
+import { RedisIdempotencyClient } from '../services/idempotency-redis-client';
 import {
   clearInFlightReservations,
   getInFlightReservationCount,
   idempotency,
   IDEMPOTENCY_KEY_HEADER,
+  setRedisClient,
 } from '../middleware/idempotency';
+
+function createMockRedisClient(get: (key: string) => Promise<string | null>): RedisIdempotencyClient {
+  const client = new RedisIdempotencyClient();
+  (client as any).connected = true;
+  (client as any).client = {
+    get,
+    rawCommand: async (...args: string[]): Promise<string | null> => {
+      // Return a non-null Redis-style non-success value so the client does not
+      // fall through to its compatibility `set` call.
+      if (args[0] === 'SET' && args.includes('NX')) return 'EXISTS';
+      return 'OK';
+    },
+  };
+  return client;
+}
 
 /**
  * Mock authentication middleware that sets req.userId.
@@ -97,10 +117,12 @@ describe('Idempotency Middleware Integration', () => {
   beforeEach(() => {
     idempotencyStore.clear();
     clearInFlightReservations();
+    setRedisClient(null);
     stopIdempotencyCleanup();
   });
 
   afterEach(() => {
+    setRedisClient(null);
     stopIdempotencyCleanup();
   });
 
@@ -400,6 +422,131 @@ describe('Idempotency Middleware Integration', () => {
       // Second request SHOULD have cache header (it was served from cache)
       expect(secondResponse.headers['x-idempotency-cache']).toBe('hit');
 
+    });
+  });
+
+  describe('Distributed reservation regression coverage', () => {
+    test('unwraps and replays the winner HTTP response from a Redis poll', async () => {
+      const idempotencyKey = 'distributed-winner-key';
+      const requestBody = { name: 'winner' };
+      const compositeKey = generateIdempotencyKey(
+        'test-user-123',
+        'POST',
+        '/api/v1/test/assets',
+        idempotencyKey
+      )!;
+      const requestBodyHash = generateRequestBodyHash(requestBody);
+      const pendingReservation = JSON.stringify({
+        principal: 'test-user-123',
+        httpMethod: 'POST',
+        routePattern: '/api/v1/test/assets',
+        requestId: 'other-instance',
+        requestBodyHash,
+        reservedAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+      });
+      const winningHttpResponse = {
+        status: 201,
+        headers: { 'x-winner': 'instance-a' },
+        body: { success: true, data: { id: 'from-winner' } },
+      };
+      const completedReservation = JSON.stringify({
+        ...JSON.parse(pendingReservation),
+        response: {
+          data: {
+            response: winningHttpResponse,
+            keyOptions: {
+              ttlMs: 60_000,
+              httpMethod: 'POST',
+              routePattern: '/api/v1/test/assets',
+              principal: 'test-user-123',
+              requestBodyHash,
+            },
+            createdAt: Date.now(),
+          },
+          expiresAt: Date.now() + 60_000,
+        } satisfies IdempotencyEntry,
+      });
+      let reads = 0;
+      setRedisClient(createMockRedisClient(async (key) => {
+        expect(key).toBe(`idempotency:${compositeKey}`);
+        return ++reads === 1 ? pendingReservation : completedReservation;
+      }));
+
+      const response = await request(app)
+        .post('/api/v1/test/assets')
+        .set(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+        .send(requestBody);
+
+      expect(response.status).toBe(winningHttpResponse.status);
+      expect(response.body).toEqual(winningHttpResponse.body);
+      expect(response.body).not.toHaveProperty('data.response');
+      expect(response.headers['x-idempotency-cache']).toBe('waiting');
+    });
+
+    test('rejects a different body against a pending Redis reservation without waiting', async () => {
+      const idempotencyKey = 'distributed-pending-mismatch-key';
+      const originalBody = { name: 'original' };
+      const requestBody = { name: 'different' };
+      const compositeKey = generateIdempotencyKey(
+        'test-user-123',
+        'POST',
+        '/api/v1/test/assets',
+        idempotencyKey
+      )!;
+      const originalHash = generateRequestBodyHash(originalBody);
+      let reads = 0;
+      setRedisClient(createMockRedisClient(async () => {
+        reads++;
+        return JSON.stringify({
+          principal: 'test-user-123',
+          httpMethod: 'POST',
+          routePattern: '/api/v1/test/assets',
+          requestId: 'other-instance',
+          requestBodyHash: originalHash,
+          reservedAt: Date.now(),
+          expiresAt: Date.now() + 60_000,
+        });
+      }));
+
+      const response = await request(app)
+        .post('/api/v1/test/assets')
+        .set(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+        .send(requestBody);
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('IDEMPOTENCY_BODY_MISMATCH');
+      expect(reads).toBe(1);
+      expect(compositeKey).toBeDefined();
+    });
+
+    test('releasing an aborted reservation does not emit an unhandled rejection', async () => {
+      const unhandledRejections: unknown[] = [];
+      const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+      process.on('unhandledRejection', onUnhandledRejection);
+
+      try {
+        const abortApp = express();
+        abortApp.use(express.json());
+        abortApp.use(mockAuthMiddleware);
+        abortApp.use(idempotency());
+        abortApp.post('/abort', (req: Request, res: Response) => {
+          req.emit('aborted');
+          res.status(400).json({ success: false });
+        });
+
+        await request(abortApp)
+          .post('/abort')
+          .set(IDEMPOTENCY_KEY_HEADER, 'abort-safe-key')
+          .send({ value: 'abort' })
+          .expect(400);
+        await new Promise(resolve => setImmediate(resolve));
+
+        expect(unhandledRejections).toEqual([]);
+        expect(getInFlightReservationCount()).toBe(0);
+      } finally {
+        process.off('unhandledRejection', onUnhandledRejection);
+      }
     });
   });
 });

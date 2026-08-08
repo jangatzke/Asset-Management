@@ -52,9 +52,13 @@ interface InMemoryReservation {
     headers: Record<string, string>;
     body: unknown;
   };
-  resultPromise?: Promise<{ status: number; headers: Record<string, string>; body: unknown }>;
-  resolvePromise?: (value: { status: number; headers: Record<string, string>; body: unknown }) => void;
-  rejectPromise?: (error: unknown) => void;
+}
+
+type CachedHttpResponse = NonNullable<InMemoryReservation['response']>;
+type WinnerWaitResult = CachedHttpResponse | 'body-mismatch' | null;
+
+function hasBodyMismatch(storedHash: string | undefined, requestHash: string | undefined): boolean {
+  return Boolean(storedHash && requestHash && storedHash !== requestHash);
 }
 
 interface IdempotencyOptions {
@@ -248,18 +252,16 @@ export function idempotency(options: IdempotencyOptions = {}) {
         // Type narrowing: only IdempotencyNotReserved has 'existingReservation'
         if ('existingReservation' in reservationResult) {
           // Check for body mismatch before waiting
-          if (reservationResult.existingReservation.requestBodyHash && requestBodyHash) {
-            if (reservationResult.existingReservation.requestBodyHash !== requestBodyHash) {
-              res.status(409).json({
-                success: false,
-                error: {
-                  message: 'Request body mismatch for idempotency key',
-                  code: 'BODY_MISMATCH',
-                  hint: 'The original request with this Idempotency-Key had a different body',
-                },
-              });
-              return;
-            }
+          if (hasBodyMismatch(reservationResult.existingReservation.requestBodyHash, requestBodyHash)) {
+            res.status(409).json({
+              success: false,
+              error: {
+                message: 'Request body mismatch for idempotency key',
+                code: 'IDEMPOTENCY_BODY_MISMATCH',
+                hint: 'The original request with this Idempotency-Key had a different body',
+              },
+            });
+            return;
           }
           
           res.set('X-Idempotency-Cache', 'waiting');
@@ -267,10 +269,18 @@ export function idempotency(options: IdempotencyOptions = {}) {
             compositeKey,
             reservationResult.existingReservation,
             requestBodyHash,
-            req
           );
           
-          if (result) {
+          if (result === 'body-mismatch') {
+            res.status(409).json({
+              success: false,
+              error: {
+                message: 'Request body mismatch for idempotency key',
+                code: 'IDEMPOTENCY_BODY_MISMATCH',
+                hint: 'The original request with this Idempotency-Key had a different body',
+              },
+            });
+          } else if (result) {
             res.status(result.status).json(result.body);
           } else {
             // Winner did not complete successfully - return 504 Gateway Timeout
@@ -289,13 +299,6 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
       // We won the reservation - proceed with the operation
       // Create in-memory tracking for this reservation
-      let resolvePromise: ((value: { status: number; headers: Record<string, string>; body: unknown }) => void) | undefined;
-      let rejectPromise: ((error: unknown) => void) | undefined;
-      const resultPromise = new Promise<{ status: number; headers: Record<string, string>; body: unknown }>((resolve, reject) => {
-        resolvePromise = resolve;
-        rejectPromise = reject;
-      });
-
       const memoryReservation: InMemoryReservation = {
         state: 'pending',
         requestId,
@@ -304,9 +307,6 @@ export function idempotency(options: IdempotencyOptions = {}) {
         routePattern,
         requestBodyHash,
         createdAt: Date.now(),
-        resultPromise,
-        resolvePromise,
-        rejectPromise,
       };
 
       inFlightReservations.set(compositeKey, memoryReservation);
@@ -319,10 +319,6 @@ export function idempotency(options: IdempotencyOptions = {}) {
         released = true;
         memoryReservation.state = 'failed';
         memoryReservation.completedAt = Date.now();
-        if (rejectPromise) {
-          rejectPromise(new Error(`Idempotency reservation released: ${reason}`));
-        }
-
         // Do not delete a newer local reservation created after this request
         // released or timed out.
         if (inFlightReservations.get(compositeKey)?.requestId === requestId) {
@@ -357,11 +353,6 @@ export function idempotency(options: IdempotencyOptions = {}) {
             headers: res.getHeaders() as Record<string, string>,
             body,
           };
-
-          // Resolve the result promise so waiting requests can proceed
-          if (resolvePromise) {
-            resolvePromise(responseBody);
-          }
 
           // Only cache successful responses (2xx and 3xx)
           if (capturedStatus >= 200 && capturedStatus < 400) {
@@ -472,21 +463,13 @@ async function reserveInMemory(
         exists: false,
         existingReservation: {
           principal: existing.principal,
-          requestId: existing.resultPromise ? 'pending' : requestId,
+          requestId: existing.requestId,
           expiresAt: existing.createdAt + ttlMs,
           requestBodyHash: existing.requestBodyHash,
         },
       };
     }
   }
-
-  // Create reservation
-  let resolvePromise: ((value: { status: number; headers: Record<string, string>; body: unknown }) => void) | undefined;
-  let rejectPromise: ((error: unknown) => void) | undefined;
-  const resultPromise = new Promise<{ status: number; headers: Record<string, string>; body: unknown }>((resolve, reject) => {
-    resolvePromise = resolve;
-    rejectPromise = reject;
-  });
 
   inFlightReservations.set(key, {
     state: 'pending',
@@ -496,9 +479,6 @@ async function reserveInMemory(
     routePattern,
     requestBodyHash,
     createdAt: Date.now(),
-    resultPromise,
-    resolvePromise,
-    rejectPromise,
   });
 
   return {
@@ -524,18 +504,13 @@ async function reserveInMemory(
 async function waitForWinner(
   key: string,
   existingReservation: { principal: string; requestId: string; expiresAt: number; requestBodyHash?: string },
-  requestBodyHash: string | undefined,
-  _req: Request
-): Promise<{ status: number; headers: Record<string, string>; body: unknown } | null> {
+  requestBodyHash: string | undefined
+): Promise<WinnerWaitResult> {
   const startTime = Date.now();
 
   // Body mismatch check (Fix 4)
-  if (existingReservation.requestBodyHash && requestBodyHash) {
-    if (existingReservation.requestBodyHash !== requestBodyHash) {
-      // Return 409 via a special response marker
-      // Note: The 409 should have been handled earlier, but as a safety net:
-      return null; // Let caller handle
-    }
+  if (hasBodyMismatch(existingReservation.requestBodyHash, requestBodyHash)) {
+    return 'body-mismatch';
   }
 
   while (Date.now() - startTime < MAX_WAIT_MS) {
@@ -565,9 +540,15 @@ async function waitForWinner(
           return null;
         }
 
+        // A pending reservation can be replaced while waiting. Re-validate on
+        // every poll before ever replaying that winner's response.
+        if (hasBodyMismatch(redisEntry.requestBodyHash, requestBodyHash)) {
+          return 'body-mismatch';
+        }
+
         // If the winner has a response stored, return it
         if (redisEntry.response) {
-          return redisEntry.response;
+          return redisEntry.response.data.response;
         }
 
         // If the reservation expired (expiresAt in the past), treat as gone

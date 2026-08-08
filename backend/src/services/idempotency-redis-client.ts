@@ -54,6 +54,21 @@ export interface IdempotencyNotReserved {
   };
 }
 
+/**
+ * Redis stores the complete IdempotencyEntry under `response` after a winner
+ * completes. The HTTP response itself is therefore `response.data.response`.
+ */
+export interface RedisPolledReservation {
+  principal: string;
+  requestId: string;
+  requestBodyHash?: string;
+  httpMethod: string;
+  routePattern: string;
+  reservedAt: number;
+  expiresAt: number;
+  response?: IdempotencyEntry;
+}
+
 export interface RedisIdempotencyClientOptions {
   host?: string;
   port?: number;
@@ -495,6 +510,7 @@ export class RedisIdempotencyClient {
           principal: existingData.principal,
           requestId: existingData.requestId,
           expiresAt: existingData.expiresAt,
+          requestBodyHash: existingData.requestBodyHash,
         },
       };
     } catch (error) {
@@ -603,16 +619,7 @@ export class RedisIdempotencyClient {
    * This is used by waitForWinner() to poll Redis instead of a local Map,
    * enabling distributed multi-instance idempotency.
    */
-  async pollReservation(key: string): Promise<{
-    principal: string;
-    requestId: string;
-    requestBodyHash?: string;
-    httpMethod: string;
-    routePattern: string;
-    reservedAt: number;
-    expiresAt: number;
-    response?: { status: number; headers: Record<string, string>; body: unknown };
-  } | null> {
+  async pollReservation(key: string): Promise<RedisPolledReservation | null> {
     if (!this.client || !this.connected) {
       return null;
     }
