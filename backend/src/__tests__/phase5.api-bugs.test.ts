@@ -101,7 +101,7 @@ jest.mock('../services/riskmethod.service', () => ({ riskMethodService: mockRisk
 import { riskRouter } from '../routes/risk.routes';
 import { auditLogRouter } from '../routes/auditLog.routes';
 import { userRouter } from '../routes/user.routes';
-import { serviceAccountRouter } from '../routes/serviceAccount.routes';
+import { serviceAccountAuthRouter, serviceAccountRouter } from '../routes/serviceAccount.routes';
 import { webhookRouter } from '../routes/webhook.routes';
 import { incidentRouter } from '../routes/incident.routes';
 import { riskMethodRouter } from '../routes/riskmethod.routes';
@@ -120,6 +120,7 @@ const createApp = () => {
   app.use('/risks', riskRouter);
   app.use('/audit-log', auditLogRouter);
   app.use('/users', userRouter);
+  app.use('/service-accounts/auth', serviceAccountAuthRouter);
   app.use('/service-accounts', serviceAccountRouter);
   app.use('/webhooks', webhookRouter);
   app.use('/incidents', incidentRouter);
@@ -139,9 +140,12 @@ describe('Phase 5 API bug fixes', () => {
     mockDisplayIdService.nextDisplayIdStandalone.mockResolvedValue('RSK-005' as never);
     mockAuditService.logEventStandalone.mockResolvedValue(undefined as never);
     mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
-    // Ensure serviceAccount model exists on mockPrisma (required by serviceAccount.routes.ts)
+    // These models are used by the focused route-order regressions.
     if (!(mockPrisma as any).serviceAccount) {
       (mockPrisma as any).serviceAccount = { findFirst: jest.fn(), update: jest.fn() };
+    }
+    if (!(mockPrisma as any).webhook) {
+      (mockPrisma as any).webhook = { findMany: jest.fn() };
     }
   });
 
@@ -226,17 +230,20 @@ describe('Phase 5 API bug fixes', () => {
     const response = await request(app).post('/service-accounts/auth').send({ accessToken: 'invalid' });
 
     expect(response.status).toBe(401);
-    // The authenticateServiceAccount middleware runs before the /auth route handler
-    // and rejects requests without a Bearer token (expected behavior for this endpoint)
-    expect(response.body.error?.code).toBe('MISSING_BEARER_TOKEN');
+    expect(response.body.error).toBe('Authentication Failed');
+    expect(mockPrisma.serviceAccount.findFirst).not.toHaveBeenCalled();
   });
 
   it('routes webhook broadcast before webhook id routes', async () => {
     const app = createApp();
+    mockPrisma.webhook.findMany.mockResolvedValue([] as never);
     const response = await request(app).post('/webhooks/broadcast').send({ eventType: 'asset.created', data: { id: 'asset-1' } });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
     expect(response.body.data).toEqual([]);
+    expect(mockPrisma.webhook.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ events: { has: 'asset.created' } }),
+    }));
   });
 
   it('routes incident report export before incident id lookup', async () => {

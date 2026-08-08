@@ -12,6 +12,18 @@
 import request from 'supertest';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
+import { jest } from '@jest/globals';
+import { createMockPrismaClient } from '../test/prisma-mock';
+
+const mockPrisma = createMockPrismaClient();
+mockPrisma.serviceAccount = {
+  findFirst: jest.fn(),
+  findUnique: jest.fn(),
+  update: jest.fn(),
+};
+
+jest.mock('../config/database', () => ({ prisma: mockPrisma }));
+
 import { authenticate, authorize } from '../middleware/auth';
 import { idempotency } from '../middleware/idempotency';
 import { authenticateServiceAccount } from '../middleware/serviceAccountAuth';
@@ -246,13 +258,18 @@ describe('Service-Account Management Route Authentication', () => {
       const { token } = generateServiceAccountToken();
 
       // This should fail because authenticateServiceAccount expects the token to be valid
-      // in the database, but we're not storing it there in this test
+      // in the mocked database, but we're not storing it there in this test.
+      mockPrisma.serviceAccount.findFirst.mockResolvedValue(null as never);
       const response = await request(appWithServiceAccountAuth)
         .get('/api/v1/service-accounts')
         .set('Authorization', `Bearer ${token}`);
 
-      // Should fail because the token UUID doesn't exist in the mock database
+      // The assertion proves this test uses the injected Prisma mock rather than a
+      // real database connection.
       expect(response.status).toBe(401);
+      expect(mockPrisma.serviceAccount.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ id: token.split('_')[1] }),
+      }));
     });
   });
 });
