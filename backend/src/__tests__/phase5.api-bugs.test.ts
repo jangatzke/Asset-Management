@@ -78,6 +78,9 @@ const mockIncidentService = {
   createSignificanceRuleVersion: jest.fn(),
   escalateOverdueDeadlines: jest.fn(),
   exportReportPackage: jest.fn(),
+  assessIncident: jest.fn(),
+  createIncidentReport: jest.fn(),
+  createReport: jest.fn(),
 };
 jest.mock('../services/incident.service', () => ({ incidentService: mockIncidentService }));
 
@@ -255,6 +258,25 @@ describe('Phase 5 API bug fixes', () => {
     expect(response.status).toBe(200);
     expect(mockIncidentService.exportReportPackage).toHaveBeenCalledWith('report-1', 'phase5-user');
     expect(mockIncidentService.getById).not.toHaveBeenCalled();
+  });
+
+  it('rejects body-supplied incident assessment and report actor identifiers', async () => {
+    const app = createApp();
+
+    const assessmentResponse = await request(app).post('/incidents/incident-1/assess').send({
+      assessorId: 'spoofed-user',
+      isReportable: true,
+    });
+    const reportResponse = await request(app).post('/incidents/incident-1/reports').send({
+      reportType: 'early_warning_24h',
+      content: { summary: 'Outage' },
+      authorId: 'spoofed-user',
+    });
+
+    expect(assessmentResponse.status).toBe(201);
+    expect(reportResponse.status).toBe(201);
+    expect(mockIncidentService.assessIncident).toHaveBeenCalledWith('incident-1', { isReportable: true }, 'phase5-user');
+    expect(mockIncidentService.createIncidentReport).toHaveBeenCalledWith('incident-1', { reportType: 'early_warning_24h', content: { summary: 'Outage' } }, 'phase5-user');
   });
 
   it('routes risk method version endpoints before method id lookup', async () => {

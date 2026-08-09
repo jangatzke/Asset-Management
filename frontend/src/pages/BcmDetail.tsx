@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import EntityPicker from '../components/EntityPicker';
 import { bcmApi, type BcpExerciseFinding } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
+import { useI18n } from '../context/I18nContext';
 
 type Strategy = { name: string; priority: 'primary' | 'alternate' | 'fallback'; steps: string[]; recoveryTargetMinutes?: number };
 type Communication = { audience: string; channel: string; message: string; timing?: string; ownerId?: string };
@@ -16,6 +17,7 @@ const newCommunication = (): Communication => ({ audience: '', channel: '', mess
 const newFinding = (): BcpExerciseFinding => ({ title: '', description: '', severity: 'medium' });
 
 export default function BcmDetail() {
+  const { t } = useI18n();
   const { kind, id } = useParams<{ kind: 'bia' | 'bcp' | 'exercise'; id: string }>();
   const navigate = useNavigate();
   const [record, setRecord] = useState<Record<string, any> | null>(null);
@@ -47,11 +49,11 @@ export default function BcmDetail() {
         if (kind === 'bia') { setAssetLinks(asArray(data.assets)); setAssets(asArray(data.assets).map((x: any) => ({ id: x.assetId, label: x.assetId }))); }
         if (kind === 'bcp') { setBia(data.bia ? { id: data.bia.id, label: data.bia.title } : null); setStrategies(asArray(entity.recoveryStrategies)); setCommunications(asArray(entity.communicationPlan)); }
         if (kind === 'exercise') { const loadedParticipants = asArray<Participant>(entity.participants); setParticipants(loadedParticipants); setParticipantUsers(loadedParticipants.map((x) => ({ id: x.userId, label: x.userId }))); setResults(asArray(entity.results)); setFindings(asArray(entity.findings)); }
-      } catch (e) { if (!ignore) setError(e instanceof Error ? e.message : 'Unable to load BCM workflow.'); }
+      } catch (e) { if (!ignore) setError(e instanceof Error ? e.message : t('common.loading')); }
       finally { if (!ignore) setLoading(false); }
     }
     load(); return () => { ignore = true; };
-  }, [id, kind]);
+  }, [id, kind, t]);
 
   const update = (key: string, value: unknown) => setRecord(previous => previous ? { ...previous, [key]: value } : previous);
   const save = async () => {
@@ -62,7 +64,7 @@ export default function BcmDetail() {
       if (kind === 'bcp') await bcmApi.updateBcp(id, { title: record.title, ownerId: record.ownerId, biaId: bia?.id, scope: record.scope || undefined, version: record.version, recoveryStrategies: strategies, communicationPlan: communications, activationCriteria: record.activationCriteria || undefined, nextTestDate: record.nextTestDate || undefined, status: record.status });
       if (kind === 'exercise') await bcmApi.updateExercise(id, { bcpId: record.bcpId, exerciseType: record.exerciseType, plannedAt: record.plannedAt, executedAt: record.executedAt || undefined, participants, results, findings, status: record.status });
       navigate('/isms-operations');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to save BCM workflow.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : t('common.saveError')); }
     finally { setSaving(false); }
   };
   const createCapa = async (findingIndex: number) => {
@@ -71,13 +73,13 @@ export default function BcmDetail() {
     const ownerId = record?.bcpOwnerId ?? related.bcp?.ownerId;
     if (!ownerId) { setError('The linked BCP must have an owner before creating a CAPA.'); return; }
     try { await bcmApi.createCapaFromExercise(id, { findingIndex, title: finding.title, description: finding.description, ownerId, dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), priority: finding.severity }); navigate('/isms-operations'); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to create CAPA.'); }
+    catch (e) { setError(e instanceof Error ? e.message : t('common.saveError')); }
   };
-  if (loading) return <div className="p-6">Loading BCM workflow…</div>;
-  if (!record || !kind) return <div className="p-6">{error ?? 'BCM workflow not found.'}</div>;
-  const label = kind === 'bia' ? 'Business Impact Analysis' : kind === 'bcp' ? 'Business Continuity Plan' : 'BCP Exercise';
+  if (loading) return <div className="p-6">{t('common.loading')}</div>;
+  if (!record || !kind) return <div className="p-6">{error ?? t('common.noResults')}</div>;
+  const label = kind === 'bia' ? t('bcm.businessImpactAnalysis') : kind === 'bcp' ? t('bcm.continuityPlan') : t('bcm.exercise');
   return <div className="mx-auto max-w-5xl space-y-6">
-    <div><Link className="text-sm text-blue-600 hover:underline" to="/isms-operations">← ISMS Operations</Link><h1 className="mt-2 text-2xl font-semibold">{label}: {record.title ?? record.exerciseType}</h1></div>
+    <div><Link className="text-sm text-blue-600 hover:underline" to="/isms-operations">← {t('ismsOperations.title')}</Link><h1 className="mt-2 text-2xl font-semibold">{label}: {record.title ?? record.exerciseType}</h1></div>
     {error && <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
     <section className="grid gap-4 rounded-lg bg-white p-5 shadow dark:bg-gray-800 md:grid-cols-2">
       {kind !== 'exercise' && <><Input label="Title" value={record.title} onChange={(v) => update('title', v)} /><Picker label="Owner" entityType="user" value={record.ownerId} onSelect={(item) => update('ownerId', item.id)} /></>}
@@ -88,7 +90,7 @@ export default function BcmDetail() {
     {kind === 'bia' && <AssetEditor assets={assets} links={assetLinks} setAssets={setAssets} setLinks={setAssetLinks} />}
     {kind === 'bcp' && <StrategyEditor strategies={strategies} setStrategies={setStrategies} communications={communications} setCommunications={setCommunications} />}
     {kind === 'exercise' && <ExerciseEditor users={participantUsers} setUsers={setParticipantUsers} participants={participants} setParticipants={setParticipants} results={results} setResults={setResults} findings={findings} setFindings={setFindings} onCapa={createCapa} />}
-    <button onClick={save} disabled={saving} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save workflow'}</button>
+    <button onClick={save} disabled={saving} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? t('common.saving') : t('common.save')}</button>
   </div>;
 }
 

@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -26,11 +25,14 @@ import {
   TableContainer,
   CircularProgress,
 } from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import type { ChipProps } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import HealthIcon from '@mui/icons-material/Favorite';
 import api from '../services/api';
+import { useI18n } from '../context/I18nContext';
+import { useDarkMode } from '../context/DarkModeContext';
 
 interface IntuneConfig {
   id: string;
@@ -108,7 +110,9 @@ const configTextFieldSx = {
 };
 
 export default function IntuneAdmin() {
-  const { t } = useTranslation();
+  const { t, language } = useI18n();
+  const { darkMode } = useDarkMode();
+  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
   const [config, setConfig] = useState<IntuneConfig | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [devices, setDevices] = useState<DeviceSync[]>([]);
@@ -161,7 +165,7 @@ export default function IntuneAdmin() {
       setHealthMessage(res.data?.intune?.error || res.data?.intune?.permissions?.message || null);
     } catch (e) {
       setHealthStatus('unhealthy');
-      setHealthMessage('Health check failed. Verify certificate secret references and Microsoft Graph application permissions.');
+      setHealthMessage(t('intune.syncFailed'));
     }
   };
 
@@ -197,7 +201,7 @@ export default function IntuneAdmin() {
         });
       } else {
         await api.post('/intune/credentials', {
-          name: credName || 'Intune API Credentials',
+          name: credName || t('intune.credentialsTitle'),
           tenantId: credTenantId || undefined,
           appId: credAppId || undefined,
           clientSecret: credClientSecret || undefined,
@@ -213,7 +217,7 @@ export default function IntuneAdmin() {
   };
 
   const handleDeleteCredentials = async () => {
-    if (!confirm('Are you sure you want to delete these credentials?')) return;
+    if (!window.confirm(t('intune.deleteCredentialsConfirm'))) return;
     try {
       await api.delete('/intune/credentials');
       setCredentials(null);
@@ -295,7 +299,7 @@ export default function IntuneAdmin() {
 
   const formatDateTime = (date: string | null) => {
     if (!date) return '—';
-    return new Date(date).toLocaleString();
+    return new Date(date).toLocaleString(language);
   };
 
   const formatDuration = (ms: number | null) => {
@@ -309,6 +313,7 @@ export default function IntuneAdmin() {
   };
 
   return (
+    <ThemeProvider theme={muiTheme}>
     <Box>
       <Typography variant="h4" gutterBottom>
         {t('intune.title')}
@@ -325,9 +330,9 @@ export default function IntuneAdmin() {
               size="small"
             />
             <Typography variant="body2">
-              {healthStatus === 'healthy' && 'All systems operational'}
-              {healthStatus === 'unhealthy' && (healthMessage || 'Connection issues detected')}
-              {healthStatus === null && 'Checking...'}
+              {healthStatus === 'healthy' && t('intune.healthy')}
+              {healthStatus === 'unhealthy' && (healthMessage || t('intune.unhealthy'))}
+              {healthStatus === null && t('common.loading')}
             </Typography>
           </Stack>
         </CardContent>
@@ -341,7 +346,7 @@ export default function IntuneAdmin() {
 
         <Stack spacing={2}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography>Enable Intune Sync</Typography>
+            <Typography>{t('intune.syncNow')}</Typography>
             <Switch
               checked={config?.enabled || false}
               onChange={(e) => handleConfigUpdate('enabled', e.target.checked)}
@@ -353,7 +358,7 @@ export default function IntuneAdmin() {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
-                label="Full Sync Interval (hours)"
+                label={t('intune.fullSync')}
                 type="number"
                 value={config?.fullSyncIntervalHours || 24}
                 onChange={(e) => handleConfigUpdate('fullSyncIntervalHours', parseInt(e.target.value) || 24)}
@@ -364,7 +369,7 @@ export default function IntuneAdmin() {
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
-                label="Incremental Sync Interval (minutes)"
+                label={t('intune.incrementalSync')}
                 type="number"
                 value={config?.incrementalSyncIntervalMinutes || 120}
                 onChange={(e) => handleConfigUpdate('incrementalSyncIntervalMinutes', parseInt(e.target.value) || 120)}
@@ -375,7 +380,7 @@ export default function IntuneAdmin() {
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
-                label="Grace Period (hours)"
+                label={t('common.dates')}
                 type="number"
                 value={config?.gracePeriodHours || 168}
                 onChange={(e) => handleConfigUpdate('gracePeriodHours', parseInt(e.target.value) || 168)}
@@ -399,12 +404,12 @@ export default function IntuneAdmin() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Chip
                 icon={<SyncIcon />}
-                label={`Status: ${syncStatus.status}`}
+                label={`${t('common.status')}: ${syncStatus.status}`}
                 color={syncStatusColors[syncStatus.status] || 'default'}
                 size="small"
               />
               <Chip
-                label={`Health: ${syncStatus.healthStatus}`}
+                label={`${t('intune.healthStatus')}: ${syncStatus.healthStatus}`}
                 color={healthStatusColors[syncStatus.healthStatus] || 'default'}
                 size="small"
               />
@@ -413,7 +418,7 @@ export default function IntuneAdmin() {
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Devices
+                  {t('intune.syncCount')}
                 </Typography>
                 <Typography variant="h5">
                   {syncStatus.deviceSynced}/{syncStatus.deviceCount}
@@ -421,7 +426,7 @@ export default function IntuneAdmin() {
               </Grid>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Device Errors
+                  {t('intune.lastError')}
                 </Typography>
                 <Typography variant="h5" color={syncStatus.deviceErrors > 0 ? 'error' : 'success'}>
                   {syncStatus.deviceErrors}
@@ -429,7 +434,7 @@ export default function IntuneAdmin() {
               </Grid>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Apps Synced
+                  {t('intune.syncCount')}
                 </Typography>
                 <Typography variant="h5">
                   {syncStatus.appSynced}/{syncStatus.appCount}
@@ -437,7 +442,7 @@ export default function IntuneAdmin() {
               </Grid>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Last Sync Duration
+                  {t('intune.lastSync')}
                 </Typography>
                 <Typography variant="h5">
                   {formatDuration(syncStatus.lastSyncDurationMs)}
@@ -445,7 +450,7 @@ export default function IntuneAdmin() {
               </Grid>
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Stale / Review
+                  {t('intune.syncStatus')}
                 </Typography>
                 <Typography variant="h5" color={(syncStatus.staleCount || 0) > 0 ? 'warning.main' : 'success.main'}>
                   {syncStatus.staleCount || 0}
@@ -455,13 +460,13 @@ export default function IntuneAdmin() {
 
             {syncStatus.status === 'partial_success' && (
               <Alert severity="warning" sx={{ mt: 1 }}>
-                Sync completed with partial errors. Review device/app error counters and individual device messages.
+                {t('intune.syncFailed')}
               </Alert>
             )}
 
             {syncStatus.lastSyncCompletedAt && (
               <Typography variant="body2" color="text.secondary">
-                Last completed: {formatDateTime(syncStatus.lastSyncCompletedAt)}
+                {t('intune.lastSync')}: {formatDateTime(syncStatus.lastSyncCompletedAt)}
               </Typography>
             )}
 
@@ -480,7 +485,7 @@ export default function IntuneAdmin() {
             onClick={handleFullSync}
             disabled={loading}
           >
-            Full Sync
+            {t('intune.fullSync')}
           </Button>
           <Button
             variant="outlined"
@@ -488,7 +493,7 @@ export default function IntuneAdmin() {
             onClick={handleIncrementalSync}
             disabled={loading}
           >
-            Incremental Sync
+            {t('intune.incrementalSync')}
           </Button>
           <Button
             variant="outlined"
@@ -498,7 +503,7 @@ export default function IntuneAdmin() {
             }}
             disabled={loading}
           >
-            Refresh
+            {t('common.update')}
           </Button>
         </Stack>
       </Paper>
@@ -506,14 +511,14 @@ export default function IntuneAdmin() {
       {/* Scheduler Control */}
       <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Typography variant="h6" gutterBottom>
-          Scheduler
+          {t('intune.scheduler')}
         </Typography>
         <Stack direction="row" spacing={2}>
           <Button variant="contained" onClick={handleStartScheduler}>
-            Start Scheduler
+            {t('intune.startScheduler')}
           </Button>
           <Button variant="outlined" onClick={handleStopScheduler}>
-            Stop Scheduler
+            {t('intune.stopScheduler')}
           </Button>
         </Stack>
       </Paper>
@@ -533,7 +538,7 @@ export default function IntuneAdmin() {
               <Typography variant="body2">{t('intune.tenantId')}: {credentials.tenantId || '—'}</Typography>
               <Typography variant="body2">{t('intune.appId')}: {credentials.appId || '—'}</Typography>
               <Typography variant="body2">
-                {t('intune.isConfigured')}: <Chip label={credentials.isConfigured ? 'Yes' : 'No'} size="small" color={credentials.isConfigured ? 'success' : 'default'} />
+                {t('intune.isConfigured')}: <Chip label={credentials.isConfigured ? t('common.yes') : t('common.no')} size="small" color={credentials.isConfigured ? 'success' : 'default'} />
               </Typography>
             </Box>
             <Stack direction="row" spacing={2}>
@@ -579,7 +584,7 @@ export default function IntuneAdmin() {
       <Paper sx={{ p: 3, bgcolor: 'background.paper', color: 'text.primary' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
-            Synced Devices ({deviceTotal})
+             {t('intune.syncCount')} ({deviceTotal})
           </Typography>
           <Button
             startIcon={<RefreshIcon />}
@@ -589,7 +594,7 @@ export default function IntuneAdmin() {
             }}
             disabled={loading}
           >
-            Refresh
+            {t('common.update')}
           </Button>
         </Box>
 
@@ -602,12 +607,12 @@ export default function IntuneAdmin() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>OS</TableCell>
-                  <TableCell>Manufacturer</TableCell>
-                  <TableCell>Sync Status</TableCell>
-                  <TableCell>Error / Review Note</TableCell>
-                  <TableCell>Last Sync</TableCell>
+                  <TableCell>{t('common.name')}</TableCell>
+                  <TableCell>{t('common.type')}</TableCell>
+                  <TableCell>{t('common.vendor')}</TableCell>
+                  <TableCell>{t('intune.syncStatus')}</TableCell>
+                  <TableCell>{t('intune.lastError')}</TableCell>
+                  <TableCell>{t('intune.lastSync')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -656,5 +661,6 @@ export default function IntuneAdmin() {
         )}
       </Paper>
     </Box>
+    </ThemeProvider>
   );
 }

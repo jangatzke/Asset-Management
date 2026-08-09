@@ -4,7 +4,7 @@ import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, r
 import { validateBody } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';
 import { authorizationService } from '../services/authorization.service';
-import { AssessIncidentSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, UpdateIncidentSchema } from 'shared';
+import { AssessIncidentSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
 
 export const incidentRouter = Router();
 
@@ -82,8 +82,16 @@ incidentRouter.get('/:id', authenticate, requireEntityPermission('incidents.read
 
 incidentRouter.post('/:id/assess', authenticate, requireEntityPermission('incidents.assess', 'incidents'), validateBody(AssessIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
-    const assessment = await incidentService.assessIncident(req.params.id, req.body);
+    const assessment = await incidentService.assessIncident(req.params.id, req.body, req.userId!);
     res.status(201).json(assessment);
+  } catch (error) {
+    next(error);
+  }
+});
+
+incidentRouter.post('/:id/non-reportable-approval', authenticate, validateBody(DecideIncidentNonReportableApprovalSchema), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await incidentService.decideNonReportableAssessment(req.params.id, req.body, req.userId!));
   } catch (error) {
     next(error);
   }
@@ -109,7 +117,7 @@ incidentRouter.post('/:id/recalculate-deadlines', authenticate, authorizeEntityW
 
 incidentRouter.post('/:id/reports', authenticate, requireEntityPermission('incidents.report', 'incidents'), validateBody(CreateIncidentReportSchema), async (req: AuthRequest, res, next) => {
   try {
-    const report = await incidentService.createIncidentReport(req.params.id, req.body);
+    const report = await incidentService.createIncidentReport(req.params.id, req.body, req.userId!);
     res.status(201).json(report);
   } catch (error) {
     next(error);
@@ -136,7 +144,7 @@ incidentRouter.post('/:id/close', authenticate, requireEntityPermission('inciden
 
 incidentRouter.post('/:id/report', authenticate, requireEntityPermission('incidents.report', 'incidents'), validateBody(CreateIncidentReportSchema), async (req: AuthRequest, res, next) => {
   try {
-    const report = await incidentService.createReport(req.params.id, req.body);
+    const report = await incidentService.createReport(req.params.id, req.body, req.userId!);
     res.status(201).json(report);
   } catch (error) {
     next(error);

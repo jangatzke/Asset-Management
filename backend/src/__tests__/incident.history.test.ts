@@ -515,9 +515,8 @@ describe('Incident History (AUDIT-001)', () => {
       mockPrisma.incident.update.mockResolvedValueOnce({});
 
       await incidentService.assessIncident('incident-1', {
-        assessorId: 'assessor-1',
         isReportable: true,
-      });
+      }, 'assessor-1');
 
       expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -529,6 +528,27 @@ describe('Incident History (AUDIT-001)', () => {
           }),
         })
       );
+    });
+
+    it('derives assessment persistence and history actors from the required actor argument', async () => {
+      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+        id: 'incident-1',
+        title: 'Test Incident',
+        significanceRuleVersionId: 'rules-1',
+      } as any);
+      mockPrisma.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValueOnce({ id: 'rules-1', rules: [] });
+      mockPrisma.incidentAssessment.upsert.mockResolvedValueOnce({ id: 'assessment-1' });
+      mockPrisma.incident.update.mockResolvedValueOnce({});
+
+      await incidentService.assessIncident('incident-1', { isReportable: true }, 'authenticated-user');
+
+      expect(mockPrisma.incidentAssessment.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ assessorId: 'authenticated-user' }),
+        update: expect.objectContaining({ assessorId: 'authenticated-user', updatedBy: 'authenticated-user' }),
+      }));
+      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ actorId: 'authenticated-user' }),
+      }));
     });
 
     it('creates a history entry on knowledge time change', async () => {

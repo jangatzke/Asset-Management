@@ -72,11 +72,15 @@ export interface ListIncidentsQuery {
 }
 
 export interface AssessIncidentData {
-  assessorId: string;
   isReportable: boolean;
   reportingJustification?: string;
   decisionNotToReport?: string;
   decisionApprovedBy?: string;
+}
+
+export interface DecideIncidentNonReportableApprovalData {
+  decision: 'approve' | 'reject';
+  returnReason?: string;
 }
 
 export type IncidentReportType = 'early_warning_24h' | 'incident_notification_72h' | 'interim_report' | 'monthly_final_report';
@@ -464,7 +468,7 @@ export class IncidentService {
     return { success: true };
   }
 
-  async assessIncident(incidentId: string, data: AssessIncidentData) {
+  async assessIncident(incidentId: string, data: AssessIncidentData, actorId: string) {
     const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
     if (!incident) {
       throw new AppError('Incident not found', 404);
@@ -473,6 +477,7 @@ export class IncidentService {
     if (!data.isReportable && !data.decisionNotToReport?.trim()) throw new AppError('Decision not to report requires justification', 400);
     if (!data.isReportable && !data.decisionApprovedBy?.trim()) throw new AppError('Decision not to report requires approval', 400);
     if (!data.isReportable) {
+      if (data.decisionApprovedBy === actorId) throw new AppError('Decision approver must differ from assessor', 403);
       const approver = await prisma.user.findFirst({
         where: { id: data.decisionApprovedBy, isActive: true, isArchived: false },
         select: { id: true },
@@ -483,22 +488,32 @@ export class IncidentService {
     const incidentAny = incident as any;
     const ruleVersion = incidentAny.significanceRuleVersionId
       ? await (prisma as any).nis2IncidentSignificanceRuleVersion.findUnique({ where: { id: incidentAny.significanceRuleVersionId } })
-      : await this.ensureDefaultSignificanceRules(data.assessorId);
+      : await this.ensureDefaultSignificanceRules(actorId);
     const evaluated = this.evaluateSignificance(incident as any, ruleVersion);
 
     const assessment = await (prisma as any).incidentAssessment.upsert({
       where: { incidentId },
       update: {
-        ...data,
-        decisionApprovedAt: !data.isReportable ? new Date() : undefined,
+        isReportable: data.isReportable,
+        reportingJustification: data.reportingJustification,
+        decisionNotToReport: data.decisionNotToReport,
+        decisionApprovalAssigneeId: data.isReportable ? null : data.decisionApprovedBy,
+        decisionApprovedBy: null,
+        decisionApprovedAt: null,
+        status: data.isReportable ? 'active' : 'pending_approval',
         significanceRuleVersionId: ruleVersion.id,
         evaluatedRules: evaluated,
-        updatedBy: data.assessorId,
+        assessorId: actorId,
+        updatedBy: actorId,
       },
       create: {
         incidentId,
-        ...data,
-        decisionApprovedAt: !data.isReportable ? new Date() : undefined,
+        isReportable: data.isReportable,
+        reportingJustification: data.reportingJustification,
+        decisionNotToReport: data.decisionNotToReport,
+        decisionApprovalAssigneeId: data.isReportable ? undefined : data.decisionApprovedBy,
+        assessorId: actorId,
+        status: data.isReportable ? 'active' : 'pending_approval',
         significanceRuleVersionId: ruleVersion.id,
         evaluatedRules: evaluated,
       },
@@ -507,9 +522,34 @@ export class IncidentService {
     await prisma.incident.update({ where: { id: incidentId }, data: { notificationStatus: data.isReportable ? 'pending_assessment' : 'not_required', isSignificant: data.isReportable, significanceReasons: evaluated.reasons } as any });
 
     // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(incidentId, 'ASSESSMENT', `Assessed incident: ${data.isReportable ? 'reportable' : 'not reportable'}`, { isReportable: data.isReportable, justification: data.reportingJustification }, data.assessorId);
+    await this.recordHistoryEntry(incidentId, 'ASSESSMENT', `Assessed incident: ${data.isReportable ? 'reportable' : 'not reportable'}`, { isReportable: data.isReportable, justification: data.reportingJustification }, actorId);
 
     return assessment;
+  }
+
+  async decideNonReportableAssessment(incidentId: string, data: DecideIncidentNonReportableApprovalData, actorId: string) {
+    const assessment = await (prisma as any).incidentAssessment.findUnique({ where: { incidentId } });
+    if (!assessment) throw new AppError('Incident assessment not found', 404);
+    if (assessment.isReportable || assessment.status !== 'pending_approval') throw new AppError('Non-reportable decision is not pending approval', 409);
+    if (assessment.assessorId === actorId) throw new AppError('Assessor cannot approve their own decision', 403);
+    if (assessment.decisionApprovalAssigneeId !== actorId) throw new AppError('Only the assigned approver can decide this assessment', 403);
+
+    const approver = await prisma.user.findFirst({ where: { id: actorId, isActive: true, isArchived: false }, select: { id: true } });
+    if (!approver) throw new AppError('Assigned approver must be an active user', 403);
+
+    const approved = data.decision === 'approve';
+    const updated = await (prisma as any).incidentAssessment.update({
+      where: { incidentId },
+      data: {
+        status: approved ? 'approved' : 'returned',
+        decisionApprovedBy: approved ? actorId : null,
+        decisionApprovedAt: approved ? new Date() : null,
+        updatedBy: actorId,
+        ...(approved ? {} : { decisionApprovalAssigneeId: null, reportingJustification: data.returnReason }),
+      },
+    });
+    await this.recordHistoryEntry(incidentId, 'ASSESSMENT', approved ? 'Approved non-reportable decision' : `Returned non-reportable decision: ${data.returnReason}`, { decision: data.decision }, actorId);
+    return updated;
   }
 
   private async createDeadlinesForIncident(tx: any, incidentId: string, knowledgeTime: Date) {
@@ -549,7 +589,7 @@ export class IncidentService {
     return updated;
   }
 
-  async createIncidentReport(incidentId: string, reportData: { reportType: IncidentReportType; title?: string; content: Record<string, unknown>; authorId: string; recipient?: string; submissionMethod?: string; submissionProof?: string }) {
+  async createIncidentReport(incidentId: string, reportData: { reportType: IncidentReportType; title?: string; content: Record<string, unknown>; recipient?: string; submissionMethod?: string; submissionProof?: string }, actorId: string) {
     const incident = await this.getById(incidentId) as any;
     const deadline = await (prisma as any).notificationDeadline.findUnique({ where: { incidentId_notificationType: { incidentId, notificationType: reportData.reportType } } });
     const report = await (prisma as any).incidentReport.create({
@@ -561,16 +601,16 @@ export class IncidentService {
         dueAt: deadline?.deadlineDate,
         status: reportData.submissionProof ? 'submitted' : 'draft',
         submittedAt: reportData.submissionProof ? new Date() : undefined,
-        submittedBy: reportData.submissionProof ? reportData.authorId : undefined,
+        submittedBy: reportData.submissionProof ? actorId : undefined,
         recipient: reportData.recipient,
         submissionMethod: reportData.submissionMethod,
         submissionProof: reportData.submissionProof,
         exportPayload: this.buildReportExportPayload(incident, reportData.reportType, reportData.content),
-        createdBy: reportData.authorId,
+        createdBy: actorId,
       },
     });
-    if (deadline && reportData.submissionProof) await (prisma as any).notificationDeadline.update({ where: { id: deadline.id }, data: { status: 'sent', sentAt: new Date(), sentBy: reportData.authorId, submissionProof: reportData.submissionProof } });
-    await auditService.logEventStandalone(prisma, { userId: reportData.authorId, action: 'INCIDENT_REPORT_CREATE', entityType: 'IncidentReport', entityId: report.id, details: `Created ${reportData.reportType} report for ${incident.displayId}` });
+    if (deadline && reportData.submissionProof) await (prisma as any).notificationDeadline.update({ where: { id: deadline.id }, data: { status: 'sent', sentAt: new Date(), sentBy: actorId, submissionProof: reportData.submissionProof } });
+    await auditService.logEventStandalone(prisma, { userId: actorId, action: 'INCIDENT_REPORT_CREATE', entityType: 'IncidentReport', entityId: report.id, details: `Created ${reportData.reportType} report for ${incident.displayId}` });
     return report;
   }
 
@@ -624,14 +664,13 @@ export class IncidentService {
   async createReport(incidentId: string, reportData: {
     title: string;
     content: string;
-    authorId: string;
-  }) {
+  }, actorId: string) {
     const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
     if (!incident) {
       throw new AppError('Incident not found', 404);
     }
 
-    return this.createIncidentReport(incidentId, { reportType: 'interim_report', title: reportData.title, content: { text: reportData.content }, authorId: reportData.authorId });
+    return this.createIncidentReport(incidentId, { reportType: 'interim_report', title: reportData.title, content: { text: reportData.content } }, actorId);
   }
 }
 

@@ -4,6 +4,7 @@ import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { supplierApi, type SupplierAction, type SupplierAssessment, type SupplierDetail, type SupplierFinding } from '../services/api';
 import { useAuthStore } from '../store/auth';
+import { useI18n } from '../context/I18nContext';
 
 type Tab = 'profile' | 'assessments' | 'contracts' | 'risks' | 'actions' | 'history';
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
@@ -13,6 +14,7 @@ const button = 'rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hov
 const emptyAssessment = (assessorId = ''): Partial<SupplierAssessment> => ({ assessorId, assessmentType: 'initial', rating: 'medium', status: 'draft', questionnaire: {}, findings: [], actions: [] });
 
 export default function SupplierDetailPage() {
+  const { t } = useI18n();
   const { supplierId } = useParams<{ supplierId: string }>();
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
@@ -28,37 +30,37 @@ export default function SupplierDetailPage() {
   const load = useCallback(async () => {
     if (!supplierId) return;
     setError('');
-    try { setDetail((await supplierApi.getDetail(supplierId)).data); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load supplier workflow.'); }
-  }, [supplierId]);
+    try { setDetail((await supplierApi.getDetail(supplierId)).data); } catch (err) { setError(err instanceof Error ? err.message : t('common.loading')); }
+  }, [supplierId, t]);
   useEffect(() => { void load(); }, [load]);
 
   const saveAssessment = async (event: FormEvent) => {
-    event.preventDefault(); if (!supplierId || !assessment.assessorId) { setError('Select an assessor before saving the assessment.'); return; }
+    event.preventDefault(); if (!supplierId || !assessment.assessorId) { setError(t('common.requiredField')); return; }
     setBusy(true); setError('');
     try {
       if (editingAssessment) await supplierApi.updateAssessment(editingAssessment, assessment);
       else await supplierApi.createAssessment(supplierId, assessment as any);
       setAssessment(emptyAssessment(currentUser?.id)); setEditingAssessment(null); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save assessment.'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error ? err.message : t('common.saveError')); } finally { setBusy(false); }
   };
   const addRelation = async (kind: 'contract' | 'risk') => {
     if (!supplierId || !(kind === 'contract' ? contract : risk)) return;
     setBusy(true); try {
       if (kind === 'contract') await supplierApi.addContract(supplierId, { contractId: contract!.id }); else await supplierApi.addRisk(supplierId, { riskId: risk!.id });
       setContract(null); setRisk(null); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to link item.'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error ? err.message : t('common.saveError')); } finally { setBusy(false); }
   };
   const createCapa = async (event: FormEvent) => {
     event.preventDefault(); if (!supplierId || !capa.title) return;
-    setBusy(true); try { await supplierApi.createCapa(supplierId, { ...capa, dueDate: capa.dueDate || undefined }); setCapa({ title: '', description: '', dueDate: '' }); await load(); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to create CAPA.'); } finally { setBusy(false); }
+    setBusy(true); try { await supplierApi.createCapa(supplierId, { ...capa, dueDate: capa.dueDate || undefined }); setCapa({ title: '', description: '', dueDate: '' }); await load(); } catch (err) { setError(err instanceof Error ? err.message : t('common.saveError')); } finally { setBusy(false); }
   };
   const findings = assessment.findings ?? []; const actions = assessment.actions ?? [];
   const updateFinding = (index: number, value: SupplierFinding) => setAssessment((old) => ({ ...old, findings: findings.map((item, i) => i === index ? value : item) }));
   const updateAction = (index: number, value: SupplierAction) => setAssessment((old) => ({ ...old, actions: actions.map((item, i) => i === index ? value : item) }));
-  if (!detail) return <div className={card}>{error || 'Loading supplier workflow…'}</div>;
+  if (!detail) return <div className={card}>{error || t('common.loading')}</div>;
 
   return <div className="space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-3"><div><button onClick={() => navigate('/isms-operations')} className="text-sm text-blue-600">← ISMS operations</button><h1 className="mt-2 text-2xl font-bold">{String(detail.supplier.legalName)}</h1><p className="text-sm text-gray-500">{String(detail.supplier.displayId)} · Supplier workflow</p></div><span className="rounded bg-blue-50 px-3 py-1 text-sm text-blue-800">{String(detail.supplier.status)}</span></header>
+    <header className="flex flex-wrap items-start justify-between gap-3"><div><button onClick={() => navigate('/isms-operations')} className="text-sm text-blue-600">← {t('ismsOperations.title')}</button><h1 className="mt-2 text-2xl font-bold">{String(detail.supplier.legalName)}</h1><p className="text-sm text-gray-500">{String(detail.supplier.displayId)} · {t('suppliers.title')}</p></div><span className="rounded bg-blue-50 px-3 py-1 text-sm text-blue-800">{String(detail.supplier.status)}</span></header>
     {error && <p className="rounded bg-red-50 p-3 text-red-800">{error}</p>}
     <nav className="flex flex-wrap gap-2">{(['profile', 'assessments', 'contracts', 'risks', 'actions', 'history'] as Tab[]).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded px-3 py-2 text-sm capitalize ${tab === item ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700'}`}>{item === 'actions' ? 'CAPAs / Actions' : item === 'history' ? 'History / Reviews' : item}</button>)}</nav>
     {tab === 'profile' && <section className={card}><h2 className="text-lg font-semibold">Profile</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2">{([['Contact', detail.supplier.contactPerson], ['Email', detail.supplier.contactEmail], ['Services', detail.supplier.servicesProvided], ['Criticality', detail.supplier.criticality], ['Next review', detail.supplier.nextReviewDate]] as Array<[string, unknown]>).map(([label, value]) => <div key={label}><dt className="text-xs uppercase text-gray-500">{label}</dt><dd>{String(value ?? 'Not recorded')}</dd></div>)}</dl></section>}

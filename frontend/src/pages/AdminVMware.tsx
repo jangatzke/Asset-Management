@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -29,6 +29,7 @@ import {
   MenuItem,
   FormHelperText,
 } from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -38,6 +39,7 @@ import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { vmwareApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { useDarkMode } from '../context/DarkModeContext';
 
 interface VMwareCredential {
   id: string;
@@ -74,7 +76,9 @@ const syncStatusColors: Record<string, string> = {
 };
 
 export default function AdminVMware() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const { darkMode } = useDarkMode();
+  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
 
   // Credential state
   const [credentials, setCredentials] = useState<VMwareCredential[]>([]);
@@ -135,7 +139,7 @@ export default function AdminVMware() {
 
   const handleSaveCredential = async () => {
     if (!credName.trim() || !credUsername.trim()) {
-      setAlert({ type: 'error', message: 'Name and username are required' });
+      setAlert({ type: 'error', message: t('common.requiredField') });
       return;
     }
 
@@ -144,48 +148,48 @@ export default function AdminVMware() {
       const data: any = { name: credName, username: credUsername };
       if (credPassword) {
         if (credPassword !== credConfirmPassword) {
-          setAlert({ type: 'error', message: 'Passwords do not match' });
+          setAlert({ type: 'error', message: t('vmware.passwordsDoNotMatch') });
           return;
         }
         data.password = credPassword;
       }
       try {
         await vmwareApi.updateCredential(editingCredId, data);
-        setAlert({ type: 'success', message: 'Credential updated successfully' });
+        setAlert({ type: 'success', message: t('common.saveSuccess') });
         setCredDialogOpen(false);
         loadCredentials();
       } catch (e: any) {
-        setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to update credential' });
+        setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.saveCredentialError') });
       }
     } else {
       // Create new credential
       if (!credPassword) {
-        setAlert({ type: 'error', message: 'Password is required for new credentials' });
+        setAlert({ type: 'error', message: t('common.requiredField') });
         return;
       }
       if (credPassword !== credConfirmPassword) {
-        setAlert({ type: 'error', message: 'Passwords do not match' });
+        setAlert({ type: 'error', message: t('vmware.passwordsDoNotMatch') });
         return;
       }
       try {
         await vmwareApi.createCredential({ name: credName, username: credUsername, password: credPassword });
-        setAlert({ type: 'success', message: 'Credential created successfully' });
+        setAlert({ type: 'success', message: t('common.saveSuccess') });
         setCredDialogOpen(false);
         loadCredentials();
       } catch (e: any) {
-        setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to create credential' });
+        setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.saveCredentialError') });
       }
     }
   };
 
   const handleDeleteCredential = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this credential?')) return;
+    if (!window.confirm(t('vmware.deleteCredentialConfirm'))) return;
     try {
       await vmwareApi.deleteCredential(id);
-      setAlert({ type: 'success', message: 'Credential deleted successfully' });
+      setAlert({ type: 'success', message: t('common.deleteSuccess') });
       loadCredentials();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to delete credential' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('common.deleteError') });
     }
   };
 
@@ -220,7 +224,7 @@ export default function AdminVMware() {
 
   const handleSaveServer = async () => {
     if (!serverName.trim() || !serverHost.trim() || !serverCredentialId) {
-      setAlert({ type: 'error', message: 'Name, host, and credential are required' });
+      setAlert({ type: 'error', message: t('common.requiredField') });
       return;
     }
 
@@ -232,7 +236,7 @@ export default function AdminVMware() {
           port: serverPort,
           credentialId: serverCredentialId,
         });
-        setAlert({ type: 'success', message: 'vCenter server updated successfully' });
+        setAlert({ type: 'success', message: t('common.saveSuccess') });
       } else {
         await vmwareApi.createServer({
           name: serverName,
@@ -240,20 +244,20 @@ export default function AdminVMware() {
           port: serverPort,
           credentialId: serverCredentialId,
         });
-        setAlert({ type: 'success', message: 'vCenter server created successfully' });
+        setAlert({ type: 'success', message: t('common.saveSuccess') });
       }
       setServerDialogOpen(false);
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to save vCenter server' });
+        setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.saveServerError') });
     }
   };
 
   const handleDeleteServer = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this vCenter server?')) return;
+    if (!window.confirm(t('vmware.deleteServerConfirm'))) return;
     try {
       await vmwareApi.deleteServer(id);
-      setAlert({ type: 'success', message: 'vCenter server deleted successfully' });
+      setAlert({ type: 'success', message: t('common.deleteSuccess') });
       loadServers();
     } catch (e: any) {
       setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to delete vCenter server' });
@@ -265,7 +269,7 @@ export default function AdminVMware() {
       await vmwareApi.updateServer(server.id, { enabled: !server.enabled });
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to update server' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.saveServerError') });
     }
   };
 
@@ -274,12 +278,12 @@ export default function AdminVMware() {
     try {
       const res = await vmwareApi.testConnection(id);
       if (res.data.success) {
-        setAlert({ type: 'success', message: `Connection to vCenter successful` });
+        setAlert({ type: 'success', message: t('vmware.connectionSuccess') });
       } else {
-        setAlert({ type: 'error', message: `Connection failed: ${res.data.message}` });
+        setAlert({ type: 'error', message: `${t('vmware.connectionFailed')}: ${res.data.message}` });
       }
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Connection test failed' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.connectionTestFailed') });
     } finally {
       setTesting((prev) => ({ ...prev, [id]: false }));
     }
@@ -289,17 +293,17 @@ export default function AdminVMware() {
     setImporting((prev) => ({ ...prev, [id]: true }));
     try {
       const res = await vmwareApi.importVMs(id, dryRun);
-      const mode = res.data.dryRun ? 'Dry run - ' : '';
+      const mode = res.data.dryRun ? `${t('vmware.dryRun')} - ` : '';
       setAlert({
         type: 'success',
-        message: `${mode}Imported ${res.data.imported} VMs, updated ${res.data.updated}, errors: ${res.data.errors.length}`,
+        message: `${mode}${t('vmware.importSuccess')}: ${res.data.imported}/${res.data.updated}/${res.data.errors.length}`,
       });
       if (res.data.errors.length > 0) {
         console.warn('Import errors:', res.data.errors);
       }
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'VM import failed' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.importSuccess') });
     } finally {
       setImporting((prev) => ({ ...prev, [id]: false }));
     }
@@ -307,13 +311,14 @@ export default function AdminVMware() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString();
+    return new Date(dateStr).toLocaleString(language);
   };
 
   return (
+    <ThemeProvider theme={muiTheme}>
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        VMware vCenter Integration
+        {t('vmware.title')}
       </Typography>
 
       {alert && (
@@ -328,10 +333,10 @@ export default function AdminVMware() {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
               <VpnKeyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-              VMware Credentials
+              {t('vmware.credentials')}
             </Typography>
             <Button variant="contained" onClick={openCreateCredentialDialog}>
-              Add Credential
+              {t('vmware.addCredential')}
             </Button>
           </Box>
 
@@ -339,12 +344,12 @@ export default function AdminVMware() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Username</TableCell>
-                  <TableCell>vCenter Count</TableCell>
-                  <TableCell>Default</TableCell>
-                  <TableCell>Created</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell>{t('common.name')}</TableCell>
+                  <TableCell>{t('vmware.username')}</TableCell>
+                  <TableCell>{t('vmware.vcenterServers')}</TableCell>
+                  <TableCell>{t('vmware.default')}</TableCell>
+                  <TableCell>{t('common.created')}</TableCell>
+                  <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -354,16 +359,16 @@ export default function AdminVMware() {
                     <TableCell>{cred.username}</TableCell>
                     <TableCell>{cred.vCenterCount}</TableCell>
                     <TableCell>
-                      {cred.isDefault && <Chip label="Default" size="small" color="primary" />}
+                       {cred.isDefault && <Chip label={t('vmware.default')} size="small" color="primary" />}
                     </TableCell>
                     <TableCell>{formatDate(cred.createdAt)}</TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Edit">
+                      <Tooltip title={t('common.edit')}>
                         <IconButton size="small" onClick={() => openEditCredentialDialog(cred)}>
                           <RefreshIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
+                      <Tooltip title={t('common.delete')}>
                         <IconButton size="small" color="error" onClick={() => handleDeleteCredential(cred.id)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -374,7 +379,7 @@ export default function AdminVMware() {
                 {credentials.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} align="center">
-                      No credentials configured
+                      {t('vmware.noCredentialsConfigured')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -390,16 +395,16 @@ export default function AdminVMware() {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
               <CloudIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-              vCenter Servers
+               {t('vmware.vcenterServers')}
             </Typography>
             <Button variant="contained" onClick={openCreateServerDialog} disabled={credentials.length === 0}>
-              Add vCenter Server
+               {t('vmware.addVcenterServer')}
             </Button>
           </Box>
 
           {credentials.length === 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Please add VMware credentials first before configuring vCenter servers.
+               {t('vmware.noCredentialsWarning')}
             </Alert>
           )}
 
@@ -407,14 +412,14 @@ export default function AdminVMware() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Host</TableCell>
-                  <TableCell>Credential</TableCell>
-                  <TableCell>Enabled</TableCell>
-                  <TableCell>VM Count</TableCell>
-                  <TableCell>Last Sync</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell>{t('common.name')}</TableCell>
+                  <TableCell>{t('vmware.host')}</TableCell>
+                  <TableCell>{t('vmware.credential')}</TableCell>
+                  <TableCell>{t('vmware.enabled')}</TableCell>
+                  <TableCell>{t('vmware.vmCount')}</TableCell>
+                  <TableCell>{t('vmware.lastSync')}</TableCell>
+                  <TableCell>{t('vmware.status')}</TableCell>
+                  <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -448,7 +453,7 @@ export default function AdminVMware() {
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Test Connection">
+                      <Tooltip title={t('vmware.testConnection')}>
                         <IconButton
                           size="small"
                           onClick={() => handleTestConnection(server.id)}
@@ -461,7 +466,7 @@ export default function AdminVMware() {
                           )}
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Import VMs">
+                      <Tooltip title={t('vmware.importVMs')}>
                         <IconButton
                           size="small"
                           color="primary"
@@ -475,7 +480,7 @@ export default function AdminVMware() {
                           )}
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Dry Run Import">
+                      <Tooltip title={t('vmware.dryRun')}>
                         <IconButton
                           size="small"
                           onClick={() => handleImportVMs(server.id, true)}
@@ -484,12 +489,12 @@ export default function AdminVMware() {
                           <WarningIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Edit">
+                      <Tooltip title={t('common.edit')}>
                         <IconButton size="small" onClick={() => openEditServerDialog(server)}>
                           <RefreshIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
+                      <Tooltip title={t('common.delete')}>
                         <IconButton size="small" color="error" onClick={() => handleDeleteServer(server.id)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -500,7 +505,7 @@ export default function AdminVMware() {
                 {servers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} align="center">
-                      No vCenter servers configured
+                      {t('vmware.noServersConfigured')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -511,7 +516,7 @@ export default function AdminVMware() {
           {servers.some((s) => s.lastSyncError) && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="body2" color="error">
-                Last sync errors:
+                {t('intune.lastError')}:
               </Typography>
               {servers
                 .filter((s) => s.lastSyncError)
@@ -529,22 +534,22 @@ export default function AdminVMware() {
 
       {/* ---- Credential Dialog ---- */}
       <Dialog open={credDialogOpen} onClose={() => setCredDialogOpen(false)}>
-        <DialogTitle>{editingCredId ? 'Edit Credential' : 'Add VMware Credential'}</DialogTitle>
+        <DialogTitle>{editingCredId ? t('vmware.editCredential') : t('vmware.addCredential')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
             <TextField
-              label="Name"
+              label={t('common.name')}
               value={credName}
               onChange={(e) => setCredName(e.target.value)}
               fullWidth
-              placeholder="e.g. Production vCenter"
+              placeholder={t('vmware.serverName')}
             />
             <TextField
               label={t('vmware.username')}
               value={credUsername}
               onChange={(e) => setCredUsername(e.target.value)}
               fullWidth
-              placeholder="e.g. administrator@vsphere.local"
+              placeholder={t('vmware.username')}
             />
             <TextField
               label={editingCredId ? t('vmware.newPasswordKeep') : t('login.password')}
@@ -586,14 +591,14 @@ export default function AdminVMware() {
               value={serverName}
               onChange={(e) => setServerName(e.target.value)}
               fullWidth
-              placeholder="e.g. Production vCenter"
+              placeholder={t('vmware.serverName')}
             />
             <TextField
               label={t('vmware.host')}
               value={serverHost}
               onChange={(e) => setServerHost(e.target.value)}
               fullWidth
-              placeholder="e.g. vcenter.example.com"
+              placeholder={t('vmware.host')}
             />
             <TextField
               label={t('vmware.port')}
@@ -628,5 +633,6 @@ export default function AdminVMware() {
         </DialogActions>
       </Dialog>
     </Box>
+    </ThemeProvider>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import EntityPicker from '../components/EntityPicker';
 import { auditWorkflowApi, type AuditDetail, type AuditFinding, type AuditFindingDetail, type AuditProgram, type AuditProgramDetail, type CorrectiveAction } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
+import { useI18n } from '../context/I18nContext';
 
 type View = { kind: 'programs' } | { kind: 'program'; id: string } | { kind: 'audit'; id: string } | { kind: 'finding'; id: string };
 const inputClass = 'w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800';
@@ -13,6 +14,7 @@ function Picker({ label, entityType, multiple = false, value, values, onChange }
 }
 
 export default function AuditWorkspace() {
+  const { t } = useI18n();
   const [view, setView] = useState<View>({ kind: 'programs' });
   const [programs, setPrograms] = useState<AuditProgram[]>([]);
   const [programDetail, setProgramDetail] = useState<AuditProgramDetail | null>(null);
@@ -32,16 +34,16 @@ export default function AuditWorkspace() {
       if (view.kind === 'program') setProgramDetail((await auditWorkflowApi.getProgramDetail(view.id)).data);
       if (view.kind === 'audit') setAuditDetail((await auditWorkflowApi.getAuditDetail(view.id)).data);
       if (view.kind === 'finding') setFindingDetail((await auditWorkflowApi.getFindingDetail(view.id)).data);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load audit workflow.'); }
-  }, [view]);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : t('common.loading')); }
+  }, [view, t]);
   useEffect(() => { void load(); }, [load]);
-  const run = async (action: () => Promise<unknown>) => { setBusy(true); setError(null); try { await action(); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'The workflow action could not be completed.'); } finally { setBusy(false); } };
+  const run = async (action: () => Promise<unknown>) => { setBusy(true); setError(null); try { await action(); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : t('common.saveError')); } finally { setBusy(false); } };
 
   return <main className="mx-auto max-w-6xl space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-3"><div><Link to="/isms-operations" className="text-sm text-blue-600 hover:underline">← ISMS Operations</Link><h1 className="mt-2 text-2xl font-semibold">Audit &amp; CAPA workspace</h1><p className="text-sm text-gray-500">Program → audit → finding → evidence → CAPA → effectiveness → close/reopen</p></div>{view.kind !== 'programs' && <button className={buttonClass} onClick={() => setView({ kind: 'programs' })}>All programs</button>}</header>
+    <header className="flex flex-wrap items-start justify-between gap-3"><div><Link to="/isms-operations" className="text-sm text-blue-600 hover:underline">← {t('ismsOperations.title')}</Link><h1 className="mt-2 text-2xl font-semibold">{t('audit.title')}</h1><p className="text-sm text-gray-500">Program → audit → {t('audit.findings').toLowerCase()} → {t('audit.evidence').toLowerCase()} → CAPA → effectiveness → close/reopen</p></div>{view.kind !== 'programs' && <button className={buttonClass} onClick={() => setView({ kind: 'programs' })}>{t('common.all')}</button>}</header>
     {error && <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
 
-    {view.kind === 'programs' && <section className="space-y-4"><div className="flex justify-between"><h2 className="text-lg font-semibold">Audit programs</h2><button className={buttonClass} onClick={() => setShowProgram(true)}>Create program</button></div><div className="grid gap-3 md:grid-cols-2">{programs.map((program) => <button key={program.id} onClick={() => setView({ kind: 'program', id: program.id })} className="rounded border p-4 text-left hover:border-blue-500"><strong>{program.displayId} · {program.title}</strong><p className="mt-1 text-sm text-gray-500">{program.year} · {program.status}</p><p className="mt-2 text-sm">{program.scope}</p></button>)}{programs.length === 0 && <p className="text-sm text-gray-500">No audit programs yet.</p>}</div>{showProgram && <ProgramForm busy={busy} onCancel={() => setShowProgram(false)} onSave={(data) => run(async () => { await auditWorkflowApi.createProgram(data); setShowProgram(false); })} />}</section>}
+    {view.kind === 'programs' && <section className="space-y-4"><div className="flex justify-between"><h2 className="text-lg font-semibold">{t('audit.auditProgram')}</h2><button className={buttonClass} onClick={() => setShowProgram(true)}>{t('common.create')}</button></div><div className="grid gap-3 md:grid-cols-2">{programs.map((program) => <button key={program.id} onClick={() => setView({ kind: 'program', id: program.id })} className="rounded border p-4 text-left hover:border-blue-500"><strong>{program.displayId} · {program.title}</strong><p className="mt-1 text-sm text-gray-500">{program.year} · {program.status}</p><p className="mt-2 text-sm">{program.scope}</p></button>)}{programs.length === 0 && <p className="text-sm text-gray-500">{t('common.noResults')}</p>}</div>{showProgram && <ProgramForm busy={busy} onCancel={() => setShowProgram(false)} onSave={(data) => run(async () => { await auditWorkflowApi.createProgram(data); setShowProgram(false); })} />}</section>}
 
     {view.kind === 'program' && programDetail && <section className="space-y-4"><div className="rounded border p-4"><h2 className="text-lg font-semibold">{programDetail.program.displayId} · {programDetail.program.title}</h2><p className="mt-1 text-sm">{programDetail.program.scope}</p></div><div className="flex justify-between"><h3 className="font-semibold">Audits</h3><button className={buttonClass} onClick={() => setShowAudit(true)}>Create audit</button></div><div className="space-y-2">{programDetail.audits.map((audit) => <button key={audit.id} className="w-full rounded border p-3 text-left hover:border-blue-500" onClick={() => setView({ kind: 'audit', id: audit.id })}><strong>{audit.displayId} · {audit.title}</strong><span className="ml-2 text-sm text-gray-500">{audit.status} · {new Date(audit.plannedStart).toLocaleDateString()}</span></button>)}</div>{showAudit && <AuditForm busy={busy} onCancel={() => setShowAudit(false)} onSave={(data) => run(async () => { await auditWorkflowApi.createAudit(programDetail.program.id, data); setShowAudit(false); })} />}</section>}
 

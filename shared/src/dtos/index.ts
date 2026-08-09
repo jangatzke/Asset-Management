@@ -650,16 +650,24 @@ export const UpdateIncidentSchema = CreateIncidentSchema.partial().extend({
 export type UpdateIncidentDTO = z.infer<typeof UpdateIncidentSchema>;
 
 export const AssessIncidentSchema = z.object({
-  assessorId: z.string().min(1),
   isReportable: z.boolean(),
   reportingJustification: z.string().optional(),
   decisionNotToReport: z.string().optional(),
+  // This is the requested approver assignment, never an approval attribution.
   decisionApprovedBy: z.string().uuid().optional(),
 }).superRefine((data, ctx) => {
   if (!data.isReportable && !data.decisionNotToReport) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['decisionNotToReport'], message: 'Decision not to report requires justification' });
   if (!data.isReportable && !data.decisionApprovedBy) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['decisionApprovedBy'], message: 'Decision not to report requires approval' });
 });
 export type AssessIncidentDTO = z.infer<typeof AssessIncidentSchema>;
+
+export const DecideIncidentNonReportableApprovalSchema = z.object({
+  decision: z.enum(['approve', 'reject']),
+  returnReason: z.string().trim().min(1, 'A return reason is required').optional(),
+}).superRefine((data, ctx) => {
+  if (data.decision === 'reject' && !data.returnReason) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['returnReason'], message: 'A return reason is required' });
+});
+export type DecideIncidentNonReportableApprovalDTO = z.infer<typeof DecideIncidentNonReportableApprovalSchema>;
 
 export const ChangeKnowledgeTimeSchema = z.object({
   knowledgeTime: z.coerce.date(),
@@ -673,7 +681,6 @@ export const CreateIncidentReportSchema = z.object({
   reportType: IncidentReportTypeSchema,
   title: z.string().optional(),
   content: z.record(JsonValueSchema),
-  authorId: z.string().min(1),
   recipient: z.string().optional(),
   submissionMethod: z.string().optional(),
   submissionProof: z.string().optional(),

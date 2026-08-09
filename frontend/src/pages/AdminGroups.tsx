@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { adminApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
+import EntityPicker from '../components/EntityPicker';
+import type { EntityPickerResult } from '../services/entityPickerApi';
 
 interface Group {
   id: string;
   name: string;
   description?: string;
-  users?: any[];
-  roles?: any[];
+  users?: User[];
+  roles?: Role[];
+  userGroups?: Array<{ user: User }>;
+  groupRoles?: Array<{ roleName: string; roleId?: string | null }>;
 }
 
 interface User {
@@ -31,9 +35,11 @@ interface GroupForm {
 const AdminGroups = () => {
   const { t } = useI18n();
   const [groups, setGroups] = useState<Group[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [assignmentError, setAssignmentError] = useState(false);
+  const [savingUsers, setSavingUsers] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [usersModalOpen, setUsersModalOpen] = useState(false);
@@ -44,6 +50,7 @@ const AdminGroups = () => {
     description: '',
   });
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<EntityPickerResult[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -52,16 +59,16 @@ const AdminGroups = () => {
 
   const loadData = async () => {
     try {
-      const [groupsRes, usersRes, rolesRes] = await Promise.all([
+      const [groupsRes, rolesRes] = await Promise.all([
         adminApi.listGroups(),
-        adminApi.listUsers(),
         adminApi.getRoles(),
       ]);
       setGroups(groupsRes.data);
-      setUsers(usersRes.data);
       setRoles(rolesRes.data);
+      setLoadError(false);
     } catch (error) {
       console.error('Failed to load data:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -103,11 +110,16 @@ const AdminGroups = () => {
   const handleAssignUsers = async () => {
     if (!selectedGroup) return;
     try {
+      setSavingUsers(true);
+      setAssignmentError(false);
       await adminApi.assignUsersToGroup(selectedGroup.id, selectedUserIds);
       setUsersModalOpen(false);
       loadData();
     } catch (error) {
       console.error('Failed to assign users:', error);
+      setAssignmentError(true);
+    } finally {
+      setSavingUsers(false);
     }
   };
 
@@ -133,7 +145,10 @@ const AdminGroups = () => {
 
   const openUsersModal = (group: Group) => {
     setSelectedGroup(group);
-    setSelectedUserIds(group.users?.map((u: any) => u.id) || []);
+    const existingUsers = group.users ?? group.userGroups?.map((assignment) => assignment.user) ?? [];
+    setSelectedUserIds(existingUsers.map((user) => user.id));
+    setSelectedUsers(existingUsers.map((user) => ({ id: user.id, label: `${user.firstName} ${user.lastName} (${user.email})` })));
+    setAssignmentError(false);
     setUsersModalOpen(true);
   };
 
@@ -153,12 +168,14 @@ const AdminGroups = () => {
           onClick={() => setCreateModalOpen(true)}
           className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
         >
-          {t('common.createNew')} {t('common.group').toLowerCase()}
+          {t('groups.createGroup')}
         </button>
       </div>
 
       {loading ? (
         <div className="text-center py-8 text-gray-500">{t('common.loading')}</div>
+      ) : loadError ? (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{t('common.noResults')}</div>
       ) : (
         <div className="bg-white dark:bg-card rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
@@ -192,12 +209,12 @@ const AdminGroups = () => {
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-gray-600 dark:text-gray-300">
-                      {group.users?.length || 0}
+                        {(group.users ?? group.userGroups ?? []).length}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-gray-600 dark:text-gray-300">
-                      {group.roles?.length || 0}
+                        {(group.roles ?? group.groupRoles ?? []).length}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -334,39 +351,33 @@ const AdminGroups = () => {
         title={t('groups.assignUsers')}
       >
         <div className="space-y-4">
-          <div className="max-h-60 overflow-y-auto border border-gray-300 dark:border-card rounded-md p-2">
-            {users.map((user) => (
-              <label key={user.id} className="flex items-center py-1">
-                <input
-                  type="checkbox"
-                  checked={selectedUserIds.includes(user.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedUserIds([...selectedUserIds, user.id]);
-                    } else {
-                      setSelectedUserIds(selectedUserIds.filter((id) => id !== user.id));
-                    }
-                  }}
-                  className="mr-2"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {user.firstName} {user.lastName} ({user.email})
-                </span>
-              </label>
-            ))}
-          </div>
+          <EntityPicker
+            label={t('groups.assignUsers')}
+            labelKey="groups.assignUsers"
+            entityType="user"
+            multiple
+            values={selectedUsers}
+            onValuesChange={(values: EntityPickerResult[]) => {
+              setSelectedUsers(values);
+              setSelectedUserIds(values.map((user) => user.id));
+            }}
+            disabled={savingUsers}
+          />
+          {assignmentError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{t('common.noResults')}</p>}
           <div className="flex justify-end space-x-2">
             <button
-              onClick={() => setUsersModalOpen(false)}
+              onClick={() => { setUsersModalOpen(false); setAssignmentError(false); }}
+              disabled={savingUsers}
               className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               {t('common.cancel')}
             </button>
             <button
               onClick={handleAssignUsers}
+              disabled={savingUsers}
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              {t('common.save')}
+              {savingUsers ? t('common.loading') : t('common.save')}
             </button>
           </div>
         </div>

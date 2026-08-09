@@ -89,3 +89,25 @@ test('database admin locale keys resolve in both locales', () => {
     }
   }
 });
+
+test('operations and administration locale catalogs remain complete in both locales', () => {
+  const keys = [
+    'operationsWorkspace.title', 'operationsWorkspace.workspaces.training', 'operationsWorkspace.actions.runReport',
+    'audit.title', 'audit.findings', 'audit.status.inProgress',
+    'bcm.title', 'bcm.continuityPlan', 'bcm.status.underReview',
+    'suppliers.title', 'suppliers.exitPlan', 'suppliers.status.underReview',
+    'roles.permissionManagement', 'roles.savePermissions',
+    'groups.searchUsers', 'groups.selectedRoles',
+    'intune.healthStatus', 'intune.syncNow',
+    'vmware.configuration', 'vmware.verifyCertificate',
+  ];
+
+  for (const locale of [en, de]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});

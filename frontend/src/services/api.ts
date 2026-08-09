@@ -51,7 +51,7 @@ export type ActionCenterSourceType =
   | 'workflowTask' | 'notificationDeadline' | 'correctiveAction' | 'riskReviewTask'
   | 'trainingAssignment' | 'auditFinding' | 'managementReviewAction' | 'documentReview'
   | 'supplier' | 'supplierAssessment' | 'businessImpactAnalysis' | 'businessContinuityPlan'
-  | 'bcpExercise' | 'auditPlan' | 'managementReview';
+  | 'bcpExercise' | 'auditPlan' | 'managementReview' | 'incidentNonReportableApproval';
 
 export interface ActionCenterItem {
   id: string;
@@ -436,6 +436,7 @@ export const incidentApi = {
   update: (id: string, data: UpdateIncidentDTO) => api.put(`/incidents/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/incidents/${id}`),
   assess: (id: string, data: AssessIncidentDTO) => api.post(`/incidents/${id}/assess`, data),
+  decideNonReportableApproval: (id: string, data: { decision: 'approve' | 'reject'; returnReason?: string }) => api.post(`/incidents/${id}/non-reportable-approval`, data),
   changeKnowledgeTime: (id: string, data: ChangeKnowledgeTimeDTO) => api.post(`/incidents/${id}/knowledge-time`, data),
   recalculateDeadlines: (id: string) => api.post<IncidentDeadlineResponse[]>(`/incidents/${id}/recalculate-deadlines`),
   createReport: (id: string, data: CreateIncidentReportDTO) => api.post(`/incidents/${id}/reports`, data),
@@ -480,9 +481,10 @@ export const adminApi = {
     api.put(`/admin/users/${id}/roles`, { roles }),
   // Role CRUD
   getRoles: () => api.get('/admin/roles'),
-  createRole: (data: { name: string; description?: string; permissions: any[]; canAccessAdmin?: boolean; entityPermissions?: any }) =>
+  getRole: (id: string) => api.get(`/admin/roles/${id}`),
+  createRole: (data: { name: string; description?: string; permissionNames: string[]; canAccessAdmin?: boolean }) =>
     api.post('/admin/roles', data),
-  updateRole: (id: string, data: any) => api.put(`/admin/roles/${id}`, data),
+  updateRole: (id: string, data: { name?: string; description?: string; permissionNames?: string[]; canAccessAdmin?: boolean }) => api.put(`/admin/roles/${id}`, data),
   deleteRole: (id: string) => api.delete(`/admin/roles/${id}`),
   // Group Management
   listGroups: () => api.get('/admin/groups'),
@@ -494,7 +496,9 @@ export const adminApi = {
   assignUsersToGroup: (groupId: string, userIds: string[]) =>
     api.put(`/admin/groups/${groupId}/users`, { userIds }),
   assignRolesToGroup: (groupId: string, roleIds: string[]) =>
-    api.put(`/admin/groups/${groupId}/roles`, { roleIds }),
+    // The group API's canonical request field is `roles`.  Values may be role
+    // IDs (the admin UI) or legacy role names (external clients).
+    api.put(`/admin/groups/${groupId}/roles`, { roles: roleIds }),
   // OIDC Configuration
   getOidcConfig: () => api.get('/admin/oidc/config'),
   updateOidcConfig: (data: any) => api.put('/admin/oidc/config', data),

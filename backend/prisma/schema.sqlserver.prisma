@@ -1653,6 +1653,7 @@ model IncidentAssessment {
   isReportable              Boolean   @default(false)
   reportingJustification    String?
   decisionNotToReport       String?
+  decisionApprovalAssigneeId String?
   decisionApprovedBy        String?
   decisionApprovedAt        DateTime?
   significanceRuleVersionId String?
@@ -1669,6 +1670,7 @@ model IncidentAssessment {
   significanceRuleVersion Nis2IncidentSignificanceRuleVersion? @relation(fields: [significanceRuleVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([significanceRuleVersionId])
+  @@index([decisionApprovalAssigneeId, status])
   @@map("incident_assessments")
 }
 

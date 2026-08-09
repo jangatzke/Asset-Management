@@ -3,6 +3,7 @@ import EntityPicker from '../components/EntityPicker';
 import { Modal } from '../components/Modal';
 import { phase6Api } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
+import { useI18n } from '../context/I18nContext';
 import { humanizeWorkflowAction, pickerEntityTypeForWorkflow, workflowEntityTypes, type WorkflowAction } from './workflowUx';
 
 type RecordItem = Record<string, any>;
@@ -23,6 +24,7 @@ export const optionalNumber = (form: FormData, key: string): number | undefined 
 };
 
 export default function OperationsWorkspace() {
+  const { t } = useI18n();
   const [workspace, setWorkspace] = useState<Workspace>('training');
   const [data, setData] = useState<Record<string, RecordItem[]>>({});
   const [busy, setBusy] = useState(false);
@@ -34,32 +36,32 @@ export default function OperationsWorkspace() {
     try {
       const responses = await Promise.all(active.resources.map(resource => phase6Api.list(resource, { limit: 100 })));
       setData(previous => ({ ...previous, ...Object.fromEntries(active.resources.map((resource, index) => [resource, responses[index].data.data ?? responses[index].data])) }));
-    } catch { setError('The operational data could not be loaded with your current access.'); }
+    } catch { setError(t('operationsWorkspace.loadError')); }
     finally { setBusy(false); }
-  }, [active.resources]);
+  }, [active.resources, t]);
   useEffect(() => { void load(); }, [load]);
   const items = (resource: string) => data[resource] ?? [];
 
   return <div className="space-y-6">
-    <div><h1 className="text-2xl font-bold text-gray-900 dark:text-white">Operations workspace</h1><p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Run operational processes without identifiers or JSON editors.</p></div>
-    <nav className="flex flex-wrap gap-2" aria-label="Operational workspaces">{workspaces.map(item => <button key={item.key} onClick={() => setWorkspace(item.key)} className={`rounded px-3 py-2 text-sm font-medium ${workspace === item.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>{item.label}</button>)}</nav>
+    <div><h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('operationsWorkspace.title')}</h1><p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('operationsWorkspace.description')}</p></div>
+    <nav className="flex flex-wrap gap-2" aria-label={t('operationsWorkspace.navigationLabel')}>{workspaces.map(item => <button key={item.key} onClick={() => setWorkspace(item.key)} className={`rounded px-3 py-2 text-sm font-medium ${workspace === item.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>{t(`operationsWorkspace.workspaces.${item.key}`)}</button>)}</nav>
     {error && <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {workspace === 'training' && <Training courses={items('trainingCourses')} assignments={items('trainingAssignments')} acknowledgements={items('trainingAcknowledgements')} open={setModal} refresh={load} />}
     {workspace === 'metrics' && <Metrics definitions={items('metricDefinitions')} values={items('metricValues')} open={setModal} refresh={load} />}
     {workspace === 'reviews' && <Reviews reviews={items('managementReviews')} actions={items('managementReviewActions')} open={setModal} refresh={load} />}
     {workspace === 'workflows' && <Workflows definitions={items('workflowDefinitions')} instances={items('workflowInstances')} tasks={items('workflowTasks')} open={setModal} refresh={load} />}
     {workspace === 'reports' && <Reports definitions={items('reportDefinitions')} runs={items('reportRuns')} exports={items('exportJobs')} open={setModal} refresh={load} />}
-    {busy && <p className="text-sm text-gray-500">Refreshing workspace…</p>}
+    {busy && <p className="text-sm text-gray-500">{t('operationsWorkspace.refreshing')}</p>}
     <OperationModal kind={modal} courses={items('trainingCourses')} assignments={items('trainingAssignments')} definitions={items('metricDefinitions')} reviews={items('managementReviews')} workflows={items('workflowDefinitions')} instances={items('workflowInstances')} reports={items('reportDefinitions')} onClose={() => setModal(null)} onDone={() => { setModal(null); void load(); }} />
   </div>;
 }
 
-function List({ heading, items, children }: { heading: string; items: RecordItem[]; children?: React.ReactNode }) { return <section className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900"><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold text-gray-900 dark:text-white">{heading}</h2>{children}</div>{items.length ? <div className="divide-y divide-gray-200 dark:divide-gray-700">{items.map(item => <div key={item.id} className="py-3 text-sm"><strong className="text-gray-900 dark:text-white">{item.title ?? item.name ?? item.displayId}</strong><span className="ml-2 text-gray-500">{item.status ?? item.breachStatus ?? ''}</span><p className="mt-1 text-gray-600 dark:text-gray-400">{item.dueDate ? `Due ${new Date(item.dueDate).toLocaleDateString()}` : item.comment ?? item.description ?? ''}</p></div>)}</div> : <p className="text-sm text-gray-500">No records yet.</p>}</section> }
-function Training({ courses, assignments, acknowledgements, open }: any) { return <div className="grid gap-5 lg:grid-cols-2"><List heading="Courses" items={courses}><Button onClick={() => open('course')}>Create course</Button></List><List heading="Assignments" items={assignments}><div className="flex gap-2"><Button onClick={() => open('assignment')}>Assign course</Button><Button onClick={() => open('completion')}>Record completion</Button></div></List><List heading="Acknowledgements" items={acknowledgements}><Button onClick={() => open('acknowledgement')}>Acknowledge course</Button></List></div> }
-function Metrics({ definitions, values, open }: any) { return <div className="grid gap-5 lg:grid-cols-2"><List heading="Metric definitions" items={definitions}><Button onClick={() => open('metric')}>Define metric</Button></List><List heading="Values, trends & breaches" items={values}><Button onClick={() => open('value')}>Enter value</Button></List></div> }
-function Reviews({ reviews, actions, open }: any) { return <div className="grid gap-5 lg:grid-cols-2"><List heading="Management reviews" items={reviews}><div className="flex gap-2"><Button onClick={() => open('review')}>Schedule review</Button><Button onClick={() => open('approve')}>Approve review</Button></div></List><List heading="Decisions and actions" items={actions}><Button onClick={() => open('reviewAction')}>Add action</Button></List></div> }
-function Workflows({ definitions, instances, tasks, open }: any) { return <div className="grid gap-5 lg:grid-cols-2"><List heading="Definitions (administrative)" items={definitions}/><List heading="Contextual instances" items={instances}><Button onClick={() => open('startWorkflow')}>Start from entity</Button></List><List heading="Actionable tasks" items={tasks}><Button onClick={() => open('transition')}>Transition instance</Button></List></div> }
-function Reports({ definitions, runs, exports, open }: any) { return <div className="grid gap-5 lg:grid-cols-2"><List heading="Report definitions" items={definitions}><Button onClick={() => open('report')}>Create definition</Button></List><List heading="Run results" items={runs}><Button onClick={() => open('run')}>Run report</Button></List><List heading="Exports" items={exports}/></div> }
+function List({ heading, items, children }: { heading: string; items: RecordItem[]; children?: React.ReactNode }) { const { t } = useI18n(); return <section className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900"><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold text-gray-900 dark:text-white">{heading}</h2>{children}</div>{items.length ? <div className="divide-y divide-gray-200 dark:divide-gray-700">{items.map(item => <div key={item.id} className="py-3 text-sm"><strong className="text-gray-900 dark:text-white">{item.title ?? item.name ?? item.displayId}</strong><span className="ml-2 text-gray-500">{item.status ?? item.breachStatus ?? ''}</span><p className="mt-1 text-gray-600 dark:text-gray-400">{item.dueDate ? t('operationsWorkspace.dueDate').replace('{date}', new Date(item.dueDate).toLocaleDateString()) : item.comment ?? item.description ?? ''}</p></div>)}</div> : <p className="text-sm text-gray-500">{t('operationsWorkspace.noRecords')}</p>}</section> }
+function Training({ courses, assignments, acknowledgements, open }: any) { const { t } = useI18n(); return <div className="grid gap-5 lg:grid-cols-2"><List heading="Courses" items={courses}><Button onClick={() => open('course')}>{t('operationsWorkspace.actions.createCourse')}</Button></List><List heading="Assignments" items={assignments}><div className="flex gap-2"><Button onClick={() => open('assignment')}>{t('operationsWorkspace.actions.assignCourse')}</Button><Button onClick={() => open('completion')}>{t('operationsWorkspace.actions.recordCompletion')}</Button></div></List><List heading="Acknowledgements" items={acknowledgements}><Button onClick={() => open('acknowledgement')}>{t('operationsWorkspace.actions.acknowledgeCourse')}</Button></List></div> }
+function Metrics({ definitions, values, open }: any) { const { t } = useI18n(); return <div className="grid gap-5 lg:grid-cols-2"><List heading="Metric definitions" items={definitions}><Button onClick={() => open('metric')}>{t('operationsWorkspace.actions.defineMetric')}</Button></List><List heading="Values, trends & breaches" items={values}><Button onClick={() => open('value')}>{t('operationsWorkspace.actions.enterValue')}</Button></List></div> }
+function Reviews({ reviews, actions, open }: any) { const { t } = useI18n(); return <div className="grid gap-5 lg:grid-cols-2"><List heading={t('operationsWorkspace.workspaces.reviews')} items={reviews}><div className="flex gap-2"><Button onClick={() => open('review')}>{t('operationsWorkspace.actions.scheduleReview')}</Button><Button onClick={() => open('approve')}>{t('operationsWorkspace.actions.approveReview')}</Button></div></List><List heading="Decisions and actions" items={actions}><Button onClick={() => open('reviewAction')}>{t('operationsWorkspace.actions.addAction')}</Button></List></div> }
+function Workflows({ definitions, instances, tasks, open }: any) { const { t } = useI18n(); return <div className="grid gap-5 lg:grid-cols-2"><List heading="Definitions (administrative)" items={definitions}/><List heading="Contextual instances" items={instances}><Button onClick={() => open('startWorkflow')}>{t('operationsWorkspace.actions.startFromEntity')}</Button></List><List heading="Actionable tasks" items={tasks}><Button onClick={() => open('transition')}>{t('operationsWorkspace.actions.transitionInstance')}</Button></List></div> }
+function Reports({ definitions, runs, exports, open }: any) { const { t } = useI18n(); return <div className="grid gap-5 lg:grid-cols-2"><List heading="Report definitions" items={definitions}><Button onClick={() => open('report')}>{t('operationsWorkspace.actions.createDefinition')}</Button></List><List heading="Run results" items={runs}><Button onClick={() => open('run')}>{t('operationsWorkspace.actions.runReport')}</Button></List><List heading="Exports" items={exports}/></div> }
 
 function OperationModal({ kind, courses, assignments, definitions, reviews, workflows, instances, reports, onClose, onDone }: any) {
   const [selected, setSelected] = useState<RecordItem | null>(null); const [user, setUser] = useState<EntityPickerResult | null>(null); const [entity, setEntity] = useState<EntityPickerResult | null>(null);

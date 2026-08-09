@@ -286,7 +286,19 @@
     "adminAccess": "Admin-Zugriff",
     "createRole": "Rolle erstellen",
     "editRole": "Rolle bearbeiten",
-    "deleteConfirm": "Sind Sie sicher, dass Sie diese Rolle löschen möchten?"
+    "deleteConfirm": "Sind Sie sicher, dass Sie diese Rolle löschen möchten?",
+    "permissionManagement": "Berechtigungsverwaltung",
+    "roleName": "Rollenname",
+    "roleDescription": "Rollenbeschreibung",
+    "globalPermissions": "Globale Berechtigungen",
+    "selectPermissionLevel": "Berechtigungsstufe auswählen",
+    "noPermissions": "Keine Berechtigungen zugewiesen",
+    "savePermissions": "Berechtigungen speichern",
+    "roleCreated": "Rolle erfolgreich erstellt",
+    "roleUpdated": "Rolle erfolgreich aktualisiert",
+    "roleDeleted": "Rolle erfolgreich gelöscht",
+    "loadError": "Rollen konnten nicht geladen werden",
+    "saveError": "Rolle konnte nicht gespeichert werden"
   },
   "permissions": {
     "none": "Keine",
@@ -350,7 +362,16 @@
     "assignUsers": "Benutzer zuweisen",
     "assignRoles": "Rollen zuweisen",
     "selectUsers": "Wählen Sie Benutzer für diese Gruppe aus",
-    "selectRoles": "Wählen Sie Rollen für diese Gruppe aus"
+    "selectRoles": "Wählen Sie Rollen für diese Gruppe aus",
+    "searchUsers": "Benutzer suchen...",
+    "searchRoles": "Rollen suchen...",
+    "noUsersAvailable": "Keine Benutzer verfügbar",
+    "noRolesAvailable": "Keine Rollen verfügbar",
+    "selectedUsers": "Ausgewählte Benutzer",
+    "selectedRoles": "Ausgewählte Rollen",
+    "usersAssigned": "Benutzer erfolgreich zugewiesen",
+    "rolesAssigned": "Rollen erfolgreich zugewiesen",
+    "assignmentError": "Gruppenzuweisungen konnten nicht gespeichert werden"
   },
   "adminUsers": {
     "title": "Benutzerverwaltung",
@@ -911,7 +932,20 @@
     "credentialsUpdated": "Anmeldeinformationen erfolgreich aktualisiert",
     "credentialsDeleted": "Anmeldeinformationen erfolgreich gelöscht",
     "noCredentials": "Keine Anmeldeinformationen konfiguriert",
-    "configureCredentials": "Anmeldeinformationen konfigurieren"
+    "configureCredentials": "Anmeldeinformationen konfigurieren",
+    "healthStatus": "Integritätsstatus",
+    "configuration": "Konfiguration",
+    "healthy": "Fehlerfrei",
+    "unhealthy": "Fehlerhaft",
+    "unknown": "Unbekannt",
+    "notConfigured": "Nicht konfiguriert",
+    "syncNow": "Jetzt synchronisieren",
+    "syncInProgress": "Synchronisierung läuft",
+    "syncSuccessful": "Synchronisierung erfolgreich abgeschlossen",
+    "syncFailed": "Synchronisierung fehlgeschlagen",
+    "deviceCount": "Geräteanzahl",
+    "lastError": "Letzter Fehler",
+    "deleteCredentialsConfirm": "Möchten Sie diese Anmeldeinformationen wirklich löschen?"
   },
   "vmware": {
     "title": "VMware vCenter Integration",
@@ -942,7 +976,19 @@
     "passwordsDoNotMatch": "Passwörter stimmen nicht überein",
     "editVcenterServer": "vCenter-Server bearbeiten",
     "default": "Standard",
-    "selectCredential": "Bitte Anmeldeinformation auswählen"
+    "selectCredential": "Bitte Anmeldeinformation auswählen",
+    "configuration": "Konfiguration",
+    "serverName": "Servername",
+    "syncNow": "Jetzt synchronisieren",
+    "importing": "Importiere...",
+    "connectionTesting": "Verbindung wird getestet...",
+    "connectionTestFailed": "Verbindung konnte nicht getestet werden",
+    "saveCredentialError": "Anmeldeinformation konnte nicht gespeichert werden",
+    "saveServerError": "vCenter-Server konnte nicht gespeichert werden",
+    "deleteCredentialConfirm": "Möchten Sie diese Anmeldeinformation wirklich löschen?",
+    "deleteServerConfirm": "Möchten Sie diesen vCenter-Server wirklich löschen?",
+    "serverEnabled": "Server aktiviert",
+    "verifyCertificate": "TLS-Zertifikat prüfen"
   },
   "proxmox": {
     "title": "Proxmox VE Integration",
@@ -1237,5 +1283,28 @@
       "target": "Zielrisiko"
     },
     "current": "Aktuell"
+  },
+  "operationsWorkspace": {
+    "title": "Betriebsarbeitsbereich",
+    "description": "Führen Sie operative Prozesse ohne Kennungen oder JSON-Editoren aus.",
+    "navigationLabel": "Operative Arbeitsbereiche",
+    "refreshing": "Arbeitsbereich wird aktualisiert…",
+    "loadError": "Die operativen Daten konnten mit Ihrem aktuellen Zugriff nicht geladen werden.",
+    "noRecords": "Noch keine Einträge.",
+    "dueDate": "Fällig am {date}",
+    "workspaces": { "training": "Schulung", "metrics": "Kennzahlen", "reviews": "Management-Reviews", "workflows": "Workflow-Aufgaben", "reports": "Berichte & Exporte" },
+    "actions": { "createCourse": "Kurs erstellen", "assignCourse": "Kurs zuweisen", "recordCompletion": "Abschluss erfassen", "acknowledgeCourse": "Kurs bestätigen", "defineMetric": "Kennzahl definieren", "enterValue": "Wert erfassen", "scheduleReview": "Review planen", "approveReview": "Review freigeben", "addAction": "Maßnahme hinzufügen", "startFromEntity": "Von Entität starten", "transitionInstance": "Instanz überführen", "createDefinition": "Definition erstellen", "runReport": "Bericht ausführen" }
+  },
+  "audit": {
+    "title": "Audit-Arbeitsbereich", "description": "Planen, führen und verfolgen Sie interne Audits nach.", "newAudit": "Neues Audit", "editAudit": "Audit bearbeiten", "auditProgram": "Auditprogramm", "auditScope": "Auditumfang", "auditCriteria": "Auditkriterien", "leadAuditor": "Leitender Auditor", "auditees": "Auditierte", "plannedDate": "Geplantes Datum", "completedDate": "Abschlussdatum", "findings": "Feststellungen", "newFinding": "Neue Feststellung", "findingType": "Art der Feststellung", "nonconformity": "Nichtkonformität", "observation": "Beobachtung", "opportunityForImprovement": "Verbesserungsmöglichkeit", "correctiveAction": "Korrekturmaßnahme", "evidence": "Nachweise", "conclusion": "Auditfazit", "status": { "planned": "Geplant", "inProgress": "In Bearbeitung", "completed": "Abgeschlossen", "cancelled": "Abgebrochen" }
+  },
+  "bcm": {
+    "title": "Geschäftskontinuität", "description": "Verwalten Sie Business-Impact-Analysen, Kontinuitätspläne und Übungen.", "businessImpactAnalysis": "Business-Impact-Analyse", "continuityPlan": "Kontinuitätsplan", "newPlan": "Neuer Kontinuitätsplan", "editPlan": "Kontinuitätsplan bearbeiten", "recoveryTimeObjective": "Wiederanlaufzeit-Ziel", "recoveryPointObjective": "Wiederherstellungspunkt-Ziel", "maximumTolerableDowntime": "Maximal tolerierbare Ausfallzeit", "criticalProcess": "Kritischer Prozess", "dependencies": "Abhängigkeiten", "resources": "Ressourcen", "recoveryStrategy": "Wiederherstellungsstrategie", "exercise": "Übung", "newExercise": "Neue Übung", "exerciseDate": "Übungsdatum", "exerciseResult": "Übungsergebnis", "lessonsLearned": "Erkenntnisse", "lastTested": "Zuletzt getestet", "nextTest": "Nächster Test", "status": { "draft": "Entwurf", "active": "Aktiv", "underReview": "In Prüfung", "retired": "Außer Betrieb" }
+  },
+  "suppliers": {
+    "title": "Lieferantenmanagement", "description": "Verwalten Sie Lieferantenrisiken, Reviews, Anforderungen und Exit-Bereitschaft.", "newSupplier": "Neuer Lieferant", "editSupplier": "Lieferant bearbeiten", "supplier": "Lieferant", "service": "Leistung", "criticality": "Kritikalität", "assessment": "Bewertung", "newAssessment": "Neue Bewertung", "assessmentDate": "Bewertungsdatum", "nextReviewDate": "Nächstes Review-Datum", "riskRating": "Risikobewertung", "securityRequirements": "Sicherheitsanforderungen", "contractualRequirements": "Vertragliche Anforderungen", "dataProcessing": "Datenverarbeitung", "exitPlan": "Exit-Plan", "exitReadiness": "Exit-Bereitschaft", "review": "Review", "noSuppliers": "Keine Lieferanten gefunden", "searchPlaceholder": "Lieferanten suchen...", "status": { "active": "Aktiv", "underReview": "In Prüfung", "approved": "Freigegeben", "restricted": "Eingeschränkt", "offboarded": "Ausgegliedert" }
+  },
+  "localeCatalog": {
+    "operationsAndAdminCoverage": "Abdeckung für Betrieb und Administration"
   }
 }

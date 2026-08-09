@@ -228,6 +228,14 @@ adminRouter.get('/roles', authenticate, requireAdminAccess, async (_req, res, ne
   }
 });
 
+adminRouter.get('/roles/:id', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    res.json(await adminService.getRoleById(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.post('/roles', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     const role = await adminService.createRole(req.body);
@@ -304,7 +312,10 @@ adminRouter.put('/groups/:id/users', authenticate, requireAdminAccess, async (re
 
 adminRouter.put('/groups/:id/roles', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    await adminService.assignRolesToGroup(req.params.id, req.body);
+    // `roles` is canonical; accept the historical `roleIds` payload during
+    // client rollout without weakening the route's authorization contract.
+    const roles = req.body?.roles ?? req.body?.roleIds;
+    await adminService.assignRolesToGroup(req.params.id, { roles });
     res.json({ message: 'Roles assigned to group successfully' });
   } catch (error) {
     next(error);

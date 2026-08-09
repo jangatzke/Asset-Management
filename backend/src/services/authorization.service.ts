@@ -217,7 +217,9 @@ export class AuthorizationService {
       if (rolePermission.permission?.name) permissions.add(rolePermission.permission.name);
     }
 
-    if (role?.canAccessAdmin || assignment.roleName === 'system_admin') permissions.add('administration.access');
+    // Effective authorization is derived from RolePermission rows.  The system role
+    // remains a bootstrap exception; custom roles must hold administration.access.
+    if (assignment.roleName === 'system_admin') permissions.add('administration.access');
     if (assignment.roleName === 'system_admin') GRANULAR_PERMISSIONS.forEach((permission) => permissions.add(permission));
     this.addLegacyPermissions(permissions, role?.entityPermissions);
 

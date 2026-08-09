@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { actionCenterApi, type ActionCenterItem, type ActionCenterParams, type ActionCenterResponse } from '../services/api';
 
 export const ACTION_CENTER_SOURCE_OPTIONS: ReadonlyArray<{ value: NonNullable<ActionCenterParams['sourceType']>; label: string }> = [
+  { value: 'incidentNonReportableApproval', label: 'Incident non-reportable approval' },
   { value: 'workflowTask', label: 'Workflow task' },
   { value: 'notificationDeadline', label: 'Notification deadline' },
   { value: 'correctiveAction', label: 'Corrective action' },

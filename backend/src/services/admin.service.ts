@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { oidcService } from './oidc.service';
 import { auditService } from './audit.service';
 import { authSettingsService, AuthSettingsDto } from './authSettings.service';
+import { GRANULAR_PERMISSIONS, PermissionName } from './authorization.service';
 
 // --- Types ---
 
@@ -61,17 +62,17 @@ export interface EntityPermissions {
 export interface CreateRoleDto {
   name: string;
   description?: string;
-  permissions: RolePermission[];
+  /** Canonical permission names persisted through RolePermission relations. */
+  permissionNames: PermissionName[];
   canAccessAdmin?: boolean;
-  entityPermissions?: EntityPermissions;
 }
 
 export interface UpdateRoleDto {
   name?: string;
   description?: string;
-  permissions?: RolePermission[];
+  /** Replaces the complete canonical permission set when supplied. */
+  permissionNames?: PermissionName[];
   canAccessAdmin?: boolean;
-  entityPermissions?: EntityPermissions;
 }
 
 export interface CreateGroupDto {
@@ -90,6 +91,18 @@ export interface AssignUsersToGroupDto {
 
 export interface AssignRolesToGroupDto {
   roles: string[];
+}
+
+export interface GroupDto {
+  id: string;
+  name: string;
+  description?: string | null;
+  users: Array<{ id: string; firstName: string; lastName: string; email: string }>;
+  roles: Array<{ id: string; name: string }>;
+  /** @deprecated Use users. Retained for existing API consumers. */
+  userGroups: Array<{ id: string; user: { id: string; firstName: string; lastName: string; email: string } }>;
+  /** @deprecated Use roles. Retained for existing API consumers. */
+  groupRoles: Array<{ id: string; roleName: string; roleId: string | null }>;
 }
 
 export interface UserWithRoles {
@@ -153,28 +166,14 @@ const BUILTIN_ROLES: CreateRoleDto[] = [
   {
     name: 'system_admin',
     description: 'Full system access, manages users, roles and all assets',
-    permissions: [],
+    permissionNames: [...GRANULAR_PERMISSIONS],
     canAccessAdmin: true,
-    entityPermissions: {
-      assets: 'readwrite',
-      risks: 'readwrite',
-      controls: 'readwrite',
-      incidents: 'readwrite',
-      costPlanning: 'readwrite',
-    },
   },
   {
     name: 'employee',
     description: 'Standard employee access',
-    permissions: [],
+    permissionNames: ['assets.read', 'risks.read', 'controls.read', 'incidents.read'],
     canAccessAdmin: false,
-    entityPermissions: {
-      assets: 'readonly',
-      risks: 'readonly',
-      controls: 'readonly',
-      incidents: 'readonly',
-      costPlanning: 'readonly',
-    },
   },
 ];
 
@@ -572,7 +571,8 @@ export class AdminService {
   }
 
   async getAvailableRoles(): Promise<any[]> {
-    const roles = await prisma.role.findMany({
+    const roles: any[] = await prisma.role.findMany({
+      include: { rolePermissions: { include: { permission: true } } },
       orderBy: { name: 'asc' },
     });
 
@@ -585,19 +585,59 @@ export class AdminService {
           name: builtin.name,
           description: builtin.description ?? null,
           isBuiltIn: true,
-          permissions: builtin.permissions as any,
+          permissions: [],
+          permissionNames: builtin.permissionNames,
           canAccessAdmin: builtin.canAccessAdmin ?? false,
-          entityPermissions: (builtin.entityPermissions as any) ?? null,
+          entityPermissions: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
       }
     }
 
-    return roles;
+    return roles.map((role: any) => this.toRoleResponse(role));
+  }
+
+  async getRoleById(id: string): Promise<any> {
+    const role = await prisma.role.findUnique({
+      where: { id },
+      include: { rolePermissions: { include: { permission: true } } },
+    });
+    if (!role) throw new AppError('Role not found', 404);
+    return this.toRoleResponse(role);
+  }
+
+  private toRoleResponse(role: any): any {
+    const permissionNames = (role.rolePermissions ?? [])
+      .map((rolePermission: any) => rolePermission.permission?.name)
+      .filter(Boolean)
+      .sort();
+    return { ...role, permissionNames, rolePermissions: undefined };
+  }
+
+  private validatePermissionNames(permissionNames: unknown): PermissionName[] {
+    if (!Array.isArray(permissionNames) || permissionNames.some((name) => typeof name !== 'string')) {
+      throw new AppError('permissionNames must be an array of canonical permission names', 400);
+    }
+    const unique = [...new Set(permissionNames)];
+    const invalid = unique.filter((name) => !GRANULAR_PERMISSIONS.includes(name as PermissionName));
+    if (invalid.length) throw new AppError(`Unknown canonical permission(s): ${invalid.join(', ')}`, 400);
+    return unique as PermissionName[];
+  }
+
+  private async replaceRolePermissions(tx: any, roleId: string, permissionNames: PermissionName[]): Promise<void> {
+    const permissions = permissionNames.length
+      ? await tx.permission.findMany({ where: { name: { in: permissionNames } }, select: { id: true, name: true } })
+      : [];
+    if (permissions.length !== permissionNames.length) throw new AppError('One or more canonical permissions are unavailable', 400);
+    await tx.rolePermission.deleteMany({ where: { roleId } });
+    if (permissions.length) {
+      await tx.rolePermission.createMany({ data: permissions.map((permission: any) => ({ roleId, permissionId: permission.id })) });
+    }
   }
 
   async createRole(data: CreateRoleDto, createdBy?: string): Promise<any> {
+    const permissionNames = this.validatePermissionNames(data.permissionNames);
     const existing = await prisma.role.findUnique({
       where: { name: data.name },
     });
@@ -605,15 +645,12 @@ export class AdminService {
       throw new AppError('Role with this name already exists', 409);
     }
 
-    const role = await prisma.role.create({
-      data: {
-        name: data.name,
-        description: data.description ?? null,
-        isBuiltIn: false,
-        permissions: data.permissions as any,
-        canAccessAdmin: data.canAccessAdmin ?? false,
-        entityPermissions: (data.entityPermissions as any) ?? null,
-      },
+    const role = await prisma.$transaction(async (tx: any) => {
+      const created = await tx.role.create({
+        data: { name: data.name, description: data.description ?? null, isBuiltIn: false, permissions: [], canAccessAdmin: data.canAccessAdmin ?? false },
+      });
+      await this.replaceRolePermissions(tx, created.id, permissionNames);
+      return tx.role.findUnique({ where: { id: created.id }, include: { rolePermissions: { include: { permission: true } } } });
     });
 
     // Audit log for role creation
@@ -627,7 +664,7 @@ export class AdminService {
       });
     }
 
-    return role;
+    return this.toRoleResponse(role);
   }
 async updateRole(id: string, data: UpdateRoleDto, updatedBy?: string): Promise<any> {
   const existing = await prisma.role.findUnique({
@@ -649,16 +686,15 @@ async updateRole(id: string, data: UpdateRoleDto, updatedBy?: string): Promise<a
     }
   }
 
+  const permissionNames = data.permissionNames === undefined ? undefined : this.validatePermissionNames(data.permissionNames);
   const updateData: any = {};
   if (data.name !== undefined) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description ?? null;
-  if (data.permissions !== undefined) updateData.permissions = data.permissions as any;
   if (data.canAccessAdmin !== undefined) updateData.canAccessAdmin = data.canAccessAdmin;
-  if (data.entityPermissions !== undefined) updateData.entityPermissions = data.entityPermissions;
-
-  const role = await prisma.role.update({
-    where: { id },
-    data: updateData,
+  const role = await prisma.$transaction(async (tx: any) => {
+    const updated = await tx.role.update({ where: { id }, data: updateData });
+    if (permissionNames !== undefined) await this.replaceRolePermissions(tx, id, permissionNames);
+    return tx.role.findUnique({ where: { id: updated.id }, include: { rolePermissions: { include: { permission: true } } } });
   });
 
   // Audit log for role update
@@ -674,7 +710,7 @@ async updateRole(id: string, data: UpdateRoleDto, updatedBy?: string): Promise<a
     });
   }
 
-  return role;
+  return this.toRoleResponse(role);
 }
 
 async deleteRole(id: string, deletedBy?: string): Promise<{ message: string }> {
@@ -722,30 +758,40 @@ async deleteRole(id: string, deletedBy?: string): Promise<{ message: string }> {
         where: { name: role.name },
       });
       if (!existing) {
-        await prisma.role.create({
-          data: {
-            name: role.name,
-            description: role.description ?? null,
-            isBuiltIn: true,
-            permissions: role.permissions as any,
-            canAccessAdmin: role.canAccessAdmin ?? false,
-            entityPermissions: (role.entityPermissions as any) ?? null,
-          },
+        const created = await prisma.role.create({
+          data: { name: role.name, description: role.description ?? null, isBuiltIn: true, permissions: [], canAccessAdmin: role.canAccessAdmin ?? false },
         });
+        const names = this.validatePermissionNames(role.permissionNames);
+        await prisma.$transaction((tx: any) => this.replaceRolePermissions(tx, created.id, names));
       }
     }
   }
 
   // ---- Group Management ----
 
-  async listGroups(): Promise<any[]> {
-    return await prisma.group.findMany({
+  private toGroupDto(group: any): GroupDto {
+    const users = group.userGroups.map((assignment: any) => ({
+      id: assignment.user.id,
+      firstName: assignment.user.firstName,
+      lastName: assignment.user.lastName,
+      email: assignment.user.email,
+    }));
+    const roles = group.groupRoles.map((assignment: any) => ({
+      id: assignment.role?.id ?? assignment.roleId ?? assignment.roleName,
+      name: assignment.role?.name ?? assignment.roleName,
+    }));
+    return { ...group, users, roles };
+  }
+
+  async listGroups(): Promise<GroupDto[]> {
+    const groups = await prisma.group.findMany({
       include: {
         userGroups: { include: { user: true } },
-        groupRoles: true,
+        groupRoles: { include: { role: true } },
       },
       orderBy: { name: 'asc' },
     });
+    return groups.map((group) => this.toGroupDto(group));
   }
 async createGroup(data: CreateGroupDto, createdBy?: string): Promise<any> {
   const existing = await prisma.group.findUnique({
@@ -866,13 +912,24 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
       throw new AppError('Group not found', 404);
     }
 
+    if (!Array.isArray(data.roles) || data.roles.some((role) => typeof role !== 'string')) {
+      throw new AppError('roles must be an array of role IDs or names', 400);
+    }
+    const requestedRoles = [...new Set(data.roles)];
+    const matchingRoles = requestedRoles.length
+      ? await prisma.role.findMany({ where: { OR: [{ id: { in: requestedRoles } }, { name: { in: requestedRoles } }] }, select: { id: true, name: true } })
+      : [];
+    if (matchingRoles.length !== requestedRoles.length) {
+      throw new AppError('One or more roles do not exist', 400);
+    }
+
     // Remove existing roles
     await prisma.groupRole.deleteMany({ where: { groupId } });
 
-    // Assign new roles
-    for (const roleName of data.roles) {
+    // Persist both the stable role ID and the legacy role name.
+    for (const role of matchingRoles) {
       await prisma.groupRole.create({
-        data: { groupId, roleName },
+        data: { groupId, roleId: role.id, roleName: role.name },
       });
     }
   }

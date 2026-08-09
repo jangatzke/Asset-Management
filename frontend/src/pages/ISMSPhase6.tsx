@@ -463,11 +463,11 @@ const ISMSPhase6 = () => {
       setTotalPages(res.data.pagination?.totalPages ?? 1);
     } catch (err: unknown) {
       if (requestId !== latestRequestId.current) return;
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setError(err instanceof Error ? err.message : t('common.loading'));
     } finally {
       if (requestId === latestRequestId.current) setLoading(false);
     }
-  }, [resource, page, limit, search, statusFilter, overdueFilter]);
+  }, [resource, page, limit, search, statusFilter, overdueFilter, t]);
 
   useEffect(() => {
     fetchData();
@@ -504,7 +504,7 @@ const ISMSPhase6 = () => {
       setDetailRow(res.data);
       setDetailModalOpen(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load details');
+      setError(err instanceof Error ? err.message : t('common.loading'));
     }
   };
 
@@ -569,7 +569,7 @@ const ISMSPhase6 = () => {
       if (page === 1) await fetchData();
       else setPage(1);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to save');
+      setSubmitError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setSubmitLoading(false);
     }
@@ -586,7 +586,7 @@ const ISMSPhase6 = () => {
       if (page === 1) await fetchData();
       else setPage(1);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to delete');
+      setSubmitError(err instanceof Error ? err.message : t('common.deleteError'));
     } finally {
       setSubmitLoading(false);
     }
@@ -601,7 +601,7 @@ const ISMSPhase6 = () => {
       const data = res.data ?? {};
       setSuccess(`Generated ${data.count ?? 0} reminder${(data.count ?? 0) === 1 ? '' : 's'} for ${meta?.label ?? resource}. Automated email delivery is controlled from Admin → Reminder Automation.`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to run reminders');
+      setError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setReminderLoading(false);
     }
@@ -619,7 +619,7 @@ const ISMSPhase6 = () => {
       link.click();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Export failed');
+      setError(err instanceof Error ? err.message : t('common.saveError'));
     }
   };
 
@@ -690,7 +690,7 @@ const ISMSPhase6 = () => {
           <button onClick={() => handleExport('json')} className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">{t('common.exportJson')}</button>
           <button onClick={() => handleExport('csv')} className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">{t('common.exportCsv')}</button>
           {meta?.hasDueDate && (
-            <button onClick={handleReminders} disabled={reminderLoading} className="px-3 py-2 bg-orange-600 text-white rounded-md text-sm hover:bg-orange-700 disabled:opacity-50">{reminderLoading ? 'Running...' : 'Run reminders'}</button>
+            <button onClick={handleReminders} disabled={reminderLoading} className="px-3 py-2 bg-orange-600 text-white rounded-md text-sm hover:bg-orange-700 disabled:opacity-50">{reminderLoading ? t('common.loading') : t('navigation.reminderSettings')}</button>
           )}
         </div>
       </div>
@@ -761,7 +761,7 @@ const ISMSPhase6 = () => {
         <div className="flex gap-2 flex-wrap items-center">
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={t('common.searchEllipsis')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -781,7 +781,7 @@ const ISMSPhase6 = () => {
           {meta.hasDueDate && (
             <label className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={overdueFilter} onChange={(e) => { setOverdueFilter(e.target.checked); setPage(1); }} />
-              Overdue only
+              {t('costPlanning.allStatuses')}
             </label>
           )}
           <div className="ml-auto text-sm text-gray-500 dark:text-gray-400">
@@ -793,7 +793,7 @@ const ISMSPhase6 = () => {
       {/* Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         {loading ? (
-          <div className="p-6 text-gray-500">Loading...</div>
+          <div className="p-6 text-gray-500">{t('common.loading')}</div>
         ) : !meta ? (
           <div className="p-6 text-gray-500">No metadata for this resource.</div>
         ) : rows.length === 0 ? (
@@ -806,7 +806,7 @@ const ISMSPhase6 = () => {
                   {meta.columns.map((col) => (
                     <th key={col.key} className={`text-left p-3 ${col.width}`}>{col.label}</th>
                   ))}
-                  <th className="p-3 w-32">Actions</th>
+                  <th className="p-3 w-32">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>

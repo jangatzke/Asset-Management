@@ -191,15 +191,10 @@ const Incidents = () => {
   };
 
   const createEarlyWarning = async (incident: Incident) => {
-    if (!currentUser?.id) {
-      setError('Your authenticated user profile is required to create a report.');
-      return;
-    }
     try {
       await incidentApi.createReport(incident.id, {
         reportType: 'early_warning_24h',
         content: { summary: incident.title, reasons: incident.significanceReasons ?? [] },
-        authorId: currentUser.id,
       });
       setActionMessage(t('incidents.warningDraftCreated').replace('{title}', incident.title));
       loadIncidents();

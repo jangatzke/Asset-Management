@@ -72,6 +72,7 @@ export interface IncidentAssessment extends BaseEntity {
   isReportable: boolean;
   reportingJustification?: string;
   decisionNotToReport?: string;
+  decisionApprovalAssigneeId?: string;
   decisionApprovedBy?: string;
   decisionApprovedAt?: Date;
   significanceRuleVersionId?: string;

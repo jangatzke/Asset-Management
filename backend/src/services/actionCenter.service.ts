@@ -6,6 +6,7 @@ export const ACTION_CENTER_SOURCE_TYPES = [
   'trainingAssignment', 'auditFinding', 'managementReviewAction', 'documentReview',
   'supplier', 'supplierAssessment', 'businessImpactAnalysis', 'businessContinuityPlan',
   'bcpExercise', 'auditPlan', 'managementReview',
+  'incidentNonReportableApproval',
 ] as const;
 export type ActionCenterSourceType = typeof ACTION_CENTER_SOURCE_TYPES[number];
 export type ActionCenterScope = 'mine' | 'authorized' | 'all';
@@ -88,6 +89,11 @@ export class ActionCenterService {
         include: { incident: { select: { title: true } } },
       });
       managedDeadlines.forEach((r: any) => items.push(item('notificationDeadline', r, `Notification: ${r.incident.title}`, r.deadlineDate, 'mine', '/incidents', now)));
+      const pendingApprovals = await db.incidentAssessment.findMany({
+        where: { decisionApprovalAssigneeId: userId, status: 'pending_approval', isArchived: false },
+        include: { incident: { select: { title: true } } },
+      });
+      pendingApprovals.forEach((r: any) => items.push(item('incidentNonReportableApproval', r, `Approve non-reportable decision: ${r.incident.title}`, r.updatedAt ?? r.createdAt ?? now, 'mine', `/incidents/${r.incidentId}`, now)));
     }
 
     if (await can('incidents.read')) {
