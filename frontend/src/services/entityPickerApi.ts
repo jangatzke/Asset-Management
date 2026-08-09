@@ -39,6 +39,10 @@ export async function fetchEntities(
       url = '/risks';
       params.limit = limit;
       break;
+    case 'contract':
+      url = '/contracts';
+      params.limit = limit;
+      break;
     case 'control':
       url = '/controls';
       params.limit = limit;
@@ -46,6 +50,21 @@ export async function fetchEntities(
     case 'businessProcess':
       url = '/processes';
       params.limit = limit;
+      break;
+    case 'bcp':
+      url = '/isms-operations/bcps';
+      params.limit = limit;
+      break;
+    case 'bia':
+      url = '/isms-operations/bias';
+      params.limit = limit;
+      break;
+    case 'requirement':
+      url = '/frameworks/requirements';
+      params.limit = limit;
+      break;
+    case 'evidence':
+      url = '/evidence';
       break;
     default:
       // Fallback for types without dedicated search
@@ -96,5 +115,10 @@ export type EntityType =
   | 'organizationUnit'
   | 'supplier'
   | 'risk'
+  | 'contract'
   | 'control'
-  | 'businessProcess';
+  | 'businessProcess'
+  | 'bcp'
+  | 'bia'
+  | 'requirement'
+  | 'evidence';

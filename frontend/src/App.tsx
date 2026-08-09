@@ -8,6 +8,7 @@ const Assets = lazy(() => import('./pages/Assets'));
 const Risks = lazy(() => import('./pages/Risks'));
 const Controls = lazy(() => import('./pages/Controls'));
 const Incidents = lazy(() => import('./pages/Incidents'));
+const IncidentDetail = lazy(() => import('./pages/IncidentDetail'));
 const Login = lazy(() => import('./pages/Login'));
 const Settings = lazy(() => import('./pages/Settings'));
 const AdminUsers = lazy(() => import('./pages/AdminUsers'));
@@ -28,8 +29,14 @@ const Licenses = lazy(() => import('./pages/Licenses'));
 const Processes = lazy(() => import('./pages/Processes'));
 const RiskAggregation = lazy(() => import('./pages/RiskAggregation'));
 const ISMSPhase6 = lazy(() => import('./pages/ISMSPhase6'));
+const AuditWorkspace = lazy(() => import('./pages/AuditWorkspace'));
+const BcmDetail = lazy(() => import('./pages/BcmDetail'));
+const SupplierDetail = lazy(() => import('./pages/SupplierDetail'));
 const RiskDetail = lazy(() => import('./pages/RiskDetail'));
 const CostPlanning = lazy(() => import('./pages/CostPlanning'));
+const ActionCenter = lazy(() => import('./pages/ActionCenter'));
+const NIS2 = lazy(() => import('./pages/NIS2'));
+const OperationsWorkspace = lazy(() => import('./pages/OperationsWorkspace'));
 
 const LoadingSpinner = (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -53,12 +60,19 @@ function App() {
             <Route path="risks/:riskId" element={<RiskDetail />} />
             <Route path="controls" element={<Controls />} />
             <Route path="incidents" element={<Incidents />} />
+            <Route path="incidents/:incidentId" element={<IncidentDetail />} />
             <Route path="contracts" element={<Contracts />} />
             <Route path="licenses" element={<Licenses />} />
             <Route path="processes" element={<Processes />} />
             <Route path="cost-planning" element={<CostPlanning />} />
+            <Route path="action-center" element={<ActionCenter />} />
+            <Route path="nis2" element={<NIS2 />} />
             <Route path="risk-aggregation" element={<RiskAggregation />} />
             <Route path="isms-operations" element={<ISMSPhase6 />} />
+            <Route path="isms-operations/workspace" element={<OperationsWorkspace />} />
+            <Route path="isms-operations/audits" element={<AuditWorkspace />} />
+            <Route path="isms-operations/bcm/:kind/:id" element={<BcmDetail />} />
+            <Route path="isms-operations/suppliers/:supplierId" element={<SupplierDetail />} />
             <Route path="isms-phase6" element={<Navigate to="/isms-operations" replace />} />
             <Route path="settings" element={<Settings />} />
             <Route path="admin/users" element={<AdminUsers />} />

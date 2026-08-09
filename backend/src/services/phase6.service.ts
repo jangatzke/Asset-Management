@@ -121,7 +121,7 @@ export class Phase6Service {
   }
 
   async createCorrectiveActionFromSource(sourceType: string, sourceId: string, data: AnyObject, userId = 'system') {
-    const allowed = ['audit', 'incident', 'risk', 'control', 'supplier'];
+    const allowed = ['audit', 'incident', 'risk', 'control', 'supplier', 'bcp'];
     if (!allowed.includes(sourceType)) throw new AppError('Unsupported corrective action source', 400);
     return this.create('correctiveActions', { ...data, sourceType, sourceId }, userId);
   }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityWrite } from '../middleware/entityAuth';
+import { authorizeEntityRead, authorizeEntityWrite } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { nis2Service } from '../services/nis2.service';
 import { z } from 'zod';
@@ -12,6 +12,26 @@ const CreateNis2AssessmentSchema = z.object({ organizationUnitId: z.string().uui
 const ApproveNis2AssessmentSchema = z.object({ result: z.enum(['essential_entity', 'important_entity', 'not_in_scope']).optional(), justification: z.string().optional() });
 const CreateNis2RegistrationSchema = z.object({ assessmentId: z.string().uuid().optional(), entityType: z.string().min(1), registrationDate: z.coerce.date().optional(), deadline: z.coerce.date(), contactPerson: z.string().optional(), contactDetails: z.string().optional(), submittedData: z.record(z.any()).optional(), submissionProof: z.string().optional(), bsiConfirmation: z.string().optional() });
 const CreateNis2RegistrationChangeSchema = z.object({ changeType: z.string().min(1), description: z.string().min(1), changedData: z.record(z.any()), notificationDeadline: z.coerce.date().optional(), submittedAt: z.coerce.date().optional(), submissionProof: z.string().optional() });
+
+nis2Router.get('/questionnaires/active', authenticate, authorizeEntityRead('controls'), async (_req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.listActiveQuestionnaires()); } catch (error) { next(error); }
+});
+
+nis2Router.get('/assessments', authenticate, authorizeEntityRead('controls'), async (_req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.listAssessments()); } catch (error) { next(error); }
+});
+
+nis2Router.get('/assessments/:id', authenticate, authorizeEntityRead('controls'), async (req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.getAssessment(req.params.id)); } catch (error) { next(error); }
+});
+
+nis2Router.get('/registrations', authenticate, authorizeEntityRead('controls'), async (_req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.listRegistrations()); } catch (error) { next(error); }
+});
+
+nis2Router.get('/registrations/:id', authenticate, authorizeEntityRead('controls'), async (req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.getRegistration(req.params.id)); } catch (error) { next(error); }
+});
 
 nis2Router.post('/questionnaires', authenticate, authorizeEntityWrite('controls'), validateBody(CreateNis2QuestionnaireVersionSchema), async (req: AuthRequest, res, next) => {
   try {

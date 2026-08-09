@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { EyeIcon } from '@heroicons/react/24/outline';
 import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
 import { useI18n } from '../context/I18nContext';
+import { useNavigate } from 'react-router-dom';
+import { getGuidedRouteForPhase6Resource } from './ismsPhase6Routing';
 
 // ─── Resource Metadata ───────────────────────────────────────────────────────
 // Defines table columns, form fields, required fields, and capabilities per resource.
@@ -420,7 +422,7 @@ const ISMSPhase6 = () => {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<any>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editRow, setEditRow] = useState<any>(null);
+  const [editRow] = useState<any>(null);
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteRow, setDeleteRow] = useState<any>(null);
@@ -428,6 +430,7 @@ const ISMSPhase6 = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const previousResource = useRef(resource);
   const latestRequestId = useRef(0);
+  const navigate = useNavigate();
 
   // Form state for create/edit
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -479,6 +482,23 @@ const ISMSPhase6 = () => {
   // ─── Handlers ───────────────────────────────────────────────────────────
 
   const handleView = async (row: any) => {
+    if (resource === 'auditPlans' || resource === 'correctiveActions') {
+      navigate('/isms-operations/audits');
+      return;
+    }
+    const guidedRoute = getGuidedRouteForPhase6Resource(resource);
+    if (guidedRoute) {
+      navigate(guidedRoute);
+      return;
+    }
+    if (resource === 'suppliers') {
+      navigate(`/isms-operations/suppliers/${row.id}`);
+      return;
+    }
+    if (resource === 'bias' || resource === 'bcps') {
+      navigate(`/isms-operations/bcm/${resource === 'bias' ? 'bia' : 'bcp'}/${row.id}`);
+      return;
+    }
     try {
       const res = await phase6Api.getById(resource, row.id);
       setDetailRow(res.data);
@@ -486,19 +506,6 @@ const ISMSPhase6 = () => {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load details');
     }
-  };
-
-  const handleEdit = (row: any) => {
-    setEditRow(row);
-    setFormData({ ...row });
-    setEditModalOpen(true);
-    setSubmitError(null);
-  };
-
-  const handleCreate = () => {
-    setFormData({});
-    setCreateFormOpen(true);
-    setSubmitError(null);
   };
 
   const handleSubmit = async () => {
@@ -624,6 +631,16 @@ const ISMSPhase6 = () => {
     setFormData((prev) => ({ ...prev, [key]: checked }));
   };
 
+  const handleResourceSelection = (nextResource: string) => {
+    const guidedRoute = getGuidedRouteForPhase6Resource(nextResource);
+    if (guidedRoute) {
+      navigate(guidedRoute);
+      return;
+    }
+    setResource(nextResource);
+    setPage(1);
+  };
+
   // EntityPicker change handler
   const handleEntityPickerChange = (fieldKey: string, value: unknown, values?: unknown[]) => {
     if (values !== undefined) {
@@ -670,16 +687,6 @@ const ISMSPhase6 = () => {
           <p className="text-sm text-gray-600 dark:text-gray-300">{t('ismsOperations.description')}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {meta?.canCreate && (
-            <button onClick={handleCreate} className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">
-              Add {meta.label.replace(/s$/, '')}
-            </button>
-          )}
-          {meta?.canDelete && (
-            <button onClick={() => { if (rows.length > 0) { /* only show delete if row selected */ } }} className="px-3 py-2 bg-gray-600 text-white rounded-md text-sm hover:bg-gray-700 hidden" title="Select a row to delete">
-              Delete Selected
-            </button>
-          )}
           <button onClick={() => handleExport('json')} className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">{t('common.exportJson')}</button>
           <button onClick={() => handleExport('csv')} className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">{t('common.exportCsv')}</button>
           {meta?.hasDueDate && (
@@ -702,6 +709,13 @@ const ISMSPhase6 = () => {
         </div>
       )}
 
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/30">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-semibold text-blue-950 dark:text-blue-100">Guided operational workflows</h2><p className="text-sm text-blue-800 dark:text-blue-200">This legacy registry is read-only. Create and change records in the guided Supplier, BCM, Audit &amp; CAPA, Training, Metrics, Management Review, Workflow, and Report workflows—never by entering identifiers or JSON.</p></div>
+          <button onClick={() => navigate('/isms-operations/workspace')} className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Open workspaces</button>
+        </div>
+      </div>
+
       {/* ISMS operations domain groups */}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {domainGroups.map((group) => {
@@ -723,7 +737,7 @@ const ISMSPhase6 = () => {
                   return (
                     <button
                       key={key}
-                      onClick={() => { setResource(key); setPage(1); }}
+                       onClick={() => handleResourceSelection(key)}
                       className={`px-3 py-2 rounded-md text-sm whitespace-nowrap ${resource === key ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold' : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
                     >
                       {m.label}
@@ -783,7 +797,7 @@ const ISMSPhase6 = () => {
         ) : !meta ? (
           <div className="p-6 text-gray-500">No metadata for this resource.</div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-gray-500">No records. Click "Add {meta.label.replace(/s$/, '')}" to create one.</div>
+          <div className="p-6 text-gray-500">No records are available in this legacy index. Create records through the relevant guided workflow.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -808,16 +822,6 @@ const ISMSPhase6 = () => {
                         <button onClick={() => handleView(row)} aria-label={`${t('common.view')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.view')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
                           <EyeIcon aria-hidden="true" className={actionIconClassName} />
                         </button>
-                        {meta.canUpdate && (
-                          <button onClick={() => handleEdit(row)} aria-label={`${t('common.edit')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.edit')} className={`${actionButtonClassName} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300`}>
-                            <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
-                          </button>
-                        )}
-                        {meta.canDelete && (
-                          <button onClick={() => { setDeleteRow(row); setDeleteModalOpen(true); }} aria-label={`${t('common.delete')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
-                            <TrashIcon aria-hidden="true" className={actionIconClassName} />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>

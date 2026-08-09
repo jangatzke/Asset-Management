@@ -3,6 +3,7 @@ import { useI18n } from '../context/I18nContext';
 import { fetchEntities, type EntityType, type EntityPickerResult } from '../services/entityPickerApi';
 
 interface EntityPickerProps {
+  label?: string;
   labelKey: string;                    // i18n key for the label (e.g., "ismsOperations.fields.ownerId")
   entityType: EntityType;              // Type of entity to search
   value?: EntityPickerResult | null;   // Single select value
@@ -25,6 +26,7 @@ const DEBOUNCE_MS = 300;
  */
 const EntityPicker: React.FC<EntityPickerProps> = ({
   labelKey,
+  label,
   entityType,
   value,
   values = [],
@@ -131,13 +133,13 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
     ? options.filter(o => !values.some(v => v.id === o.id))
     : options;
 
-  const label = t(labelKey);
+  const resolvedLabel = label ?? t(labelKey);
   const placeholder = placeholderKey ? t(placeholderKey) : t('entityPicker.searchPlaceholder');
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        {label}
+        {resolvedLabel}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
 

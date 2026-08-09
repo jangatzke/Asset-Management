@@ -14,7 +14,7 @@ import {
   UserIcon,
   KeyIcon,
   DocumentTextIcon,
-  ClipboardDocumentListIcon,
+  ClipboardDocumentListIcon, BellAlertIcon,
   BanknotesIcon,
   ServerIcon,
   ChartBarIcon,
@@ -69,6 +69,7 @@ const Layout = () => {
     { name: t('navigation.risks'), href: '/risks', icon: ExclamationTriangleIcon },
     { name: t('navigation.controls'), href: '/controls', icon: ShieldCheckIcon },
     { name: t('navigation.incidents'), href: '/incidents', icon: FireIcon },
+    { name: 'NIS2', href: '/nis2', icon: ShieldCheckIcon },
     { name: t('navigation.contracts'), href: '/contracts', icon: DocumentTextIcon },
     { name: t('navigation.licenses'), href: '/licenses', icon: ClipboardDocumentListIcon },
     { name: t('navigation.processes'), href: '/processes', icon: ServerIcon },
@@ -148,7 +149,10 @@ const Layout = () => {
                 ))}
               </div>
             </div>
-            <div className="flex items-center flex-shrink-0">
+              <div className="flex items-center flex-shrink-0">
+              <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-3 rounded-md p-2 ${isActive('/action-center') ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label="Open Action Center">
+                <BellAlertIcon className="h-5 w-5" />
+              </Link>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 mr-2"

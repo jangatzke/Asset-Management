@@ -20,7 +20,7 @@ const CREATE_ACTION: AuditAction = 'CONFIG_CHANGE';
 const UPDATE_ACTION: AuditAction = 'CONFIG_CHANGE';
 
 // Allowed source types for corrective actions
-const ALLOWED_SOURCE_TYPES = ['audit', 'incident', 'risk', 'control', 'supplier'];
+const ALLOWED_SOURCE_TYPES = ['audit', 'incident', 'risk', 'control', 'supplier', 'bcp'];
 
 export class CorrectiveActionService {
   private displayId(): string {
@@ -198,6 +198,11 @@ export class CorrectiveActionService {
       case 'supplier': {
         const supplier = await prisma.supplier.findUnique({ where: { id: sourceId } });
         if (!supplier) throw new AppError(`Supplier ${sourceId} not found`, 404);
+        break;
+      }
+      case 'bcp': {
+        const bcp = await prisma.businessContinuityPlan.findUnique({ where: { id: sourceId } });
+        if (!bcp) throw new AppError(`Business continuity plan ${sourceId} not found`, 404);
         break;
       }
       default:

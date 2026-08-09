@@ -53,6 +53,7 @@ import { evidenceRouter } from './routes/evidence.routes';
 import { documentRouter } from './routes/document.routes';
 import { nis2Router } from './routes/nis2.routes';
 import { phase6Router } from './routes/phase6.routes';
+import { actionCenterRouter } from './routes/actionCenter.routes';
 import { catalogRouter } from './routes/catalog.routes';
 import { costPlanningRouter } from './routes/costPlanning.routes';
 // Phase 8 routes
@@ -186,6 +187,7 @@ app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/nis2', nis2Router);
 app.use('/api/v1/phase6', phase6Router);
 app.use('/api/v1/isms-operations', phase6Router);
+app.use('/api/v1/action-center', actionCenterRouter);
 app.use('/api/v1/catalog', catalogRouter);
 app.use('/api/v1/cost-planning', costPlanningRouter);
 

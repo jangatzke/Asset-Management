@@ -303,7 +303,18 @@ export class IncidentService {
   async getById(id: string) {
     const incident = await prisma.incident.findUnique({
       where: { id },
-      include: { assessments: true, reports: true, communications: true, escalations: true, knowledgeTimeChanges: true, significanceRuleVersion: true } as Prisma.IncidentInclude,
+      include: {
+        assessments: true,
+        reports: { orderBy: { createdAt: 'desc' } },
+        communications: { orderBy: { createdAt: 'desc' } },
+        escalations: true,
+        knowledgeTimeChanges: { orderBy: { changedAt: 'desc' } },
+        notificationDeadlines: { orderBy: { deadlineDate: 'asc' } },
+        significanceRuleVersion: true,
+        incidentAssets: { include: { asset: { select: { id: true, displayId: true, name: true } } } },
+        serviceLinks: { include: { service: { select: { id: true, displayId: true, name: true } } } },
+        processLinks: { include: { process: { select: { id: true, displayId: true, name: true } } } },
+      } as Prisma.IncidentInclude,
     });
 
     if (!incident) {

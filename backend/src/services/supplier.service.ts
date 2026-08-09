@@ -91,6 +91,44 @@ export class SupplierService {
   }
 
   /**
+   * Return the supplier workflow context without exposing persistence-only fields.
+   * Relations are resolved explicitly because the legacy junction tables do not
+   * have Prisma relation declarations.
+   */
+  async getDetail(id: string): Promise<AnyObject> {
+    const supplier = await this.get(id);
+    const [assessments, contractRelations, riskRelations, correctiveActions, history] = await Promise.all([
+      prisma.supplierAssessment.findMany({ where: { supplierId: id }, orderBy: { assessmentDate: 'desc' } }),
+      prisma.supplierContractRelation.findMany({ where: { supplierId: id }, orderBy: { createdAt: 'desc' } }),
+      prisma.supplierRiskRelation.findMany({ where: { supplierId: id }, orderBy: { createdAt: 'desc' } }),
+      prisma.correctiveAction.findMany({ where: { sourceType: 'supplier', sourceId: id }, orderBy: { createdAt: 'desc' } }),
+      prisma.auditLog.findMany({
+        where: { OR: [{ entityType: 'Supplier', entityId: id }, { entityType: 'SupplierAssessment' }] },
+        orderBy: { timestamp: 'desc' },
+        take: 100,
+      }),
+    ]);
+
+    const assessmentIds = new Set(assessments.map((assessment) => assessment.id));
+    const assessmentHistory = history.filter((entry) => entry.entityType === 'Supplier' || assessmentIds.has(entry.entityId));
+    const [contracts, risks] = await Promise.all([
+      prisma.contract.findMany({ where: { id: { in: contractRelations.map((relation) => relation.contractId) } } }),
+      prisma.risk.findMany({ where: { id: { in: riskRelations.map((relation) => relation.riskId) } } }),
+    ]);
+    const contractsById = new Map(contracts.map((contract) => [contract.id, contract]));
+    const risksById = new Map(risks.map((risk) => [risk.id, risk]));
+
+    return {
+      supplier,
+      assessments,
+      contracts: contractRelations.map((relation) => ({ ...relation, contract: contractsById.get(relation.contractId) ?? null })),
+      risks: riskRelations.map((relation) => ({ ...relation, risk: risksById.get(relation.riskId) ?? null })),
+      correctiveActions,
+      history: assessmentHistory,
+    };
+  }
+
+  /**
    * List suppliers with pagination and filters.
    */
   async list(query: AnyObject = {}): Promise<AnyObject> {
@@ -215,6 +253,48 @@ export class SupplierService {
       newValue: assessment as any,
     });
     return assessment;
+  }
+
+  async getAssessment(id: string): Promise<AnyObject> {
+    const assessment = await prisma.supplierAssessment.findUnique({ where: { id } });
+    if (!assessment) throw new AppError('Supplier assessment not found', 404);
+    return assessment;
+  }
+
+  async addContractRelation(supplierId: string, contractId: string, data: Pick<AnyObject, 'relationType' | 'status'>, userId: string): Promise<AnyObject> {
+    await this.get(supplierId);
+    const contract = await prisma.contract.findUnique({ where: { id: contractId } });
+    if (!contract || contract.isArchived) throw new AppError('Contract not found or archived', 404);
+    const relation = await prisma.supplierContractRelation.create({
+      data: { supplierId, contractId, relationType: data.relationType ?? 'primary', status: data.status ?? 'active', createdBy: userId },
+    });
+    await auditService.logEventStandalone(prisma, { userId, action: CREATE_ACTION, entityType: 'Supplier', entityId: supplierId, details: `Linked contract ${contract.displayId} to supplier`, newValue: relation as any });
+    return relation;
+  }
+
+  async removeContractRelation(supplierId: string, relationId: string, userId: string): Promise<void> {
+    const relation = await prisma.supplierContractRelation.findFirst({ where: { id: relationId, supplierId } });
+    if (!relation) throw new AppError('Supplier contract relation not found', 404);
+    await prisma.supplierContractRelation.delete({ where: { id: relationId } });
+    await auditService.logEventStandalone(prisma, { userId, action: UPDATE_ACTION, entityType: 'Supplier', entityId: supplierId, details: 'Removed contract relation', oldValue: relation as any });
+  }
+
+  async addRiskRelation(supplierId: string, riskId: string, data: Pick<AnyObject, 'relationType' | 'status'>, userId: string): Promise<AnyObject> {
+    await this.get(supplierId);
+    const risk = await prisma.risk.findUnique({ where: { id: riskId } });
+    if (!risk || risk.isArchived) throw new AppError('Risk not found or archived', 404);
+    const relation = await prisma.supplierRiskRelation.create({
+      data: { supplierId, riskId, relationType: data.relationType ?? 'affected_by', status: data.status ?? 'active', createdBy: userId },
+    });
+    await auditService.logEventStandalone(prisma, { userId, action: CREATE_ACTION, entityType: 'Supplier', entityId: supplierId, details: `Linked risk ${risk.displayId} to supplier`, newValue: relation as any });
+    return relation;
+  }
+
+  async removeRiskRelation(supplierId: string, relationId: string, userId: string): Promise<void> {
+    const relation = await prisma.supplierRiskRelation.findFirst({ where: { id: relationId, supplierId } });
+    if (!relation) throw new AppError('Supplier risk relation not found', 404);
+    await prisma.supplierRiskRelation.delete({ where: { id: relationId } });
+    await auditService.logEventStandalone(prisma, { userId, action: UPDATE_ACTION, entityType: 'Supplier', entityId: supplierId, details: 'Removed risk relation', oldValue: relation as any });
   }
 
   /**

@@ -45,6 +45,48 @@ export interface PaginatedApiResponse<T> {
   totalPages?: number;
 }
 
+export type ActionCenterScope = 'mine' | 'authorized' | 'all';
+export type ActionCenterUrgency = 'overdue' | 'critical' | 'upcoming' | 'planned';
+export type ActionCenterSourceType =
+  | 'workflowTask' | 'notificationDeadline' | 'correctiveAction' | 'riskReviewTask'
+  | 'trainingAssignment' | 'auditFinding' | 'managementReviewAction' | 'documentReview'
+  | 'supplier' | 'supplierAssessment' | 'businessImpactAnalysis' | 'businessContinuityPlan'
+  | 'bcpExercise' | 'auditPlan' | 'managementReview';
+
+export interface ActionCenterItem {
+  id: string;
+  sourceType: ActionCenterSourceType;
+  title: string;
+  status: string;
+  dueDate: string;
+  urgency: ActionCenterUrgency;
+  assignment: 'mine' | 'authorized';
+  href?: string;
+}
+
+export interface ActionCenterResponse {
+  data: ActionCenterItem[];
+  summary: Record<ActionCenterUrgency, number>;
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface ActionCenterParams {
+  scope?: ActionCenterScope;
+  sourceType?: ActionCenterSourceType;
+  urgency?: ActionCenterUrgency;
+  status?: string;
+  dueBefore?: string;
+  page?: number;
+  limit?: number;
+}
+
+export type Nis2Answer = string | number | boolean;
+export interface Nis2Question { key: string; label: string; type: 'string' | 'number' | 'boolean'; required?: boolean; }
+export interface Nis2Questionnaire { id: string; version: string; title: string; questions: Nis2Question[]; effectiveFrom: string; }
+export interface Nis2Assessment { id: string; organizationUnitId?: string | null; questionnaireVersion: string; answers?: Record<string, Nis2Answer>; preliminaryResult?: string | null; result?: string | null; justification?: string | null; status: string; submittedForApprovalAt?: string | null; approvedAt?: string | null; createdAt: string; updatedAt: string; }
+export interface Nis2RegistrationChange { id: string; registrationId: string; changeType: string; description: string; changedData: Record<string, string>; notificationDeadline?: string | null; submittedAt?: string | null; submissionProof?: string | null; status: string; createdAt: string; }
+export interface Nis2Registration { id: string; assessmentId?: string | null; entityType: string; registrationDate?: string | null; deadline?: string | null; contactPerson?: string | null; contactDetails?: string | null; submissionProof?: string | null; bsiConfirmation?: string | null; status: string; createdAt: string; updatedAt: string; assessment?: Pick<Nis2Assessment, 'id' | 'organizationUnitId' | 'questionnaireVersion' | 'result' | 'status'> | null; changes?: Nis2RegistrationChange[]; }
+
 /** Standardized API error types for client-side error handling */
 export interface ApiErrorDetail {
   message: string;
@@ -71,6 +113,60 @@ export type ControlResponse = Record<string, unknown> & { status?: string; catal
 export type IncidentResponse = Record<string, unknown> & { severity?: string; status?: string };
 export type DeleteResponse = { success: boolean };
 
+export type IncidentReportType = 'early_warning_24h' | 'incident_notification_72h' | 'interim_report' | 'monthly_final_report';
+
+export interface IncidentDeadlineResponse {
+  id: string;
+  notificationType: IncidentReportType;
+  deadlineDate: string;
+  knowledgeTimeReference: string;
+  status: string;
+  sentAt?: string | null;
+  submissionProof?: string | null;
+}
+
+export interface IncidentDetailResponse extends IncidentResponse {
+  id: string;
+  displayId: string;
+  title: string;
+  description: string;
+  detectionTime: string;
+  knowledgeTime: string;
+  incidentManagerId: string;
+  isSignificant: boolean;
+  significanceReasons: string[];
+  notificationDeadlines: IncidentDeadlineResponse[];
+  assessments: Array<Record<string, unknown>>;
+  reports: Array<Record<string, unknown>>;
+  communications: Array<Record<string, unknown>>;
+  knowledgeTimeChanges: Array<Record<string, unknown>>;
+  incidentAssets: Array<{ asset: { id: string; displayId: string; name: string } }>;
+  serviceLinks: Array<{ service: { id: string; displayId: string; name: string } }>;
+  processLinks: Array<{ process: { id: string; displayId: string; name: string } }>;
+}
+
+export interface SupplierFinding { title: string; severity: 'low' | 'medium' | 'high' | 'critical'; description?: string; recommendedAction?: string; }
+export interface SupplierAction { title: string; owner?: string; dueDate?: string; status?: string; }
+export interface SupplierAssessment { id: string; supplierId: string; assessorId: string; assessmentDate: string; assessmentType: 'initial' | 'periodic' | 'ad_hoc'; questionnaire: Record<string, string | number | boolean | null>; findings: SupplierFinding[]; actions: SupplierAction[]; score?: number | null; rating: string; status: string; nextAssessmentDate?: string | null; createdAt: string; updatedAt: string; }
+export interface SupplierDetail { supplier: Record<string, unknown>; assessments: SupplierAssessment[]; contracts: Array<Record<string, unknown>>; risks: Array<Record<string, unknown>>; correctiveActions: Array<Record<string, unknown>>; history: EntityHistoryEntry[]; }
+
+export type BcmSeverity = 'low' | 'medium' | 'high' | 'critical';
+export interface BiaAssetLink { assetId: string; role: 'dependency' | 'primary' | 'supporting'; }
+export interface BiaDetail { bia: Record<string, unknown>; assets: BiaAssetLink[]; plans: Array<Record<string, unknown>>; }
+export interface BcpExerciseFinding { title: string; description: string; severity: BcmSeverity; recommendedAction?: string; }
+export interface BcpExercise { id: string; bcpId: string; exerciseType: string; plannedAt: string; executedAt?: string; participants: Array<{ userId: string; role: string; attended: boolean }>; results: Array<{ objective: string; outcome: 'met' | 'partially_met' | 'not_met'; notes?: string }>; findings: BcpExerciseFinding[]; status: string; }
+export interface BcpDetail { bcp: Record<string, unknown>; bia: Record<string, unknown> | null; exercises: BcpExercise[]; correctiveActions: Array<Record<string, unknown>>; }
+
+export type AuditStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
+export type AuditFindingSeverity = 'low' | 'medium' | 'high' | 'critical';
+export interface AuditProgram { id: string; displayId: string; title: string; year: number; scope: string; objectives: string[]; criteria: string[]; ownerId: string; status: string; }
+export interface AuditPlan { id: string; displayId: string; programId?: string | null; auditType: string; title: string; scope: string; criteria: string[]; auditorIds: string[]; auditeeIds: string[]; plannedStart: string; plannedEnd: string; status: AuditStatus; }
+export interface AuditFinding { id: string; displayId: string; auditPlanId: string; findingType: string; severity: AuditFindingSeverity; title: string; description: string; requirementIds: string[]; controlIds: string[]; assetIds: string[]; riskIds: string[]; ownerId?: string | null; dueDate?: string | null; status: string; correctiveActionId?: string | null; }
+export interface CorrectiveAction { id: string; displayId: string; title: string; description: string; sourceType: string; sourceId?: string | null; ownerId: string; dueDate: string; priority: AuditFindingSeverity; status: string; effectivenessStatus?: string | null; effectivenessReview?: string | null; effectivenessCriteria?: string | null; }
+export interface AuditFindingDetail { finding: AuditFinding; audit: AuditPlan; evidenceRelations: Array<{ id: string; evidenceId: string; relationType: string; evidence: { id: string; title: string; evidenceType: string; classification?: string | null } | null }>; correctiveAction: CorrectiveAction | null; }
+export interface AuditDetail { audit: AuditPlan; program: AuditProgram | null; findings: AuditFinding[]; }
+export interface AuditProgramDetail { program: AuditProgram; audits: AuditPlan[]; }
+
 export interface EntityHistoryFieldChange {
   old?: unknown;
   new?: unknown;
@@ -88,6 +184,7 @@ export interface EntityHistoryEntry {
   action: string;
   fieldChanges?: Record<string, EntityHistoryFieldChange | unknown>;
   summary?: string;
+  details?: string;
   actorId?: string;
   actorName?: string;
   ipAddress?: string;
@@ -334,12 +431,13 @@ export const documentApi = {
 
 export const incidentApi = {
   list: (params?: { page?: number; limit?: number; search?: string; status?: string; severity?: string }) => api.get('/incidents', { params }),
-  getById: (id: string) => api.get(`/incidents/${id}`),
+  getById: (id: string) => api.get<IncidentDetailResponse>(`/incidents/${id}`),
   create: (data: CreateIncidentDTO) => api.post('/incidents', data),
   update: (id: string, data: UpdateIncidentDTO) => api.put(`/incidents/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/incidents/${id}`),
   assess: (id: string, data: AssessIncidentDTO) => api.post(`/incidents/${id}/assess`, data),
   changeKnowledgeTime: (id: string, data: ChangeKnowledgeTimeDTO) => api.post(`/incidents/${id}/knowledge-time`, data),
+  recalculateDeadlines: (id: string) => api.post<IncidentDeadlineResponse[]>(`/incidents/${id}/recalculate-deadlines`),
   createReport: (id: string, data: CreateIncidentReportDTO) => api.post(`/incidents/${id}/reports`, data),
   exportReport: (reportId: string) => api.get(`/incidents/reports/${reportId}/export`),
   createCommunication: (id: string, data: CreateIncidentCommunicationDTO) => api.post(`/incidents/${id}/communications`, data),
@@ -347,14 +445,23 @@ export const incidentApi = {
   history: (id: string, params?: { action?: string; limit?: number; offset?: number }) => api.get(`/incidents/${id}/history`, { params }),
 };
 
+export const actionCenterApi = {
+  list: (params?: ActionCenterParams) => api.get<ActionCenterResponse>('/action-center', { params }),
+};
+
 export const nis2Api = {
+  listActiveQuestionnaires: () => api.get<Nis2Questionnaire[]>('/nis2/questionnaires/active'),
+  listAssessments: () => api.get<Nis2Assessment[]>('/nis2/assessments'),
+  getAssessment: (id: string) => api.get<Nis2Assessment>(`/nis2/assessments/${id}`),
+  listRegistrations: () => api.get<Nis2Registration[]>('/nis2/registrations'),
+  getRegistration: (id: string) => api.get<Nis2Registration>(`/nis2/registrations/${id}`),
   createQuestionnaire: (data: any) => api.post('/nis2/questionnaires', data),
   ensureDefaultQuestionnaire: () => api.post('/nis2/questionnaires/default'),
-  createAssessment: (data: any) => api.post('/nis2/assessments', data),
+  createAssessment: (data: { organizationUnitId?: string; questionnaireVersion: string; answers: Record<string, Nis2Answer>; justification?: string }) => api.post<Nis2Assessment>('/nis2/assessments', data),
   submitAssessment: (id: string) => api.post(`/nis2/assessments/${id}/submit`),
   approveAssessment: (id: string, data?: any) => api.post(`/nis2/assessments/${id}/approve`, data ?? {}),
-  createRegistration: (data: any) => api.post('/nis2/registrations', data),
-  recordRegistrationChange: (id: string, data: any) => api.post(`/nis2/registrations/${id}/changes`, data),
+  createRegistration: (data: { assessmentId: string; entityType: string; deadline: string; registrationDate?: string; contactPerson?: string; contactDetails?: string; submissionProof?: string; bsiConfirmation?: string }) => api.post<Nis2Registration>('/nis2/registrations', data),
+  recordRegistrationChange: (id: string, data: { changeType: string; description: string; changedData: Record<string, string>; notificationDeadline?: string; submittedAt?: string; submissionProof?: string }) => api.post<Nis2RegistrationChange>(`/nis2/registrations/${id}/changes`, data),
   ensureMeasuresCatalogue: () => api.post('/nis2/measures-catalogue/ensure'),
 };
 
@@ -546,6 +653,61 @@ export const phase6Api = {
   delete: (resource: string, id: string) => api.delete(`/isms-operations/${resource}/${id}`),
   runReminders: (resource: string) => api.post(`/isms-operations/${resource}/reminders/run`),
   export: (resource: string, params?: any) => api.get(`/isms-operations/${resource}/export`, { params }),
+  completeTraining: (assignmentId: string, data: { score?: number; result?: 'passed' | 'failed' | 'completed'; certificateUrl?: string; expiresAt?: string }) => api.post(`/isms-operations/training-assignments/${assignmentId}/complete`, data),
+  acknowledgeTraining: (data: { courseId: string; comment?: string }) => api.post('/isms-operations/training-acknowledgements', data),
+  createMetricDefinition: (data: Record<string, unknown>) => api.post('/isms-operations/metric-definitions', data),
+  enterMetricValue: (data: { metricId: string; value: number; measuredAt?: string; source?: string; comment?: string }) => api.post('/isms-operations/metric-values', data),
+  createManagementReview: (data: Record<string, unknown>) => api.post('/isms-operations/management-reviews', data),
+  addManagementReviewAction: (data: Record<string, unknown>) => api.post('/isms-operations/management-review-actions', data),
+  approveManagementReview: (id: string, approved: boolean) => api.post(`/isms-operations/management-reviews/${id}/approval`, { approved }),
+  startWorkflow: (data: { definitionId: string; entityType: string; entityId: string; context?: Record<string, unknown> }) => api.post('/isms-operations/workflows/start', data),
+  transitionWorkflow: (id: string, data: { transition: string; comment?: string; assigneeId?: string }) => api.post(`/isms-operations/workflows/${id}/transition`, data),
+  createReportDefinition: (data: Record<string, unknown>) => api.post('/isms-operations/report-definitions', data),
+  runReport: (data: { definitionId?: string; module: string; filters?: Record<string, string>; format?: 'json' | 'csv' }) => api.post('/isms-operations/reports/run', data),
+};
+
+export const bcmApi = {
+  getBiaDetail: (id: string) => api.get<BiaDetail>(`/isms-operations/bias/${id}/detail`),
+  getBcpDetail: (id: string) => api.get<BcpDetail>(`/isms-operations/bcps/${id}/detail`),
+  getExerciseDetail: (id: string) => api.get<{ exercise: BcpExercise; bcp: Record<string, unknown>; correctiveActions: Array<Record<string, unknown>> }>(`/isms-operations/bcp-exercises/${id}/detail`),
+  createBia: (data: Record<string, unknown>) => api.post('/isms-operations/bias', data),
+  updateBia: (id: string, data: Record<string, unknown>) => api.patch(`/isms-operations/bias/${id}`, data),
+  createBcp: (data: Record<string, unknown>) => api.post('/isms-operations/bcps', data),
+  updateBcp: (id: string, data: Record<string, unknown>) => api.patch(`/isms-operations/bcps/${id}`, data),
+  createExercise: (data: Record<string, unknown>) => api.post('/isms-operations/bcp-exercises', data),
+  updateExercise: (id: string, data: Record<string, unknown>) => api.patch(`/isms-operations/bcp-exercises/${id}`, data),
+  createCapaFromExercise: (id: string, data: Record<string, unknown>) => api.post(`/isms-operations/bcp-exercises/${id}/corrective-actions`, data),
+};
+
+export const auditWorkflowApi = {
+  listPrograms: () => api.get<AuditProgram[]>('/isms-operations/audit-programs'),
+  createProgram: (data: Omit<AuditProgram, 'id' | 'displayId'>) => api.post<AuditProgram>('/isms-operations/audit-programs', data),
+  updateProgram: (id: string, data: Partial<Omit<AuditProgram, 'id' | 'displayId'>>) => api.patch<AuditProgram>(`/isms-operations/audit-programs/${id}`, data),
+  getProgramDetail: (id: string) => api.get<AuditProgramDetail>(`/isms-operations/audit-programs/${id}/detail`),
+  createAudit: (programId: string, data: Omit<AuditPlan, 'id' | 'displayId' | 'programId'>) => api.post<AuditPlan>(`/isms-operations/audit-programs/${programId}/audits`, data),
+  getAuditDetail: (id: string) => api.get<AuditDetail>(`/isms-operations/audits/${id}/detail`),
+  createFinding: (auditId: string, data: Omit<AuditFinding, 'id' | 'displayId' | 'auditPlanId' | 'correctiveActionId'>) => api.post<AuditFinding>(`/isms-operations/audits/${auditId}/findings`, data),
+  updateFinding: (id: string, data: Partial<Omit<AuditFinding, 'id' | 'displayId' | 'auditPlanId' | 'correctiveActionId'>>) => api.patch<AuditFinding>(`/isms-operations/audit-findings/${id}`, data),
+  getFindingDetail: (id: string) => api.get<AuditFindingDetail>(`/isms-operations/audit-findings/${id}/detail`),
+  addEvidence: (findingId: string, data: { evidenceId: string; relationType?: 'supports' | 'demonstrates' | 'contradicts' }) => api.post(`/isms-operations/audit-findings/${findingId}/evidence-relations`, data),
+  removeEvidence: (findingId: string, relationId: string) => api.delete(`/isms-operations/audit-findings/${findingId}/evidence-relations/${relationId}`),
+  createCapa: (findingId: string, data: Pick<CorrectiveAction, 'title' | 'description' | 'ownerId' | 'dueDate' | 'priority' | 'effectivenessCriteria'> & { rootCause?: string; containmentActions?: string[]; correctiveActions?: string[] }) => api.post<CorrectiveAction>(`/isms-operations/audit-findings/${findingId}/corrective-actions`, data),
+  updateCapa: (id: string, data: Partial<Pick<CorrectiveAction, 'title' | 'description' | 'ownerId' | 'dueDate' | 'priority' | 'status' | 'effectivenessCriteria'>>) => api.patch<CorrectiveAction>(`/isms-operations/corrective-actions/${id}`, data),
+  reviewEffectiveness: (id: string, data: { effectivenessStatus: 'effective' | 'partially_effective' | 'ineffective'; effectivenessReview: string; effectivenessCriteria?: string }) => api.post<CorrectiveAction>(`/isms-operations/corrective-actions/${id}/effectiveness`, data),
+  closeCapa: (id: string) => api.post<CorrectiveAction>(`/isms-operations/corrective-actions/${id}/close`),
+  reopenCapa: (id: string, justification: string) => api.post<CorrectiveAction>(`/isms-operations/corrective-actions/${id}/reopen`, { justification }),
+};
+
+export const supplierApi = {
+  getDetail: (id: string) => api.get<SupplierDetail>(`/isms-operations/suppliers/${id}/detail`),
+  getAssessment: (id: string) => api.get<SupplierAssessment>(`/isms-operations/supplier-assessments/${id}`),
+  createAssessment: (supplierId: string, data: Omit<Partial<SupplierAssessment>, 'id' | 'supplierId' | 'createdAt' | 'updatedAt'> & { assessorId: string }) => api.post<SupplierAssessment>(`/isms-operations/suppliers/${supplierId}/assessments`, data),
+  updateAssessment: (id: string, data: Partial<SupplierAssessment>) => api.patch<SupplierAssessment>(`/isms-operations/supplier-assessments/${id}`, data),
+  addContract: (supplierId: string, data: { contractId: string; relationType?: string; status?: 'active' | 'inactive' }) => api.post(`/isms-operations/suppliers/${supplierId}/contracts`, data),
+  removeContract: (supplierId: string, relationId: string) => api.delete(`/isms-operations/suppliers/${supplierId}/contracts/${relationId}`),
+  addRisk: (supplierId: string, data: { riskId: string; relationType?: string; status?: 'active' | 'inactive' }) => api.post(`/isms-operations/suppliers/${supplierId}/risks`, data),
+  removeRisk: (supplierId: string, relationId: string) => api.delete(`/isms-operations/suppliers/${supplierId}/risks/${relationId}`),
+  createCapa: (supplierId: string, data: Record<string, unknown>) => api.post('/isms-operations/corrective-actions/from-source', { sourceType: 'supplier', sourceId: supplierId, data }),
 };
 
 export const reminderAdminApi = {

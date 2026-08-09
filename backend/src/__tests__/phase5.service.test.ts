@@ -7,9 +7,9 @@ const mockPrismaClient: any = {
   incidentCommunication: { create: jest.fn() },
   incidentEscalation: { create: jest.fn() },
   nis2IncidentSignificanceRuleVersion: { upsert: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
-  nis2QuestionnaireVersion: { upsert: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
-  nis2Assessment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-  nis2Registration: { create: jest.fn(), findUnique: jest.fn() },
+  nis2QuestionnaireVersion: { upsert: jest.fn(), create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+  nis2Assessment: { create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+  nis2Registration: { create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
   nis2RegistrationChange: { create: jest.fn() },
   framework: { upsert: jest.fn() },
   frameworkVersion: { create: jest.fn(), findFirst: jest.fn() },
@@ -82,6 +82,21 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     expect(report.exportPayload.reportType).toBe('early_warning_24h');
   });
 
+  it('returns deadline and affected-entity relationships in the incident detail contract', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', notificationDeadlines: [], incidentAssets: [], serviceLinks: [], processLinks: [] });
+
+    await incidentService.getById('inc-1');
+
+    expect(mockPrismaClient.incident.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        notificationDeadlines: expect.objectContaining({ orderBy: { deadlineDate: 'asc' } }),
+        incidentAssets: expect.any(Object),
+        serviceLinks: expect.any(Object),
+        processLinks: expect.any(Object),
+      }),
+    }));
+  });
+
   it('versions NIS-2 applicability assessment and requires approval before registration', async () => {
     mockPrismaClient.nis2QuestionnaireVersion.findUnique.mockResolvedValue({ id: 'q-1', version: '1.0' });
     mockPrismaClient.nis2Assessment.create.mockResolvedValue({ id: 'assess-1', questionnaireVersion: '1.0', preliminaryResult: 'important_entity', status: 'draft' });
@@ -101,5 +116,21 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     const catalogue = await nis2Service.ensureMeasuresCatalogue('user-1');
     expect(catalogue.topics).toHaveLength(10);
     expect(mockPrismaClient.control.create).toHaveBeenCalledTimes(10);
+  });
+
+  it('returns minimal list contracts and complete protected details for the NIS-2 workflow', async () => {
+    mockPrismaClient.nis2QuestionnaireVersion.findMany.mockResolvedValue([{ id: 'q-1', version: '1.0' }]);
+    mockPrismaClient.nis2Assessment.findMany.mockResolvedValue([{ id: 'a-1', status: 'draft' }]);
+    mockPrismaClient.nis2Registration.findMany.mockResolvedValue([{ id: 'r-1', status: 'pending' }]);
+    mockPrismaClient.nis2Assessment.findFirst.mockResolvedValue({ id: 'a-1', answers: { sector: 'energy' } });
+    mockPrismaClient.nis2Registration.findFirst.mockResolvedValue({ id: 'r-1', changes: [] });
+
+    await expect(nis2Service.listActiveQuestionnaires()).resolves.toHaveLength(1);
+    await expect(nis2Service.listAssessments()).resolves.toHaveLength(1);
+    await expect(nis2Service.listRegistrations()).resolves.toHaveLength(1);
+    await expect(nis2Service.getAssessment('a-1')).resolves.toMatchObject({ id: 'a-1' });
+    await expect(nis2Service.getRegistration('r-1')).resolves.toMatchObject({ id: 'r-1' });
+    expect(mockPrismaClient.nis2Assessment.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: expect.any(Object) }));
+    expect(mockPrismaClient.nis2Registration.findFirst).toHaveBeenCalledWith(expect.objectContaining({ include: expect.objectContaining({ changes: expect.any(Object) }) }));
   });
 });

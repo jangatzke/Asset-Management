@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { DocumentPlusIcon, PencilSquareIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { incidentApi, nis2Api } from '../services/api';
+import { incidentApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
+import EntityPicker from '../components/EntityPicker';
+import type { EntityPickerResult } from '../services/entityPickerApi';
+import { useAuthStore } from '../store/auth';
 
 interface HistoryEntry {
   id: string;
@@ -63,6 +66,8 @@ interface IncidentForm {
   suspectedCause: string;
   isIntentional: boolean;
   hasCrossBorderImpact: boolean;
+  affectedAssetIds: string[];
+  affectedProcessIds: string[];
 }
 
 const toDateTimeLocal = (value?: string) => {
@@ -72,14 +77,14 @@ const toDateTimeLocal = (value?: string) => {
   return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
 };
 
-const initialIncidentForm = (): IncidentForm => {
+const initialIncidentForm = (currentUserId = ''): IncidentForm => {
   const now = toDateTimeLocal();
   return {
     title: '',
     description: '',
     detectionTime: now,
     knowledgeTime: now,
-    incidentManagerId: 'frontend-user',
+    incidentManagerId: currentUserId,
     severity: 'medium',
     status: 'new',
     reporterSource: '',
@@ -93,6 +98,8 @@ const initialIncidentForm = (): IncidentForm => {
     suspectedCause: '',
     isIntentional: false,
     hasCrossBorderImpact: false,
+    affectedAssetIds: [],
+    affectedProcessIds: [],
   };
 };
 
@@ -110,6 +117,7 @@ export const matchesIncidentStatusFilter = (incident: Pick<Incident, 'status'>, 
 
 const Incidents = () => {
   const { t } = useI18n();
+  const currentUser = useAuthStore((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +134,9 @@ const Incidents = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyActionFilter, setHistoryActionFilter] = useState('');
+  const [incidentManager, setIncidentManager] = useState<EntityPickerResult | null>(null);
+  const [affectedAssets, setAffectedAssets] = useState<EntityPickerResult[]>([]);
+  const [affectedProcesses, setAffectedProcesses] = useState<EntityPickerResult[]>([]);
 
   const openHistory = async (incidentId: string) => {
     setHistoryOpen(true);
@@ -179,21 +190,16 @@ const Incidents = () => {
     }
   };
 
-  const ensureNis2Catalogue = async () => {
-    try {
-      await nis2Api.ensureMeasuresCatalogue();
-      setActionMessage(t('incidents.catalogueEnsured'));
-    } catch (err: any) {
-      setError(err.response?.data?.message || t('incidents.catalogueError'));
-    }
-  };
-
   const createEarlyWarning = async (incident: Incident) => {
+    if (!currentUser?.id) {
+      setError('Your authenticated user profile is required to create a report.');
+      return;
+    }
     try {
       await incidentApi.createReport(incident.id, {
         reportType: 'early_warning_24h',
         content: { summary: incident.title, reasons: incident.significanceReasons ?? [] },
-        authorId: 'frontend-user',
+        authorId: currentUser.id,
       });
       setActionMessage(t('incidents.warningDraftCreated').replace('{title}', incident.title));
       loadIncidents();
@@ -204,7 +210,10 @@ const Incidents = () => {
 
   const openCreateModal = () => {
     setEditingIncident(null);
-    setForm(initialIncidentForm());
+    setForm(initialIncidentForm(currentUser?.id));
+    setIncidentManager(currentUser ? { id: currentUser.id, label: `${currentUser.firstName} ${currentUser.lastName}`.trim() || currentUser.email } : null);
+    setAffectedAssets([]);
+    setAffectedProcesses([]);
     setError(null);
     setModalOpen(true);
   };
@@ -216,7 +225,7 @@ const Incidents = () => {
       description: incident.description || '',
       detectionTime: toDateTimeLocal(incident.detectionTime),
       knowledgeTime: toDateTimeLocal(incident.knowledgeTime),
-      incidentManagerId: incident.incidentManagerId || 'frontend-user',
+      incidentManagerId: incident.incidentManagerId || currentUser?.id || '',
       severity: incident.severity || 'medium',
       status: incident.status || 'new',
       reporterSource: incident.reporterSource || '',
@@ -230,7 +239,12 @@ const Incidents = () => {
       suspectedCause: incident.suspectedCause || '',
       isIntentional: Boolean(incident.isIntentional),
       hasCrossBorderImpact: Boolean(incident.hasCrossBorderImpact),
+      affectedAssetIds: [],
+      affectedProcessIds: [],
     });
+    setIncidentManager(incident.incidentManagerId ? { id: incident.incidentManagerId, label: t('incidents.fields.incidentManagerId') } : null);
+    setAffectedAssets([]);
+    setAffectedProcesses([]);
     setError(null);
     setModalOpen(true);
   };
@@ -257,6 +271,8 @@ const Incidents = () => {
       suspectedCause: form.suspectedCause.trim() || undefined,
       isIntentional: form.isIntentional,
       hasCrossBorderImpact: form.hasCrossBorderImpact,
+      affectedAssetIds: form.affectedAssetIds,
+      affectedProcessIds: form.affectedProcessIds,
     };
 
     if (form.financialImpact.trim()) payload.financialImpact = Number(form.financialImpact);
@@ -284,7 +300,9 @@ const Incidents = () => {
       }
       setModalOpen(false);
       setEditingIncident(null);
-      setForm(initialIncidentForm());
+      setForm(initialIncidentForm(currentUser?.id));
+      setAffectedAssets([]);
+      setAffectedProcesses([]);
       await loadIncidents();
     } catch (err: any) {
       setError(err.response?.data?.error?.message || err.response?.data?.message || t('incidents.saveError'));
@@ -355,9 +373,6 @@ const Incidents = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('incidents.title')}</h1>
         <div className="flex gap-3">
-          <button onClick={ensureNis2Catalogue} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            {t('incidents.ensureCatalogue')}
-          </button>
           <button onClick={openCreateModal} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
             {t('incidents.addIncident')}
           </button>
@@ -435,7 +450,7 @@ const Incidents = () => {
               filteredIncidents.map((incident) => (
                 <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                    {incident.title}
+                    <Link to={`/incidents/${incident.id}`} className="hover:text-blue-600 hover:underline">{incident.title}</Link>
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(incident.status)}`}>
@@ -508,10 +523,38 @@ const Incidents = () => {
                 </select>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.incidentManagerId')} *</label>
-              <input type="text" value={form.incidentManagerId} onChange={(e) => handleFormChange('incidentManagerId', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
+            <EntityPicker
+              labelKey="incidents.fields.incidentManagerId"
+              entityType="user"
+              value={incidentManager}
+              required
+              onChange={(manager) => {
+                setIncidentManager(manager);
+                handleFormChange('incidentManagerId', manager.id);
+              }}
+            />
+            <EntityPicker
+              labelKey="incidents.fields.affectedAssets"
+              label="Affected assets"
+              entityType="asset"
+              values={affectedAssets}
+              multiple
+              onValuesChange={(assets) => {
+                setAffectedAssets(assets);
+                setForm((previous) => ({ ...previous, affectedAssetIds: assets.map((asset) => asset.id) }));
+              }}
+            />
+            <EntityPicker
+              labelKey="incidents.fields.affectedProcesses"
+              label="Affected processes"
+              entityType="businessProcess"
+              values={affectedProcesses}
+              multiple
+              onValuesChange={(processes) => {
+                setAffectedProcesses(processes);
+                setForm((previous) => ({ ...previous, affectedProcessIds: processes.map((process) => process.id) }));
+              }}
+            />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.reporterSource')}</label>
               <input type="text" value={form.reporterSource} onChange={(e) => handleFormChange('reporterSource', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />

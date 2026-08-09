@@ -27,6 +27,12 @@ describe('Phase6Service', () => {
     await expect(phase6Service.createCorrectiveActionFromSource('phase7', 'x', {}, 'u1')).rejects.toThrow('Unsupported corrective action source');
   });
 
+  it('accepts BCP as a corrective action source while retaining source allow-list validation', async () => {
+    (prisma as any).correctiveAction.create.mockResolvedValue({ id: 'capa-bcp-1', sourceType: 'bcp', sourceId: 'bcp-1' });
+    (prisma as any).auditLog.create.mockResolvedValue({});
+    await expect(phase6Service.createCorrectiveActionFromSource('bcp', 'bcp-1', { title: 'Exercise finding', description: 'Recoverability gap', ownerId: 'u1', dueDate: new Date() }, 'u1')).resolves.toMatchObject({ sourceType: 'bcp' });
+  });
+
   it('detects metric threshold breaches and trend', async () => {
     (prisma as any).metricDefinition.findUnique.mockResolvedValue({ thresholds: { warningMax: 80, criticalMax: 90 } });
     (prisma as any).metricValue.findFirst.mockResolvedValue({ value: 70 });

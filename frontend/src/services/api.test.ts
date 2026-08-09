@@ -114,6 +114,50 @@ test('phase 6 API client methods accept shared DTO contract types for target res
   expect(mockedApi.post).toHaveBeenCalledWith('/incidents', incident);
 });
 
+test('operations API exposes typed lifecycle endpoints without generic JSON form contracts', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { phase6Api } = await import('./api');
+
+  await phase6Api.completeTraining('assignment-1', { score: 90, result: 'passed' });
+  await phase6Api.enterMetricValue({ metricId: 'metric-1', value: 4.5, source: 'manual' });
+  await phase6Api.runReport({ module: 'metricValues', format: 'csv' });
+
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/training-assignments/assignment-1/complete', { score: 90, result: 'passed' });
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/metric-values', { metricId: 'metric-1', value: 4.5, source: 'manual' });
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/reports/run', { module: 'metricValues', format: 'csv' });
+});
+
+test('supplier API uses dedicated workflow endpoints without raw relationship IDs in UI callers', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { supplierApi } = await import('./api');
+
+  await supplierApi.getDetail('supplier-1');
+  await supplierApi.createAssessment('supplier-1', { assessorId: 'user-1', questionnaire: { security: 'yes' }, findings: [{ title: 'Missing evidence', severity: 'medium' }], actions: [] });
+  await supplierApi.addContract('supplier-1', { contractId: 'contract-1' });
+  await supplierApi.addRisk('supplier-1', { riskId: 'risk-1' });
+  await supplierApi.createCapa('supplier-1', { title: 'Collect evidence' });
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/isms-operations/suppliers/supplier-1/detail');
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/suppliers/supplier-1/assessments', expect.objectContaining({ assessorId: 'user-1' }));
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/suppliers/supplier-1/contracts', { contractId: 'contract-1' });
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/suppliers/supplier-1/risks', { riskId: 'risk-1' });
+  expect(mockedApi.post).toHaveBeenCalledWith('/isms-operations/corrective-actions/from-source', { sourceType: 'supplier', sourceId: 'supplier-1', data: { title: 'Collect evidence' } });
+});
+
+test('actionCenterApi sends typed filters to the server-side Action Center endpoint', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { actionCenterApi } = await import('./api');
+
+  await actionCenterApi.list({ scope: 'mine', urgency: 'critical', page: 2, limit: 10 });
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/action-center', {
+    params: { scope: 'mine', urgency: 'critical', page: 2, limit: 10 },
+  });
+});
+
 test('integration API clients use backend-mounted admin integration routes', async () => {
   resetApiTestState();
   const mockedApi = installAxiosMock();
@@ -181,5 +225,49 @@ test('incidentApi.history without params uses defaults', async () => {
 
   expect(mockedApi.get).toHaveBeenCalledWith('/incidents/incident-456/history', {
     params: undefined,
+  });
+});
+
+test('incidentApi exposes the deadline recalculation endpoint used by incident detail', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { incidentApi } = await import('./api');
+
+  await incidentApi.getById('incident-789');
+  await incidentApi.recalculateDeadlines('incident-789');
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/incidents/incident-789');
+  expect(mockedApi.post).toHaveBeenCalledWith('/incidents/incident-789/recalculate-deadlines');
+});
+
+test('nis2Api exposes typed read endpoints and guided workflow requests', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { nis2Api } = await import('./api');
+
+  await nis2Api.listActiveQuestionnaires();
+  await nis2Api.listAssessments();
+  await nis2Api.getAssessment('assessment-1');
+  await nis2Api.listRegistrations();
+  await nis2Api.getRegistration('registration-1');
+  await nis2Api.createAssessment({ questionnaireVersion: '1.0', answers: { sector: 'energy', employeeCount: 75, annualRevenueMillionEur: 12, criticalService: true } });
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/nis2/questionnaires/active');
+  expect(mockedApi.get).toHaveBeenCalledWith('/nis2/assessments');
+  expect(mockedApi.get).toHaveBeenCalledWith('/nis2/assessments/assessment-1');
+  expect(mockedApi.get).toHaveBeenCalledWith('/nis2/registrations');
+  expect(mockedApi.get).toHaveBeenCalledWith('/nis2/registrations/registration-1');
+  expect(mockedApi.post).toHaveBeenCalledWith('/nis2/assessments', expect.objectContaining({ questionnaireVersion: '1.0' }));
+});
+
+test('actionCenterApi sends typed filters to the server-side Action Center endpoint', async () => {
+  resetApiTestState();
+  const mockedApi = installAxiosMock();
+  const { actionCenterApi } = await import('./api');
+
+  await actionCenterApi.list({ scope: 'mine', urgency: 'critical', page: 2, limit: 10 });
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/action-center', {
+    params: { scope: 'mine', urgency: 'critical', page: 2, limit: 10 },
   });
 });

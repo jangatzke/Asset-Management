@@ -10,6 +10,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    exclude: ['**/node_modules/**', '**/.git/**', 'e2e/**'],
   },
   resolve: {
     alias: {

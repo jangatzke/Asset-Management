@@ -50,7 +50,58 @@ export interface RegistrationData {
   bsiConfirmation?: string;
 }
 
+export interface Nis2QuestionnaireSummary {
+  id: string;
+  version: string;
+  title: string;
+  questions: unknown;
+  effectiveFrom: Date;
+}
+
+const assessmentListSelect = {
+  id: true, organizationUnitId: true, questionnaireVersion: true, preliminaryResult: true,
+  result: true, justification: true, status: true, submittedForApprovalAt: true,
+  approvedAt: true, createdAt: true, updatedAt: true,
+};
+
+const registrationListSelect = {
+  id: true, assessmentId: true, entityType: true, registrationDate: true, deadline: true,
+  contactPerson: true, contactDetails: true, submissionProof: true, bsiConfirmation: true,
+  status: true, createdAt: true, updatedAt: true,
+};
+
 export class Nis2Service {
+  async listActiveQuestionnaires(): Promise<Nis2QuestionnaireSummary[]> {
+    return (prisma as any).nis2QuestionnaireVersion.findMany({
+      where: { status: 'active', effectiveFrom: { lte: new Date() }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }] },
+      select: { id: true, version: true, title: true, questions: true, effectiveFrom: true },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+  }
+
+  async listAssessments() {
+    return (prisma as any).nis2Assessment.findMany({ where: { isArchived: false }, select: assessmentListSelect, orderBy: { updatedAt: 'desc' } });
+  }
+
+  async getAssessment(id: string) {
+    const assessment = await (prisma as any).nis2Assessment.findFirst({ where: { id, isArchived: false } });
+    if (!assessment) throw new AppError('NIS-2 assessment not found', 404);
+    return assessment;
+  }
+
+  async listRegistrations() {
+    return (prisma as any).nis2Registration.findMany({ where: { isArchived: false }, select: registrationListSelect, orderBy: { updatedAt: 'desc' } });
+  }
+
+  async getRegistration(id: string) {
+    const registration = await (prisma as any).nis2Registration.findFirst({
+      where: { id, isArchived: false },
+      include: { assessment: { select: { id: true, organizationUnitId: true, questionnaireVersion: true, result: true, status: true } }, changes: { orderBy: { createdAt: 'desc' } } },
+    });
+    if (!registration) throw new AppError('NIS-2 registration not found', 404);
+    return registration;
+  }
+
   async ensureDefaultQuestionnaire(createdBy?: string) {
     return (prisma as any).nis2QuestionnaireVersion.upsert({
       where: { version: DEFAULT_QUESTIONNAIRE.version },
