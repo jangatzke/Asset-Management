@@ -28,6 +28,8 @@ describe('ActionCenterService', () => {
     (authorizationService.getActiveRoles as jest.Mock).mockResolvedValue([{ permissions: new Set(['audits.read']), scopeId: 'scope-1', legalEntityId: null, organizationUnitId: null, siteId: null }]);
     await new ActionCenterService().list('user-1', { scope: 'authorized' });
     expect(mockPrisma.auditFinding.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.auditPlan.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.managementReview.findMany).not.toHaveBeenCalled();
   });
 
   it('paginates in stable due-date, source-type, and id order', async () => {

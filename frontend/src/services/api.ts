@@ -661,6 +661,7 @@ export const phase6Api = {
   addManagementReviewAction: (data: Record<string, unknown>) => api.post('/isms-operations/management-review-actions', data),
   approveManagementReview: (id: string, approved: boolean) => api.post(`/isms-operations/management-reviews/${id}/approval`, { approved }),
   startWorkflow: (data: { definitionId: string; entityType: string; entityId: string; context?: Record<string, unknown> }) => api.post('/isms-operations/workflows/start', data),
+  workflowActions: (id: string) => api.get<{ data: Array<{ key: string; label: string }> }>(`/isms-operations/workflows/${id}/actions`),
   transitionWorkflow: (id: string, data: { transition: string; comment?: string; assigneeId?: string }) => api.post(`/isms-operations/workflows/${id}/transition`, data),
   createReportDefinition: (data: Record<string, unknown>) => api.post('/isms-operations/report-definitions', data),
   runReport: (data: { definitionId?: string; module: string; filters?: Record<string, string>; format?: 'json' | 'csv' }) => api.post('/isms-operations/reports/run', data),

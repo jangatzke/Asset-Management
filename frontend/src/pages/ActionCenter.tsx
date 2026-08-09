@@ -2,6 +2,24 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { actionCenterApi, type ActionCenterItem, type ActionCenterParams, type ActionCenterResponse } from '../services/api';
 
+export const ACTION_CENTER_SOURCE_OPTIONS: ReadonlyArray<{ value: NonNullable<ActionCenterParams['sourceType']>; label: string }> = [
+  { value: 'workflowTask', label: 'Workflow task' },
+  { value: 'notificationDeadline', label: 'Notification deadline' },
+  { value: 'correctiveAction', label: 'Corrective action' },
+  { value: 'riskReviewTask', label: 'Risk review' },
+  { value: 'trainingAssignment', label: 'Training assignment' },
+  { value: 'auditFinding', label: 'Audit finding' },
+  { value: 'managementReviewAction', label: 'Management review action' },
+  { value: 'documentReview', label: 'Document review' },
+  { value: 'supplier', label: 'Supplier' },
+  { value: 'supplierAssessment', label: 'Assessment' },
+  { value: 'businessImpactAnalysis', label: 'BIA' },
+  { value: 'businessContinuityPlan', label: 'BCP' },
+  { value: 'bcpExercise', label: 'BCP Exercise' },
+  { value: 'auditPlan', label: 'Audit Plan' },
+  { value: 'managementReview', label: 'Management Review' },
+];
+
 const urgencyClasses: Record<ActionCenterItem['urgency'], string> = {
   overdue: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
   critical: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
@@ -38,7 +56,7 @@ export default function ActionCenter() {
     </div>
     <div className="flex flex-wrap gap-3 rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
       <label className="text-sm text-gray-700 dark:text-gray-200">Scope <select value={filters.scope} onChange={(e) => update({ scope: e.target.value as ActionCenterParams['scope'] })} className="ml-2 rounded border p-1 dark:bg-gray-700"><option value="all">All available</option><option value="mine">Assigned to me</option><option value="authorized">Authorized items</option></select></label>
-      <label className="text-sm text-gray-700 dark:text-gray-200">Source <select value={filters.sourceType ?? ''} onChange={(e) => update({ sourceType: (e.target.value || undefined) as ActionCenterParams['sourceType'] })} className="ml-2 rounded border p-1 dark:bg-gray-700"><option value="">All sources</option><option value="workflowTask">Workflow task</option><option value="notificationDeadline">Notification deadline</option><option value="correctiveAction">Corrective action</option><option value="riskReviewTask">Risk review</option><option value="trainingAssignment">Training assignment</option><option value="auditFinding">Audit finding</option><option value="managementReviewAction">Management review action</option><option value="documentReview">Document review</option></select></label>
+      <label className="text-sm text-gray-700 dark:text-gray-200">Source <select value={filters.sourceType ?? ''} onChange={(e) => update({ sourceType: (e.target.value || undefined) as ActionCenterParams['sourceType'] })} className="ml-2 rounded border p-1 dark:bg-gray-700"><option value="">All sources</option>{ACTION_CENTER_SOURCE_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label className="text-sm text-gray-700 dark:text-gray-200">Due before <input type="date" value={filters.dueBefore?.slice(0, 10) ?? ''} onChange={(e) => update({ dueBefore: e.target.value ? new Date(`${e.target.value}T23:59:59.999Z`).toISOString() : undefined })} className="ml-2 rounded border p-1 dark:bg-gray-700" /></label>
     </div>
     {error && <div role="alert" className="rounded bg-red-50 p-4 text-red-800 dark:bg-red-900/30 dark:text-red-100">{error}</div>}

@@ -600,3 +600,26 @@ async createRelation(assetId: string, relationData: {...}, userId?: string) {
 2. **Audit log enhancement** — Consider logging scope change events in the audit log for compliance tracking.
 
 3. **API documentation update** — Update the OpenAPI spec to document the new authorization requirements for relation creation.
+# Action Center P1: Phase-6 scoped-role filtering decision (2026-08-09)
+
+## Decision
+
+Entity-level scoped filtering for Action Center Phase-6 sources is **deferred**. The existing behavior remains: Phase-6 Action Center records are returned only for an active, unscoped role with the source's read permission. Roles constrained by legal entity, organization unit, ISMS scope, or site do not grant Action Center visibility for these sources.
+
+## Why `authorizationService.buildReadFilter()` cannot be safely applied
+
+`buildReadFilter()` only generates entity-level predicates for `assets`, `risks`, `controls`, and `incidents`. Its scoped-filter implementation intentionally returns no predicate for `suppliers`, `bcm`, and `audits`; a scoped role consequently receives the deny-all sentinel. Extending only the resource mapping would not solve the schema problem.
+
+The Action Center Phase-6 models do not expose a common, relational scope path that can support each scoped-role constraint:
+
+- `Supplier` has no legal-entity, organization-unit, ISMS-scope, or site field/relation.
+- `SupplierAssessment` has only scalar `supplierId`; the Prisma schema has no `Supplier` relation through which a scoped predicate could be expressed.
+- `BusinessImpactAnalysis` references processes/services by scalar IDs and has no declared scope relation; `BusinessContinuityPlan` similarly has scalar `biaId` and a free-text `scope` field, not an `IsmsScope` relation.
+- `BCPExercise` reaches a BCP only through scalar `bcpId`, and the BCP lacks a relational scope.
+- `AuditPlan.scope` is free text, not an `IsmsScope` foreign key; `ManagementReview` has no scope linkage.
+
+Using owner, assessor, chair, participant JSON, free-text scope, or application-side post-filtering as a substitute would neither implement the authorization model consistently nor safely protect list-query disclosure. It would also be incomplete for legal-entity, organization-unit, ISMS-scope, and site constraints.
+
+## Required architecture before implementation
+
+Add normalized foreign-key relations (or a single common authorization-scope relation) for every listed source and its derived records; generate Prisma relations and indexes; extend `EntityType`, `resolveEntityScope()`, and `buildScopedFilter()` with predicates that enforce every constraint; then add service and integration tests for allow, deny, combined constraints, mixed scoped/unscoped roles, and cross-source traversal. Only after that can Action Center pass `buildReadFilter()` predicates to all affected Phase-6 delegates.

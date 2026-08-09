@@ -150,10 +150,11 @@ export class Phase6Service {
   async startWorkflow(definitionId: string, data: AnyObject, userId = 'system') {
     const definition = await (prisma as any).workflowDefinition.findUnique({ where: { id: definitionId } });
     if (!definition) throw new AppError('Workflow definition not found', 404);
+    if (data.entityType && data.entityType !== definition.entityType) throw new AppError('Workflow entity type must match the workflow definition', 400);
     const states = Array.isArray(definition.states) ? definition.states : [];
     const initialState = data.initialState ?? states[0]?.key ?? states[0]?.name ?? 'start';
     const dueDate = this.calculateWorkflowDueDate(definition.dueDateRules, data.context ?? {});
-    const instance = await (prisma as any).workflowInstance.create({ data: { definitionId, entityType: data.entityType ?? definition.entityType, entityId: data.entityId, currentState: initialState, context: data.context ?? {}, dueDate, createdBy: userId } });
+    const instance = await (prisma as any).workflowInstance.create({ data: { definitionId, entityType: definition.entityType, entityId: data.entityId, currentState: initialState, context: data.context ?? {}, dueDate, createdBy: userId } });
     await auditService.logEventStandalone(prisma, { userId, action: 'DOCUMENT_WORKFLOW_TRANSITION', entityType: 'WorkflowInstance', entityId: instance.id, details: `Started workflow ${definition.name}` });
     return instance;
   }
@@ -171,6 +172,18 @@ export class Phase6Service {
     if (transition.task) await (prisma as any).workflowTask.create({ data: { instanceId, title: transition.task.title ?? `Task for ${transition.to}`, assigneeId: transition.task.assigneeId ?? data.assigneeId, taskType: transition.task.type ?? 'approval', dueDate: transition.task.dueDate ? new Date(transition.task.dueDate) : undefined } });
     await auditService.logEventStandalone(prisma, { userId, action: 'DOCUMENT_WORKFLOW_TRANSITION', entityType: 'WorkflowInstance', entityId: instanceId, details: `Transitioned workflow via ${transitionKey}` });
     return updated;
+  }
+
+  async getWorkflowActions(instanceId: string) {
+    const instance = await (prisma as any).workflowInstance.findUnique({ where: { id: instanceId } });
+    if (!instance) throw new AppError('Workflow instance not found', 404);
+    const definition = await (prisma as any).workflowDefinition.findUnique({ where: { id: instance.definitionId } });
+    if (!definition) throw new AppError('Workflow definition not found', 404);
+    const transitions = Array.isArray(definition.transitions) ? definition.transitions : [];
+    return transitions
+      .filter((transition: AnyObject) => !transition.from || transition.from === instance.currentState)
+      .map((transition: AnyObject) => ({ key: transition.key ?? transition.name, label: transition.label ?? transition.title ?? transition.name ?? transition.key }))
+      .filter((transition: AnyObject) => typeof transition.key === 'string' && transition.key.length > 0);
   }
 
   private calculateWorkflowDueDate(rules: AnyObject | null, context: AnyObject) {

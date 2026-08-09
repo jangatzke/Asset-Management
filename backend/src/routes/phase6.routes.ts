@@ -143,6 +143,12 @@ phase6Router.post('/workflows/:id/transition', authenticate, requireMappedWriteP
   } catch (error) { next(error); }
 });
 
+phase6Router.get('/workflows/:id/actions', authenticate, requireMappedReadPermission('auditPlans'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json({ data: await phase6Service.getWorkflowActions(req.params.id) });
+  } catch (error) { next(error); }
+});
+
 phase6Router.post('/reports/run', authenticate, requireMappedWritePermission('auditPlans'), validateBody(ReportRunSchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await phase6Service.createReportRun(req.body, req.userId ?? 'system');

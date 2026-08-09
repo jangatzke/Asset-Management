@@ -36,7 +36,7 @@ describe('Phase6 routes', () => {
 
   it('creates source-linked corrective actions', async () => {
     (phase6Service.createCorrectiveActionFromSource as jest.Mock).mockResolvedValue({ id: 'capa-1' });
-    const res = await request(app).post('/api/v1/phase6/corrective-actions/from-source').send({ sourceType: 'audit', sourceId: 'finding-1', data: { title: 'Fix' } });
+    const res = await request(app).post('/api/v1/phase6/corrective-actions/from-source').send({ sourceType: 'audit', sourceId: '11111111-1111-4111-8111-111111111111', data: { title: 'Fix' } });
     expect(res.status).toBe(201);
   });
 });

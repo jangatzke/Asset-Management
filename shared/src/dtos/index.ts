@@ -654,7 +654,7 @@ export const AssessIncidentSchema = z.object({
   isReportable: z.boolean(),
   reportingJustification: z.string().optional(),
   decisionNotToReport: z.string().optional(),
-  decisionApprovedBy: z.string().optional(),
+  decisionApprovedBy: z.string().uuid().optional(),
 }).superRefine((data, ctx) => {
   if (!data.isReportable && !data.decisionNotToReport) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['decisionNotToReport'], message: 'Decision not to report requires justification' });
   if (!data.isReportable && !data.decisionApprovedBy) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['decisionApprovedBy'], message: 'Decision not to report requires approval' });

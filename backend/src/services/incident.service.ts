@@ -472,6 +472,13 @@ export class IncidentService {
 
     if (!data.isReportable && !data.decisionNotToReport?.trim()) throw new AppError('Decision not to report requires justification', 400);
     if (!data.isReportable && !data.decisionApprovedBy?.trim()) throw new AppError('Decision not to report requires approval', 400);
+    if (!data.isReportable) {
+      const approver = await prisma.user.findFirst({
+        where: { id: data.decisionApprovedBy, isActive: true, isArchived: false },
+        select: { id: true },
+      });
+      if (!approver) throw new AppError('Decision approver must be an active user', 400);
+    }
 
     const incidentAny = incident as any;
     const ruleVersion = incidentAny.significanceRuleVersionId

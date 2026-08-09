@@ -52,4 +52,20 @@ describe('Phase6Service', () => {
     expect(job.payload).toContain('legalName');
     expect(job.status).toBe('completed');
   });
+
+  it('starts workflows only for the entity type supported by their definition', async () => {
+    (prisma as any).workflowDefinition.findUnique.mockResolvedValue({ id: 'definition-1', name: 'Risk review', entityType: 'risk', states: [{ key: 'draft' }], dueDateRules: {} });
+    (prisma as any).workflowInstance.create.mockImplementation(async ({ data }: any) => ({ id: 'instance-1', ...data }));
+    (prisma as any).auditLog.create.mockResolvedValue({});
+
+    await expect(phase6Service.startWorkflow('definition-1', { entityType: 'asset', entityId: 'asset-1' }, 'user-1')).rejects.toThrow('must match the workflow definition');
+    await expect(phase6Service.startWorkflow('definition-1', { entityType: 'risk', entityId: 'risk-1' }, 'user-1')).resolves.toMatchObject({ entityType: 'risk', entityId: 'risk-1' });
+  });
+
+  it('returns only the allowed labeled actions for the instance current state', async () => {
+    (prisma as any).workflowInstance.findUnique.mockResolvedValue({ id: 'instance-1', definitionId: 'definition-1', currentState: 'review' });
+    (prisma as any).workflowDefinition.findUnique.mockResolvedValue({ transitions: [{ key: 'approve', label: 'Approve', from: 'review', to: 'approved' }, { key: 'reject', name: 'Reject', from: 'review', to: 'draft' }, { key: 'publish', from: 'approved', to: 'completed' }] });
+
+    await expect(phase6Service.getWorkflowActions('instance-1')).resolves.toEqual([{ key: 'approve', label: 'Approve' }, { key: 'reject', label: 'Reject' }]);
+  });
 });

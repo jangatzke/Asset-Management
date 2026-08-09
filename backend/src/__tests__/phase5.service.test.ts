@@ -1,5 +1,6 @@
 const mockPrismaClient: any = {
   incident: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+  user: { findFirst: jest.fn() },
   notificationDeadline: { createMany: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
   incidentAssessment: { upsert: jest.fn() },
   incidentKnowledgeTimeChange: { create: jest.fn() },
@@ -65,6 +66,27 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     mockPrismaClient.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValue({ id: 'rules-1', rules: [] });
     await expect(incidentService.assessIncident('inc-1', { assessorId: 'assessor-1', isReportable: false })).rejects.toThrow('justification');
     await expect(incidentService.assessIncident('inc-1', { assessorId: 'assessor-1', isReportable: false, decisionNotToReport: 'Below threshold' })).rejects.toThrow('approval');
+  });
+
+  it('persists a selected active user ID as the non-reporting approver', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low' });
+    mockPrismaClient.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValue({ id: 'rules-1', rules: [] });
+    mockPrismaClient.user.findFirst.mockResolvedValue({ id: '5d234b9e-5a99-41e5-b273-41d814574c4d' });
+    mockPrismaClient.incidentAssessment.upsert.mockResolvedValue({ id: 'assessment-1' });
+
+    await incidentService.assessIncident('inc-1', { assessorId: 'assessor-1', isReportable: false, decisionNotToReport: 'Below threshold', decisionApprovedBy: '5d234b9e-5a99-41e5-b273-41d814574c4d' });
+
+    expect(mockPrismaClient.user.findFirst).toHaveBeenCalledWith({ where: { id: '5d234b9e-5a99-41e5-b273-41d814574c4d', isActive: true, isArchived: false }, select: { id: true } });
+    expect(mockPrismaClient.incidentAssessment.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ decisionApprovedBy: '5d234b9e-5a99-41e5-b273-41d814574c4d' }),
+    }));
+  });
+
+  it('rejects a non-reporting decision that names an unavailable user', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low' });
+    mockPrismaClient.user.findFirst.mockResolvedValue(null);
+
+    await expect(incidentService.assessIncident('inc-1', { assessorId: 'assessor-1', isReportable: false, decisionNotToReport: 'Below threshold', decisionApprovedBy: '5d234b9e-5a99-41e5-b273-41d814574c4d' })).rejects.toThrow('active user');
   });
 
   it('blocks incident closure without root cause, measures evaluation and final report', async () => {
