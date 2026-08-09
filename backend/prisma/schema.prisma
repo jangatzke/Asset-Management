@@ -1655,24 +1655,24 @@ model Incident {
 }
 
 model IncidentAssessment {
-  id                        String    @id @default(uuid())
-  incidentId                String    @unique
-  assessorId                String
-  isReportable              Boolean   @default(false)
-  reportingJustification    String?
-  decisionNotToReport       String?
+  id                         String    @id @default(uuid())
+  incidentId                 String    @unique
+  assessorId                 String
+  isReportable               Boolean   @default(false)
+  reportingJustification     String?
+  decisionNotToReport        String?
   decisionApprovalAssigneeId String?
-  decisionApprovedBy        String?
-  decisionApprovedAt        DateTime?
-  significanceRuleVersionId String?
-  evaluatedRules            Json?
-  assessmentDate            DateTime  @default(now())
-  status                    String    @default("active")
-  isArchived                Boolean   @default(false)
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  createdBy                 String?
-  updatedBy                 String?
+  decisionApprovedBy         String?
+  decisionApprovedAt         DateTime?
+  significanceRuleVersionId  String?
+  evaluatedRules             Json?
+  assessmentDate             DateTime  @default(now())
+  status                     String    @default("active")
+  isArchived                 Boolean   @default(false)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  createdBy                  String?
+  updatedBy                  String?
 
   incident                Incident                             @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   significanceRuleVersion Nis2IncidentSignificanceRuleVersion? @relation(fields: [significanceRuleVersionId], references: [id], onDelete: SetNull)
