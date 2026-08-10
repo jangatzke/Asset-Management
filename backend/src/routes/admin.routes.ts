@@ -238,7 +238,7 @@ adminRouter.get('/roles/:id', authenticate, requireAdminAccess, async (req, res,
 
 adminRouter.post('/roles', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    const role = await adminService.createRole(req.body);
+    const role = await adminService.createRole(req.body, req.userId);
     res.status(201).json(role);
   } catch (error) {
     next(error);
@@ -247,7 +247,7 @@ adminRouter.post('/roles', authenticate, requireAdminAccess, async (req: AuthReq
 
 adminRouter.put('/roles/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
-    const role = await adminService.updateRole(req.params.id, req.body);
+    const role = await adminService.updateRole(req.params.id, req.body, req.userId);
     res.json(role);
   } catch (error) {
     next(error);

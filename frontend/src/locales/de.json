@@ -1293,7 +1293,13 @@
     "noRecords": "Noch keine Einträge.",
     "dueDate": "Fällig am {date}",
     "workspaces": { "training": "Schulung", "metrics": "Kennzahlen", "reviews": "Management-Reviews", "workflows": "Workflow-Aufgaben", "reports": "Berichte & Exporte" },
-    "actions": { "createCourse": "Kurs erstellen", "assignCourse": "Kurs zuweisen", "recordCompletion": "Abschluss erfassen", "acknowledgeCourse": "Kurs bestätigen", "defineMetric": "Kennzahl definieren", "enterValue": "Wert erfassen", "scheduleReview": "Review planen", "approveReview": "Review freigeben", "addAction": "Maßnahme hinzufügen", "startFromEntity": "Von Entität starten", "transitionInstance": "Instanz überführen", "createDefinition": "Definition erstellen", "runReport": "Bericht ausführen" }
+    "actions": { "createCourse": "Kurs erstellen", "assignCourse": "Kurs zuweisen", "recordCompletion": "Abschluss erfassen", "acknowledgeCourse": "Kurs bestätigen", "defineMetric": "Kennzahl definieren", "enterValue": "Wert erfassen", "scheduleReview": "Review planen", "approveReview": "Review freigeben", "addAction": "Maßnahme hinzufügen", "startFromEntity": "Von Entität starten", "transitionInstance": "Instanz überführen", "createDefinition": "Definition erstellen", "runReport": "Bericht ausführen" },
+    "sections": {
+      "courses": "Kurse", "assignments": "Zuweisungen", "acknowledgements": "Bestätigungen", "metricDefinitions": "Metrikdefinitionen", "valuesTrendsBreaches": "Werte, Trends & Grenzwertverletzungen", "decisionsAndActions": "Entscheidungen und Maßnahmen", "administrativeDefinitions": "Definitionen (administrativ)", "contextualInstances": "Kontextbezogene Instanzen", "actionableTasks": "Ausführbare Aufgaben", "reportDefinitions": "Berichtsdefinitionen", "runResults": "Ausführungsergebnisse", "exports": "Exporte"
+    },
+    "form": {
+      "responsibleUser": "Verantwortliche Person", "selectOption": "Option auswählen"
+    }
   },
   "audit": {
     "title": "Audit-Arbeitsbereich", "description": "Planen, führen und verfolgen Sie interne Audits nach.", "newAudit": "Neues Audit", "editAudit": "Audit bearbeiten", "auditProgram": "Auditprogramm", "auditScope": "Auditumfang", "auditCriteria": "Auditkriterien", "leadAuditor": "Leitender Auditor", "auditees": "Auditierte", "plannedDate": "Geplantes Datum", "completedDate": "Abschlussdatum", "findings": "Feststellungen", "newFinding": "Neue Feststellung", "findingType": "Art der Feststellung", "nonconformity": "Nichtkonformität", "observation": "Beobachtung", "opportunityForImprovement": "Verbesserungsmöglichkeit", "correctiveAction": "Korrekturmaßnahme", "evidence": "Nachweise", "conclusion": "Auditfazit", "status": { "planned": "Geplant", "inProgress": "In Bearbeitung", "completed": "Abgeschlossen", "cancelled": "Abgebrochen" }

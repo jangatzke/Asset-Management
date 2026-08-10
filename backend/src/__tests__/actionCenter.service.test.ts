@@ -21,14 +21,22 @@ describe('ActionCenterService', () => {
   it('includes an assigned open task and classifies it as critical', async () => {
     mockPrisma.workflowTask.findMany.mockResolvedValue([{ id: 'task-1', title: 'Approve', status: 'open', assigneeId: 'user-1', dueDate: new Date('2026-01-03T00:00:00Z') }]);
     const result = await new ActionCenterService().list('user-1', { scope: 'mine' }, new Date('2026-01-01T00:00:00Z'));
-    expect(result.data).toEqual(expect.arrayContaining([expect.objectContaining({ sourceType: 'workflowTask', urgency: 'critical', assignment: 'mine' })]));
+    expect(result.data).toEqual(expect.arrayContaining([expect.objectContaining({ sourceType: 'workflowTask', dueDate: '2026-01-03T00:00:00.000Z', urgency: 'critical', assignment: 'mine' })]));
   });
 
-  it('shows pending non-reportable approval only to its assigned approver', async () => {
-    mockPrisma.incidentAssessment.findMany.mockResolvedValue([{ id: 'assessment-1', incidentId: 'incident-1', status: 'pending_approval', updatedAt: new Date('2026-01-03T00:00:00Z'), incident: { title: 'Outage' } }]);
+  it('derives a new NIS2 approval due date from creation rather than its updated timestamp', async () => {
+    mockPrisma.incidentAssessment.findMany.mockResolvedValue([{
+      id: 'assessment-1', incidentId: 'incident-1', status: 'pending_approval',
+      createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T00:00:01Z'),
+      incident: { title: 'Outage' },
+    }]);
     const result = await new ActionCenterService().list('approver-1', { scope: 'mine' }, new Date('2026-01-01T00:00:00Z'));
     expect(mockPrisma.incidentAssessment.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ decisionApprovalAssigneeId: 'approver-1', status: 'pending_approval' }) }));
-    expect(result.data).toEqual(expect.arrayContaining([expect.objectContaining({ sourceType: 'incidentNonReportableApproval', assignment: 'mine', href: '/incidents/incident-1' })]));
+    expect(result.data).toEqual(expect.arrayContaining([expect.objectContaining({
+      sourceType: 'incidentNonReportableApproval', dueDate: '2026-01-02T00:00:00.000Z', urgency: 'critical', assignment: 'mine', href: '/incidents/incident-1',
+    })]));
+    expect(result.summary.overdue).toBe(0);
+    expect(result.summary.critical).toBeGreaterThan(0);
   });
 
   it('does not query authorized Phase 6 sources for scoped roles', async () => {

@@ -48,6 +48,9 @@ const urgencyFor = (dueDate: Date, now: Date): ActionCenterUrgency => {
   if (hours <= 168) return 'upcoming';
   return 'planned';
 };
+const NIS2_APPROVAL_SLA_MS = 24 * 3_600_000;
+/** Pending NIS2 decisions do not have a persisted deadline, so derive their temporary SLA from creation. */
+const nis2ApprovalDueDate = (createdAt: Date): Date => new Date(createdAt.getTime() + NIS2_APPROVAL_SLA_MS);
 const item = (sourceType: ActionCenterSourceType, record: any, title: string, dueDate: Date, assignment: 'mine' | 'authorized', href?: string, now = new Date()): ActionCenterItem => ({
   id: record.id, sourceType, title, status: record.status, dueDate: dueDate.toISOString(), urgency: urgencyFor(dueDate, now), assignment, href,
 });
@@ -93,7 +96,7 @@ export class ActionCenterService {
         where: { decisionApprovalAssigneeId: userId, status: 'pending_approval', isArchived: false },
         include: { incident: { select: { title: true } } },
       });
-      pendingApprovals.forEach((r: any) => items.push(item('incidentNonReportableApproval', r, `Approve non-reportable decision: ${r.incident.title}`, r.updatedAt ?? r.createdAt ?? now, 'mine', `/incidents/${r.incidentId}`, now)));
+      pendingApprovals.forEach((r: any) => items.push(item('incidentNonReportableApproval', r, `Approve non-reportable decision: ${r.incident.title}`, nis2ApprovalDueDate(r.createdAt), 'mine', `/incidents/${r.incidentId}`, now)));
     }
 
     if (await can('incidents.read')) {

@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
+import { authorizationService } from './authorization.service';
 
 // ==========================================
 // Incident History (AUDIT-001)
@@ -108,6 +109,23 @@ export class IncidentService {
 
   private endOfNextMonth(date: Date) {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 2, 0, 23, 59, 59, 999));
+  }
+
+  private async requireEligibleNonReportableApprover(approverId: string, assessorId: string, incidentId: string) {
+    if (approverId === assessorId) throw new AppError('Decision approver must differ from assessor', 403);
+
+    const approver = await prisma.user.findFirst({
+      where: { id: approverId, isActive: true, isArchived: false },
+      select: { id: true },
+    });
+    if (!approver) throw new AppError('Decision approver must be an active, non-archived user', 403);
+
+    const [canApprove, canReadIncident] = await Promise.all([
+      authorizationService.canForEntity(approverId, 'nis2.approve', 'incidents', incidentId),
+      authorizationService.canForEntity(approverId, 'incidents.read', 'incidents', incidentId),
+    ]);
+    if (!canApprove) throw new AppError('Decision approver requires nis2.approve for the incident scope', 403);
+    if (!canReadIncident) throw new AppError('Decision approver requires read access to the incident', 403);
   }
 
   async ensureDefaultSignificanceRules(createdBy?: string) {
@@ -477,12 +495,7 @@ export class IncidentService {
     if (!data.isReportable && !data.decisionNotToReport?.trim()) throw new AppError('Decision not to report requires justification', 400);
     if (!data.isReportable && !data.decisionApprovedBy?.trim()) throw new AppError('Decision not to report requires approval', 400);
     if (!data.isReportable) {
-      if (data.decisionApprovedBy === actorId) throw new AppError('Decision approver must differ from assessor', 403);
-      const approver = await prisma.user.findFirst({
-        where: { id: data.decisionApprovedBy, isActive: true, isArchived: false },
-        select: { id: true },
-      });
-      if (!approver) throw new AppError('Decision approver must be an active user', 400);
+      await this.requireEligibleNonReportableApprover(data.decisionApprovedBy!, actorId, incidentId);
     }
 
     const incidentAny = incident as any;
@@ -491,35 +504,40 @@ export class IncidentService {
       : await this.ensureDefaultSignificanceRules(actorId);
     const evaluated = this.evaluateSignificance(incident as any, ruleVersion);
 
-    const assessment = await (prisma as any).incidentAssessment.upsert({
-      where: { incidentId },
-      update: {
-        isReportable: data.isReportable,
-        reportingJustification: data.reportingJustification,
-        decisionNotToReport: data.decisionNotToReport,
-        decisionApprovalAssigneeId: data.isReportable ? null : data.decisionApprovedBy,
-        decisionApprovedBy: null,
-        decisionApprovedAt: null,
-        status: data.isReportable ? 'active' : 'pending_approval',
-        significanceRuleVersionId: ruleVersion.id,
-        evaluatedRules: evaluated,
-        assessorId: actorId,
-        updatedBy: actorId,
-      },
-      create: {
-        incidentId,
-        isReportable: data.isReportable,
-        reportingJustification: data.reportingJustification,
-        decisionNotToReport: data.decisionNotToReport,
-        decisionApprovalAssigneeId: data.isReportable ? undefined : data.decisionApprovedBy,
-        assessorId: actorId,
-        status: data.isReportable ? 'active' : 'pending_approval',
-        significanceRuleVersionId: ruleVersion.id,
-        evaluatedRules: evaluated,
-      },
+    const assessment = await prisma.$transaction(async (tx) => {
+      const savedAssessment = await (tx as any).incidentAssessment.upsert({
+        where: { incidentId },
+        update: {
+          isReportable: data.isReportable,
+          reportingJustification: data.reportingJustification,
+          decisionNotToReport: data.decisionNotToReport,
+          decisionApprovalAssigneeId: data.isReportable ? null : data.decisionApprovedBy,
+          decisionApprovedBy: null,
+          decisionApprovedAt: null,
+          status: data.isReportable ? 'active' : 'pending_approval',
+          significanceRuleVersionId: ruleVersion.id,
+          evaluatedRules: evaluated,
+          assessorId: actorId,
+          updatedBy: actorId,
+        },
+        create: {
+          incidentId,
+          isReportable: data.isReportable,
+          reportingJustification: data.reportingJustification,
+          decisionNotToReport: data.decisionNotToReport,
+          decisionApprovalAssigneeId: data.isReportable ? undefined : data.decisionApprovedBy,
+          assessorId: actorId,
+          status: data.isReportable ? 'active' : 'pending_approval',
+          significanceRuleVersionId: ruleVersion.id,
+          evaluatedRules: evaluated,
+        },
+      });
+      await tx.incident.update({
+        where: { id: incidentId },
+        data: { notificationStatus: data.isReportable ? 'pending_assessment' : 'pending_non_reportable_approval', updatedBy: actorId },
+      });
+      return savedAssessment;
     });
-
-    await prisma.incident.update({ where: { id: incidentId }, data: { notificationStatus: data.isReportable ? 'pending_assessment' : 'not_required', isSignificant: data.isReportable, significanceReasons: evaluated.reasons } as any });
 
     // Incident history entry (AUDIT-001)
     await this.recordHistoryEntry(incidentId, 'ASSESSMENT', `Assessed incident: ${data.isReportable ? 'reportable' : 'not reportable'}`, { isReportable: data.isReportable, justification: data.reportingJustification }, actorId);
@@ -534,19 +552,25 @@ export class IncidentService {
     if (assessment.assessorId === actorId) throw new AppError('Assessor cannot approve their own decision', 403);
     if (assessment.decisionApprovalAssigneeId !== actorId) throw new AppError('Only the assigned approver can decide this assessment', 403);
 
-    const approver = await prisma.user.findFirst({ where: { id: actorId, isActive: true, isArchived: false }, select: { id: true } });
-    if (!approver) throw new AppError('Assigned approver must be an active user', 403);
+    await this.requireEligibleNonReportableApprover(actorId, assessment.assessorId, incidentId);
 
     const approved = data.decision === 'approve';
-    const updated = await (prisma as any).incidentAssessment.update({
-      where: { incidentId },
-      data: {
-        status: approved ? 'approved' : 'returned',
-        decisionApprovedBy: approved ? actorId : null,
-        decisionApprovedAt: approved ? new Date() : null,
-        updatedBy: actorId,
-        ...(approved ? {} : { decisionApprovalAssigneeId: null, reportingJustification: data.returnReason }),
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const savedAssessment = await (tx as any).incidentAssessment.update({
+        where: { incidentId },
+        data: {
+          status: approved ? 'approved' : 'returned',
+          decisionApprovedBy: approved ? actorId : null,
+          decisionApprovedAt: approved ? new Date() : null,
+          updatedBy: actorId,
+          ...(approved ? {} : { decisionApprovalAssigneeId: null, reportingJustification: data.returnReason }),
+        },
+      });
+      await tx.incident.update({
+        where: { id: incidentId },
+        data: { notificationStatus: approved ? 'not_required' : 'pending_assessment', updatedBy: actorId },
+      });
+      return savedAssessment;
     });
     await this.recordHistoryEntry(incidentId, 'ASSESSMENT', approved ? 'Approved non-reportable decision' : `Returned non-reportable decision: ${data.returnReason}`, { decision: data.decision }, actorId);
     return updated;

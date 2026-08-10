@@ -93,6 +93,12 @@ test('database admin locale keys resolve in both locales', () => {
 test('operations and administration locale catalogs remain complete in both locales', () => {
   const keys = [
     'operationsWorkspace.title', 'operationsWorkspace.workspaces.training', 'operationsWorkspace.actions.runReport',
+    'operationsWorkspace.sections.courses', 'operationsWorkspace.sections.assignments',
+    'operationsWorkspace.sections.acknowledgements', 'operationsWorkspace.sections.metricDefinitions',
+    'operationsWorkspace.sections.valuesTrendsBreaches', 'operationsWorkspace.sections.administrativeDefinitions',
+    'operationsWorkspace.sections.contextualInstances', 'operationsWorkspace.sections.actionableTasks',
+    'operationsWorkspace.sections.reportDefinitions', 'operationsWorkspace.sections.runResults',
+    'operationsWorkspace.sections.exports', 'operationsWorkspace.form.responsibleUser',
     'audit.title', 'audit.findings', 'audit.status.inProgress',
     'bcm.title', 'bcm.continuityPlan', 'bcm.status.underReview',
     'suppliers.title', 'suppliers.exitPlan', 'suppliers.status.underReview',

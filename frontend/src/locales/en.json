@@ -1301,6 +1301,12 @@
     },
     "actions": {
       "createCourse": "Create course", "assignCourse": "Assign course", "recordCompletion": "Record completion", "acknowledgeCourse": "Acknowledge course", "defineMetric": "Define metric", "enterValue": "Enter value", "scheduleReview": "Schedule review", "approveReview": "Approve review", "addAction": "Add action", "startFromEntity": "Start from entity", "transitionInstance": "Transition instance", "createDefinition": "Create definition", "runReport": "Run report"
+    },
+    "sections": {
+      "courses": "Courses", "assignments": "Assignments", "acknowledgements": "Acknowledgements", "metricDefinitions": "Metric definitions", "valuesTrendsBreaches": "Values, trends & breaches", "decisionsAndActions": "Decisions and actions", "administrativeDefinitions": "Definitions (administrative)", "contextualInstances": "Contextual instances", "actionableTasks": "Actionable tasks", "reportDefinitions": "Report definitions", "runResults": "Run results", "exports": "Exports"
+    },
+    "form": {
+      "responsibleUser": "Responsible user", "selectOption": "Select an option"
     }
   },
   "audit": {

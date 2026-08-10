@@ -22,6 +22,9 @@ const mockPrismaClient: any = {
 
 jest.mock('../config/database', () => ({ prisma: mockPrismaClient }));
 
+const mockAuthorizationService = { canForEntity: jest.fn() };
+jest.mock('../services/authorization.service', () => ({ authorizationService: mockAuthorizationService }));
+
 import { incidentService } from '../services/incident.service';
 import { nis2Service, NIS2_TOPICS } from '../services/nis2.service';
 
@@ -32,6 +35,7 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     mockPrismaClient.nis2IncidentSignificanceRuleVersion.upsert.mockResolvedValue({ id: 'rules-1', version: '1.0', rules: [
       { key: 'critical_severity', field: 'severity', operator: 'in', value: ['critical', 'high'], reason: 'High or critical incident severity' },
     ] });
+    mockAuthorizationService.canForEntity.mockResolvedValue(true);
   });
 
   it('creates reportable incident deadlines from protected knowledge time', async () => {
@@ -68,8 +72,8 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     await expect(incidentService.assessIncident('inc-1', { isReportable: false, decisionNotToReport: 'Below threshold' }, 'assessor-1')).rejects.toThrow('approval');
   });
 
-  it('submits a selected active user for approval without immediately attributing approval', async () => {
-    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low' });
+  it('atomically submits a non-reportable assessment for approval without changing rule-derived significance', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low', isSignificant: true, significanceReasons: ['High impact'] });
     mockPrismaClient.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValue({ id: 'rules-1', rules: [] });
     mockPrismaClient.user.findFirst.mockResolvedValue({ id: '5d234b9e-5a99-41e5-b273-41d814574c4d' });
     mockPrismaClient.incidentAssessment.upsert.mockResolvedValue({ id: 'assessment-1' });
@@ -81,6 +85,34 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
       update: expect.objectContaining({ decisionApprovalAssigneeId: '5d234b9e-5a99-41e5-b273-41d814574c4d', decisionApprovedBy: null, decisionApprovedAt: null, status: 'pending_approval' }),
       create: expect.objectContaining({ decisionApprovalAssigneeId: '5d234b9e-5a99-41e5-b273-41d814574c4d', status: 'pending_approval' }),
     }));
+    expect(mockPrismaClient.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: 'pending_non_reportable_approval' }) }));
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.not.objectContaining({ isSignificant: expect.anything(), significanceReasons: expect.anything() }) }));
+    expect(mockAuthorizationService.canForEntity).toHaveBeenCalledWith('5d234b9e-5a99-41e5-b273-41d814574c4d', 'nis2.approve', 'incidents', 'inc-1');
+    expect(mockAuthorizationService.canForEntity).toHaveBeenCalledWith('5d234b9e-5a99-41e5-b273-41d814574c4d', 'incidents.read', 'incidents', 'inc-1');
+  });
+
+  it('keeps the reportable assessment transition in the same transaction', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'high', isSignificant: true });
+    mockPrismaClient.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValue({ id: 'rules-1', rules: [] });
+    mockPrismaClient.incidentAssessment.upsert.mockResolvedValue({ id: 'assessment-1', status: 'active' });
+
+    await incidentService.assessIncident('inc-1', { isReportable: true, reportingJustification: 'Report required' }, 'assessor-1');
+
+    expect(mockPrismaClient.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockPrismaClient.incidentAssessment.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: expect.objectContaining({ status: 'active' }) }));
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: 'pending_assessment' }) }));
+  });
+
+  it('propagates a related incident transition failure from the assessment transaction', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low' });
+    mockPrismaClient.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValue({ id: 'rules-1', rules: [] });
+    mockPrismaClient.user.findFirst.mockResolvedValue({ id: 'approver-1' });
+    mockPrismaClient.incidentAssessment.upsert.mockResolvedValue({ id: 'assessment-1' });
+    mockPrismaClient.incident.update.mockRejectedValueOnce(new Error('incident transition failed'));
+
+    await expect(incidentService.assessIncident('inc-1', { isReportable: false, decisionNotToReport: 'Below threshold', decisionApprovedBy: 'approver-1' }, 'assessor-1')).rejects.toThrow('incident transition failed');
+    expect(mockPrismaClient.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('rejects self-assignment for non-reportable approval', async () => {
@@ -89,7 +121,7 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     expect(mockPrismaClient.user.findFirst).not.toHaveBeenCalled();
   });
 
-  it('allows only the assigned active approver and attributes approval to the authenticated actor', async () => {
+  it('atomically approves only an assigned eligible approver and transitions the incident to not required', async () => {
     mockPrismaClient.incidentAssessment.findUnique.mockResolvedValue({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' });
     await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'spoofed-user')).rejects.toThrow('Only the assigned approver');
     await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'assessor-1')).rejects.toThrow('cannot approve their own');
@@ -97,6 +129,7 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     mockPrismaClient.incidentAssessment.update.mockResolvedValue({ id: 'assessment-1', decisionApprovedBy: 'approver-1' });
     await incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'approver-1');
     expect(mockPrismaClient.incidentAssessment.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ decisionApprovedBy: 'approver-1', decisionApprovedAt: expect.any(Date), status: 'approved' }) }));
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: 'not_required' }) }));
   });
 
   it('returns a pending decision without setting approval attribution', async () => {
@@ -105,13 +138,27 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     mockPrismaClient.incidentAssessment.update.mockResolvedValue({ id: 'assessment-1', status: 'returned' });
     await incidentService.decideNonReportableAssessment('inc-1', { decision: 'reject', returnReason: 'Please add evidence' }, 'approver-1');
     expect(mockPrismaClient.incidentAssessment.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'returned', decisionApprovedBy: null, decisionApprovedAt: null, decisionApprovalAssigneeId: null }) }));
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: 'pending_assessment' }) }));
   });
 
   it('rejects a non-reporting decision that names an unavailable user', async () => {
     mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low' });
     mockPrismaClient.user.findFirst.mockResolvedValue(null);
 
-    await expect(incidentService.assessIncident('inc-1', { isReportable: false, decisionNotToReport: 'Below threshold', decisionApprovedBy: '5d234b9e-5a99-41e5-b273-41d814574c4d' }, 'assessor-1')).rejects.toThrow('active user');
+    await expect(incidentService.assessIncident('inc-1', { isReportable: false, decisionNotToReport: 'Below threshold', decisionApprovedBy: '5d234b9e-5a99-41e5-b273-41d814574c4d' }, 'assessor-1')).rejects.toThrow('active, non-archived');
+  });
+
+  it('rejects assignment and decision when the approver lacks scoped approval or incident read access', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', significanceRuleVersionId: 'rules-1', severity: 'low' });
+    mockPrismaClient.user.findFirst.mockResolvedValue({ id: 'approver-1' });
+    mockAuthorizationService.canForEntity.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await expect(incidentService.assessIncident('inc-1', { isReportable: false, decisionNotToReport: 'Below threshold', decisionApprovedBy: 'approver-1' }, 'assessor-1')).rejects.toThrow('nis2.approve');
+
+    mockPrismaClient.incidentAssessment.findUnique.mockResolvedValue({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' });
+    mockAuthorizationService.canForEntity.mockReset().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'approver-1')).rejects.toThrow('read access');
+    expect(mockPrismaClient.incidentAssessment.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
   });
 
   it('blocks incident closure without root cause, measures evaluation and final report', async () => {

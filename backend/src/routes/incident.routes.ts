@@ -89,7 +89,7 @@ incidentRouter.post('/:id/assess', authenticate, requireEntityPermission('incide
   }
 });
 
-incidentRouter.post('/:id/non-reportable-approval', authenticate, validateBody(DecideIncidentNonReportableApprovalSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.post('/:id/non-reportable-approval', authenticate, requirePermission('nis2.approve'), requireEntityPermission('incidents.read', 'incidents'), validateBody(DecideIncidentNonReportableApprovalSchema), async (req: AuthRequest, res, next) => {
   try {
     res.json(await incidentService.decideNonReportableAssessment(req.params.id, req.body, req.userId!));
   } catch (error) {
