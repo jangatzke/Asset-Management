@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { AuthSessionResult, SessionContext, authService } from './auth.service';
 
-type OpenIdClientModule = typeof import('openid-client');
+type OpenIdClientModule = typeof import('openid-client', { with: { 'resolution-mode': 'import' } });
 
 export interface OidcConfigData {
   enabled?: boolean;

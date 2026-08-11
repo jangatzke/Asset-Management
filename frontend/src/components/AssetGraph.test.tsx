@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AssetGraph, buildDependencyFallbackGraph, buildSelectedAssetConnections, buildSelectedAssetFields, buildSelectedAssetMetadataFields, buildVisualEdges, calculateGraphLayoutMetadata, calculateNodePositions, createNodeEndpointLookup, doNodeCardBoundsOverlap, ensureFocusAssetNode, extractGraphPayload, filterGraphForVisibleNodes, getCardSize, getConnectorPath, getConnectorPoints, getEdgeLabelPlacement, getEdgeSource, getEdgeTarget, getNodeCardBounds, nodeMatchesCriticalityThreshold, resolveEdgeEndpoint } from './AssetGraph';
+import { AssetGraph } from './AssetGraph';
+import { buildDependencyFallbackGraph, buildSelectedAssetConnections, buildSelectedAssetFields, buildSelectedAssetMetadataFields, buildVisualEdges, calculateGraphLayoutMetadata, calculateNodePositions, createNodeEndpointLookup, doNodeCardBoundsOverlap, ensureFocusAssetNode, extractGraphPayload, filterGraphForVisibleNodes, getCardSize, getConnectorPath, getConnectorPoints, getEdgeLabelPlacement, getEdgeSource, getEdgeTarget, getNodeCardBounds, nodeMatchesCriticalityThreshold, resolveEdgeEndpoint } from './AssetGraphUtils';
 import de from '../locales/de.json';
 import en from '../locales/en.json';
 

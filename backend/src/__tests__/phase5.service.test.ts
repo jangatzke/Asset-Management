@@ -2,7 +2,7 @@ const mockPrismaClient: any = {
   incident: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
   user: { findFirst: jest.fn() },
   notificationDeadline: { createMany: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
-  incidentAssessment: { upsert: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+  incidentAssessment: { upsert: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   incidentKnowledgeTimeChange: { create: jest.fn() },
   incidentReport: { create: jest.fn(), findUnique: jest.fn() },
   incidentCommunication: { create: jest.fn() },
@@ -27,6 +27,7 @@ jest.mock('../services/authorization.service', () => ({ authorizationService: mo
 
 import { incidentService } from '../services/incident.service';
 import { nis2Service, NIS2_TOPICS } from '../services/nis2.service';
+import { UpdateIncidentSchema } from 'shared';
 
 describe('Phase 5 NIS-2 and incident workflow services', () => {
   beforeEach(() => {
@@ -126,18 +127,20 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'spoofed-user')).rejects.toThrow('Only the assigned approver');
     await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'assessor-1')).rejects.toThrow('cannot approve their own');
     mockPrismaClient.user.findFirst.mockResolvedValue({ id: 'approver-1' });
-    mockPrismaClient.incidentAssessment.update.mockResolvedValue({ id: 'assessment-1', decisionApprovedBy: 'approver-1' });
+    mockPrismaClient.incidentAssessment.updateMany.mockResolvedValue({ count: 1 });
+    mockPrismaClient.incidentAssessment.findUnique.mockResolvedValueOnce({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' }).mockResolvedValueOnce({ id: 'assessment-1', decisionApprovedBy: 'approver-1' });
     await incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'approver-1');
-    expect(mockPrismaClient.incidentAssessment.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ decisionApprovedBy: 'approver-1', decisionApprovedAt: expect.any(Date), status: 'approved' }) }));
+    expect(mockPrismaClient.incidentAssessment.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ status: 'pending_approval', decisionApprovalAssigneeId: 'approver-1' }), data: expect.objectContaining({ decisionApprovedBy: 'approver-1', decisionApprovedAt: expect.any(Date), status: 'approved' }) }));
     expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: 'not_required' }) }));
   });
 
   it('returns a pending decision without setting approval attribution', async () => {
     mockPrismaClient.incidentAssessment.findUnique.mockResolvedValue({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' });
     mockPrismaClient.user.findFirst.mockResolvedValue({ id: 'approver-1' });
-    mockPrismaClient.incidentAssessment.update.mockResolvedValue({ id: 'assessment-1', status: 'returned' });
+    mockPrismaClient.incidentAssessment.updateMany.mockResolvedValue({ count: 1 });
+    mockPrismaClient.incidentAssessment.findUnique.mockResolvedValueOnce({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' }).mockResolvedValueOnce({ id: 'assessment-1', status: 'returned' });
     await incidentService.decideNonReportableAssessment('inc-1', { decision: 'reject', returnReason: 'Please add evidence' }, 'approver-1');
-    expect(mockPrismaClient.incidentAssessment.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'returned', decisionApprovedBy: null, decisionApprovedAt: null, decisionApprovalAssigneeId: null }) }));
+    expect(mockPrismaClient.incidentAssessment.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'returned', decisionApprovedBy: null, decisionApprovedAt: null, decisionApprovalAssigneeId: null }) }));
     expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: 'pending_assessment' }) }));
   });
 
@@ -157,7 +160,37 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     mockPrismaClient.incidentAssessment.findUnique.mockResolvedValue({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' });
     mockAuthorizationService.canForEntity.mockReset().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'approver-1')).rejects.toThrow('read access');
-    expect(mockPrismaClient.incidentAssessment.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incidentAssessment.updateMany).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+  });
+
+  it('recomputes significance from the merged incident and creates deadlines on a false-to-true generic update', async () => {
+    const knowledgeTime = new Date('2026-07-18T10:00:00Z');
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', knowledgeTime, severity: 'low', personalDataImpact: false, isSignificant: false, significanceRuleVersionId: 'rules-1' });
+    mockPrismaClient.nis2IncidentSignificanceRuleVersion.findUnique.mockResolvedValue({ id: 'rules-1', rules: [{ key: 'personal_data', field: 'personalDataImpact', operator: 'equals', value: true, reason: 'Personal data impact' }] });
+    mockPrismaClient.incident.update.mockResolvedValue({ id: 'inc-1', isSignificant: true });
+
+    await incidentService.update('inc-1', { personalDataImpact: true }, 'user-1');
+
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ personalDataImpact: true, isSignificant: true, significanceReasons: ['Personal data impact'], notificationStatus: 'pending_assessment' }) }));
+    expect(mockPrismaClient.notificationDeadline.createMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.arrayContaining([expect.objectContaining({ incidentId: 'inc-1', notificationType: 'early_warning_24h' })]) }));
+  });
+
+  it('rejects status fields from the generic incident DTO and service update path', async () => {
+    expect(UpdateIncidentSchema.safeParse({ status: 'closed' }).success).toBe(false);
+    expect(UpdateIncidentSchema.safeParse({ notificationStatus: 'not_required' }).success).toBe(false);
+
+    await expect(incidentService.update('inc-1', { status: 'closed' } as any, 'user-1')).rejects.toThrow('dedicated transitions');
+    expect(mockPrismaClient.incident.findUnique).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a compare-and-set decision that lost the race without changing the incident', async () => {
+    mockPrismaClient.incidentAssessment.findUnique.mockResolvedValue({ incidentId: 'inc-1', isReportable: false, status: 'pending_approval', assessorId: 'assessor-1', decisionApprovalAssigneeId: 'approver-1' });
+    mockPrismaClient.user.findFirst.mockResolvedValue({ id: 'approver-1' });
+    mockPrismaClient.incidentAssessment.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(incidentService.decideNonReportableAssessment('inc-1', { decision: 'approve' }, 'approver-1')).rejects.toThrow('already decided');
     expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
   });
 

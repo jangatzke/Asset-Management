@@ -59,10 +59,7 @@ export interface CreateIncidentData {
   measuresEvaluation?: string;
 }
 
-export interface UpdateIncidentData extends Partial<CreateIncidentData> {
-  status?: string;
-  notificationStatus?: string;
-}
+export type UpdateIncidentData = Partial<CreateIncidentData>;
 
 export interface ListIncidentsQuery {
   page?: string;
@@ -394,6 +391,9 @@ export class IncidentService {
   }
 
   async update(id: string, data: UpdateIncidentData, updatedBy?: string) {
+    if (Object.prototype.hasOwnProperty.call(data, 'status') || Object.prototype.hasOwnProperty.call(data, 'notificationStatus')) {
+      throw new AppError('Incident status and notification status may only be changed through dedicated transitions', 400);
+    }
     const existing = await prisma.incident.findUnique({ where: { id } });
     if (!existing) {
       throw new AppError('Incident not found', 404);
@@ -402,6 +402,18 @@ export class IncidentService {
     if (data.knowledgeTime !== undefined && new Date(data.knowledgeTime).getTime() !== existing.knowledgeTime.getTime()) {
       throw new AppError('Knowledge time is protected and must be changed through the dedicated endpoint with reason', 400);
     }
+
+    const updateData = Object.fromEntries(Object.entries(data).filter(([key]) => !this.relationUpdateFields.includes(key)));
+    const ruleVersion = (existing as any).significanceRuleVersionId
+      ? await (prisma as any).nis2IncidentSignificanceRuleVersion.findUnique({ where: { id: (existing as any).significanceRuleVersionId } })
+      : await this.ensureDefaultSignificanceRules(updatedBy);
+    const mergedIncident = { ...(existing as any), ...updateData };
+    const evaluatorFields = new Set(
+      (Array.isArray(ruleVersion?.rules) ? ruleVersion.rules : DEFAULT_SIGNIFICANCE_RULES.rules)
+        .map((rule: any) => rule.field)
+    );
+    const significanceInputsChanged = Object.keys(updateData).some((field) => evaluatorFields.has(field));
+    const significance = significanceInputsChanged ? this.evaluateSignificance(mergedIncident, ruleVersion) : undefined;
 
     // Compute field changes for history (AUDIT-001)
     const fieldChanges: Record<string, { old?: unknown; new?: unknown }> = {};
@@ -415,42 +427,40 @@ export class IncidentService {
     }
 
     // Audit log for incident update (if status or severity changed)
-    if (updatedBy && (data.status !== undefined || data.severity !== undefined)) {
+    if (updatedBy && data.severity !== undefined) {
       await auditService.logEventStandalone(prisma, {
         userId: updatedBy,
         action: 'INCIDENT_UPDATE',
         entityType: 'Incident',
         entityId: id,
         details: `Updated incident: ${existing.title}`,
-        oldValue: { status: existing.status, severity: existing.severity },
-        newValue: { status: data.status ?? existing.status, severity: data.severity ?? existing.severity },
+        oldValue: { severity: existing.severity },
+        newValue: { severity: data.severity ?? existing.severity },
       });
     }
 
-    const incident = await prisma.incident.update({
-      where: { id },
-      data: {
-        ...Object.fromEntries(Object.entries(data).filter(([key]) => !this.relationUpdateFields.includes(key))),
-        updatedBy,
-      } as any,
+    const incident = await prisma.$transaction(async (tx) => {
+      const result = await tx.incident.update({
+        where: { id },
+        data: {
+          ...updateData,
+          ...(significance ? {
+            isSignificant: significance.isSignificant,
+            significanceReasons: significance.reasons,
+            // Becoming significant begins the established assessment/deadline workflow.
+            ...(significance.isSignificant && !existing.isSignificant ? { notificationStatus: 'pending_assessment' } : {}),
+          } : {}),
+          updatedBy,
+        } as any,
+      });
+      if (significance?.isSignificant && !existing.isSignificant) {
+        await this.createDeadlinesForIncident(tx, id, existing.knowledgeTime);
+      }
+      return result;
     });
 
     // Incident history entry (AUDIT-001): one summarized entry per update request.
-    const statusChanged = data.status !== undefined && !this.historyValuesEqual('status', (existing as any).status, data.status);
-    if (statusChanged) {
-      const { status: _statusChange, ...otherFieldChanges } = fieldChanges;
-      const otherChangedFields = Object.keys(otherFieldChanges);
-      // Only include otherFieldChanges in details; exclude oldStatus/newStatus from fieldChanges
-      // because they are already expressed in the summary line and would render as "-" in the generic changes table.
-      const details: Record<string, unknown> = { oldStatus: (existing as any).status, newStatus: data.status };
-      if (otherChangedFields.length > 0) {
-        for (const field of otherChangedFields) {
-          details[field] = otherFieldChanges[field];
-        }
-      }
-      const summarySuffix = otherChangedFields.length ? `; updated fields: ${otherChangedFields.join(', ')}` : '';
-      await this.recordHistoryEntry(id, 'STATUS_CHANGE', `Status changed from ${(existing as any).status} to ${data.status}${summarySuffix}`, details, updatedBy);
-    } else if (Object.keys(fieldChanges).length > 0) {
+    if (Object.keys(fieldChanges).length > 0) {
       const changedFields = Object.keys(fieldChanges).join(', ');
       await this.recordHistoryEntry(id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
     }
@@ -556,21 +566,23 @@ export class IncidentService {
 
     const approved = data.decision === 'approve';
     const updated = await prisma.$transaction(async (tx) => {
-      const savedAssessment = await (tx as any).incidentAssessment.update({
-        where: { incidentId },
+      const decisionAt = new Date();
+      const decisionUpdate = await (tx as any).incidentAssessment.updateMany({
+        where: { incidentId, isReportable: false, status: 'pending_approval', decisionApprovalAssigneeId: actorId },
         data: {
           status: approved ? 'approved' : 'returned',
           decisionApprovedBy: approved ? actorId : null,
-          decisionApprovedAt: approved ? new Date() : null,
+          decisionApprovedAt: approved ? decisionAt : null,
           updatedBy: actorId,
           ...(approved ? {} : { decisionApprovalAssigneeId: null, reportingJustification: data.returnReason }),
         },
       });
+      if (decisionUpdate.count !== 1) throw new AppError('Non-reportable decision was already decided', 409);
       await tx.incident.update({
         where: { id: incidentId },
         data: { notificationStatus: approved ? 'not_required' : 'pending_assessment', updatedBy: actorId },
       });
-      return savedAssessment;
+      return (tx as any).incidentAssessment.findUnique({ where: { incidentId } });
     });
     await this.recordHistoryEntry(incidentId, 'ASSESSMENT', approved ? 'Approved non-reportable decision' : `Returned non-reportable decision: ${data.returnReason}`, { decision: data.decision }, actorId);
     return updated;

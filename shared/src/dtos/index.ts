@@ -643,10 +643,9 @@ export const CreateIncidentSchema = z.object({
 
 export type CreateIncidentDTO = z.input<typeof CreateIncidentSchema>;
 
-export const UpdateIncidentSchema = CreateIncidentSchema.partial().extend({
-  status: z.string().optional(),
-  notificationStatus: z.string().optional(),
-});
+// Workflow state is intentionally omitted: only dedicated incident transitions
+// may change status or notificationStatus.
+export const UpdateIncidentSchema = CreateIncidentSchema.partial().strict();
 export type UpdateIncidentDTO = z.infer<typeof UpdateIncidentSchema>;
 
 export const AssessIncidentSchema = z.object({

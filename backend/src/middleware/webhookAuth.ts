@@ -39,7 +39,7 @@ export async function authenticateWebhook(
 
     // Validate against webhook service accounts
     // Use lookup-by-UUID approach to handle per-account random salts
-    const { prisma } = await import('../config/database');
+    const { prisma } = await import('../config/database.js');
     // Extract UUID from token format: svc_<uuid>_<random> — the UUID is the DB id
     const parts = token.split('_');
     const accountUuid = parts.length >= 3 &&
