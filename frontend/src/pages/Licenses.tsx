@@ -5,44 +5,55 @@ import { licenseApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface License {
   id: string;
-  name: string;
+  title: string;
+  name?: string; // legacy alias for title
   displayId?: string;
   description?: string;
   vendor?: string;
-  type?: string;
+  licenseType?: string;
+  type?: string; // legacy alias
   status?: string;
   licenseKey?: string;
   seats?: number;
-  usedSeats?: number;
+  usedSeats?: number; // legacy, not persisted — for display only
+  licensingBasis?: 'user' | 'device';
+  assignmentModel?: 'named' | 'concurrent';
   purchaseDate?: string;
   expiryDate?: string;
   renewalDate?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 interface LicenseForm {
-  name: string;
+  title: string;
   description: string;
   vendor: string;
-  type: string;
+  licenseType: string;
   status: string;
   licenseKey: string;
   seats: string;
+  licensingBasis: 'user' | 'device';
+  assignmentModel: 'named' | 'concurrent';
   purchaseDate: string;
   expiryDate: string;
   renewalDate: string;
 }
 
 const initialForm: LicenseForm = {
-  name: '',
+  title: '',
   description: '',
   vendor: '',
-  type: 'commercial',
+  licenseType: 'commercial',
   status: 'active',
   licenseKey: '',
   seats: '',
+  licensingBasis: 'user',
+  assignmentModel: 'named',
   purchaseDate: '',
   expiryDate: '',
   renewalDate: '',
@@ -59,7 +70,7 @@ const Licenses = () => {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<LicenseForm>(initialForm);
+  const form = useDirtyForm<LicenseForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [historyLicense, setHistoryLicense] = useState<License | null>(null);
@@ -72,7 +83,28 @@ const Licenses = () => {
     try {
       setLoading(true);
       const response = await licenseApi.list({ page: 1, limit: 100 });
-      setLicenses(response.data?.data ?? response.data ?? []);
+      const raw = response.data?.data ?? response.data ?? [];
+      // Normalize legacy field names to canonical ones
+      const normalized: License[] = raw.map((l: any) => ({
+        id: l.id,
+        title: l.title ?? l.name ?? '',
+        name: l.name ?? l.title,
+        displayId: l.displayId,
+        description: l.description,
+        vendor: l.vendor,
+        licenseType: l.licenseType ?? l.type,
+        type: l.type ?? l.licenseType,
+        status: l.status,
+        licenseKey: l.licenseKey,
+        seats: l.seats,
+        usedSeats: l.usedSeats,
+        licensingBasis: l.licensingBasis ?? 'user',
+        assignmentModel: l.assignmentModel ?? 'named',
+        purchaseDate: l.startDate ?? l.purchaseDate,
+        expiryDate: l.endDate ?? l.expiryDate,
+        renewalDate: l.renewalDate,
+      }));
+      setLicenses(normalized);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('licenses.loadError'));
     } finally { setLoading(false); }
@@ -80,26 +112,45 @@ const Licenses = () => {
 
   const filtered = licenses.filter(l => {
     const matchesSearch = !searchTerm ||
-      l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (l.title && l.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (l.displayId && l.displayId.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (l.vendor && l.vendor.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = !filterStatus || l.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
+  const handleDiscard = () => {
+    form.resetForm();
+    setEditingId(null);
+    setModalOpen(false);
+  };
+
   const handleSubmit = async () => {
-    if (!form.name) { setError(t('licenses.nameRequired')); return; }
+    if (!form.values.title) { setError(t('licenses.titleRequired')); return; }
     setSaving(true);
     setError('');
     try {
-      const payload = { ...form, seats: form.seats ? parseInt(form.seats) : undefined };
+      const payload: Record<string, unknown> = {
+        title: form.values.title,
+        description: form.values.description || undefined,
+        vendor: form.values.vendor || undefined,
+        licenseType: form.values.licenseType,
+        status: form.values.status,
+        licenseKey: form.values.licenseKey || undefined,
+        seats: form.values.seats ? parseInt(form.values.seats, 10) : undefined,
+        licensingBasis: form.values.licensingBasis,
+        assignmentModel: form.values.assignmentModel,
+        startDate: form.values.purchaseDate || undefined,
+        endDate: form.values.expiryDate || undefined,
+        renewalDate: form.values.renewalDate || undefined,
+      };
       if (editingId) {
         await licenseApi.update(editingId, payload);
       } else {
         await licenseApi.create(payload);
       }
       setModalOpen(false);
-      setForm(initialForm);
+      form.resetForm();
       setEditingId(null);
       await loadLicenses();
     } catch (err: any) {
@@ -108,17 +159,19 @@ const Licenses = () => {
   };
 
   const handleEdit = (license: License) => {
-    setForm({
-      name: license.name,
+    form.setFormValues({
+      title: license.title || license.name || '',
       description: license.description || '',
       vendor: license.vendor || '',
-      type: license.type || 'commercial',
+      licenseType: license.licenseType || license.type || 'commercial',
       status: license.status || 'active',
       licenseKey: license.licenseKey || '',
       seats: String(license.seats ?? ''),
-      purchaseDate: license.purchaseDate?.split('T')[0] || '',
-      expiryDate: license.expiryDate?.split('T')[0] || '',
-      renewalDate: license.renewalDate?.split('T')[0] || '',
+      licensingBasis: license.licensingBasis ?? 'user',
+      assignmentModel: license.assignmentModel ?? 'named',
+      purchaseDate: license.startDate ?? license.purchaseDate ?? '',
+      expiryDate: license.endDate ?? license.expiryDate ?? '',
+      renewalDate: license.renewalDate || '',
     });
     setEditingId(license.id);
     setModalOpen(true);
@@ -164,7 +217,7 @@ const Licenses = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('licenses.title')}</h1>
-        <button onClick={() => { setForm(initialForm); setEditingId(null); setModalOpen(true); }}
+        <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
           className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
           {t('licenses.newLicense')}
         </button>
@@ -192,6 +245,8 @@ const Licenses = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.name')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.vendor')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.type')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.licensingBasis')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.assignmentModel')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.seats')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.status')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.expiryDate')}</th>
@@ -200,16 +255,18 @@ const Licenses = () => {
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('licenses.noLicenses')}</td></tr>
+              <tr><td colSpan={10} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('licenses.noLicenses')}</td></tr>
             ) : filtered.map(l => {
               const daysLeft = getDaysUntilExpiry(l.expiryDate);
               return (
                 <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 text-sm text-gray-500">{l.displayId || l.id}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{l.name}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{l.title}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{l.vendor || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.type || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{l.seats ? `${l.usedSeats ?? 0}/${l.seats}` : '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.licenseType || l.type || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.licensingBasis ? t(`licenses.basis.${l.licensingBasis}`) : '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.assignmentModel ? t(`licenses.model.${l.assignmentModel}`) : '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{l.seats ?? '-'}</td>
                   <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(l.status)}`}>{l.status ? t(`licenses.status.${l.status}`) : '-'}</span></td>
                   <td className="px-6 py-4 text-sm">
                     {l.expiryDate ? (
@@ -221,13 +278,13 @@ const Licenses = () => {
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => handleEdit(l)} aria-label={`${t('common.edit')}: ${l.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <button onClick={() => handleEdit(l)} aria-label={`${t('common.edit')}: ${l.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => setHistoryLicense(l)} aria-label={`${t('history.viewHistory')}: ${l.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                      <button onClick={() => setHistoryLicense(l)} aria-label={`${t('history.viewHistory')}: ${l.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => handleDelete(l.id)} aria-label={`${t('common.delete')}: ${l.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                      <button onClick={() => handleDelete(l.id)} aria-label={`${t('common.delete')}: ${l.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
                         <TrashIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -239,27 +296,27 @@ const Licenses = () => {
         </table>
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('licenses.editLicense') : t('licenses.newLicense')}>
+      <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? t('licenses.editLicense') : t('licenses.newLicense')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')} *</label>
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            <input type="text" value={form.values.title} onChange={(e) => form.handleChange({ title: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2}
+            <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.vendor')}</label>
-              <input type="text" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })}
+              <input type="text" value={form.values.vendor} onChange={(e) => form.handleChange({ vendor: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.type')}</label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
+              <select value={form.values.licenseType} onChange={(e) => form.handleChange({ licenseType: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="commercial">{t('licenses.types.commercial')}</option>
                 <option value="open_source">{t('licenses.types.open_source')}</option>
@@ -270,36 +327,54 @@ const Licenses = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.licensingBasis')}</label>
+              <select value={form.values.licensingBasis} onChange={(e) => form.handleChange({ licensingBasis: e.target.value as 'user' | 'device' })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="user">{t('licenses.basis.user')}</option>
+                <option value="device">{t('licenses.basis.device')}</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.assignmentModel')}</label>
+              <select value={form.values.assignmentModel} onChange={(e) => form.handleChange({ assignmentModel: e.target.value as 'named' | 'concurrent' })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="named">{t('licenses.model.named')}</option>
+                <option value="concurrent">{t('licenses.model.concurrent')}</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.licenseKey')}</label>
-              <input type="text" value={form.licenseKey} onChange={(e) => setForm({ ...form, licenseKey: e.target.value })}
+              <input type="text" value={form.values.licenseKey} onChange={(e) => form.handleChange({ licenseKey: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.seats')}</label>
-              <input type="number" value={form.seats} onChange={(e) => setForm({ ...form, seats: e.target.value })}
+              <input type="number" min="0" value={form.values.seats} onChange={(e) => form.handleChange({ seats: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.purchaseDate')}</label>
-              <input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.startDate')}</label>
+              <input type="date" value={form.values.purchaseDate} onChange={(e) => form.handleChange({ purchaseDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.expiryDate')}</label>
-              <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.endDate')}</label>
+              <input type="date" value={form.values.expiryDate} onChange={(e) => form.handleChange({ expiryDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.renewalDate')}</label>
-              <input type="date" value={form.renewalDate} onChange={(e) => setForm({ ...form, renewalDate: e.target.value })}
+              <input type="date" value={form.values.renewalDate} onChange={(e) => form.handleChange({ renewalDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.status')}</label>
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+            <select value={form.values.status} onChange={(e) => form.handleChange({ status: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="active">{t('licenses.status.active')}</option>
               <option value="expiring_soon">{t('licenses.status.expiring_soon')}</option>
@@ -309,7 +384,7 @@ const Licenses = () => {
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => setModalOpen(false)}
+            <button onClick={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               {t('common.cancel')}
             </button>
@@ -321,7 +396,7 @@ const Licenses = () => {
         </div>
       </Modal>
 
-      <EntityHistoryModal isOpen={!!historyLicense} onClose={() => setHistoryLicense(null)} entityId={historyLicense?.id} entityName={historyLicense?.name} loadHistory={licenseApi.history} />
+      <EntityHistoryModal isOpen={!!historyLicense} onClose={() => setHistoryLicense(null)} entityId={historyLicense?.id} entityName={historyLicense?.title} loadHistory={licenseApi.history} />
     </div>
   );
 };

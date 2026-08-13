@@ -3,6 +3,9 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 
+export type LicensingBasis = 'user' | 'device';
+export type AssignmentModel = 'named' | 'concurrent';
+
 export interface CreateLicenseData {
   title: string;
   description?: string | null;
@@ -17,6 +20,8 @@ export interface CreateLicenseData {
   cost?: number | null;
   currency?: string | null;
   status?: string;
+  licensingBasis?: LicensingBasis;
+  assignmentModel?: AssignmentModel;
 }
 
 export interface UpdateLicenseData extends Partial<CreateLicenseData> {}
@@ -29,6 +34,8 @@ export interface ListLicensesQuery {
   licenseType?: string;
   vendor?: string;
   expiringBefore?: string;
+  licensingBasis?: LicensingBasis;
+  assignmentModel?: AssignmentModel;
 }
 
 export class LicenseService {
@@ -37,7 +44,10 @@ export class LicenseService {
     const limit = parseInt(query.limit as string) || 20;
     const offset = (page - 1) * limit;
 
-    const where: Prisma.LicenseWhereInput = {};
+    const where: Prisma.LicenseWhereInput = {
+      // Exclude soft-deleted licenses from normal listing
+      isArchived: { not: true },
+    };
 
     if (query.search) {
       where.OR = [
@@ -62,6 +72,14 @@ export class LicenseService {
 
     if (query.expiringBefore) {
       where.endDate = { lte: new Date(query.expiringBefore) };
+    }
+
+    if (query.licensingBasis) {
+      where.licensingBasis = query.licensingBasis;
+    }
+
+    if (query.assignmentModel) {
+      where.assignmentModel = query.assignmentModel;
     }
 
     const [licenses, total] = await Promise.all([
@@ -106,6 +124,9 @@ export class LicenseService {
         ...data,
         displayId,
         createdBy,
+        // Apply defaults for backwards compatibility
+        licensingBasis: data.licensingBasis ?? 'user',
+        assignmentModel: data.assignmentModel ?? 'named',
       },
     });
 

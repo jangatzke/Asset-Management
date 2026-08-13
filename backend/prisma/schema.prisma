@@ -3084,13 +3084,17 @@ model License {
   vendor      String?
   productId   String? // Reference to software asset
   licenseKey  String?
-  seats       Int?
+  seats       Int? // entitlement quantity
   startDate   DateTime?
   endDate     DateTime?
   renewalDate DateTime?
   cost        Decimal?
   currency    String?
   status      String    @default("active")
+  // licensingBasis: "user" or "device"
+  licensingBasis String @default("user")
+  // assignmentModel: "named" or "concurrent"
+  assignmentModel  String @default("named")
   isArchived  Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

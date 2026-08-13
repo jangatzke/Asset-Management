@@ -38,6 +38,8 @@ describe('LicenseService', () => {
     cost: 5000,
     currency: 'USD',
     status: 'active',
+    licensingBasis: 'user' as const,
+    assignmentModel: 'named' as const,
     isArchived: false,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -58,6 +60,19 @@ describe('LicenseService', () => {
       expect(result.pagination.total).toBe(1);
     });
 
+    it('should exclude soft-deleted licenses from normal listing', async () => {
+      mockPrismaClient.license.findMany.mockResolvedValue([]);
+      mockPrismaClient.license.count.mockResolvedValue(0);
+
+      await licenseService.list({});
+
+      expect(mockPrismaClient.license.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isArchived: { not: true } }),
+        }),
+      );
+    });
+
     it('should filter by expiry date', async () => {
       mockPrismaClient.license.findMany.mockResolvedValue([]);
       mockPrismaClient.license.count.mockResolvedValue(0);
@@ -65,7 +80,7 @@ describe('LicenseService', () => {
       await licenseService.list({ expiringBefore: '2025-06-30' });
 
       expect(mockPrismaClient.license.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { endDate: { lte: expect.any(Date) } } }),
+        expect.objectContaining({ where: expect.objectContaining({ endDate: { lte: expect.any(Date) } }) }),
       );
     });
 
@@ -76,7 +91,29 @@ describe('LicenseService', () => {
       await licenseService.list({ vendor: 'Microsoft' });
 
       expect(mockPrismaClient.license.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { vendor: expect.any(Object) } }),
+        expect.objectContaining({ where: expect.objectContaining({ vendor: expect.any(Object) }) }),
+      );
+    });
+
+    it('should filter by licensingBasis', async () => {
+      mockPrismaClient.license.findMany.mockResolvedValue([]);
+      mockPrismaClient.license.count.mockResolvedValue(0);
+
+      await licenseService.list({ licensingBasis: 'device' });
+
+      expect(mockPrismaClient.license.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ licensingBasis: 'device' }) }),
+      );
+    });
+
+    it('should filter by assignmentModel', async () => {
+      mockPrismaClient.license.findMany.mockResolvedValue([]);
+      mockPrismaClient.license.count.mockResolvedValue(0);
+
+      await licenseService.list({ assignmentModel: 'concurrent' });
+
+      expect(mockPrismaClient.license.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ assignmentModel: 'concurrent' }) }),
       );
     });
 
@@ -118,7 +155,33 @@ describe('LicenseService', () => {
       expect(result).toBe(mockLicense);
       expect(mockPrismaClient.license.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ displayId: expect.stringMatching(/^LIC-/), createdBy: 'user-1' }),
+          data: expect.objectContaining({
+            displayId: expect.stringMatching(/^LIC-/),
+            createdBy: 'user-1',
+            licensingBasis: 'user',
+            assignmentModel: 'named',
+          }),
+        }),
+      );
+    });
+
+    it('should accept explicit licensingBasis and assignmentModel', async () => {
+      mockPrismaClient.license.create.mockResolvedValue({ ...mockLicense, licensingBasis: 'device', assignmentModel: 'concurrent' });
+
+      const result = await licenseService.create({
+        title: 'Device License',
+        licenseType: 'subscription',
+        licensingBasis: 'device',
+        assignmentModel: 'concurrent',
+      }, 'user-2');
+
+      expect(result).toBeDefined();
+      expect(mockPrismaClient.license.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            licensingBasis: 'device',
+            assignmentModel: 'concurrent',
+          }),
         }),
       );
     });
