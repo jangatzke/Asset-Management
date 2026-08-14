@@ -5,6 +5,7 @@ import { processApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface Process {
   id: string;
@@ -46,7 +47,7 @@ const Processes = () => {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<ProcessForm>(initialForm);
+  const form = useDirtyForm<ProcessForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCriticality, setFilterCriticality] = useState('');
@@ -86,18 +87,24 @@ const Processes = () => {
     return matchesSearch && matchesStatus && matchesCriticality;
   });
 
+  const handleDiscard = () => {
+    form.resetForm();
+    setEditingId(null);
+    setModalOpen(false);
+  };
+
   const handleSubmit = async () => {
-    if (!form.name) { setError('Name is required'); return; }
+    if (!form.values.name) { setError('Name is required'); return; }
     setSaving(true);
     setError('');
     try {
       if (editingId) {
-        await processApi.update(editingId, form);
+        await processApi.update(editingId, form.values);
       } else {
-        await processApi.create(form);
+        await processApi.create(form.values);
       }
       setModalOpen(false);
-      setForm(initialForm);
+      form.resetForm();
       setEditingId(null);
       await loadProcesses();
     } catch (err: any) {
@@ -106,7 +113,7 @@ const Processes = () => {
   };
 
   const handleEdit = (process: Process) => {
-    setForm({
+    form.setFormValues({
       name: process.name,
       description: process.description || '',
       category: process.category || 'operational',
@@ -166,7 +173,7 @@ const Processes = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Business Processes</h1>
-        <button onClick={() => { setForm(initialForm); setEditingId(null); setModalOpen(true); }}
+        <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
           className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
           New Process
         </button>
@@ -241,22 +248,22 @@ const Processes = () => {
       </div>
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Process' : 'New Process'}>
+      <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? 'Edit Process' : 'New Process'} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            <input type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2}
+            <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+              <select value={form.values.category} onChange={(e) => form.handleChange({ category: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="operational">Operational</option>
                 <option value="management">Management</option>
@@ -266,7 +273,7 @@ const Processes = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Criticality</label>
-              <select value={form.criticality} onChange={(e) => setForm({ ...form, criticality: e.target.value })}
+              <select value={form.values.criticality} onChange={(e) => form.handleChange({ criticality: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -278,7 +285,7 @@ const Processes = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+              <select value={form.values.status} onChange={(e) => form.handleChange({ status: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -287,13 +294,13 @@ const Processes = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Process Owner</label>
-              <input type="text" value={form.processOwner} onChange={(e) => setForm({ ...form, processOwner: e.target.value })}
+              <input type="text" value={form.values.processOwner} onChange={(e) => form.handleChange({ processOwner: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => setModalOpen(false)}
+            <button onClick={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               Cancel
             </button>

@@ -4,6 +4,7 @@ import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface Group {
   id: string;
@@ -45,10 +46,8 @@ const AdminGroups = () => {
   const [usersModalOpen, setUsersModalOpen] = useState(false);
   const [rolesModalOpen, setRolesModalOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const [form, setForm] = useState<GroupForm>({
-    name: '',
-    description: '',
-  });
+  const createForm = useDirtyForm<GroupForm>({ name: '', description: '' });
+  const editForm = useDirtyForm<GroupForm>({ name: '', description: '' });
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<EntityPickerResult[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
@@ -76,9 +75,8 @@ const AdminGroups = () => {
 
   const handleCreate = async () => {
     try {
-      await adminApi.createGroup(form);
+      await adminApi.createGroup(createForm.values);
       setCreateModalOpen(false);
-      setForm({ name: '', description: '' });
       loadData();
     } catch (error) {
       console.error('Failed to create group:', error);
@@ -88,7 +86,7 @@ const AdminGroups = () => {
   const handleUpdate = async () => {
     if (!selectedGroup) return;
     try {
-      await adminApi.updateGroup(selectedGroup.id, form);
+      await adminApi.updateGroup(selectedGroup.id, editForm.values);
       setEditModalOpen(false);
       setSelectedGroup(null);
       loadData();
@@ -136,7 +134,7 @@ const AdminGroups = () => {
 
   const openEditModal = (group: Group) => {
     setSelectedGroup(group);
-    setForm({
+    editForm.setFormValues({
       name: group.name,
       description: group.description || '',
     });
@@ -158,6 +156,9 @@ const AdminGroups = () => {
     setRolesModalOpen(true);
   };
 
+  const handleCreateDiscard = () => { createForm.resetForm(); setCreateModalOpen(false); };
+  const handleEditDiscard = () => { editForm.resetForm(); setEditModalOpen(false); };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -165,7 +166,7 @@ const AdminGroups = () => {
           {t('navigation.groupManagement')}
         </h1>
         <button
-          onClick={() => setCreateModalOpen(true)}
+          onClick={() => { createForm.setFormValues({ name: '', description: '' }); setCreateModalOpen(true); }}
           className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
         >
           {t('groups.createGroup')}
@@ -257,6 +258,8 @@ const AdminGroups = () => {
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         title={t('groups.createGroup')}
+        isDirty={createForm.isDirty}
+        onDiscardConfirm={handleCreateDiscard}
       >
         <div className="space-y-4">
           <div>
@@ -265,8 +268,8 @@ const AdminGroups = () => {
             </label>
             <input
               type="text"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              value={createForm.values.name}
+              onChange={(e) => createForm.handleChange({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -275,15 +278,15 @@ const AdminGroups = () => {
               {t('common.description')}
             </label>
             <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              value={createForm.values.description}
+              onChange={(e) => createForm.handleChange({ description: e.target.value })}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
             <button
-              onClick={() => setCreateModalOpen(false)}
+              onClick={() => { if (createForm.isDirty) { handleCreateDiscard(); } else { setCreateModalOpen(false); } }}
               className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               {t('common.cancel')}
@@ -303,6 +306,8 @@ const AdminGroups = () => {
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         title={t('groups.editGroup')}
+        isDirty={editForm.isDirty}
+        onDiscardConfirm={handleEditDiscard}
       >
         <div className="space-y-4">
           <div>
@@ -311,8 +316,8 @@ const AdminGroups = () => {
             </label>
             <input
               type="text"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              value={editForm.values.name}
+              onChange={(e) => editForm.handleChange({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -321,15 +326,15 @@ const AdminGroups = () => {
               {t('common.description')}
             </label>
             <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              value={editForm.values.description}
+              onChange={(e) => editForm.handleChange({ description: e.target.value })}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
             <button
-              onClick={() => setEditModalOpen(false)}
+              onClick={() => { if (editForm.isDirty) { handleEditDiscard(); } else { setEditModalOpen(false); } }}
               className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               {t('common.cancel')}
@@ -347,7 +352,7 @@ const AdminGroups = () => {
       {/* Assign Users Modal */}
       <Modal
         isOpen={usersModalOpen}
-        onClose={() => setUsersModalOpen(false)}
+        onClose={() => { setUsersModalOpen(false); setAssignmentError(false); }}
         title={t('groups.assignUsers')}
       >
         <div className="space-y-4">

@@ -1,9 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 import { ClockIcon, PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
@@ -149,8 +151,10 @@ const Risks = () => {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<CreateRiskForm>(initialForm);
+  const formState = useDirtyForm<CreateRiskForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const pendingMainClose = useRef<(() => void) | null>(null);
 
   // Treatment plan state
   const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
@@ -158,13 +162,37 @@ const Risks = () => {
   const [treatments, setTreatments] = useState<any[]>([]);
   const [riskDetails, setRiskDetails] = useState<Record<string, any>>({});
   const [controlImplementations, setControlImplementations] = useState<any[]>([]);
-  const [treatmentForm, setTreatmentForm] = useState<TreatmentForm>(initialTreatmentForm);
+  const treatmentFormState = useDirtyForm<TreatmentForm>(initialTreatmentForm);
+  const [treatmentDiscardConfirmOpen, setTreatmentDiscardConfirmOpen] = useState(false);
+  const pendingTreatmentClose = useRef<(() => void) | null>(null);
   const [controlsModalOpen, setControlsModalOpen] = useState(false);
   const [selectedRiskForControls, setSelectedRiskForControls] = useState<Risk | null>(null);
+  const riskControlState = useDirtyForm<RiskControlForm>(initialRiskControlForm);
+  // Legacy form state (used by JSX templates)
+  const [form, setForm] = useState<CreateRiskForm>(initialForm);
+  const handleChange = (field: keyof CreateRiskForm, value: any) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+  const [treatmentForm, setTreatmentForm] = useState<TreatmentForm>(initialTreatmentForm);
   const [riskControlForm, setRiskControlForm] = useState<RiskControlForm>(initialRiskControlForm);
   const [assessmentForm, setAssessmentForm] = useState<RiskControlAssessmentForm>(initialRiskControlAssessmentForm);
   const [assessingRiskControlId, setAssessingRiskControlId] = useState<string | null>(null);
   const [historyRisk, setHistoryRisk] = useState<Risk | null>(null);
+
+  const handleMainDiscard = useCallback(() => {
+    formState.resetForm();
+    setEditingId(null);
+    setModalOpen(false);
+  }, [formState]);
+
+  const handleMainModalClose = useCallback(() => {
+    if (formState.isDirty) {
+      pendingMainClose.current = () => setModalOpen(false);
+      setDiscardConfirmOpen(true);
+    } else {
+      setModalOpen(false);
+    }
+  }, [formState]);
 
   useEffect(() => { loadRisks();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial risks load only; loader uses current translation fallback for this mount.
@@ -322,7 +350,7 @@ const Risks = () => {
   });
 
   const handleSubmit = async () => {
-    if (!form.title || !form.description || !form.possibleImpact || !form.riskOwnerId?.id || !form.assessorId?.id || !form.nextReviewDate || !form.justification) {
+    if (!formState.values.title || !formState.values.description || !formState.values.possibleImpact || !formState.values.riskOwnerId?.id || !formState.values.assessorId?.id || !formState.values.nextReviewDate || !formState.values.justification) {
       setError(t('common.requiredField'));
       return;
     }
@@ -331,19 +359,19 @@ const Risks = () => {
     setError('');
     try {
       const payload: any = {
-        title: form.title,
-        description: form.description,
-        possibleImpact: form.possibleImpact,
-        likelihood: form.likelihood,
-        impact: form.impact,
-        riskOwnerId: form.riskOwnerId.id,
-        assessorId: form.assessorId.id,
-        nextReviewDate: form.nextReviewDate,
-        justification: form.justification,
+        title: formState.values.title,
+        description: formState.values.description,
+        possibleImpact: formState.values.possibleImpact,
+        likelihood: formState.values.likelihood,
+        impact: formState.values.impact,
+        riskOwnerId: formState.values.riskOwnerId.id,
+        assessorId: formState.values.assessorId.id,
+        nextReviewDate: formState.values.nextReviewDate,
+        justification: formState.values.justification,
       };
-      if (form.assetIds?.length) payload.assetIds = form.assetIds.map(a => a.id);
-      if (form.organizationUnitId?.id) payload.organizationUnitId = form.organizationUnitId.id;
-      if (form.processId?.id) payload.processIds = [form.processId.id];
+      if (formState.values.assetIds?.length) payload.assetIds = formState.values.assetIds.map(a => a.id);
+      if (formState.values.organizationUnitId?.id) payload.organizationUnitId = formState.values.organizationUnitId.id;
+      if (formState.values.processId?.id) payload.processIds = [formState.values.processId.id];
 
       if (editingId) {
         await riskApi.update(editingId, payload);
@@ -365,7 +393,7 @@ const Risks = () => {
       const res = await riskApi.getById(risk.id);
       const data = res.data;
 
-      setForm({
+      formState.setFormValues({
         title: data.title || '',
         description: data.description || '',
         possibleImpact: data.possibleImpact || '',
@@ -416,13 +444,15 @@ const Risks = () => {
   };
 
   const resetForm = () => {
-    setForm(initialForm);
+    formState.resetForm();
     setEditingId(null);
   };
 
-  const handleChange = (field: keyof CreateRiskForm, value: string | number) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  const handleOpenCreate = useCallback(() => {
+    resetForm();
+    formState.setFormValues(initialForm);
+    setModalOpen(true);
+  }, [formState]);
 
   const handleCreateTreatment = async () => {
     if (!selectedRiskForTreatment || !treatmentForm.plannedActions || !treatmentForm.actionTitle) {
@@ -465,7 +495,7 @@ const Risks = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('risks.title')}</h1>
-        <button onClick={() => { resetForm(); setModalOpen(true); }}
+        <button onClick={handleOpenCreate}
           className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
           {t('risks.newRisk')}
         </button>
@@ -562,7 +592,7 @@ const Risks = () => {
       </div>
 
       {/* Create/Edit Risk Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('risks.editRisk') : t('risks.createRisk')}>
+      <Modal isOpen={modalOpen} onClose={handleMainModalClose} title={editingId ? t('risks.editRisk') : t('risks.createRisk')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleMainDiscard}>
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
           {/* Basic Fields */}
           <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">{t('risks.basicInformation')}</h3>
@@ -643,7 +673,7 @@ const Risks = () => {
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => setModalOpen(false)}
+            <button onClick={() => { if (formState.isDirty) { handleMainDiscard(); } else { setModalOpen(false); } }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               {t('common.cancel')}
             </button>
@@ -655,7 +685,13 @@ const Risks = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={controlsModalOpen} onClose={() => setControlsModalOpen(false)} title={t('risks.controls.modalTitle').replace('{title}', selectedRiskForControls?.title || '')}>
+      <Modal
+        isOpen={controlsModalOpen}
+        onClose={() => { if (riskControlState.isDirty) { pendingMainClose.current = () => setControlsModalOpen(false); setDiscardConfirmOpen(true); } else { setControlsModalOpen(false); } }}
+        isDirty={riskControlState.isDirty}
+        onDiscardConfirm={() => { if (pendingMainClose.current) { pendingMainClose.current(); pendingMainClose.current = null; } else { setControlsModalOpen(false); } setDiscardConfirmOpen(false); }}
+        title={t('risks.controls.modalTitle').replace('{title}', selectedRiskForControls?.title || '')}
+      >
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
           <p className="text-sm text-amber-700 dark:text-amber-300">{t('risks.controls.separationNotice')}</p>
           {selectedRiskForControls && currentAssessment(selectedRiskForControls, 'current') && (
@@ -664,24 +700,24 @@ const Risks = () => {
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2 border-b pb-4">
-            <select value={riskControlForm.controlImplementationId} onChange={(e) => setRiskControlForm({ ...riskControlForm, controlImplementationId: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white md:col-span-2">
+            <select value={riskControlState.values.controlImplementationId} onChange={(e) => riskControlState.handleChange({ controlImplementationId: e.target.value } as any)} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white md:col-span-2">
               <option value="">{t('risks.controls.selectImplementation')}</option>
               {controlImplementations.filter((impl) => !impl.isArchived).map((impl) => <option key={impl.id} value={impl.id}>{impl.control?.title ?? impl.controlId} - {impl.implementationStatus}</option>)}
             </select>
-            <select value={riskControlForm.role} onChange={(e) => setRiskControlForm({ ...riskControlForm, role: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <select value={riskControlState.values.role} onChange={(e) => riskControlState.handleChange({ role: e.target.value } as any)} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
               {['preventive', 'detective', 'corrective', 'recovery', 'compensating'].map((role) => <option key={role} value={role}>{t(`risks.controls.roles.${role}`)}</option>)}
             </select>
-            <select value={riskControlForm.mitigationDimension} onChange={(e) => setRiskControlForm({ ...riskControlForm, mitigationDimension: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <select value={riskControlState.values.mitigationDimension} onChange={(e) => riskControlState.handleChange({ mitigationDimension: e.target.value } as any)} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
               {['likelihood', 'impact', 'both'].map((dimension) => <option key={dimension} value={dimension}>{t(`risks.controls.dimensions.${dimension}`)}</option>)}
             </select>
-            <button onClick={handleLinkControl} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">{t('risks.controls.add')}</button>
+            <button onClick={handleLinkControl} className="px-4 py 2 bg-purple-600 text-white rounded hover:bg-purple-700">{t('risks.controls.add')}</button>
           </div>
           {(selectedRiskForControls ? riskControls(selectedRiskForControls) : []).length === 0 ? <p className="text-sm text-gray-500">{t('risks.controls.empty')}</p> : (selectedRiskForControls ? riskControls(selectedRiskForControls) : []).map((link) => (
             <div key={link.id} className="p-3 border dark:border-gray-700 rounded-md space-y-2">
               <div className="flex justify-between gap-2">
-                <div>
+                <div className="space-y-1">
                   <div className="font-medium text-gray-900 dark:text-white">{link.controlImplementation?.control?.title ?? link.controlImplementationId}</div>
-                  <div className="text-xs text-gray-500">{t(`risks.controls.roles.${link.role}`)} · {t(`risks.controls.dimensions.${link.mitigationDimension}`)} · {t('risks.controls.implementationReadiness')}: {link.controlImplementation?.implementationStatus ?? '-'}</div>
+                  <div className="text-xs text-gray-500">{t(`risks.controls.roles.${link.role}`)} · {t('risks.controls.dimensions.${link.mitigationDimension}')} · {t('risks.controls.implementationReadiness')}: {link.controlImplementation?.implementationStatus ?? '-'}</div>
                   <div className="text-xs font-semibold text-purple-700 dark:text-purple-300">{t('risks.controls.latestEffectiveness')}: {controlVerificationLabel(link)}</div>
                 </div>
                 <div className="space-x-2 whitespace-nowrap">
@@ -713,67 +749,76 @@ const Risks = () => {
         </div>
       </Modal>
 
-      {/* Treatment Plan Modal */}
-      <Modal isOpen={treatmentModalOpen} onClose={() => setTreatmentModalOpen(false)} title={t('risks.treatmentTitle').replace('{title}', selectedRiskForTreatment?.title || '')}>
-        <div className="space-y-4">
-          {treatments.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('risks.noTreatmentPlans')}</p>
-          ) : (
-            <div className="space-y-3">
-              {treatments.map((tr: any) => (
-                <div key={tr.id} className="p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
-                  <div className="flex justify-between items-start">
-                    <span className="font-medium text-sm text-gray-900 dark:text-white">{tr.name || tr.description?.substring(0, 50) || t('common.treatment')}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      tr.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      tr.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>{tr.status || 'draft'}</span>
-                  </div>
-                  {tr.description && <p className="text-xs text-gray-500 mt-1">{tr.description}</p>}
-                </div>
-              ))}
-            </div>
-          )}
+     <Modal isOpen={treatmentModalOpen} onClose={() => { if (treatmentFormState.isDirty) { pendingTreatmentClose.current = () => setTreatmentModalOpen(false); setTreatmentDiscardConfirmOpen(true); } else { setTreatmentModalOpen(false); } }} title={t('risks.treatmentPlanTitle')} isDirty={treatmentFormState.isDirty} onDiscardConfirm={() => { if (pendingTreatmentClose.current) { pendingTreatmentClose.current(); pendingTreatmentClose.current = null; } else { setTreatmentModalOpen(false); } setTreatmentDiscardConfirmOpen(false); }}>
+       <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
+         {treatments.length === 0 ? (
+           <p className="text-sm text-gray-500 dark:text-gray-400">{t('risks.noTreatmentPlans')}</p>
+         ) : (
+           <div className="space-y-3">
+             {treatments.map((tr: any) => (
+               <div key={tr.id} className="p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
+                 <div className="flex justify-between items-start">
+                   <span className="font-medium text-sm text-gray-900 dark:text-white">{tr.name || tr.description?.substring(0, 50) || t('common.treatment')}</span>
+                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                     tr.status === 'approved' ? 'bg-green-100 text-green-800' :
+                     tr.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                     'bg-yellow-100 text-yellow-800'
+                   }`}>{tr.status || 'draft'}</span>
+                 </div>
+                 {tr.description && <p className="text-xs text-gray-500 mt-1">{tr.description}</p>}
+               </div>
+             ))}
+           </div>
+         )}
 
-          {/* Create Treatment */}
-          <div className="border-t pt-4">
-            <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-2">{t('risks.createNewTreatment')}</h4>
-            <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">{t('risks.treatmentAssessmentNotice')}</p>
-            <select value={treatmentForm.treatmentOption} onChange={(e) => setTreatmentForm({ ...treatmentForm, treatmentOption: e.target.value })}
-              className="w-full mb-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm">
-              <option value="reduce">{t('risks.treatmentOptions.reduce')}</option>
-              <option value="avoid">{t('risks.treatmentOptions.avoid')}</option>
-              <option value="transfer">{t('risks.treatmentOptions.transfer')}</option>
-              <option value="accept">{t('risks.treatmentOptions.accept')}</option>
-            </select>
-            <textarea value={treatmentForm.plannedActions} onChange={(e) => setTreatmentForm({ ...treatmentForm, plannedActions: e.target.value })} placeholder={t('risks.describeTreatmentPlan')} rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-            <input value={treatmentForm.actionTitle} onChange={(e) => setTreatmentForm({ ...treatmentForm, actionTitle: e.target.value })} placeholder={t('risks.treatmentActionTitle')}
-              className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-            <select value={treatmentForm.controlImplementationId} onChange={(e) => setTreatmentForm({ ...treatmentForm, controlImplementationId: e.target.value })}
-              className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm">
-              <option value="">{t('risks.selectControlImplementation')}</option>
-              {controlImplementations.map((impl) => <option key={impl.id} value={impl.id}>{impl.control?.title ?? impl.controlId} - {impl.implementationStatus}</option>)}
-            </select>
-            <button onClick={handleCreateTreatment}
-              className="mt-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
-              {t('risks.createTreatmentPlan')}
-            </button>
-          </div>
+         <div className="border-t pt-4">
+           <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-2">{t('risks.createNewTreatment')}</h4>
+           <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">{t('risks.treatmentAssessmentNotice')}</p>
+           <select value={treatmentFormState.values.treatmentOption} onChange={(e) => treatmentFormState.handleChange({ treatmentOption: e.target.value } as any)}
+             className="w-full mb-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm">
+             <option value="reduce">{t('risks.treatmentOptions.reduce')}</option>
+             <option value="avoid">{t('risks.treatmentOptions.avoid')}</option>
+             <option value="transfer">{t('risks.treatmentOptions.transfer')}</option>
+             <option value="accept">{t('risks.treatmentOptions.accept')}</option>
+           </select>
+           <textarea value={treatmentFormState.values.plannedActions} onChange={(e) => treatmentFormState.handleChange({ plannedActions: e.target.value } as any)} rows={3}
+             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+           <input value={treatmentFormState.values.actionTitle} onChange={(e) => treatmentFormState.handleChange({ actionTitle: e.target.value } as any)} placeholder={t('risks.treatmentActionTitle')}
+             className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+           <select value={treatmentFormState.values.controlImplementationId} onChange={(e) => treatmentFormState.handleChange({ controlImplementationId: e.target.value } as any)}
+             className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm">
+             <option value="">{t('risks.selectControlImplementation')}</option>
+             {controlImplementations.map((impl) => <option key={impl.id} value={impl.id}>{impl.control?.title ?? impl.controlId} - {impl.implementationStatus}</option>)}
+           </select>
+           <button onClick={handleCreateTreatment}
+             className="mt-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+             {t('risks.createTreatmentPlan')}
+           </button>
+         </div>
+       </div>
+     </Modal>
 
-          <div className="flex justify-end pt-4">
-            <button onClick={() => setTreatmentModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-              {t('common.close')}
-            </button>
-          </div>
-        </div>
-      </Modal>
+     {/* Discard Changes Confirmation Dialog */}
+     <DiscardConfirmationDialog
+       open={discardConfirmOpen}
+       onClose={() => { setDiscardConfirmOpen(false); pendingMainClose.current = null; }}
+       onDiscard={() => { if (pendingMainClose.current) { pendingMainClose.current(); pendingMainClose.current = null; } setDiscardConfirmOpen(false); }}
+       titleKey={t('common.discardChangesTitle')}
+       messageKey={t('common.discardChangesMessage')}
+     />
 
-      <EntityHistoryModal isOpen={!!historyRisk} onClose={() => setHistoryRisk(null)} entityId={historyRisk?.id} entityName={historyRisk?.title} loadHistory={riskApi.history} />
-    </div>
-  );
+     <EntityHistoryModal isOpen={!!historyRisk} onClose={() => setHistoryRisk(null)} entityId={historyRisk?.id} entityName={historyRisk?.title} loadHistory={riskApi.history} />
+
+     {/* Discard confirmation for treatment modal */}
+     <DiscardConfirmationDialog
+       open={treatmentDiscardConfirmOpen}
+       onClose={() => { setTreatmentDiscardConfirmOpen(false); pendingTreatmentClose.current = null; }}
+       onDiscard={() => { if (pendingTreatmentClose.current) { pendingTreatmentClose.current(); pendingTreatmentClose.current = null; } setTreatmentDiscardConfirmOpen(false); }}
+       titleKey="Discard Changes"
+       messageKey="You have unsaved changes. Are you sure you want to discard them?"
+     />
+   </div>
+ );
 };
 
 export default Risks;

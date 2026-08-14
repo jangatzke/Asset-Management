@@ -79,11 +79,11 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | UI | Material UI v9 (@mui/material), Tailwind CSS, Headless UI v2 (@headlessui/react), Heroicons |
 | Routing/State | React Router DOM v6.30.4 (pinned), Zustand |
 | Forms/i18n/Charts | React Hook Form, react-i18next v17, Recharts |
-| HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect |
-| Tests | Jest, ts-jest, Supertest, Vitest |
-| Tooling | npm Workspaces, ESLint, Prettier, TypeScript |
-| Security/Infrastructure (Backend) | helmet, compression, prom-client, @azure/msal-node, nodemailer, multer |
-| Icon Library (Frontend) | @mui/icons-material |
+| HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect, cors, helmet |
+| Tests | Jest, ts-jest, Supertest, Vitest, Playwright |
+| Tooling | npm Workspaces, ESLint, Prettier, TypeScript (~5.9.0 backend, ^5.3.3 frontend/shared) |
+| Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, otplib, prom-client, qrcode, redis, @azure/msal-node, multer |
+| Icon Library (Frontend) | @emotion/react, @emotion/styled, @headlessui/react, @heroicons/react, @mui/icons-material |
 
 ---
 
@@ -93,12 +93,17 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 asset-management-isms/
 ├── backend/                 # Express API, Prisma, routes, middleware, tests
 │   ├── prisma/              # Prisma schema, seed, and migration-related SQL files
-│   └── src/                 # API entry point, middleware, routes, services, tests
+│   ├── scripts/             # Provider-aware Prisma wrapper, env loader
+│   ├── test/                # Test fixtures, setup, globals
+│   └── src/                 # API entry point, config, middleware, routes, services, utils, tests
 ├── frontend/                # React/Vite SPA
-│   └── src/                 # App, components, pages, contexts, locales, services
+│   ├── e2e/                 # Playwright end-to-end tests
+│   └── src/                 # App, components, pages, contexts, locales, services, hooks, utils, tests
 ├── shared/                  # Shared types and DTOs
-│   └── src/
-├── docs/                    # Requirements, architecture, operations, security, compliance, OpenAPI
+│   └── src/                 # index, dtos, types
+├── docs/                    # Requirements, architecture, operations, security, compliance, OpenAPI, plans, artifacts
+│   ├── api/                 # OpenAPI specification
+│   └── baseline-artifacts/  # Build, test, lint, Prisma validation baselines
 ├── plans/                   # Implementation plans for individual work packages
 ├── scripts/                 # Check scripts, e.g. requirements and vulnerability checks
 ├── package.json             # Root workspace and project-wide scripts
@@ -381,13 +386,13 @@ SQL Server runtime is implemented through the generated provider-specific schema
 | `npm run db:deploy:sqlserver --workspace=backend` | Deploy SQL Server migrations with the generated SQL Server schema |
 | `npm run db:seed --workspace=backend` | Run seed script |
 | `npm run db:seed:demo --workspace=backend` | Run demo seed data script |
-| `npm run db:setup:cost-planning --workspace=backend` | Deploy cost-planning-related migrations and generate Prisma Client |
+| `npm run db:setup:cost-planning --workspace=backend` | Run `prisma migrate deploy` and `prisma generate` (provider-aware) |
 
 ### Frontend and Shared Scripts
 
 | Workspace | Scripts |
 |---|---|
-| `frontend` | `dev`, `build`, `preview`, `test`, `lint` |
+| `frontend` | `dev`, `build`, `preview`, `test`, `lint`, `e2e`, `e2e:ui`, `e2e:report` |
 | `shared` | `build`, `clean` |
 
 Recommended quick check after changes:
@@ -420,10 +425,8 @@ The API is versioned under `/api/v1`. Registered routes in the backend include, 
 | Audit and evidence | `/api/v1/audit-logs`, `/api/v1/evidence`, `/api/v1/documents` |
 | ISMS/Compliance | `/api/v1/frameworks`, `/api/v1/nis2`, `/api/v1/phase6`, `/api/v1/isms-operations`, `/api/v1/catalog` |
 | Business objects | `/api/v1/contracts`, `/api/v1/licenses`, `/api/v1/cost-planning` |
-| Business processes | `/api/v1/businessprocess` |
-| Suppliers | `/api/v1/supplier` |
-| Training | `/api/v1/training` |
-| Corrective Actions | `/api/v1/corrective-action` |
+| Business processes and risk workflows | `/api/v1/processes`, `/api/v1/treatments`, `/api/v1/methods` |
+| Action center | `/api/v1/action-center` |
 | Integrations | `/api/v1/intune`, `/api/v1/admin/vmware`, `/api/v1/admin/proxmox`, `/api/v1/imports` |
 | Automation | `/api/v1/webhooks`, `/api/v1/service-accounts` |
 
@@ -473,6 +476,8 @@ The script runs `prisma migrate deploy` and `prisma generate` in the backend. Fo
 |---|---|
 | [`docs/requirements.md`](docs/requirements.md) | Functional and non-functional requirements, phases, and acceptance criteria |
 | [`docs/architecture.md`](docs/architecture.md) | Current/target architecture, backend/frontend structure, data model, security, and API aspects |
+| [`docs/authorization-gap-analysis.md`](docs/authorization-gap-analysis.md) | Authorization gap analysis |
+| [`docs/e2e-testing.md`](docs/e2e-testing.md) | End-to-end testing guidance and covered workflows |
 | [`docs/operations.md`](docs/operations.md) | Operations manual with health, monitoring, logging, backup/restore, DR, and runbooks |
 | [`docs/security-model.md`](docs/security-model.md) | Security model for authentication, authorization, audit, network, and data |
 | [`docs/compliance-matrix.md`](docs/compliance-matrix.md) | Human-readable compliance/application coverage matrix |
@@ -485,8 +490,20 @@ The script runs `prisma migrate deploy` and `prisma generate` in the backend. Fo
 | [`docs/repository-assessment.md`](docs/repository-assessment.md) | Repository structure and capability assessment |
 | [`docs/vulnerability-allowlist.json`](docs/vulnerability-allowlist.json) | Vulnerability exception allowlist for vulnerability-check script |
 | [`docs/baseline-artifacts/`](docs/baseline-artifacts/) | Build, test, lint, and Prisma validation baseline artifacts |
-| [`frontend/src/pages/Processes.tsx`](frontend/src/pages/Processes.tsx) | Processes page |
-| [`frontend/src/pages/RiskAggregation.tsx`](frontend/src/pages/RiskAggregation.tsx) | Risk aggregation view |
+| [`docs/phase1-authorization-plan.md`](docs/phase1-authorization-plan.md) | Phase 1: Authorization plan |
+| [`docs/phase2-auth-session-plan.md`](docs/phase2-auth-session-plan.md) | Phase 2: Auth/session plan |
+| [`docs/phase3-preauth-plan.md`](docs/phase3-preauth-plan.md) | Phase 3: Pre-auth plan |
+| [`docs/phase4-oidc-plan.md`](docs/phase4-oidc-plan.md) | Phase 4: OIDC plan |
+| [`docs/phase5-api-bugs-plan.md`](docs/phase5-api-bugs-plan.md) | Phase 5: API bugs plan |
+| [`docs/phase6-dto-api-contract-plan.md`](docs/phase6-dto-api-contract-plan.md) | Phase 6: DTO/API contract plan |
+| [`docs/phase7-domain-services-plan.md`](docs/phase7-domain-services-plan.md) | Phase 7: Domain services plan |
+| [`docs/phase8-ui-consolidation-plan.md`](docs/phase8-ui-consolidation-plan.md) | Phase 8: UI consolidation plan |
+| [`docs/phase9-audit-integrity-plan.md`](docs/phase9-audit-integrity-plan.md) | Phase 9: Audit integrity plan |
+| [`docs/phase10-background-jobs-plan.md`](docs/phase10-background-jobs-plan.md) | Phase 10: Background jobs plan |
+| [`docs/phase11-health-metrics-plan.md`](docs/phase11-health-metrics-plan.md) | Phase 11: Health/metrics plan |
+| [`docs/phase12-cicd-gates-plan.md`](docs/phase12-cicd-gates-plan.md) | Phase 12: CI/CD quality-gate plan |
+| [`docs/phase13-compliance-documentation-plan.md`](docs/phase13-compliance-documentation-plan.md) | Phase 13: Compliance documentation plan |
+| [`docs/phase14-code-quality-plan.md`](docs/phase14-code-quality-plan.md) | Phase 14: Code quality plan |
 
 Additional phase-related planning documents are located under [`docs`](docs) and [`plans`](plans).
 

@@ -48,6 +48,9 @@
     "number": "Number",
     "vendor": "Vendor",
     "dates": "Dates",
+    "discardChangesTitle": "Unsaved Changes",
+    "discardChangesMessage": "You have unsaved changes. Are you sure you want to discard them?",
+    "discard": "Discard",
     "currency": "Currency",
     "value": "Value",
     "startDate": "Start Date",
@@ -704,7 +707,11 @@
     "createNewTreatment": "Create New Treatment",
     "describeTreatmentPlan": "Describe the treatment plan...",
     "createTreatmentPlan": "Create Treatment Plan",
-    "createTreatmentError": "Failed to create treatment"
+    "createTreatmentError": "Failed to create treatment",
+    "treatmentPlanTitle": "Treatment Plan",
+    "discardChangesTitle": "Unsaved Changes",
+    "discardChangesMessage": "You have unsaved changes. Are you sure you want to discard them?",
+    "discard": "Discard"
   },
   "controls": {
     "title": "Controls & Compliance",
@@ -1134,19 +1141,31 @@
     "noLicenses": "No licenses found",
     "deleteConfirm": "Are you sure you want to delete this license?",
     "loadError": "Failed to load licenses",
-    "nameRequired": "Name is required",
+    "titleRequired": "Title is required",
     "fields": {
       "licenseKey": "License Key",
       "seats": "Seats",
       "purchaseDate": "Purchase Date",
       "expiryDate": "Expiry Date",
-      "renewalDate": "Renewal Date"
+      "renewalDate": "Renewal Date",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "licensingBasis": "Licensing Basis",
+      "assignmentModel": "Assignment Model"
     },
     "types": {
       "commercial": "Commercial",
       "open_source": "Open Source",
       "subscription": "Subscription",
       "perpetual": "Perpetual"
+    },
+    "basis": {
+      "user": "User",
+      "device": "Device"
+    },
+    "model": {
+      "named": "Named",
+      "concurrent": "Concurrent"
     },
     "status": {
       "active": "Active",
@@ -1320,5 +1339,70 @@
   },
   "localeCatalog": {
     "operationsAndAdminCoverage": "Operations and administration coverage"
+  },
+  "nis2": {
+    "title": "NIS2 applicability and registration",
+    "description": "Questionnaire → assessment → submit → approve → registration → changes.",
+    "section1": "Create applicability assessment",
+    "section2": "Submit and approve",
+    "section3": "Register approved in-scope entity",
+    "section4": "Log registration change",
+    "catalogAdministration": "Catalog administration",
+    "catalogEnsureDescription": "Authorized control administrators can initialize the NIS2 measures catalogue. This explicit catalog action is not part of incident management.",
+    "catalogEnsureButton": "Ensure NIS2 measures catalogue",
+    "catalogEnsuring": "Ensuring catalogue…",
+    "catalogEnsured": "NIS2 measures catalogue ensured.",
+    "catalogError": "Failed to ensure the NIS2 measures catalogue.",
+    "noQuestionnaires": "No questionnaires available. Create one via the API or use the default questionnaire endpoint.",
+    "noAssessments": "No assessments created yet.",
+    "noRegistrations": "No registrations created yet.",
+    "select": "Select…",
+    "selectQuestionnaire": "Active questionnaire",
+    "organizationUnit": "Organization unit (optional)",
+    "justification": "Justification (optional)",
+    "createDraftAssessment": "Create draft assessment",
+    "missingAnswerError": "Answer required",
+    "assessmentCreated": "Assessment created as draft.",
+    "assessmentSubmitted": "Assessment submitted for approval.",
+    "assessmentApproved": "Assessment approved.",
+    "submit": "Submit",
+    "approve": "Approve",
+    "pending": "Pending",
+    "entityType": "Entity type",
+    "essentialEntity": "Essential entity",
+    "importantEntity": "Important entity",
+    "approvedAssessment": "Approved assessment",
+    "registrationDeadline": "Registration deadline *",
+    "contactPerson": "Contact person",
+    "contactDetails": "Contact details",
+    "submissionProof": "Submission proof/reference",
+    "createRegistration": "Create registration",
+    "registration": "Registration",
+    "changeType": "Change type",
+    "changeContactDetails": "Contact details",
+    "changeEntityData": "Entity data",
+    "changeScope": "Scope",
+    "changeOther": "Other",
+    "description": "Description *",
+    "newValue": "New value / summary *",
+    "notificationDeadline": "Notification deadline",
+    "submissionProofChange": "Submission proof/reference",
+    "recordChange": "Record change",
+    "registrationCreated": "Registration recorded.",
+    "registrationChangeRecorded": "Registration change recorded.",
+    "loadingError": "Unable to load NIS2 workflow data.",
+    "operationError": "The operation could not be completed.",
+    "noApprovedAssessments": "No approved assessments available for registration yet.",
+    "questionnaireLabels": {
+      "sector": "NIS-2 sector or subsector",
+      "employeeCount": "Employee count",
+      "annualRevenueMillionEur": "Annual revenue in million EUR",
+      "criticalService": "Provides essential or important service",
+      "crossBorderService": "Provides cross-border services"
+    },
+    "emptyQuestionnaireExplanation": "No active questionnaire is currently available. Without a questionnaire you cannot create an assessment. Use the default questionnaire endpoint to create one first, then return here to fill answers and submit.",
+    "loadDefaultQuestionnaire": "Load default questionnaire",
+    "defaultQuestionnaireLoaded": "Default questionnaire loaded. You can now fill in the answers below.",
+    "answersFillableOncePresent": "Answers are fillable once a questionnaire version is selected or loaded."
   }
 }

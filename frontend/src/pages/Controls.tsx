@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { implementationRiskDisplayRows } from './riskControlWorkflow.utils';
 import { getControlStatusColor, getErrorMessage } from '../utils/statusHelpers';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface Control {
   id: string;
@@ -102,7 +104,7 @@ const Controls = () => {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<CreateControlForm>(initialForm);
+  const formState = useDirtyForm<CreateControlForm>(initialForm);
   const [editingControlId, setEditingControlId] = useState<string | null>(null);
   const [frameworkCount, setFrameworkCount] = useState(0);
   const [soaCount, setSoaCount] = useState(0);
@@ -110,11 +112,19 @@ const Controls = () => {
   const [catalogOptions, setCatalogOptions] = useState<CatalogOption[]>([]);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
   const [implementationModalOpen, setImplementationModalOpen] = useState(false);
-  const [implementationForm, setImplementationForm] = useState<ImplementationForm>(initialImplementationForm);
+  const implementationFormState = useDirtyForm<ImplementationForm>(initialImplementationForm);
   const [expandedImplementationId, setExpandedImplementationId] = useState<string | null>(null);
   const [responsibleUserOption, setResponsibleUserOption] = useState<{ id: string; label: string } | null>(null);
   const [organizationUnitOption, setOrganizationUnitOption] = useState<{ id: string; label: string } | null>(null);
   const [historyControl, setHistoryControl] = useState<Control | null>(null);
+
+  // Dirty guard state for control modal
+  const [controlDiscardConfirmOpen, setControlDiscardConfirmOpen] = useState(false);
+  const controlPendingClose = useRef<(() => void) | null>(null);
+
+  // Dirty guard state for implementation modal
+  const [implementationDiscardConfirmOpen, setImplementationDiscardConfirmOpen] = useState(false);
+  const implementationPendingClose = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     loadControls();
@@ -153,7 +163,7 @@ const Controls = () => {
       ]);
       if (frameworks.status === 'fulfilled') setFrameworkCount(frameworks.value.data?.length ?? 0);
       if (soa.status === 'fulfilled') setSoaCount(soa.value.data?.length ?? 0);
-      if (evidence.status === 'fulfilled') setEvidenceCount(soa.status === 'fulfilled' ? (evidence.value.data?.length ?? 0) : 0);
+      if (evidence.status === 'fulfilled') setEvidenceCount(evidence.value.data?.length ?? 0);
     } catch (err: unknown) {
       setError(getErrorMessage(err) || t('common.saveError'));
     } finally {
@@ -184,22 +194,37 @@ const Controls = () => {
     setSelectedCatalogId(catalogId);
     const catalog = catalogOptions.find(c => c.id === catalogId);
     if (catalog) {
-      setForm({ ...form, catalogId: `${catalog.name} - ${catalog.version}`, catalogVersion: catalog.version || '' });
+      formState.handleChange({ catalogId: `${catalog.name} - ${catalog.version}`, catalogVersion: catalog.version || '' });
     }
   };
 
   const resetControlForm = () => {
-    setForm(initialForm);
+    formState.resetForm();
     setSelectedCatalogId('');
     setEditingControlId(null);
   };
+
+  // Dirty guard handlers for control modal
+  const handleControlDiscard = useCallback(() => {
+    formState.resetForm();
+    setModalOpen(false);
+  }, [formState]);
+
+  const handleControlModalClose = useCallback(() => {
+    if (formState.isDirty) {
+      controlPendingClose.current = () => setModalOpen(false);
+      setControlDiscardConfirmOpen(true);
+    } else {
+      setModalOpen(false);
+    }
+  }, [formState]);
 
   const handleEditControl = async (control: Control) => {
     try {
       const response = await controlApi.getById(control.id);
       const data = response.data ?? control;
       const catalog = catalogOptions.find((option) => data.catalogId === `${option.name} - ${option.version}` || data.catalogId === option.id || data.catalogId === option.name);
-      setForm({
+      formState.setFormValues({
         catalogId: data.catalogId || '',
         catalogVersion: data.catalogVersion || catalog?.version || '',
         title: data.title || '',
@@ -219,7 +244,7 @@ const Controls = () => {
   };
 
   const handleSubmitControl = async () => {
-    if (!form.catalogId || !form.catalogVersion || !form.title || !form.controlGoal) {
+    if (!formState.values.catalogId || !formState.values.catalogVersion || !formState.values.title || !formState.values.controlGoal) {
       setError(t('common.requiredField'));
       return;
     }
@@ -227,7 +252,7 @@ const Controls = () => {
     setSaving(true);
     setError('');
     try {
-      const payload = form as any;
+      const payload = formState.values as any;
       if (editingControlId) {
         await controlApi.update(editingControlId, payload);
       } else {
@@ -244,11 +269,26 @@ const Controls = () => {
   };
 
   const openImplementationModal = (control: Control) => {
-    setImplementationForm({ ...initialImplementationForm, controlId: control.id });
+    implementationFormState.setFormValues({ ...initialImplementationForm, controlId: control.id });
     setResponsibleUserOption(null);
     setOrganizationUnitOption(null);
     setImplementationModalOpen(true);
   };
+
+  // Dirty guard handlers for implementation modal
+  const handleImplementationDiscard = useCallback(() => {
+    implementationFormState.resetForm();
+    setImplementationModalOpen(false);
+  }, [implementationFormState]);
+
+  const handleImplementationModalClose = useCallback(() => {
+    if (implementationFormState.isDirty) {
+      implementationPendingClose.current = () => setImplementationModalOpen(false);
+      setImplementationDiscardConfirmOpen(true);
+    } else {
+      setImplementationModalOpen(false);
+    }
+  }, [implementationFormState]);
 
   // Search endpoint for EntitySearchSelect (responsible person)
   const searchUsers = async (q: string) => {
@@ -270,17 +310,17 @@ const Controls = () => {
   };
 
   const handleCreateImplementation = async () => {
-    const responsibleUserId = responsibleUserOption?.id || implementationForm.responsibleUserId;
-    const organizationUnitId = organizationUnitOption?.id || implementationForm.organizationUnitId;
-    if (!implementationForm.controlId || !responsibleUserId || !organizationUnitId) {
+    const responsibleUserId = responsibleUserOption?.id || implementationFormState.values.responsibleUserId;
+    const organizationUnitId = organizationUnitOption?.id || implementationFormState.values.organizationUnitId;
+    if (!implementationFormState.values.controlId || !responsibleUserId || !organizationUnitId) {
       setError(t('common.requiredField'));
       return;
     }
     setSaving(true);
     try {
-      await controlApi.createImplementation({ ...implementationForm, responsibleUserId, organizationUnitId });
+      await controlApi.createImplementation({ ...implementationFormState.values, responsibleUserId, organizationUnitId });
       setImplementationModalOpen(false);
-      setImplementationForm(initialImplementationForm);
+      implementationFormState.resetForm();
       setResponsibleUserOption(null);
       setOrganizationUnitOption(null);
       await loadControls();
@@ -418,7 +458,8 @@ const Controls = () => {
         </table>
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingControlId ? 'Control bearbeiten' : t('controls.createControl')}>
+      {/* Control Modal */}
+      <Modal isOpen={modalOpen} onClose={handleControlModalClose} title={editingControlId ? 'Control bearbeiten' : t('controls.createControl')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleControlDiscard}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -439,8 +480,8 @@ const Controls = () => {
               </select>
               <input
                 type="hidden"
-                value={form.catalogId}
-                onChange={(e) => setForm({ ...form, catalogId: e.target.value })}
+                value={formState.values.catalogId}
+                onChange={(e) => formState.handleChange({ catalogId: e.target.value })}
               />
             </div>
             <div>
@@ -448,8 +489,8 @@ const Controls = () => {
                 {t('controls.fields.catalogVersion')} <span className="text-red-500">*</span>
               </label>
               <select
-                value={form.catalogVersion}
-                onChange={(e) => setForm({ ...form, catalogVersion: e.target.value })}
+                value={formState.values.catalogVersion}
+                onChange={(e) => formState.handleChange({ catalogVersion: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- {t('controls.selectVersion')} --</option>
@@ -472,8 +513,8 @@ const Controls = () => {
             </label>
             <input
               type="text"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              value={formState.values.title}
+              onChange={(e) => formState.handleChange({ title: e.target.value })}
               placeholder={t('controls.fields.title')}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -484,8 +525,8 @@ const Controls = () => {
               {t('controls.fields.description')}
             </label>
             <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              value={formState.values.description}
+              onChange={(e) => formState.handleChange({ description: e.target.value })}
               placeholder={t('controls.fields.description')}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -497,8 +538,8 @@ const Controls = () => {
               {t('controls.fields.controlGoal')} <span className="text-red-500">*</span>
             </label>
             <textarea
-              value={form.controlGoal}
-              onChange={(e) => setForm({ ...form, controlGoal: e.target.value })}
+              value={formState.values.controlGoal}
+              onChange={(e) => formState.handleChange({ controlGoal: e.target.value })}
               placeholder={t('controls.fields.controlGoal')}
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -512,8 +553,8 @@ const Controls = () => {
               </label>
               <input
                 type="text"
-                value={form.responsibleId}
-                onChange={(e) => setForm({ ...form, responsibleId: e.target.value })}
+                value={formState.values.responsibleId}
+                onChange={(e) => formState.handleChange({ responsibleId: e.target.value })}
                 placeholder={t('controls.fields.responsibleId')}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -524,8 +565,8 @@ const Controls = () => {
               </label>
               <input
                 type="text"
-                value={form.applicability}
-                onChange={(e) => setForm({ ...form, applicability: e.target.value })}
+                value={formState.values.applicability}
+                onChange={(e) => formState.handleChange({ applicability: e.target.value })}
                 placeholder={t('controls.fields.applicability')}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -538,8 +579,8 @@ const Controls = () => {
                 {t('controls.fields.implementationStatus')}
               </label>
               <select
-                value={form.implementationStatus}
-                onChange={(e) => setForm({ ...form, implementationStatus: e.target.value })}
+                value={formState.values.implementationStatus}
+                onChange={(e) => formState.handleChange({ implementationStatus: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="planned">{t('controls.implementationStatus.planned')}</option>
@@ -556,8 +597,8 @@ const Controls = () => {
                 {t('controls.fields.maturityLevel')}
               </label>
               <select
-                value={form.maturityLevel}
-                onChange={(e) => setForm({ ...form, maturityLevel: parseInt(e.target.value) })}
+                value={formState.values.maturityLevel}
+                onChange={(e) => formState.handleChange({ maturityLevel: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value={0}>{t('controls.maturity.0')}</option>
@@ -572,14 +613,14 @@ const Controls = () => {
 
           <div className="flex justify-end gap-2 mt-4">
             <button
-              onClick={() => setModalOpen(false)}
+              onClick={handleControlModalClose}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               {t('common.cancel')}
             </button>
             <button
               onClick={handleSubmitControl}
-              disabled={!form.catalogId || !form.catalogVersion || !form.title || !form.controlGoal || saving}
+              disabled={!formState.values.catalogId || !formState.values.catalogVersion || !formState.values.title || !formState.values.controlGoal || saving}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? t('common.saving') : (editingControlId ? t('common.update') : t('controls.createControl'))}
@@ -588,7 +629,8 @@ const Controls = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={implementationModalOpen} onClose={() => setImplementationModalOpen(false)} title={t('controls.createImplementation')}>
+      {/* Implementation Modal */}
+      <Modal isOpen={implementationModalOpen} onClose={handleImplementationModalClose} title={t('controls.createImplementation')} isDirty={implementationFormState.isDirty && !saving} onDiscardConfirm={handleImplementationDiscard}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -599,7 +641,7 @@ const Controls = () => {
                 value={organizationUnitOption}
                 onChange={(opt: { id: string; label: string }) => {
                   setOrganizationUnitOption(opt);
-                  setImplementationForm({ ...implementationForm, organizationUnitId: opt.id });
+                  implementationFormState.handleChange({ organizationUnitId: opt.id });
                 }}
                 placeholder={t('controls.searchOrganizationUnits') || 'Search organization units...'}
               />
@@ -616,7 +658,7 @@ const Controls = () => {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <select value={implementationForm.implementationStatus} onChange={(e) => setImplementationForm({ ...implementationForm, implementationStatus: e.target.value })}
+            <select value={implementationFormState.values.implementationStatus} onChange={(e) => implementationFormState.handleChange({ implementationStatus: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
               <option value="planned">{t('controls.implementationStatus.planned')}</option>
               <option value="in_progress">{t('controls.implementationStatus.in_progress')}</option>
@@ -624,19 +666,52 @@ const Controls = () => {
               <option value="tested">{t('controls.implementationStatus.tested')}</option>
               <option value="effective">{t('controls.implementationStatus.effective')}</option>
             </select>
-            <select value={implementationForm.maturityLevel} onChange={(e) => setImplementationForm({ ...implementationForm, maturityLevel: parseInt(e.target.value) })}
+            <select value={implementationFormState.values.maturityLevel} onChange={(e) => implementationFormState.handleChange({ maturityLevel: parseInt(e.target.value) })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
               {[0,1,2,3,4,5].map((level) => <option key={level} value={level}>{t(`controls.maturity.${level}`)}</option>)}
             </select>
           </div>
-          <textarea value={implementationForm.implementationDescription} onChange={(e) => setImplementationForm({ ...implementationForm, implementationDescription: e.target.value })} placeholder={t('controls.fields.implementationDescription')}
+          <textarea value={implementationFormState.values.implementationDescription} onChange={(e) => implementationFormState.handleChange({ implementationDescription: e.target.value })} placeholder={t('controls.fields.implementationDescription')}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationNotice')}</p>
-          <div className="flex justify-end gap-2"><button onClick={() => setImplementationModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">{t('common.cancel')}</button><button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button></div>
+          <div className="flex justify-end gap-2">
+            <button onClick={handleImplementationModalClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">{t('common.cancel')}</button>
+            <button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button>
+          </div>
         </div>
       </Modal>
 
       <EntityHistoryModal isOpen={!!historyControl} onClose={() => setHistoryControl(null)} entityId={historyControl?.id} entityName={historyControl?.title} loadHistory={controlApi.history} />
+
+      {/* Discard Confirmation Dialog for Control Modal */}
+      <DiscardConfirmationDialog
+        open={controlDiscardConfirmOpen}
+        onClose={() => {
+          if (controlPendingClose.current) {
+            controlPendingClose.current();
+            controlPendingClose.current = null;
+          }
+          setControlDiscardConfirmOpen(false);
+        }}
+        onDiscard={handleControlDiscard}
+        titleKey="Discard Changes"
+        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
+
+      {/* Discard Confirmation Dialog for Implementation Modal */}
+      <DiscardConfirmationDialog
+        open={implementationDiscardConfirmOpen}
+        onClose={() => {
+          if (implementationPendingClose.current) {
+            implementationPendingClose.current();
+            implementationPendingClose.current = null;
+          }
+          setImplementationDiscardConfirmOpen(false);
+        }}
+        onDiscard={handleImplementationDiscard}
+        titleKey="Discard Changes"
+        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
     </div>
   );
 };

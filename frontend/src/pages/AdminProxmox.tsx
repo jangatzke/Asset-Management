@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useDirtyForm } from '../hooks/useDirtyForm';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
   Box,
   Typography,
@@ -30,6 +32,7 @@ import {
   FormHelperText,
   FormControlLabel,
 } from '@mui/material';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -39,6 +42,7 @@ import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { proxmoxApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { useDarkMode } from '../context/DarkModeContext';
 
 interface ProxmoxCredential {
   id: string;
@@ -79,26 +83,54 @@ const syncStatusColors: Record<string, string> = {
 
 export default function AdminProxmox() {
   const { t } = useI18n();
+  const { darkMode } = useDarkMode();
+  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
+
   // Credential state
+  interface CredentialFormValues {
+    name: string;
+    username: string;
+    password: string;
+    confirmPassword: string;
+    apiToken: string;
+    useApiToken: boolean;
+  }
+
   const [credentials, setCredentials] = useState<ProxmoxCredential[]>([]);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [editingCredId, setEditingCredId] = useState<string | null>(null);
-  const [credName, setCredName] = useState('');
-  const [credUsername, setCredUsername] = useState('');
-  const [credPassword, setCredPassword] = useState('');
-  const [credConfirmPassword, setCredConfirmPassword] = useState('');
-  const [credApiToken, setCredApiToken] = useState('');
-  const [useApiToken, setUseApiToken] = useState(false);
+  const [credDiscardConfirmOpen, setCredDiscardConfirmOpen] = useState(false);
+  const credPendingClose = useRef<(() => void) | null>(null);
+  const credentialForm = useDirtyForm<CredentialFormValues>({
+    name: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
+    apiToken: '',
+    useApiToken: false,
+  });
 
   // Proxmox server state
+  interface ServerFormValues {
+    name: string;
+    host: string;
+    port: number;
+    nodeId: string;
+    credentialId: string;
+  }
+
   const [servers, setServers] = useState<ProxmoxServer[]>([]);
   const [serverDialogOpen, setServerDialogOpen] = useState(false);
   const [editingServerId, setEditingServerId] = useState<string | null>(null);
-  const [serverName, setServerName] = useState('');
-  const [serverHost, setServerHost] = useState('');
-  const [serverPort, setServerPort] = useState(8006);
-  const [serverNodeId, setServerNodeId] = useState('');
-  const [serverCredentialId, setServerCredentialId] = useState('');
+  const [serverDiscardConfirmOpen, setServerDiscardConfirmOpen] = useState(false);
+  const serverPendingClose = useRef<(() => void) | null>(null);
+  const serverForm = useDirtyForm<ServerFormValues>({
+    name: '',
+    host: '',
+    port: 8006,
+    nodeId: '',
+    credentialId: '',
+  });
 
   // Loading and status state
   const [importing, setImporting] = useState<Record<string, boolean>>({});
@@ -123,44 +155,49 @@ export default function AdminProxmox() {
 
   const openCreateCredentialDialog = () => {
     setEditingCredId(null);
-    setCredName('');
-    setCredUsername('');
-    setCredPassword('');
-    setCredConfirmPassword('');
-    setCredApiToken('');
-    setUseApiToken(false);
+    credentialForm.setFormValues({
+      name: '',
+      username: '',
+      password: '',
+      confirmPassword: '',
+      apiToken: '',
+      useApiToken: false,
+    });
     setCredDialogOpen(true);
   };
 
   const openEditCredentialDialog = (cred: ProxmoxCredential) => {
     setEditingCredId(cred.id);
-    setCredName(cred.name);
-    setCredUsername(cred.username);
-    setCredPassword('');
-    setCredConfirmPassword('');
-    setCredApiToken('');
-    setUseApiToken(cred.hasApiToken && !cred.hasPassword);
+    credentialForm.setFormValues({
+      name: cred.name,
+      username: cred.username,
+      password: '',
+      confirmPassword: '',
+      apiToken: '',
+      useApiToken: cred.hasApiToken && !cred.hasPassword,
+    });
     setCredDialogOpen(true);
   };
 
   const handleSaveCredential = async () => {
-    if (!credName.trim() || !credUsername.trim()) {
+    const { name, username, password, confirmPassword, apiToken, useApiToken: useApiTokenForm } = credentialForm.values;
+    if (!name.trim() || !username.trim()) {
       setAlert({ type: 'error', message: 'Name and username are required' });
       return;
     }
 
     if (editingCredId) {
       // Update existing credential
-      const data: any = { name: credName, username: credUsername };
-      if (!useApiToken && credPassword) {
-        if (credPassword !== credConfirmPassword) {
+      const data: any = { name, username };
+      if (!useApiTokenForm && password) {
+        if (password !== confirmPassword) {
           setAlert({ type: 'error', message: 'Passwords do not match' });
           return;
         }
-        data.password = credPassword;
+        data.password = password;
       }
-      if (useApiToken && credApiToken) {
-        data.apiToken = credApiToken;
+      if (useApiTokenForm && apiToken) {
+        data.apiToken = apiToken;
       }
       try {
         await proxmoxApi.updateCredential(editingCredId, data);
@@ -172,20 +209,20 @@ export default function AdminProxmox() {
       }
     } else {
       // Create new credential
-      if (!useApiToken && !credPassword) {
+      if (!useApiTokenForm && !password) {
         setAlert({ type: 'error', message: 'Password is required for new credentials (password auth)' });
         return;
       }
-      if (!useApiToken && credPassword !== credConfirmPassword) {
+      if (!useApiTokenForm && password !== confirmPassword) {
         setAlert({ type: 'error', message: 'Passwords do not match' });
         return;
       }
       try {
-        const payload: any = { name: credName, username: credUsername };
-        if (useApiToken) {
-          payload.apiToken = credApiToken;
+        const payload: any = { name, username };
+        if (useApiTokenForm) {
+          payload.apiToken = apiToken;
         } else {
-          payload.password = credPassword;
+          payload.password = password;
         }
         await proxmoxApi.createCredential(payload);
         setAlert({ type: 'success', message: 'Credential created successfully' });
@@ -196,6 +233,21 @@ export default function AdminProxmox() {
       }
     }
   };
+
+  // ---- Credential Dialog Handlers ----
+  const handleCredDiscard = useCallback(() => {
+    credentialForm.resetForm();
+    setCredDialogOpen(false);
+  }, [credentialForm]);
+
+  const handleCredModalClose = useCallback(() => {
+    if (credentialForm.isDirty) {
+      credPendingClose.current = () => setCredDialogOpen(false);
+      setCredDiscardConfirmOpen(true);
+    } else {
+      setCredDialogOpen(false);
+    }
+  }, [credentialForm]);
 
   const handleDeleteCredential = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this credential?')) return;
@@ -221,39 +273,44 @@ export default function AdminProxmox() {
 
   const openCreateServerDialog = () => {
     setEditingServerId(null);
-    setServerName('');
-    setServerHost('');
-    setServerPort(8006);
-    setServerNodeId('');
-    setServerCredentialId(credentials.find((c) => c.isDefault)?.id || credentials[0]?.id || '');
+    serverForm.setFormValues({
+      name: '',
+      host: '',
+      port: 8006,
+      nodeId: '',
+      credentialId: credentials.find((c) => c.isDefault)?.id || credentials[0]?.id || '',
+    });
     setServerDialogOpen(true);
   };
 
   const openEditServerDialog = (server: ProxmoxServer) => {
     setEditingServerId(server.id);
-    setServerName(server.name);
-    setServerHost(server.host);
-    setServerPort(server.port);
-    setServerNodeId(server.nodeId || '');
-    setServerCredentialId(server.credentialId);
+    serverForm.setFormValues({
+      name: server.name,
+      host: server.host,
+      port: server.port,
+      nodeId: server.nodeId || '',
+      credentialId: server.credentialId,
+    });
     setServerDialogOpen(true);
   };
 
   const handleSaveServer = async () => {
-    if (!serverName.trim() || !serverHost.trim() || !serverCredentialId) {
+    const { name, host, port, nodeId, credentialId } = serverForm.values;
+    if (!name.trim() || !host.trim() || !credentialId) {
       setAlert({ type: 'error', message: 'Name, host, and credential are required' });
       return;
     }
 
     try {
       const payload: any = {
-        name: serverName,
-        host: serverHost,
-        port: serverPort,
-        credentialId: serverCredentialId,
+        name,
+        host,
+        port,
+        credentialId,
       };
-      if (serverNodeId) {
-        payload.nodeId = serverNodeId;
+      if (nodeId) {
+        payload.nodeId = nodeId;
       }
 
       if (editingServerId) {
@@ -269,6 +326,21 @@ export default function AdminProxmox() {
       setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to save Proxmox server' });
     }
   };
+
+  // ---- Server Dialog Handlers ----
+  const handleServerDiscard = useCallback(() => {
+    serverForm.resetForm();
+    setServerDialogOpen(false);
+  }, [serverForm]);
+
+  const handleServerModalClose = useCallback(() => {
+    if (serverForm.isDirty) {
+      serverPendingClose.current = () => setServerDialogOpen(false);
+      setServerDiscardConfirmOpen(true);
+    } else {
+      setServerDialogOpen(false);
+    }
+  }, [serverForm]);
 
   const handleDeleteServer = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this Proxmox server?')) return;
@@ -332,7 +404,8 @@ export default function AdminProxmox() {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <ThemeProvider theme={muiTheme}>
+      <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
         Proxmox VE Integration
       </Typography>
@@ -556,39 +629,39 @@ export default function AdminProxmox() {
       </Card>
 
       {/* ---- Credential Dialog ---- */}
-      <Dialog open={credDialogOpen} onClose={() => setCredDialogOpen(false)}>
+      <Dialog open={credDialogOpen} onClose={handleCredModalClose}>
         <DialogTitle>{editingCredId ? t('proxmox.editCredential') : t('proxmox.addCredential')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
             <TextField
               label={t('common.name')}
-              value={credName}
-              onChange={(e) => setCredName(e.target.value)}
+              value={credentialForm.values.name}
+              onChange={(e) => credentialForm.handleChange({ name: e.target.value })}
               fullWidth
               placeholder="e.g. Production PVE"
             />
             <TextField
               label={t('proxmox.username')}
-              value={credUsername}
-              onChange={(e) => setCredUsername(e.target.value)}
+              value={credentialForm.values.username}
+              onChange={(e) => credentialForm.handleChange({ username: e.target.value })}
               fullWidth
               placeholder="e.g. admin@pam"
             />
             <FormControlLabel
               control={
                 <Switch
-                  checked={useApiToken}
-                  onChange={(e) => setUseApiToken(e.target.checked)}
+                  checked={credentialForm.values.useApiToken}
+                  onChange={(e) => credentialForm.handleChange({ useApiToken: e.target.checked })}
                 />
               }
               label={t('proxmox.useApiToken')}
             />
-            {useApiToken ? (
+            {credentialForm.values.useApiToken ? (
               <TextField
                 label={editingCredId ? t('proxmox.newApiTokenKeep') : t('proxmox.apiToken')}
                 type="password"
-                value={credApiToken}
-                onChange={(e) => setCredApiToken(e.target.value)}
+                value={credentialForm.values.apiToken}
+                onChange={(e) => credentialForm.handleChange({ apiToken: e.target.value })}
                 fullWidth
                 placeholder="PVEAPIToken=<user>=<token-id>=<hash>"
               />
@@ -597,20 +670,20 @@ export default function AdminProxmox() {
                 <TextField
                   label={editingCredId ? t('proxmox.newPasswordKeep') : t('login.password')}
                   type="password"
-                  value={credPassword}
-                  onChange={(e) => setCredPassword(e.target.value)}
+                  value={credentialForm.values.password}
+                  onChange={(e) => credentialForm.handleChange({ password: e.target.value })}
                   fullWidth
                 />
-                {credPassword && (
+                {credentialForm.values.password && (
                   <TextField
                     label={t('proxmox.confirmPassword')}
                     type="password"
-                    value={credConfirmPassword}
-                    onChange={(e) => setCredConfirmPassword(e.target.value)}
+                    value={credentialForm.values.confirmPassword}
+                    onChange={(e) => credentialForm.handleChange({ confirmPassword: e.target.value })}
                     fullWidth
-                    error={!!credConfirmPassword && credPassword !== credConfirmPassword}
+                    error={!!credentialForm.values.confirmPassword && credentialForm.values.password !== credentialForm.values.confirmPassword}
                     helperText={
-                      credConfirmPassword && credPassword !== credConfirmPassword ? t('proxmox.passwordsDoNotMatch') : ''
+                      credentialForm.values.confirmPassword && credentialForm.values.password !== credentialForm.values.confirmPassword ? t('proxmox.passwordsDoNotMatch') : ''
                     }
                   />
                 )}
@@ -619,52 +692,66 @@ export default function AdminProxmox() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCredDialogOpen(false)}>{t('common.cancel')}</Button>
+          <Button onClick={() => { if (credentialForm.isDirty) { credPendingClose.current = () => setCredDialogOpen(false); setCredDiscardConfirmOpen(true); } else { setCredDialogOpen(false); } }}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveCredential}>
             {editingCredId ? t('common.update') : t('common.create')}
           </Button>
         </DialogActions>
       </Dialog>
 
+      <DiscardConfirmationDialog
+        open={credDiscardConfirmOpen}
+        onClose={() => {
+          setCredDiscardConfirmOpen(false);
+          if (credPendingClose.current) {
+            credPendingClose.current();
+            credPendingClose.current = null;
+          }
+        }}
+        onDiscard={handleCredDiscard}
+        titleKey="Discard Changes"
+        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
+
       {/* ---- Proxmox Server Dialog ---- */}
-      <Dialog open={serverDialogOpen} onClose={() => setServerDialogOpen(false)}>
+      <Dialog open={serverDialogOpen} onClose={handleServerModalClose}>
         <DialogTitle>{editingServerId ? t('proxmox.editServer') : t('proxmox.addServer')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
             <TextField
               label={t('common.name')}
-              value={serverName}
-              onChange={(e) => setServerName(e.target.value)}
+              value={serverForm.values.name}
+              onChange={(e) => serverForm.handleChange({ name: e.target.value })}
               fullWidth
               placeholder="e.g. Production PVE Cluster"
             />
             <TextField
               label={t('proxmox.host')}
-              value={serverHost}
-              onChange={(e) => setServerHost(e.target.value)}
+              value={serverForm.values.host}
+              onChange={(e) => serverForm.handleChange({ host: e.target.value })}
               fullWidth
               placeholder="e.g. pve.example.com"
             />
             <TextField
               label={t('proxmox.port')}
               type="number"
-              value={serverPort}
-              onChange={(e) => setServerPort(Number(e.target.value))}
+              value={serverForm.values.port}
+              onChange={(e) => serverForm.handleChange({ port: Number(e.target.value) })}
               fullWidth
             />
             <TextField
               label={t('proxmox.nodeIdOptional')}
-              value={serverNodeId}
-              onChange={(e) => setServerNodeId(e.target.value)}
+              value={serverForm.values.nodeId}
+              onChange={(e) => serverForm.handleChange({ nodeId: e.target.value })}
               fullWidth
               placeholder="e.g. pve1"
             />
-            <FormControl fullWidth error={!serverCredentialId}>
+            <FormControl fullWidth error={!serverForm.values.credentialId}>
               <InputLabel>{t('proxmox.credential')}</InputLabel>
               <Select
-                value={serverCredentialId}
+                value={serverForm.values.credentialId}
                 label={t('proxmox.credential')}
-                onChange={(e) => setServerCredentialId(e.target.value)}
+                onChange={(e) => serverForm.handleChange({ credentialId: e.target.value })}
               >
                 {credentials.map((cred) => (
                   <MenuItem key={cred.id} value={cred.id}>
@@ -673,17 +760,32 @@ export default function AdminProxmox() {
                   </MenuItem>
                 ))}
               </Select>
-              {!serverCredentialId && <FormHelperText>{t('proxmox.selectCredential')}</FormHelperText>}
+              {!serverForm.values.credentialId && <FormHelperText>{t('proxmox.selectCredential')}</FormHelperText>}
             </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setServerDialogOpen(false)}>{t('common.cancel')}</Button>
+          <Button onClick={() => { if (serverForm.isDirty) { serverPendingClose.current = () => setServerDialogOpen(false); setServerDiscardConfirmOpen(true); } else { setServerDialogOpen(false); } }}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveServer}>
             {editingServerId ? t('common.update') : t('common.create')}
           </Button>
         </DialogActions>
       </Dialog>
+
+      <DiscardConfirmationDialog
+        open={serverDiscardConfirmOpen}
+        onClose={() => {
+          setServerDiscardConfirmOpen(false);
+          if (serverPendingClose.current) {
+            serverPendingClose.current();
+            serverPendingClose.current = null;
+          }
+        }}
+        onDiscard={handleServerDiscard}
+        titleKey="Discard Changes"
+        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
     </Box>
-  );
+  </ThemeProvider>
+);
 }

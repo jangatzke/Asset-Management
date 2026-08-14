@@ -4,6 +4,7 @@ import { adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface User {
   id: string;
@@ -72,16 +73,16 @@ const AdminUsers = () => {
 
   // Create modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateUserForm>(initialForm);
   const [saving, setSaving] = useState(false);
+  const createForm = useDirtyForm<CreateUserForm>(initialForm);
 
   // Edit modal
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState<EditUserForm>(initialEditForm);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
+  const editForm = useDirtyForm<EditUserForm>(initialEditForm);
 
   const formatUserLabel = (key: string, user: User) =>
     t(key).replace('{name}', `${user.firstName} ${user.lastName}`);
@@ -120,11 +121,11 @@ const AdminUsers = () => {
   );
 
   const handleCreate = async () => {
-    if (!createForm.email || !createForm.firstName || !createForm.lastName) {
+    if (!createForm.values.email || !createForm.values.firstName || !createForm.values.lastName) {
       setError(t('adminUsers.messages.requiredUserFields'));
       return;
     }
-    if (!createForm.password) {
+    if (!createForm.values.password) {
       setError(t('adminUsers.messages.passwordRequired'));
       return;
     }
@@ -132,10 +133,10 @@ const AdminUsers = () => {
     setSaving(true);
     setError('');
     try {
-      await adminApi.createUser(createForm);
+      await adminApi.createUser(createForm.values);
       setSuccess(t('adminUsers.messages.createSuccess'));
       setCreateModalOpen(false);
-      setCreateForm(initialForm);
+      createForm.resetForm();
       loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -172,7 +173,7 @@ const AdminUsers = () => {
 
   const openEditModal = (user: User) => {
     setSelectedUser(user);
-    setEditForm({
+    editForm.setFormValues({
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -183,16 +184,27 @@ const AdminUsers = () => {
     setEditModalOpen(true);
   };
 
-  const closeEditModal = () => {
+  const handleDiscardEdit = () => {
+    editForm.resetForm();
+    setSelectedRoles([]);
     setEditModalOpen(false);
     setSelectedUser(null);
-    setEditForm(initialEditForm);
-    setSelectedRoles([]);
+    setError('');
+  };
+
+  const closeEditModal = () => {
+    if (editForm.isDirty) {
+      handleDiscardEdit();
+    } else {
+      setEditModalOpen(false);
+      setSelectedUser(null);
+      setSelectedRoles([]);
+    }
   };
 
   const handleSaveEdit = async () => {
     if (!selectedUser) return;
-    if (!editForm.email || !editForm.firstName || !editForm.lastName) {
+    if (!editForm.values.email || !editForm.values.firstName || !editForm.values.lastName) {
       setError(t('adminUsers.messages.requiredUserFields'));
       return;
     }
@@ -201,10 +213,10 @@ const AdminUsers = () => {
     setError('');
     try {
       const payload = {
-        email: editForm.email,
-        firstName: editForm.firstName,
-        lastName: editForm.lastName,
-        phoneNumber: editForm.phoneNumber || null,
+        email: editForm.values.email,
+        firstName: editForm.values.firstName,
+        lastName: editForm.values.lastName,
+        phoneNumber: editForm.values.phoneNumber || null,
       };
       const response = await adminApi.updateUser(selectedUser.id, payload);
       setSelectedUser(response.data || { ...selectedUser, ...payload });
@@ -275,7 +287,7 @@ const AdminUsers = () => {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('adminUsers.title')}</h1>
         <button
           onClick={() => {
-            setCreateForm(initialForm);
+            createForm.resetForm();
             setError('');
             setCreateModalOpen(true);
           }}
@@ -418,17 +430,15 @@ const AdminUsers = () => {
       </div>
 
       {/* Create User Modal */}
-      <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title={t('adminUsers.createUser')}>
+      <Modal isOpen={createModalOpen} onClose={() => { if (createForm.isDirty) { createForm.resetForm(); setCreateModalOpen(false); } else { setCreateModalOpen(false); } }} title={t('adminUsers.createUser')} isDirty={createForm.isDirty && !saving} onDiscardConfirm={() => { createForm.resetForm(); setCreateModalOpen(false); setError(''); }}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.firstName')}</label>
               <input
                 type="text"
-                value={createForm.firstName}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, firstName: e.target.value })
-                }
+                value={createForm.values.firstName}
+                onChange={(e) => createForm.handleChange({ firstName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
@@ -436,10 +446,8 @@ const AdminUsers = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.lastName')}</label>
               <input
                 type="text"
-                value={createForm.lastName}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, lastName: e.target.value })
-                }
+                value={createForm.values.lastName}
+                onChange={(e) => createForm.handleChange({ lastName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
@@ -449,10 +457,8 @@ const AdminUsers = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.email')}</label>
             <input
               type="email"
-              value={createForm.email}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, email: e.target.value })
-              }
+              value={createForm.values.email}
+              onChange={(e) => createForm.handleChange({ email: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -461,10 +467,8 @@ const AdminUsers = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.password')}</label>
             <input
               type="password"
-              value={createForm.password}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, password: e.target.value })
-              }
+              value={createForm.values.password}
+              onChange={(e) => createForm.handleChange({ password: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -473,10 +477,8 @@ const AdminUsers = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.phoneOptional')}</label>
             <input
               type="text"
-              value={createForm.phoneNumber}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, phoneNumber: e.target.value })
-              }
+              value={createForm.values.phoneNumber}
+              onChange={(e) => createForm.handleChange({ phoneNumber: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -491,20 +493,14 @@ const AdminUsers = () => {
                 >
                   <input
                     type="checkbox"
-                    checked={createForm.roles.includes(role.name)}
+                    checked={createForm.values.roles.includes(role.name)}
                     onChange={() => {
-                      const current = createForm.roles;
+                      const current = createForm.values.roles;
                       if (current.includes(role.name)) {
-                        if (createForm.roles.length <= 1) return;
-                        setCreateForm({
-                          ...createForm,
-                          roles: current.filter((r) => r !== role.name),
-                        });
+                        if (createForm.values.roles.length <= 1) return;
+                        createForm.handleChange({ roles: current.filter((r) => r !== role.name) });
                       } else {
-                        setCreateForm({
-                          ...createForm,
-                          roles: [...current, role.name],
-                        });
+                        createForm.handleChange({ roles: [...current, role.name] });
                       }
                     }}
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -518,7 +514,7 @@ const AdminUsers = () => {
 
           <div className="flex justify-end gap-3 pt-4">
             <button
-              onClick={() => setCreateModalOpen(false)}
+              onClick={() => { if (createForm.isDirty) { createForm.resetForm(); setCreateModalOpen(false); } else { setCreateModalOpen(false); } }}
               className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               {t('common.cancel')}
@@ -535,7 +531,7 @@ const AdminUsers = () => {
       </Modal>
 
       {/* Edit User Modal */}
-      <Modal isOpen={editModalOpen} onClose={closeEditModal} title={t('adminUsers.editUser')} maxWidthClassName="max-w-3xl">
+      <Modal isOpen={editModalOpen} onClose={closeEditModal} title={t('adminUsers.editUser')} maxWidthClassName="max-w-3xl" isDirty={editForm.isDirty && !savingEdit} onDiscardConfirm={handleDiscardEdit}>
         {selectedUser && (
           <div className="space-y-6">
             <section className="space-y-4">
@@ -545,8 +541,8 @@ const AdminUsers = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.firstName')}</label>
                   <input
                     type="text"
-                    value={editForm.firstName}
-                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                    value={editForm.values.firstName}
+                    onChange={(e) => editForm.handleChange({ firstName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
@@ -554,8 +550,8 @@ const AdminUsers = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.lastName')}</label>
                   <input
                     type="text"
-                    value={editForm.lastName}
-                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                    value={editForm.values.lastName}
+                    onChange={(e) => editForm.handleChange({ lastName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
@@ -565,8 +561,8 @@ const AdminUsers = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.email')}</label>
                 <input
                   type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  value={editForm.values.email}
+                  onChange={(e) => editForm.handleChange({ email: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
@@ -575,8 +571,8 @@ const AdminUsers = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.phoneOptional')}</label>
                 <input
                   type="text"
-                  value={editForm.phoneNumber}
-                  onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
+                  value={editForm.values.phoneNumber}
+                  onChange={(e) => editForm.handleChange({ phoneNumber: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>

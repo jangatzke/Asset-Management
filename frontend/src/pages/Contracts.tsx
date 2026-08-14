@@ -5,6 +5,7 @@ import { contractApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface Contract {
   id: string;
@@ -58,7 +59,7 @@ const Contracts = () => {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<ContractForm>(initialForm);
+  const form = useDirtyForm<ContractForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [historyContract, setHistoryContract] = useState<Contract | null>(null);
@@ -86,19 +87,25 @@ const Contracts = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const handleDiscard = () => {
+    form.resetForm();
+    setEditingId(null);
+    setModalOpen(false);
+  };
+
   const handleSubmit = async () => {
-    if (!form.name) { setError(t('common.requiredField')); return; }
+    if (!form.values.name) { setError(t('common.requiredField')); return; }
     setSaving(true);
     setError('');
     try {
-      const payload = { ...form, value: form.value ? parseFloat(form.value) : undefined };
+      const payload = { ...form.values, value: form.values.value ? parseFloat(form.values.value) : undefined };
       if (editingId) {
         await contractApi.update(editingId, payload);
       } else {
         await contractApi.create(payload);
       }
       setModalOpen(false);
-      setForm(initialForm);
+      form.resetForm();
       setEditingId(null);
       await loadContracts();
     } catch (err: any) {
@@ -107,7 +114,7 @@ const Contracts = () => {
   };
 
   const handleEdit = (contract: Contract) => {
-    setForm({
+    form.setFormValues({
       name: contract.name,
       description: contract.description || '',
       contractNumber: contract.contractNumber || '',
@@ -157,7 +164,7 @@ const Contracts = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('contracts.title')}</h1>
-        <button onClick={() => { setForm(initialForm); setEditingId(null); setModalOpen(true); }}
+        <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
           className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
           {t('contracts.newContract')}
         </button>
@@ -222,34 +229,34 @@ const Contracts = () => {
         </table>
       </div>
 
-       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('contracts.editContract') : t('contracts.newContract')}>
+       <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? t('contracts.editContract') : t('contracts.newContract')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')} *</label>
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            <input type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2}
+            <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('contracts.fields.contractNumber')}</label>
-              <input type="text" value={form.contractNumber} onChange={(e) => setForm({ ...form, contractNumber: e.target.value })}
+              <input type="text" value={form.values.contractNumber} onChange={(e) => form.handleChange({ contractNumber: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.vendor')}</label>
-              <input type="text" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })}
+              <input type="text" value={form.values.vendor} onChange={(e) => form.handleChange({ vendor: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.type')}</label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
+              <select value={form.values.type} onChange={(e) => form.handleChange({ type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="service">{t('contracts.types.service')}</option>
                 <option value="maintenance">{t('contracts.types.maintenance')}</option>
@@ -260,7 +267,7 @@ const Contracts = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.status')}</label>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+              <select value={form.values.status} onChange={(e) => form.handleChange({ status: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="active">{t('contracts.status.active')}</option>
                 <option value="pending">{t('contracts.status.pending')}</option>
@@ -272,30 +279,30 @@ const Contracts = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.startDate')}</label>
-              <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              <input type="date" value={form.values.startDate} onChange={(e) => form.handleChange({ startDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.endDate')}</label>
-              <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              <input type="date" value={form.values.endDate} onChange={(e) => form.handleChange({ endDate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.value')}</label>
-              <input type="number" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })}
+              <input type="number" step="0.01" value={form.values.value} onChange={(e) => form.handleChange({ value: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.currency')}</label>
-              <input type="text" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}
+              <input type="text" value={form.values.currency} onChange={(e) => form.handleChange({ currency: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => setModalOpen(false)}
+            <button onClick={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               {t('common.cancel')}
             </button>

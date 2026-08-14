@@ -3,6 +3,8 @@ import { EyeIcon } from '@heroicons/react/24/outline';
 import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
+import { useDirtyForm } from '../hooks/useDirtyForm';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { useI18n } from '../context/I18nContext';
 import { useNavigate } from 'react-router-dom';
 import { getGuidedRouteForPhase6Resource } from './ismsPhase6Routing';
@@ -422,24 +424,32 @@ const ISMSPhase6 = () => {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<any>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editRow] = useState<any>(null);
+  const [editRow, setEditRow] = useState<any>(null);
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteRow, setDeleteRow] = useState<any>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const previousResource = useRef(resource);
   const latestRequestId = useRef(0);
   const navigate = useNavigate();
 
-  // Form state for create/edit
-  const [formData, setFormData] = useState<Record<string, unknown>>({});
+  // Form state for create/edit - now managed by useDirtyForm
+  interface Phase6FormValues {
+    formData: Record<string, unknown>;
+    entityPickerValues: Record<string, unknown[]>;
+    securityRequirements: Array<{ id: string; category: string; description: string; status: string }>;
+  }
 
-  // EntityPicker selected values (separate from formData)
-  const [entityPickerValues, setEntityPickerValues] = useState<Record<string, unknown[]>>({});
+  const initialFormValues: Phase6FormValues = {
+    formData: {},
+    entityPickerValues: {},
+    securityRequirements: [],
+  };
 
-  // Structured security requirements for suppliers
-  const [securityRequirements, setSecurityRequirements] = useState<Array<{ id: string; category: string; description: string; status: string }>>([]);
+  const form = useDirtyForm<Phase6FormValues>(initialFormValues);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const pendingClose = useRef<(() => void) | null>(null);
+  const previousResource = useRef(resource);
 
   const meta = resourceMetas[resource] || null;
   const activeDomain = domainGroups.find((group) => group.resources.includes(resource));
@@ -481,6 +491,26 @@ const ISMSPhase6 = () => {
 
   // ─── Handlers ───────────────────────────────────────────────────────────
 
+  const handleDiscard = useCallback(() => {
+    form.resetForm();
+    setEditRow(null);
+    setEditModalOpen(false);
+    setCreateFormOpen(false);
+  }, [form]);
+
+  const handleModalClose = useCallback(() => {
+    if (form.isDirty) {
+      pendingClose.current = () => {
+        setEditModalOpen(false);
+        setCreateFormOpen(false);
+      };
+      setDiscardConfirmOpen(true);
+    } else {
+      setEditModalOpen(false);
+      setCreateFormOpen(false);
+    }
+  }, [form]);
+
   const handleView = async (row: any) => {
     if (resource === 'auditPlans' || resource === 'correctiveActions') {
       navigate('/isms-operations/audits');
@@ -512,10 +542,10 @@ const ISMSPhase6 = () => {
     setSubmitLoading(true);
     setSubmitError(null);
     try {
-      const payload: Record<string, unknown> = { ...formData };
+      const payload: Record<string, unknown> = { ...form.values.formData };
 
       // Merge EntityPicker values (array of {id, label}) into payload as arrays of IDs
-      Object.entries(entityPickerValues).forEach(([key, values]) => {
+      Object.entries(form.values.entityPickerValues).forEach(([key, values]) => {
         if (Array.isArray(values) && values.length > 0) {
           payload[key] = values.map((v: unknown) => {
             if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: string }).id;
@@ -529,8 +559,8 @@ const ISMSPhase6 = () => {
       });
 
       // Merge structured security requirements
-      if (securityRequirements.length > 0) {
-        payload.securityRequirements = securityRequirements.map(({ id: _id, ...req }) => req);
+      if (form.values.securityRequirements.length > 0) {
+        payload.securityRequirements = form.values.securityRequirements.map(({ id: _id, ...req }) => req);
       }
 
       // Clean up comma-separated fields
@@ -563,9 +593,10 @@ const ISMSPhase6 = () => {
         await phase6Api.create(resource, payload);
       }
       // Close modal and refresh
+      form.resetForm();
+      setEditRow(null);
       setEditModalOpen(false);
       setCreateFormOpen(false);
-      setFormData({});
       if (page === 1) await fetchData();
       else setPage(1);
     } catch (err: unknown) {
@@ -624,11 +655,11 @@ const ISMSPhase6 = () => {
   };
 
   const handleFormChange = (key: string, value: unknown) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
+    form.handleChange({ ...form.values.formData, [key]: value });
   };
 
   const handleFormBooleanChange = (key: string, checked: boolean) => {
-    setFormData((prev) => ({ ...prev, [key]: checked }));
+    form.handleChange({ ...form.values.formData, [key]: checked });
   };
 
   const handleResourceSelection = (nextResource: string) => {
@@ -637,6 +668,7 @@ const ISMSPhase6 = () => {
       navigate(guidedRoute);
       return;
     }
+    form.resetForm();
     setResource(nextResource);
     setPage(1);
   };
@@ -644,23 +676,23 @@ const ISMSPhase6 = () => {
   // EntityPicker change handler
   const handleEntityPickerChange = (fieldKey: string, value: unknown, values?: unknown[]) => {
     if (values !== undefined) {
-      setEntityPickerValues(prev => ({ ...prev, [fieldKey]: values }));
+      form.handleChange({ ...form.values, entityPickerValues: { ...form.values.entityPickerValues, [fieldKey]: values } });
     } else {
-      setFormData(prev => ({ ...prev, [fieldKey]: value }));
+      form.handleChange({ ...form.values.formData, [fieldKey]: value });
     }
   };
 
   // Security requirements handlers
   const addSecurityRequirement = () => {
-    setSecurityRequirements(prev => [...prev, { id: crypto.randomUUID(), category: 'confidentiality', description: '', status: 'required' }]);
+    form.handleChange({ ...form.values, securityRequirements: [...form.values.securityRequirements, { id: crypto.randomUUID(), category: 'confidentiality', description: '', status: 'required' }] });
   };
 
   const removeSecurityRequirement = (id: string) => {
-    setSecurityRequirements(prev => prev.filter(r => r.id !== id));
+    form.handleChange({ ...form.values, securityRequirements: form.values.securityRequirements.filter(r => r.id !== id) });
   };
 
   const updateSecurityRequirement = (id: string, field: string, value: string) => {
-    setSecurityRequirements(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    form.handleChange({ ...form.values, securityRequirements: form.values.securityRequirements.map(r => r.id === id ? { ...r, [field]: value } : r) });
   };
 
   // EntityPicker config for fields that should use entity selection UI
@@ -866,7 +898,7 @@ const ISMSPhase6 = () => {
       </Modal>
 
       {/* ─── Create/Edit Modal ────────────────────────────────────────────── */}
-      <Modal isOpen={createFormOpen || editModalOpen} onClose={() => { setCreateFormOpen(false); setEditModalOpen(false); }} title={`${editRow ? 'Edit' : 'Add'} ${meta?.label.replace(/s$/, '')}`}>
+      <Modal isOpen={createFormOpen || editModalOpen} onClose={handleModalClose} title={`${editRow ? 'Edit' : 'Add'} ${meta?.label.replace(/s$/, '')}`} isDirty={form.isDirty && !submitLoading} onDiscardConfirm={handleDiscard}>
         {meta && (() => {
           const isDisabled = false; // Future: disable form during submission etc.
           return (
@@ -877,7 +909,7 @@ const ISMSPhase6 = () => {
               </div>
             )}
             {meta.fields.map((f) => {
-              const value = formData[f.key];
+              const value = form.values.formData[f.key];
               const required = meta.createRequired?.includes(f.key) || meta.updateRequired?.includes(f.key);
               const pickerConfig = getEntityPickerConfig(f.key);
 
@@ -893,9 +925,9 @@ const ISMSPhase6 = () => {
                         labelKey={pickerConfig.labelKey}
                         entityType={pickerConfig.entityType as any}
                         value={value ? { id: String(value), label: String(value) } : null}
-                        values={(entityPickerValues[f.key] as any[]) ?? []}
+                        values={(form.values.entityPickerValues[f.key] as any[]) ?? []}
                         onChange={(v) => handleEntityPickerChange(f.key, v)}
-                        onValuesChange={(vs) => setEntityPickerValues(prev => ({ ...prev, [f.key]: vs }))}
+                        onValuesChange={(vs) => form.handleChange({ ...form.values, entityPickerValues: { ...form.values.entityPickerValues, [f.key]: vs } })}
                         multiple={pickerConfig.multi}
                         required={required}
                         disabled={isDisabled}
@@ -913,7 +945,7 @@ const ISMSPhase6 = () => {
                       {t('securityRequirements.title')}
                     </label>
                     <div className="mt-1 space-y-2">
-                      {securityRequirements.map((req, idx) => (
+                      {form.values.securityRequirements.map((req, idx) => (
                         <div key={req.id} className="p-3 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-gray-600 dark:text-gray-300">#{idx + 1}</span>
@@ -1021,7 +1053,7 @@ const ISMSPhase6 = () => {
             })}
             <div className="flex justify-end gap-2 pt-4">
               <button
-                onClick={() => { setCreateFormOpen(false); setEditModalOpen(false); }}
+                onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md text-sm"
               >
                 Cancel
@@ -1034,6 +1066,23 @@ const ISMSPhase6 = () => {
                 {submitLoading ? 'Saving...' : editRow ? 'Save Changes' : 'Create'}
               </button>
             </div>
+            <DiscardConfirmationDialog
+              open={discardConfirmOpen}
+              onClose={() => {
+                if (pendingClose.current) {
+                  pendingClose.current();
+                  pendingClose.current = null;
+                } else {
+                  setDiscardConfirmOpen(false);
+                }
+              }}
+              onDiscard={() => {
+                handleDiscard();
+                setDiscardConfirmOpen(false);
+              }}
+              titleKey={t('common.discardChangesTitle')}
+              messageKey={t('common.discardChangesMessage')}
+            />
           </div>
         );
         })()}

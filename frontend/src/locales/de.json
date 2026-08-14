@@ -55,7 +55,10 @@
     "id": "ID",
     "add": "Hinzufügen",
     "scrollForMore": "Für weitere Einträge scrollen...",
-    "searchEllipsis": "Suchen..."
+    "searchEllipsis": "Suchen...",
+    "discardChangesTitle": "Ungespeicherte Änderungen",
+    "discardChangesMessage": "Sie haben ungespeicherte Änderungen. Möchten Sie diese wirklich verwerfen?",
+    "discard": "Verwerfen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -704,7 +707,11 @@
     "createNewTreatment": "Neue Behandlung erstellen",
     "describeTreatmentPlan": "Behandlungsplan beschreiben...",
     "createTreatmentPlan": "Behandlungsplan erstellen",
-    "createTreatmentError": "Behandlung konnte nicht erstellt werden"
+    "createTreatmentError": "Behandlung konnte nicht erstellt werden",
+    "treatmentPlanTitle": "Maßnahmenplan",
+    "discardChangesTitle": "Ungespeicherte Änderungen",
+    "discardChangesMessage": "Sie haben ungespeicherte Änderungen. Möchten Sie diese wirklich verwerfen?",
+    "discard": "Verwerfen"
   },
   "controls": {
     "title": "Controls & Compliance",
@@ -1134,19 +1141,31 @@
     "noLicenses": "Keine Lizenzen gefunden",
     "deleteConfirm": "Möchten Sie diese Lizenz wirklich löschen?",
     "loadError": "Lizenzen konnten nicht geladen werden",
-    "nameRequired": "Name ist erforderlich",
+    "titleRequired": "Titel ist erforderlich",
     "fields": {
       "licenseKey": "Lizenzschlüssel",
       "seats": "Plätze",
       "purchaseDate": "Kaufdatum",
       "expiryDate": "Ablaufdatum",
-      "renewalDate": "Verlängerungsdatum"
+      "renewalDate": "Verlängerungsdatum",
+      "startDate": "Startdatum",
+      "endDate": "Enddatum",
+      "licensingBasis": "Lizenzgrundlage",
+      "assignmentModel": "Zuweisungsmodell"
     },
     "types": {
       "commercial": "Kommerziell",
       "open_source": "Open Source",
       "subscription": "Abonnement",
       "perpetual": "Unbefristet"
+    },
+    "basis": {
+      "user": "Benutzer",
+      "device": "Gerät"
+    },
+    "model": {
+      "named": "Namensbasiert",
+      "concurrent": "Nebenläufig"
     },
     "status": {
       "active": "Aktiv",
@@ -1312,5 +1331,70 @@
   },
   "localeCatalog": {
     "operationsAndAdminCoverage": "Abdeckung für Betrieb und Administration"
+  },
+  "nis2": {
+    "title": "NIS2-Anwendbarkeit und Registrierung",
+    "description": "Fragebogen → Bewertung → Einreichung → Genehmigung → Registrierung → Änderungen.",
+    "section1": "Anwendbarkeitsbewertung erstellen",
+    "section2": "Einreichen und genehmigen",
+    "section3": "Genehmigte umfangreiche Einheit registrieren",
+    "section4": "Registrierungsänderung protokollieren",
+    "catalogAdministration": "Katalogadministration",
+    "catalogEnsureDescription": "Autorisierte Kontrolladministratoren können den NIS2-Maßnahmenkatalog initialisieren. Diese explizite Katalogaktion ist Teil des NIS2-Compliance-Prozesses.",
+    "catalogEnsureButton": "NIS2-Maßnahmenkatalog sicherstellen",
+    "catalogEnsuring": "Katalog wird sichergestellt…",
+    "catalogEnsured": "NIS2-Maßnahmenkatalog sichergestellt.",
+    "catalogError": "Sicherstellung des NIS2-Maßnahmenkatalogs fehlgeschlagen.",
+    "noQuestionnaires": "Keine Fragebögen verfügbar. Erstellen Sie einen über die API oder verwenden Sie den Standardfragebogen.",
+    "noAssessments": "Noch keine Bewertungen erstellt.",
+    "noRegistrations": "Noch keine Registrierungen erstellt.",
+    "select": "Auswählen…",
+    "selectQuestionnaire": "Aktiver Fragebogen",
+    "organizationUnit": "Organisationseinheit (optional)",
+    "justification": "Begründung (optional)",
+    "createDraftAssessment": "Entwurf der Bewertung erstellen",
+    "missingAnswerError": "Antwort erforderlich",
+    "assessmentCreated": "Bewertung als Entwurf erstellt.",
+    "assessmentSubmitted": "Bewertung zur Genehmigung eingereicht.",
+    "assessmentApproved": "Bewertung genehmigt.",
+    "submit": "Einreichen",
+    "approve": "Genehmigen",
+    "pending": "Ausstehend",
+    "entityType": "Entitätstyp",
+    "essentialEntity": "Essentielle Einheit",
+    "importantEntity": "Wichtige Einheit",
+    "approvedAssessment": "Genehmigte Bewertung",
+    "registrationDeadline": "Registrierungsfrist *",
+    "contactPerson": "Kontaktperson",
+    "contactDetails": "Kontaktdetails",
+    "submissionProof": "Einreichungsnachweis/Referenz",
+    "createRegistration": "Registrierung erstellen",
+    "registration": "Registrierung",
+    "changeType": "Änderungstyp",
+    "changeContactDetails": "Kontaktdetails",
+    "changeEntityData": "Entitätsdaten",
+    "changeScope": "Umfang",
+    "changeOther": "Andere",
+    "description": "Beschreibung *",
+    "newValue": "Neuer Wert / Zusammenfassung *",
+    "notificationDeadline": "Benachrichtigungsfrist",
+    "submissionProofChange": "Einreichungsnachweis/Referenz",
+    "recordChange": "Änderung protokollieren",
+    "registrationCreated": "Registrierung aufgezeichnet.",
+    "registrationChangeRecorded": "Registrierungsänderung aufgezeichnet.",
+    "loadingError": "NIS2-Workflowdaten konnten nicht geladen werden.",
+    "operationError": "Der Vorgang konnte nicht abgeschlossen werden.",
+    "noApprovedAssessments": "Noch keine genehmigten Bewertungen für die Registrierung verfügbar.",
+    "questionnaireLabels": {
+      "sector": "NIS-2-Sektor oder Untersektor",
+      "employeeCount": "Mitarbeiteranzahl",
+      "annualRevenueMillionEur": "Jahresumsatz in Millionen EUR",
+      "criticalService": "Bietet wesentliche oder wichtige Dienste an",
+      "crossBorderService": "Bietet grenzüberschreitende Dienste an"
+    },
+    "emptyQuestionnaireExplanation": "Derzeit ist kein aktiver Fragebogen verfügbar. Ohne Fragebogen können Sie keine Bewertung erstellen. Verwenden Sie den Standardfragebogen-Endpunkt, um einen zu erstellen, und kehren Sie hierher zurück, um die Antworten auszufüllen.",
+    "loadDefaultQuestionnaire": "Standardfragebogen laden",
+    "defaultQuestionnaireLoaded": "Standardfragebogen geladen. Sie können nun die Antworten unten ausfüllen.",
+    "answersFillableOncePresent": "Antworten sind ausfüllbar, sobald eine Fragebogenversion ausgewählt oder geladen wurde."
   }
 }

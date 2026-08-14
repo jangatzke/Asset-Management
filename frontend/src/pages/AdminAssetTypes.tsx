@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { adminApi, assetApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface AssetType {
   id: string;
@@ -73,11 +74,12 @@ const AdminAssetTypes = () => {
   // Create/Edit modal
   const [modalOpen, setModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AssetType | null>(null);
-  const [form, setForm] = useState<AssetTypeForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [subtypeModalOpen, setSubtypeModalOpen] = useState(false);
   const [subtypeParent, setSubtypeParent] = useState<AssetType | null>(null);
-  const [subtypeForm, setSubtypeForm] = useState<SubtypeForm>(initialSubtypeForm);
+
+  const form = useDirtyForm<AssetTypeForm>(initialForm);
+  const subtypeForm = useDirtyForm<SubtypeForm>(initialSubtypeForm);
 
   useEffect(() => {
     loadAssetTypes();
@@ -102,16 +104,33 @@ const AdminAssetTypes = () => {
       t.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleDiscard = () => {
+    form.resetForm();
+    setModalOpen(false);
+    setEditingType(null);
+    setError('');
+  };
+
+  const handleModalClose = () => {
+    if (form.isDirty) {
+      handleDiscard();
+    } else {
+      setModalOpen(false);
+      setEditingType(null);
+      setError('');
+    }
+  };
+
   const openCreateModal = () => {
     setEditingType(null);
-    setForm(initialForm);
+    form.resetForm();
     setError('');
     setModalOpen(true);
   };
 
   const openEditModal = (type: AssetType) => {
     setEditingType(type);
-    setForm({
+    form.setFormValues({
       name: type.name,
       description: type.description || '',
       category: type.category,
@@ -123,11 +142,11 @@ const AdminAssetTypes = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
+    if (!form.values.name.trim()) {
       setError(t('assetTypes.nameRequired'));
       return;
     }
-    if (!form.category) {
+    if (!form.values.category) {
       setError(t('assetTypes.categoryRequired'));
       return;
     }
@@ -136,15 +155,15 @@ const AdminAssetTypes = () => {
     setError('');
     try {
       if (editingType) {
-        await adminApi.updateAssetType(editingType.id, form);
+        await adminApi.updateAssetType(editingType.id, form.values);
         setSuccess(t('assetTypes.updateSuccess'));
       } else {
-        await adminApi.createAssetType(form);
+        await adminApi.createAssetType(form.values);
         setSuccess(t('assetTypes.createSuccess'));
       }
       setModalOpen(false);
-      setForm(initialForm);
       setEditingType(null);
+      form.resetForm();
       loadAssetTypes();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -156,18 +175,33 @@ const AdminAssetTypes = () => {
 
   const openSubtypeModal = (type: AssetType) => {
     setSubtypeParent(type);
-    setSubtypeForm({ ...initialSubtypeForm, inventoryPattern: type.inventoryPattern || '' });
+    subtypeForm.setFormValues({ ...initialSubtypeForm, inventoryPattern: type.inventoryPattern || '' });
     setSubtypeModalOpen(true);
   };
 
-  const handleSaveSubtype = async () => {
-    if (!subtypeParent || !subtypeForm.name.trim()) { setError(t('assetTypes.subtypeNameRequired')); return; }
-    setSaving(true);
-    try {
-      await assetApi.createSubtype(subtypeParent.id, subtypeForm);
+  const handleDiscardSubtype = () => {
+    subtypeForm.resetForm();
+    setSubtypeModalOpen(false);
+    setSubtypeParent(null);
+  };
+
+  const handleSubtypeModalClose = () => {
+    if (subtypeForm.isDirty) {
+      handleDiscardSubtype();
+    } else {
       setSubtypeModalOpen(false);
       setSubtypeParent(null);
-      setSubtypeForm(initialSubtypeForm);
+    }
+  };
+
+  const handleSaveSubtype = async () => {
+    if (!subtypeParent || !subtypeForm.values.name.trim()) { setError(t('assetTypes.subtypeNameRequired')); return; }
+    setSaving(true);
+    try {
+      await assetApi.createSubtype(subtypeParent.id, subtypeForm.values);
+      setSubtypeModalOpen(false);
+      setSubtypeParent(null);
+      subtypeForm.resetForm();
       setSuccess(t('assetTypes.subtypeCreateSuccess'));
       loadAssetTypes();
       setTimeout(() => setSuccess(''), 3000);
@@ -327,14 +361,14 @@ const AdminAssetTypes = () => {
       </div>
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingType ? t('assetTypes.editAssetType') : t('assetTypes.newAssetType')}>
+      <Modal isOpen={modalOpen} onClose={handleModalClose} title={editingType ? t('assetTypes.editAssetType') : t('assetTypes.newAssetType')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')}</label>
             <input
               type="text"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              value={form.values.name}
+              onChange={(e) => form.handleChange({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={t('assetTypes.namePlaceholder')}
             />
@@ -343,8 +377,8 @@ const AdminAssetTypes = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assetTypes.category')}</label>
             <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              value={form.values.category}
+              onChange={(e) => form.handleChange({ category: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">{t('assetTypes.selectCategory')}</option>
@@ -359,8 +393,8 @@ const AdminAssetTypes = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assetTypes.descriptionOptional')}</label>
             <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              value={form.values.description}
+              onChange={(e) => form.handleChange({ description: e.target.value })}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={t('assetTypes.descriptionPlaceholder')}
@@ -368,13 +402,13 @@ const AdminAssetTypes = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={form.inventoryEnabled} onChange={(e) => setForm({ ...form, inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
-            <input value={form.inventoryPattern} onChange={(e) => setForm({ ...form, inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={form.values.inventoryEnabled} onChange={(e) => form.handleChange({ inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
+            <input value={form.values.inventoryPattern} onChange={(e) => form.handleChange({ inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button
-              onClick={() => setModalOpen(false)}
+              onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }}
               className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               {t('common.cancel')}
@@ -389,13 +423,13 @@ const AdminAssetTypes = () => {
           </div>
         </div>
       </Modal>
-      <Modal isOpen={subtypeModalOpen} onClose={() => setSubtypeModalOpen(false)} title={t('assetTypes.addSubtype')}>
+      <Modal isOpen={subtypeModalOpen} onClose={handleSubtypeModalClose} title={t('assetTypes.addSubtype')} isDirty={subtypeForm.isDirty && !saving} onDiscardConfirm={handleDiscardSubtype}>
         <div className="space-y-4">
-          <input value={subtypeForm.name} onChange={(e) => setSubtypeForm({ ...subtypeForm, name: e.target.value })} placeholder={t('assetTypes.subtypeNamePlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-          <textarea value={subtypeForm.description} onChange={(e) => setSubtypeForm({ ...subtypeForm, description: e.target.value })} placeholder={t('assetTypes.descriptionPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={subtypeForm.inventoryEnabled} onChange={(e) => setSubtypeForm({ ...subtypeForm, inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
-          <input value={subtypeForm.inventoryPattern} onChange={(e) => setSubtypeForm({ ...subtypeForm, inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-          <div className="flex justify-end gap-3"><button onClick={() => setSubtypeModalOpen(false)} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md">{t('common.cancel')}</button><button onClick={handleSaveSubtype} disabled={saving} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md disabled:opacity-50">{t('common.create')}</button></div>
+          <input value={subtypeForm.values.name} onChange={(e) => subtypeForm.handleChange({ name: e.target.value })} placeholder={t('assetTypes.subtypeNamePlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+          <textarea value={subtypeForm.values.description} onChange={(e) => subtypeForm.handleChange({ description: e.target.value })} placeholder={t('assetTypes.descriptionPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={subtypeForm.values.inventoryEnabled} onChange={(e) => subtypeForm.handleChange({ inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
+          <input value={subtypeForm.values.inventoryPattern} onChange={(e) => subtypeForm.handleChange({ inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+          <div className="flex justify-end gap-3"><button onClick={() => { if (subtypeForm.isDirty) { handleDiscardSubtype(); } else { handleSubtypeModalClose(); } }} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md">{t('common.cancel')}</button><button onClick={handleSaveSubtype} disabled={saving} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md disabled:opacity-50">{t('common.create')}</button></div>
         </div>
       </Modal>
     </div>

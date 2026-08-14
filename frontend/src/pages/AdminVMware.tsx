@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 import {
-  Box,
   Typography,
   Button,
   Switch,
@@ -28,7 +28,9 @@ import {
   Select,
   MenuItem,
   FormHelperText,
+  Box,
 } from '@mui/material';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -81,22 +83,42 @@ export default function AdminVMware() {
   const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
 
   // Credential state
+  interface CredentialFormValues {
+    name: string;
+    username: string;
+    password?: string;
+    confirmPassword?: string;
+  }
+
   const [credentials, setCredentials] = useState<VMwareCredential[]>([]);
   const [credDialogOpen, setCredDialogOpen] = useState(false);
   const [editingCredId, setEditingCredId] = useState<string | null>(null);
-  const [credName, setCredName] = useState('');
-  const [credUsername, setCredUsername] = useState('');
-  const [credPassword, setCredPassword] = useState('');
-  const [credConfirmPassword, setCredConfirmPassword] = useState('');
+  const [credDiscardConfirmOpen, setCredDiscardConfirmOpen] = useState(false);
+  const credPendingClose = useRef<(() => void) | null>(null);
+  const credentialForm = useDirtyForm<CredentialFormValues>({
+    name: '',
+    username: '',
+  });
 
   // vCenter server state
+  interface ServerFormValues {
+    name: string;
+    host: string;
+    port: number;
+    credentialId: string;
+  }
+
   const [servers, setServers] = useState<VCenterServer[]>([]);
   const [serverDialogOpen, setServerDialogOpen] = useState(false);
   const [editingServerId, setEditingServerId] = useState<string | null>(null);
-  const [serverName, setServerName] = useState('');
-  const [serverHost, setServerHost] = useState('');
-  const [serverPort, setServerPort] = useState(443);
-  const [serverCredentialId, setServerCredentialId] = useState('');
+  const [serverDiscardConfirmOpen, setServerDiscardConfirmOpen] = useState(false);
+  const serverPendingClose = useRef<(() => void) | null>(null);
+  const serverForm = useDirtyForm<ServerFormValues>({
+    name: '',
+    host: '',
+    port: 443,
+    credentialId: '',
+  });
 
   // Loading and status state
   const [importing, setImporting] = useState<Record<string, boolean>>({});
@@ -121,37 +143,37 @@ export default function AdminVMware() {
 
   const openCreateCredentialDialog = () => {
     setEditingCredId(null);
-    setCredName('');
-    setCredUsername('');
-    setCredPassword('');
-    setCredConfirmPassword('');
+    credentialForm.setFormValues({
+      name: '',
+      username: '',
+    });
     setCredDialogOpen(true);
   };
 
   const openEditCredentialDialog = (cred: VMwareCredential) => {
     setEditingCredId(cred.id);
-    setCredName(cred.name);
-    setCredUsername(cred.username);
-    setCredPassword('');
-    setCredConfirmPassword('');
+    credentialForm.setFormValues({
+      name: cred.name,
+      username: cred.username,
+    });
     setCredDialogOpen(true);
   };
 
   const handleSaveCredential = async () => {
-    if (!credName.trim() || !credUsername.trim()) {
+    if (!credentialForm.values.name.trim() || !credentialForm.values.username.trim()) {
       setAlert({ type: 'error', message: t('common.requiredField') });
       return;
     }
 
     if (editingCredId) {
       // Update existing credential
-      const data: any = { name: credName, username: credUsername };
-      if (credPassword) {
-        if (credPassword !== credConfirmPassword) {
+      const data: any = { name: credentialForm.values.name, username: credentialForm.values.username };
+      if (credentialForm.values.password) {
+        if (credentialForm.values.password !== credentialForm.values.confirmPassword) {
           setAlert({ type: 'error', message: t('vmware.passwordsDoNotMatch') });
           return;
         }
-        data.password = credPassword;
+        data.password = credentialForm.values.password;
       }
       try {
         await vmwareApi.updateCredential(editingCredId, data);
@@ -163,16 +185,20 @@ export default function AdminVMware() {
       }
     } else {
       // Create new credential
-      if (!credPassword) {
+      if (!credentialForm.values.password) {
         setAlert({ type: 'error', message: t('common.requiredField') });
         return;
       }
-      if (credPassword !== credConfirmPassword) {
+      if (credentialForm.values.password !== credentialForm.values.confirmPassword) {
         setAlert({ type: 'error', message: t('vmware.passwordsDoNotMatch') });
         return;
       }
       try {
-        await vmwareApi.createCredential({ name: credName, username: credUsername, password: credPassword });
+        await vmwareApi.createCredential({
+          name: credentialForm.values.name,
+          username: credentialForm.values.username,
+          password: credentialForm.values.password
+        });
         setAlert({ type: 'success', message: t('common.saveSuccess') });
         setCredDialogOpen(false);
         loadCredentials();
@@ -193,6 +219,36 @@ export default function AdminVMware() {
     }
   };
 
+  // ---- Credential Dialog Handlers ----
+  const handleCredDiscard = useCallback(() => {
+    credentialForm.resetForm();
+    setCredDialogOpen(false);
+  }, [credentialForm]);
+
+  const handleCredModalClose = useCallback(() => {
+    if (credentialForm.isDirty) {
+      credPendingClose.current = () => setCredDialogOpen(false);
+      setCredDiscardConfirmOpen(true);
+    } else {
+      setCredDialogOpen(false);
+    }
+  }, [credentialForm]);
+
+  // ---- Server Dialog Handlers ----
+  const handleServerDiscard = useCallback(() => {
+    serverForm.resetForm();
+    setServerDialogOpen(false);
+  }, [serverForm]);
+
+  const handleServerModalClose = useCallback(() => {
+    if (serverForm.isDirty) {
+      serverPendingClose.current = () => setServerDialogOpen(false);
+      setServerDiscardConfirmOpen(true);
+    } else {
+      setServerDialogOpen(false);
+    }
+  }, [serverForm]);
+
   // ---- vCenter Server Functions ----
 
   const loadServers = async () => {
@@ -206,50 +262,44 @@ export default function AdminVMware() {
 
   const openCreateServerDialog = () => {
     setEditingServerId(null);
-    setServerName('');
-    setServerHost('');
-    setServerPort(443);
-    setServerCredentialId(credentials.find((c) => c.isDefault)?.id || credentials[0]?.id || '');
+    serverForm.setFormValues({
+      name: '',
+      host: '',
+      port: 443,
+      credentialId: credentials.find((c) => c.isDefault)?.id || credentials[0]?.id || '',
+    });
     setServerDialogOpen(true);
   };
 
   const openEditServerDialog = (server: VCenterServer) => {
     setEditingServerId(server.id);
-    setServerName(server.name);
-    setServerHost(server.host);
-    setServerPort(server.port);
-    setServerCredentialId(server.credentialId);
+    serverForm.setFormValues({
+      name: server.name,
+      host: server.host,
+      port: server.port,
+      credentialId: server.credentialId,
+    });
     setServerDialogOpen(true);
   };
 
   const handleSaveServer = async () => {
-    if (!serverName.trim() || !serverHost.trim() || !serverCredentialId) {
+    if (!serverForm.values.name.trim() || !serverForm.values.host.trim() || !serverForm.values.credentialId) {
       setAlert({ type: 'error', message: t('common.requiredField') });
       return;
     }
 
     try {
       if (editingServerId) {
-        await vmwareApi.updateServer(editingServerId, {
-          name: serverName,
-          host: serverHost,
-          port: serverPort,
-          credentialId: serverCredentialId,
-        });
+        await vmwareApi.updateServer(editingServerId, serverForm.values);
         setAlert({ type: 'success', message: t('common.saveSuccess') });
       } else {
-        await vmwareApi.createServer({
-          name: serverName,
-          host: serverHost,
-          port: serverPort,
-          credentialId: serverCredentialId,
-        });
+        await vmwareApi.createServer(serverForm.values);
         setAlert({ type: 'success', message: t('common.saveSuccess') });
       }
       setServerDialogOpen(false);
       loadServers();
     } catch (e: any) {
-        setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.saveServerError') });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('vmware.saveServerError') });
     }
   };
 
@@ -533,105 +583,138 @@ export default function AdminVMware() {
       </Card>
 
       {/* ---- Credential Dialog ---- */}
-      <Dialog open={credDialogOpen} onClose={() => setCredDialogOpen(false)}>
-        <DialogTitle>{editingCredId ? t('vmware.editCredential') : t('vmware.addCredential')}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
-            <TextField
-              label={t('common.name')}
-              value={credName}
-              onChange={(e) => setCredName(e.target.value)}
-              fullWidth
-              placeholder={t('vmware.serverName')}
-            />
-            <TextField
-              label={t('vmware.username')}
-              value={credUsername}
-              onChange={(e) => setCredUsername(e.target.value)}
-              fullWidth
-              placeholder={t('vmware.username')}
-            />
-            <TextField
-              label={editingCredId ? t('vmware.newPasswordKeep') : t('login.password')}
-              type="password"
-              value={credPassword}
-              onChange={(e) => setCredPassword(e.target.value)}
-              fullWidth
-            />
-            {credPassword && (
-              <TextField
-                label={t('vmware.confirmPassword')}
-                type="password"
-                value={credConfirmPassword}
-                onChange={(e) => setCredConfirmPassword(e.target.value)}
-                fullWidth
-                error={!!credConfirmPassword && credPassword !== credConfirmPassword}
-                helperText={
-                  credConfirmPassword && credPassword !== credConfirmPassword ? t('vmware.passwordsDoNotMatch') : ''
-                }
-              />
-            )}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCredDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={handleSaveCredential}>
-            {editingCredId ? t('common.update') : t('common.create')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+       <Dialog
+         open={credDialogOpen}
+         onClose={handleCredModalClose}
+       >
+         <DialogTitle>{editingCredId ? t('vmware.editCredential') : t('vmware.addCredential')}</DialogTitle>
+         <DialogContent>
+           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
+             <TextField
+               label={t('common.name')}
+               value={credentialForm.values.name}
+               onChange={(e) => credentialForm.handleChange({ name: e.target.value })}
+               fullWidth
+               placeholder={t('vmware.serverName')}
+             />
+             <TextField
+               label={t('vmware.username')}
+               value={credentialForm.values.username}
+               onChange={(e) => credentialForm.handleChange({ username: e.target.value })}
+               fullWidth
+               placeholder={t('vmware.username')}
+             />
+             <TextField
+               label={editingCredId ? t('vmware.newPasswordKeep') : t('login.password')}
+               type="password"
+               value={credentialForm.values.password || ''}
+               onChange={(e) => credentialForm.handleChange({ password: e.target.value })}
+               fullWidth
+             />
+             {credentialForm.values.password && (
+               <TextField
+                 label={t('vmware.confirmPassword')}
+                 type="password"
+                 value={credentialForm.values.confirmPassword || ''}
+                 onChange={(e) => credentialForm.handleChange({ confirmPassword: e.target.value })}
+                 fullWidth
+                 error={!!credentialForm.values.confirmPassword && credentialForm.values.password !== credentialForm.values.confirmPassword}
+                 helperText={
+                   credentialForm.values.confirmPassword && credentialForm.values.password !== credentialForm.values.confirmPassword ? t('vmware.passwordsDoNotMatch') : ''
+                 }
+               />
+             )}
+           </Stack>
+         </DialogContent>
+         <DialogActions>
+           <Button onClick={() => { if (credentialForm.isDirty) { credPendingClose.current = () => setCredDialogOpen(false); setCredDiscardConfirmOpen(true); } else { setCredDialogOpen(false); } }}>{t('common.cancel')}</Button>
+           <Button variant="contained" onClick={handleSaveCredential}>
+             {editingCredId ? t('common.update') : t('common.create')}
+           </Button>
+         </DialogActions>
+       </Dialog>
+<DiscardConfirmationDialog
+  open={credDiscardConfirmOpen}
+  onClose={() => {
+    setCredDiscardConfirmOpen(false);
+    if (credPendingClose.current) {
+      credPendingClose.current();
+      credPendingClose.current = null;
+    }
+  }}
+  onDiscard={handleCredDiscard}
+  titleKey="Discard Changes"
+  messageKey="You have unsaved changes. Are you sure you want to discard them?"
+        />
 
-      {/* ---- vCenter Server Dialog ---- */}
-      <Dialog open={serverDialogOpen} onClose={() => setServerDialogOpen(false)}>
-        <DialogTitle>{editingServerId ? t('vmware.editVcenterServer') : t('vmware.addVcenterServer')}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
-            <TextField
-              label={t('common.name')}
-              value={serverName}
-              onChange={(e) => setServerName(e.target.value)}
-              fullWidth
-              placeholder={t('vmware.serverName')}
-            />
-            <TextField
-              label={t('vmware.host')}
-              value={serverHost}
-              onChange={(e) => setServerHost(e.target.value)}
-              fullWidth
-              placeholder={t('vmware.host')}
-            />
-            <TextField
-              label={t('vmware.port')}
-              type="number"
-              value={serverPort}
-              onChange={(e) => setServerPort(Number(e.target.value))}
-              fullWidth
-            />
-            <FormControl fullWidth error={!serverCredentialId}>
-              <InputLabel>{t('vmware.credential')}</InputLabel>
-              <Select
-                value={serverCredentialId}
-                label={t('vmware.credential')}
-                onChange={(e) => setServerCredentialId(e.target.value)}
-              >
-                {credentials.map((cred) => (
-                  <MenuItem key={cred.id} value={cred.id}>
-                    {cred.name} ({cred.username})
-                    {cred.isDefault && ` - ${t('vmware.default')}`}
-                  </MenuItem>
-                ))}
-              </Select>
-              {!serverCredentialId && <FormHelperText>{t('vmware.selectCredential')}</FormHelperText>}
-            </FormControl>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setServerDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={handleSaveServer}>
-            {editingServerId ? t('common.update') : t('common.create')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+       {/* ---- vCenter Server Dialog ---- */}
+       <Dialog
+         open={serverDialogOpen}
+         onClose={handleServerModalClose}
+       >
+         <DialogTitle>{editingServerId ? t('vmware.editVcenterServer') : t('vmware.addVcenterServer')}</DialogTitle>
+         <DialogContent>
+           <Stack spacing={2} sx={{ pt: 1, minWidth: 350 }}>
+             <TextField
+               label={t('common.name')}
+               value={serverForm.values.name}
+               onChange={(e) => serverForm.handleChange({ name: e.target.value })}
+               fullWidth
+               placeholder={t('vmware.serverName')}
+             />
+             <TextField
+               label={t('vmware.host')}
+               value={serverForm.values.host}
+               onChange={(e) => serverForm.handleChange({ host: e.target.value })}
+               fullWidth
+               placeholder={t('vmware.host')}
+             />
+             <TextField
+               label={t('vmware.port')}
+               type="number"
+               value={serverForm.values.port}
+               onChange={(e) => serverForm.handleChange({ port: Number(e.target.value) })}
+               fullWidth
+             />
+             <FormControl fullWidth error={!serverForm.values.credentialId}>
+               <InputLabel>{t('vmware.credential')}</InputLabel>
+               <Select
+                 value={serverForm.values.credentialId}
+                 label={t('vmware.credential')}
+                 onChange={(e) => serverForm.handleChange({ credentialId: e.target.value })}
+               >
+                 {credentials.map((cred) => (
+                   <MenuItem key={cred.id} value={cred.id}>
+                     {cred.name} ({cred.username})
+                     {cred.isDefault && ` - ${t('vmware.default')}`}
+                   </MenuItem>
+                 ))}
+               </Select>
+               {!serverForm.values.credentialId && <FormHelperText>{t('vmware.selectCredential')}</FormHelperText>}
+             </FormControl>
+           </Stack>
+         </DialogContent>
+         <DialogActions>
+           <Button onClick={() => { if (serverForm.isDirty) { serverPendingClose.current = () => setServerDialogOpen(false); setServerDiscardConfirmOpen(true); } else { setServerDialogOpen(false); } }}>{t('common.cancel')}</Button>
+           <Button variant="contained" onClick={handleSaveServer}>
+             {editingServerId ? t('common.update') : t('common.create')}
+           </Button>
+         </DialogActions>
+       </Dialog>
+
+       <DiscardConfirmationDialog
+         open={serverDiscardConfirmOpen}
+         onClose={() => {
+           setServerDiscardConfirmOpen(false);
+           if (serverPendingClose.current) {
+             serverPendingClose.current();
+             serverPendingClose.current = null;
+           }
+         }}
+         onDiscard={handleServerDiscard}
+         titleKey="Discard Changes"
+         messageKey="You have unsaved changes. Are you sure you want to discard them?"
+       />
     </Box>
     </ThemeProvider>
   );

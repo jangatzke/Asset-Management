@@ -1,9 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, ShareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { assetApi, contractApi, licenseApi, adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { useDirtyForm } from '../hooks/useDirtyForm';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import AssetGraph from '../components/AssetGraph';
@@ -106,8 +108,10 @@ const Assets = () => {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<CreateAssetForm>(initialForm);
+  const form = useDirtyForm<CreateAssetForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const pendingClose = useRef<(() => void) | null>(null);
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null);
 
   // Asset detail view state
@@ -139,6 +143,22 @@ const Assets = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only trigger after assets are loaded.
   }, [loading, assets.length]);
+
+  const handleDiscard = useCallback(() => {
+    form.resetForm();
+    setEditingId(null);
+    setModalOpen(false);
+    setExistingRelations([]);
+  }, [form]);
+
+  const handleModalClose = useCallback(() => {
+    if (form.isDirty) {
+      pendingClose.current = () => setModalOpen(false);
+      setDiscardConfirmOpen(true);
+    } else {
+      setModalOpen(false);
+    }
+  }, [form]);
 
   const loadAssets = async () => {
     try {
@@ -195,51 +215,52 @@ const Assets = () => {
     asset.displayId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedType = assetTypes.find((type) => type.id === form.assetTypeId);
-  const selectedSubtype = selectedType?.subtypes?.find((subtype) => subtype.id === form.assetSubtypeId);
+  const selectedType = assetTypes.find((type) => type.id === form.values.assetTypeId);
+  const selectedSubtype = selectedType?.subtypes?.find((subtype) => subtype.id === form.values.assetSubtypeId);
 
   const handleGenerateInventory = async () => {
-    if (!form.assetTypeId) { setError(t('assets.inventory.selectTypeFirst')); return; }
+    if (!form.values.assetTypeId) { setError(t('assets.inventory.selectTypeFirst')); return; }
     try {
-      const res = await assetApi.previewInventoryNumber(form.assetTypeId, form.assetSubtypeId || undefined);
-      setForm((prev) => ({ ...prev, inventoryNumber: res.data?.inventoryNumber ?? res.data?.nextInventoryNumber ?? res.data?.preview ?? '' }));
+      const res = await assetApi.previewInventoryNumber(form.values.assetTypeId, form.values.assetSubtypeId || undefined);
+      form.handleChange({ inventoryNumber: res.data?.inventoryNumber ?? res.data?.nextInventoryNumber ?? res.data?.preview ?? '' });
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('assets.inventory.previewError'));
     }
   };
 
-  const handleSubmit = async () => {
-    if (!form.name) { setError(t('common.requiredField')); return; }
-    if (!form.assetTypeId) { setError(t('common.requiredField')); return; }
+  const handleSubmit = useCallback(async () => {
+    const v = form.values;
+    if (!v.name) { setError(t('common.requiredField')); return; }
+    if (!v.assetTypeId) { setError(t('common.requiredField')); return; }
 
     setSaving(true);
     setError('');
     try {
       const payload: any = {
-        name: form.name,
-        description: form.description,
-        assetTypeId: form.assetTypeId,
-        assetSubtypeId: form.assetSubtypeId || undefined,
-        inventoryNumber: form.inventoryNumber || undefined,
-        manufacturer: form.manufacturer,
-        model: form.model,
-        serialNumber: form.serialNumber,
-        criticality: form.criticality,
-        lifecycleStatus: form.lifecycleStatus,
+        name: v.name,
+        description: v.description,
+        assetTypeId: v.assetTypeId,
+        assetSubtypeId: v.assetSubtypeId || undefined,
+        inventoryNumber: v.inventoryNumber || undefined,
+        manufacturer: v.manufacturer,
+        model: v.model,
+        serialNumber: v.serialNumber,
+        criticality: v.criticality,
+        lifecycleStatus: v.lifecycleStatus,
         // Extended ratings
-        personnelSafetyRelevance: form.personnelSafetyRelevance,
-        regulatoryRelevance: form.regulatoryRelevance,
-        financialDamagePotential: form.financialDamagePotential,
-        productionDowntimeImpact: form.productionDowntimeImpact,
+        personnelSafetyRelevance: v.personnelSafetyRelevance,
+        regulatoryRelevance: v.regulatoryRelevance,
+        financialDamagePotential: v.financialDamagePotential,
+        productionDowntimeImpact: v.productionDowntimeImpact,
       };
 
-      if (form.organizationUnitId) payload.organizationUnitId = form.organizationUnitId.id;
-      if (form.locationId) payload.locationId = form.locationId.id;
-      if (form.technicalOperatorId) payload.technicalOperatorId = form.technicalOperatorId.id;
-      if (form.businessOwnerId) payload.businessOwnerId = form.businessOwnerId.id;
-      if (form.securityResponsibleId) payload.informationSecurityResponsibleId = form.securityResponsibleId.id;
-      if (form.contractId) payload.contractIds = [form.contractId.id];
-      if (form.licenseId) payload.licenseIds = [form.licenseId.id];
+      if (v.organizationUnitId) payload.organizationUnitId = v.organizationUnitId.id;
+      if (v.locationId) payload.locationId = v.locationId.id;
+      if (v.technicalOperatorId) payload.technicalOperatorId = v.technicalOperatorId.id;
+      if (v.businessOwnerId) payload.businessOwnerId = v.businessOwnerId.id;
+      if (v.securityResponsibleId) payload.informationSecurityResponsibleId = v.securityResponsibleId.id;
+      if (v.contractId) payload.contractIds = [v.contractId.id];
+      if (v.licenseId) payload.licenseIds = [v.licenseId.id];
       payload.assetRelations = existingRelations.map((relation) => ({
         targetAssetId: relation.targetAssetId,
         relationshipType: relation.relationshipType,
@@ -251,16 +272,17 @@ const Assets = () => {
         await assetApi.create(payload);
       }
       setModalOpen(false);
-      resetForm();
+      form.resetForm();
+      setExistingRelations([]);
       await loadAssets();
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('assets.createSuccess'));
     } finally {
       setSaving(false);
     }
-  };
+  }, [form, editingId, existingRelations, t]);
 
-  const handleEdit = async (asset: Asset) => {
+  const handleEdit = useCallback(async (asset: Asset) => {
       const openEditor = (data: any) => {
         const contractLink = data.contractLinks?.[0];
         const licenseLink = data.licenseLinks?.[0];
@@ -270,7 +292,7 @@ const Assets = () => {
           targetLabel: relation.targetAsset?.name || relation.targetAsset?.displayId || relation.targetAssetId,
         }));
 
-        setForm({
+        form.setFormValues({
         name: data.name || '',
         description: data.description || '',
         assetTypeId: data.assetTypeId || data.assetType?.id || '',
@@ -309,7 +331,7 @@ const Assets = () => {
       console.error('Failed to load asset details for editing:', err);
       setError(err.response?.data?.error?.message || err.response?.data?.details?.[0]?.message || t('assets.loadDetailsError'));
     }
-  };
+  }, [form, t]);
 
   const handleDelete = async (id: string) => {
     if (!confirm(t('assets.deleteConfirm'))) return;
@@ -326,16 +348,12 @@ const Assets = () => {
     setDetailTab('graph');
   };
 
-  const resetForm = () => {
-    setForm(initialForm);
+  const resetForm = useCallback(() => {
+    form.resetForm();
     setEditingId(null);
     setNewRelationTarget(null);
     setExistingRelations([]);
-  };
-
-  const handleChange = (field: keyof CreateAssetForm, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  }, [form]);
 
   // Relation management
   const handleAddRelation = async () => {
@@ -402,7 +420,7 @@ const Assets = () => {
           {/* Asset List */}
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('assets.title')}</h1>
-            <button onClick={() => { resetForm(); setModalOpen(true); }}
+            <button onClick={() => { resetForm(); form.setFormValues(initialForm); setModalOpen(true); }}
               className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
               {t('assets.newAsset')}
             </button>
@@ -479,27 +497,27 @@ const Assets = () => {
       )}
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('assets.editAsset') : t('assets.createAsset')}>
+      <Modal isOpen={modalOpen} onClose={handleModalClose} title={editingId ? t('assets.editAsset') : t('assets.createAsset')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
           {/* Basic Info */}
           <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">{t('assets.basicInformation')}</h3>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.name')} *</label>
-            <input type="text" value={form.name} onChange={(e) => handleChange('name', e.target.value)}
+            <input type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.description')}</label>
-            <textarea value={form.description} onChange={(e) => handleChange('description', e.target.value)} rows={2}
+            <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetType')} *</label>
-              <select value={form.assetTypeId} onChange={(e) => setForm({ ...form, assetTypeId: e.target.value, assetSubtypeId: '', inventoryNumber: '' })}
+              <select value={form.values.assetTypeId} onChange={(e) => form.handleChange({ assetTypeId: e.target.value, assetSubtypeId: '', inventoryNumber: '' } as any)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">{t('common.select')}</option>
                 {assetTypes.map((type) => (
@@ -509,7 +527,7 @@ const Assets = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetSubtype')}</label>
-              <select value={form.assetSubtypeId} onChange={(e) => setForm({ ...form, assetSubtypeId: e.target.value, inventoryNumber: '' })}
+              <select value={form.values.assetSubtypeId} onChange={(e) => form.handleChange({ assetSubtypeId: e.target.value, inventoryNumber: '' } as any)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">{t('assets.noSubtype')}</option>
                 {(selectedType?.subtypes ?? []).map((subtype) => <option key={subtype.id} value={subtype.id}>{subtype.name}</option>)}
@@ -520,7 +538,7 @@ const Assets = () => {
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.inventoryNumber')}</label>
-              <input type="text" value={form.inventoryNumber} onChange={(e) => handleChange('inventoryNumber', e.target.value)} placeholder={t('assets.inventory.manualPlaceholder')}
+              <input type="text" value={form.values.inventoryNumber} onChange={(e) => form.handleChange({ inventoryNumber: e.target.value })} placeholder={t('assets.inventory.manualPlaceholder')}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{selectedSubtype?.inventoryPattern || selectedType?.inventoryPattern || t('assets.inventory.noPattern')}</p>
             </div>
@@ -529,19 +547,19 @@ const Assets = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.serialNumber')}</label>
-            <input type="text" value={form.serialNumber} onChange={(e) => handleChange('serialNumber', e.target.value)}
+            <input type="text" value={form.values.serialNumber} onChange={(e) => form.handleChange({ serialNumber: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.manufacturer')}</label>
-              <input type="text" value={form.manufacturer} onChange={(e) => handleChange('manufacturer', e.target.value)}
+              <input type="text" value={form.values.manufacturer} onChange={(e) => form.handleChange({ manufacturer: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.model')}</label>
-              <input type="text" value={form.model} onChange={(e) => handleChange('model', e.target.value)}
+              <input type="text" value={form.values.model} onChange={(e) => form.handleChange({ model: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
@@ -549,7 +567,7 @@ const Assets = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.criticality')}</label>
-              <select value={form.criticality} onChange={(e) => handleChange('criticality', e.target.value)}
+              <select value={form.values.criticality} onChange={(e) => form.handleChange({ criticality: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
@@ -559,7 +577,7 @@ const Assets = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.lifecycleStatus')}</label>
-              <select value={form.lifecycleStatus} onChange={(e) => handleChange('lifecycleStatus', e.target.value)}
+              <select value={form.values.lifecycleStatus} onChange={(e) => form.handleChange({ lifecycleStatus: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="planned">{t('assets.lifecycleStatus.planned')}</option>
                 <option value="ordered">{t('assets.lifecycleStatus.ordered')}</option>
@@ -579,24 +597,24 @@ const Assets = () => {
           {/* AST-002: Relations */}
           <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">{t('assets.relations')}</h3>
 
-          <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchUsers} value={form.organizationUnitId}
-            onChange={(v) => setForm({ ...form, organizationUnitId: v })} placeholder={t('assets.searchOrgUnits')} />
+          <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchUsers} value={form.values.organizationUnitId}
+            onChange={(v) => form.handleChange({ organizationUnitId: v })} placeholder={t('assets.searchOrgUnits')} />
 
           <div className="grid grid-cols-2 gap-4">
-            <EntitySearchSelect label={t('assets.businessOwner')} searchEndpoint={searchUsers} value={form.businessOwnerId}
-              onChange={(v) => setForm({ ...form, businessOwnerId: v })} placeholder={t('assets.searchUsers')} />
-            <EntitySearchSelect label={t('assets.technicalOperator')} searchEndpoint={searchUsers} value={form.technicalOperatorId}
-              onChange={(v) => setForm({ ...form, technicalOperatorId: v })} placeholder={t('assets.searchUsers')} />
+            <EntitySearchSelect label={t('assets.businessOwner')} searchEndpoint={searchUsers} value={form.values.businessOwnerId}
+              onChange={(v) => form.handleChange({ businessOwnerId: v })} placeholder={t('assets.searchUsers')} />
+            <EntitySearchSelect label={t('assets.technicalOperator')} searchEndpoint={searchUsers} value={form.values.technicalOperatorId}
+              onChange={(v) => form.handleChange({ technicalOperatorId: v })} placeholder={t('assets.searchUsers')} />
           </div>
 
-          <EntitySearchSelect label={t('assets.securityResponsible')} searchEndpoint={searchUsers} value={form.securityResponsibleId}
-            onChange={(v) => setForm({ ...form, securityResponsibleId: v })} placeholder={t('assets.searchUsers')} />
+          <EntitySearchSelect label={t('assets.securityResponsible')} searchEndpoint={searchUsers} value={form.values.securityResponsibleId}
+            onChange={(v) => form.handleChange({ securityResponsibleId: v })} placeholder={t('assets.searchUsers')} />
 
           <div className="grid grid-cols-2 gap-4">
-            <EntitySearchSelect label={t('assets.contract')} searchEndpoint={searchContracts} value={form.contractId}
-              onChange={(v) => setForm({ ...form, contractId: v })} placeholder={t('assets.searchContracts')} />
-            <EntitySearchSelect label={t('assets.license')} searchEndpoint={searchLicenses} value={form.licenseId}
-              onChange={(v) => setForm({ ...form, licenseId: v })} placeholder={t('assets.searchLicenses')} />
+            <EntitySearchSelect label={t('assets.contract')} searchEndpoint={searchContracts} value={form.values.contractId}
+              onChange={(v) => form.handleChange({ contractId: v })} placeholder={t('assets.searchContracts')} />
+            <EntitySearchSelect label={t('assets.license')} searchEndpoint={searchLicenses} value={form.values.licenseId}
+              onChange={(v) => form.handleChange({ licenseId: v })} placeholder={t('assets.searchLicenses')} />
           </div>
 
           {/* AST-004: Extended Ratings */}
@@ -605,7 +623,7 @@ const Assets = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.personnelSafetyRelevance')}</label>
-              <select value={form.personnelSafetyRelevance} onChange={(e) => handleChange('personnelSafetyRelevance', e.target.value)}
+              <select value={form.values.personnelSafetyRelevance} onChange={(e) => form.handleChange({ personnelSafetyRelevance: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
@@ -614,7 +632,7 @@ const Assets = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.regulatoryRelevance')}</label>
-              <select value={form.regulatoryRelevance} onChange={(e) => handleChange('regulatoryRelevance', e.target.value)}
+              <select value={form.values.regulatoryRelevance} onChange={(e) => form.handleChange({ regulatoryRelevance: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
@@ -626,7 +644,7 @@ const Assets = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.financialDamagePotential')}</label>
-              <select value={form.financialDamagePotential} onChange={(e) => handleChange('financialDamagePotential', e.target.value)}
+              <select value={form.values.financialDamagePotential} onChange={(e) => form.handleChange({ financialDamagePotential: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
@@ -635,7 +653,7 @@ const Assets = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.productionDowntimeImpact')}</label>
-              <select value={form.productionDowntimeImpact} onChange={(e) => handleChange('productionDowntimeImpact', e.target.value)}
+              <select value={form.values.productionDowntimeImpact} onChange={(e) => form.handleChange({ productionDowntimeImpact: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
@@ -680,7 +698,7 @@ const Assets = () => {
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => setModalOpen(false)}
+            <button onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               {t('common.cancel')}
             </button>
@@ -704,6 +722,23 @@ const Assets = () => {
       </Modal>
 
       <EntityHistoryModal isOpen={!!historyAsset} onClose={() => setHistoryAsset(null)} entityId={historyAsset?.id} entityName={historyAsset?.name} loadHistory={assetApi.history} />
+
+      <DiscardConfirmationDialog
+        open={discardConfirmOpen}
+        onClose={() => {
+          if (pendingClose.current) {
+            pendingClose.current();
+            pendingClose.current = null;
+          }
+          setDiscardConfirmOpen(false);
+        }}
+        onDiscard={() => {
+          handleDiscard();
+          setDiscardConfirmOpen(false);
+        }}
+        titleKey="Discard Changes"
+        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
     </div>
   );
 };

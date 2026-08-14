@@ -1,17 +1,8 @@
-/// <reference types="vitest" />
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-
-declare const describe: typeof import('vitest').describe;
-declare const expect: typeof import('vitest').expect;
-declare const test: typeof import('vitest').test;
-
-const sourcePath = fileURLToPath(new URL('./CostPlanning.tsx', import.meta.url));
-const readCostPlanningSource = () => readFile(sourcePath, 'utf8');
+import costPlanningSource from './CostPlanning.tsx?raw';
 
 describe('Cost planning manual procurement flow', () => {
   test('keeps the add button wired to a visible submission handler', async () => {
-    const source = await readCostPlanningSource();
+    const source = costPlanningSource;
 
     expect(source).toContain('const createManual = async () =>');
     expect(source).toContain('onClick={createManual}');
@@ -21,7 +12,7 @@ describe('Cost planning manual procurement flow', () => {
   });
 
   test('supports persisted supplier lookup and inline creation before submitting the procurement item', async () => {
-    const source = await readCostPlanningSource();
+    const source = costPlanningSource;
 
     expect(source).toContain('costPlanningApi.searchSuppliers');
     expect(source).toContain('costPlanningApi.createSupplier');
@@ -32,7 +23,7 @@ describe('Cost planning manual procurement flow', () => {
 
 describe('Cost planning candidate bulk selection', () => {
   test('selects only selectable visible candidates and exposes the accessible select-all state', async () => {
-    const source = await readCostPlanningSource();
+    const source = costPlanningSource;
 
     expect(source).toContain('const selectableCandidateKeys = useMemo(() => candidates.filter((candidate) => !candidate.alreadyInPlan).map((candidate) => candidate.candidateKey), [candidates]);');
     expect(source).toContain('const isCandidateSelectionIndeterminate = selectedVisibleCandidateCount > 0 && !allSelectableCandidatesSelected;');

@@ -1,8 +1,10 @@
 import axios from 'axios';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useI18n } from '../context/I18nContext';
 import { costPlanningApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import { useDirtyForm } from '../hooks/useDirtyForm';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import {
   PencilSquareIcon,
   CheckIcon,
@@ -72,7 +74,32 @@ const CostPlanning = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CostPlanItem | null>(null);
   const [editSaving, setEditSaving] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<CostPlanItem>>({});
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const pendingEditClose = useRef<(() => void) | null>(null);
+
+  const initialEditForm = useMemo<CostPlanItem>(() => ({
+    id: '',
+    displayId: '',
+    title: '',
+    description: '',
+    category: 'hardware',
+    investmentType: 'new_acquisition',
+    plannedAmount: '',
+    knownAmount: null,
+    currency: 'EUR',
+    dueDate: '',
+    status: 'planned',
+    supplierId: '',
+    supplierName: '',
+    quoteNumber: '',
+    remark: '',
+    invoiceNumber: '',
+    invoiceDate: '',
+    acquiredAt: '',
+    completedAt: '',
+  }), []);
+
+  const editForm = useDirtyForm<CostPlanItem>(initialEditForm);
   const [editSupplierSearch, setEditSupplierSearch] = useState('');
   const [editSuppliers, setEditSuppliers] = useState<Supplier[]>([]);
 
@@ -236,9 +263,26 @@ const CostPlanning = () => {
   };
 
   // Edit item handlers
-  const openEditModal = (item: CostPlanItem) => {
+  const handleEditDiscard = useCallback(() => {
+    editForm.resetForm();
+    setEditingItem(null);
+    setEditModalOpen(false);
+  }, [editForm]);
+
+  const handleEditModalClose = useCallback(() => {
+    if (editForm.isDirty) {
+      pendingEditClose.current = () => setEditModalOpen(false);
+      setDiscardConfirmOpen(true);
+    } else {
+      setEditModalOpen(false);
+    }
+  }, [editForm]);
+
+  const openEditModal = useCallback((item: CostPlanItem) => {
     setEditingItem(item);
-    setEditForm({
+    editForm.setFormValues({
+      id: item.id,
+      displayId: item.displayId,
       title: item.title,
       description: item.description,
       category: item.category,
@@ -252,45 +296,49 @@ const CostPlanning = () => {
       supplierName: item.supplierName,
       quoteNumber: item.quoteNumber,
       remark: item.remark,
+      invoiceNumber: item.invoiceNumber,
+      invoiceDate: item.invoiceDate,
+      acquiredAt: item.acquiredAt,
+      completedAt: item.completedAt,
     });
     setEditSupplierSearch(item.supplierName || '');
     setEditModalOpen(true);
-  };
+  }, [editForm]);
 
-  const handleEditSupplierSearch = (value: string) => {
+  const handleEditSupplierSearch = useCallback((value: string) => {
     setEditSupplierSearch(value);
-    setEditForm((prev) => ({ ...prev, supplierId: '', supplierName: value }));
+    editForm.handleChange({ ...editForm.values, supplierId: '', supplierName: value } as any);
     if (value.trim()) {
       loadEditSuppliers(value);
     } else {
       setEditSuppliers([]);
     }
-  };
+  }, [editForm]);
 
-  const selectEditSupplier = (supplier: Supplier) => {
-    setEditForm((prev) => ({ ...prev, supplierId: supplier.id, supplierName: supplier.legalName }));
+  const selectEditSupplier = useCallback((supplier: Supplier) => {
+    editForm.handleChange({ ...editForm.values, supplierId: supplier.id, supplierName: supplier.legalName } as any);
     setEditSupplierSearch(supplier.legalName);
     setEditSuppliers([]);
-  };
+  }, [editForm]);
 
-  const saveEdit = async () => {
-    if (!editingItem || !editForm.title?.trim()) return;
+  const saveEdit = useCallback(async () => {
+    if (!editingItem || !editForm.values.title?.trim()) return;
     setEditSaving(true);
     try {
       await costPlanningApi.updateItem(editingItem.id, {
-        title: editForm.title.trim(),
-        description: editForm.description,
-        category: editForm.category,
-        investmentType: editForm.investmentType,
-        plannedAmount: Number(editForm.plannedAmount) || 0,
-        knownAmount: editForm.knownAmount ? Number(editForm.knownAmount) : undefined,
-        currency: editForm.currency,
-        dueDate: editForm.dueDate,
-        status: editForm.status,
-        supplierId: editForm.supplierId,
-        supplierName: editForm.supplierId ? undefined : (editForm.supplierName?.trim() || undefined),
-        quoteNumber: editForm.quoteNumber || undefined,
-        remark: editForm.remark || undefined,
+        title: editForm.values.title.trim(),
+        description: editForm.values.description,
+        category: editForm.values.category,
+        investmentType: editForm.values.investmentType,
+        plannedAmount: Number(editForm.values.plannedAmount) || 0,
+        knownAmount: editForm.values.knownAmount ? Number(editForm.values.knownAmount) : undefined,
+        currency: editForm.values.currency,
+        dueDate: editForm.values.dueDate,
+        status: editForm.values.status,
+        supplierId: editForm.values.supplierId,
+        supplierName: editForm.values.supplierId ? undefined : (editForm.values.supplierName?.trim() || undefined),
+        quoteNumber: editForm.values.quoteNumber || undefined,
+        remark: editForm.values.remark || undefined,
       });
       setEditModalOpen(false);
       setEditingItem(null);
@@ -299,7 +347,7 @@ const CostPlanning = () => {
     } catch (error) {
       setMessage(apiErrorMessage(error, t('costPlanning.itemUpdateError')));
     } finally { setEditSaving(false); }
-  };
+  }, [editingItem, editForm, t]);
 
   // Sorting
   const handleSort = (key: keyof CostPlanItem) => {
@@ -594,9 +642,9 @@ const CostPlanning = () => {
       </section>
 
       {/* Edit Item Modal */}
-      <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setEditingItem(null); }} title={t('costPlanning.editItem')}>
+      <Modal isOpen={editModalOpen} onClose={handleEditModalClose} title={t('costPlanning.editItem')} isDirty={editForm.isDirty && !editSaving} onDiscardConfirm={handleEditDiscard}>
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
-          {editForm.title && (
+          {editForm.values.title && (
             <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded">
               <span className="text-sm text-gray-500 dark:text-gray-400">{editingItem?.displayId}</span>
             </div>
@@ -604,27 +652,30 @@ const CostPlanning = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.titleField')} *</label>
-            <input type="text" value={editForm.title || ''} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+            <input type="text" value={editForm.values.title || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, title: e.target.value } as any)
+              }
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
-            <textarea value={editForm.description || ''} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={2}
+            <textarea value={editForm.values.description || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, description: e.target.value } as any)} rows={2}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.category')}</label>
-              <select value={editForm.category || ''} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+              <select value={editForm.values.category || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, category: e.target.value } as any)
+                }
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 {categories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.status')}</label>
-              <select value={editForm.status || ''} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+              <select value={editForm.values.status || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, status: e.target.value } as any)
+                }
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="planned">{t('costPlanning.statusPlanned')}</option>
                 <option value="ordered">{t('costPlanning.statusOrdered')}</option>
@@ -637,30 +688,35 @@ const CostPlanning = () => {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.amount')}</label>
-              <input type="number" value={editForm.plannedAmount || ''} onChange={(e) => setEditForm({ ...editForm, plannedAmount: e.target.value })}
+              <input type="number" value={editForm.values.plannedAmount || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, plannedAmount: e.target.value } as any)
+                }
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.knownAmount')}</label>
-              <input type="number" value={editForm.knownAmount ?? ''} onChange={(e) => setEditForm({ ...editForm, knownAmount: e.target.value ? Number(e.target.value) : null })}
+              <input type="number" value={editForm.values.knownAmount ?? ''} onChange={(e) => editForm.handleChange({ ...editForm.values, knownAmount: e.target.value ? Number(e.target.value) : null } as any)
+                }
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.currency')}</label>
-              <input type="text" value={editForm.currency || 'EUR'} onChange={(e) => setEditForm({ ...editForm, currency: e.target.value.toUpperCase() })}
+              <input type="text" value={editForm.values.currency || 'EUR'} onChange={(e) => editForm.handleChange({ ...editForm.values, currency: e.target.value.toUpperCase() } as any)
+                }
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.due')}</label>
-            <input type="date" value={editForm.dueDate ? new Date(editForm.dueDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditForm({ ...editForm, dueDate: new Date(e.target.value).toISOString() })}
+            <input type="date" value={editForm.values.dueDate ? new Date(editForm.values.dueDate).toISOString().split('T')[0] : ''} onChange={(e) => editForm.handleChange({ ...editForm.values, dueDate: new Date(e.target.value).toISOString() } as any)
+              }
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.quoteNumber')}</label>
-            <input type="text" value={editForm.quoteNumber || ''} onChange={(e) => setEditForm({ ...editForm, quoteNumber: e.target.value })}
+            <input type="text" value={editForm.values.quoteNumber || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, quoteNumber: e.target.value } as any)
+              }
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
@@ -686,24 +742,47 @@ const CostPlanning = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.remark')}</label>
-            <textarea value={editForm.remark || ''} onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })} rows={3}
+            <textarea value={editForm.values.remark || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, remark: e.target.value } as any)
+              }
+              rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => { setEditModalOpen(false); setEditingItem(null); }}
+            <button onClick={() => { if (editForm.isDirty) { handleEditDiscard(); } else { handleEditModalClose(); } }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               {t('common.cancel')}
             </button>
-            <button onClick={saveEdit} disabled={editSaving || !editForm.title?.trim()}
+            <button onClick={saveEdit} disabled={editSaving || !editForm.values.title?.trim()}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
               {editSaving ? t('common.loading') : t('common.edit')}
             </button>
           </div>
         </div>
-      </Modal>
-    </div>
-  );
+    </Modal>
+
+    <DiscardConfirmationDialog
+      open={discardConfirmOpen}
+      onClose={() => {
+        setDiscardConfirmOpen(false);
+        if (pendingEditClose.current) {
+          pendingEditClose.current();
+          pendingEditClose.current = null;
+        }
+      }}
+      onDiscard={() => {
+        handleEditDiscard();
+        setDiscardConfirmOpen(false);
+        if (pendingEditClose.current) {
+          pendingEditClose.current();
+          pendingEditClose.current = null;
+        }
+      }}
+      titleKey="Discard Changes"
+      messageKey="You have unsaved changes. Are you sure you want to discard them?"
+    />
+  </div>
+);
 };
 
 export default CostPlanning;

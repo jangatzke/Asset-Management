@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 import {
   Box,
   Typography,
@@ -25,6 +26,7 @@ import {
   TableContainer,
   CircularProgress,
 } from '@mui/material';
+import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import type { ChipProps } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -123,15 +125,29 @@ export default function IntuneAdmin() {
   const [deviceTotalPages, setDeviceTotalPages] = useState(1);
   const [deviceTotal, setDeviceTotal] = useState(0);
   // Credentials state
+  interface CredentialFormValues {
+    name: string;
+    tenantId: string;
+    appId: string;
+    clientSecret: string;
+    clientSecretExpiresAt: string;
+    certificateThumbprint: string;
+    isConfigured: boolean;
+  }
+
   const [credentials, setCredentials] = useState<any | null>(null);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
-  const [credName, setCredName] = useState('');
-  const [credTenantId, setCredTenantId] = useState('');
-  const [credAppId, setCredAppId] = useState('');
-  const [credClientSecret, setCredClientSecret] = useState('');
-  const [credClientSecretExpiresAt, setCredClientSecretExpiresAt] = useState('');
-  const [credCertificateThumbprint, setCredCertificateThumbprint] = useState('');
-  const [credIsConfigured, setCredIsConfigured] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const pendingClose = useRef<(() => void) | null>(null);
+  const credentialForm = useDirtyForm<CredentialFormValues>({
+    name: '',
+    tenantId: '',
+    appId: '',
+    clientSecret: '',
+    clientSecretExpiresAt: '',
+    certificateThumbprint: '',
+    isConfigured: false,
+  });
 
   useEffect(() => {
     loadConfig();
@@ -174,10 +190,15 @@ export default function IntuneAdmin() {
       const res = await api.get('/intune/credentials');
       if (res.data) {
         setCredentials(res.data);
-        setCredName(res.data.name || '');
-        setCredTenantId(res.data.tenantId || '');
-        setCredAppId(res.data.appId || '');
-        setCredIsConfigured(res.data.isConfigured);
+        credentialForm.setFormValues({
+          name: res.data.name || '',
+          tenantId: res.data.tenantId || '',
+          appId: res.data.appId || '',
+          clientSecret: '',
+          clientSecretExpiresAt: res.data.clientSecretExpiresAt || '',
+          certificateThumbprint: res.data.certificateThumbprint || '',
+          isConfigured: res.data.isConfigured || false,
+        });
       } else {
         setCredentials(null);
       }
@@ -191,22 +212,22 @@ export default function IntuneAdmin() {
     try {
       if (credentials) {
         await api.put('/intune/credentials', {
-          name: credName,
-          tenantId: credTenantId || undefined,
-          appId: credAppId || undefined,
-          clientSecret: credClientSecret || undefined,
-          clientSecretExpiresAt: credClientSecretExpiresAt || undefined,
-          certificateThumbprint: credCertificateThumbprint || undefined,
-          isConfigured: credIsConfigured,
+          name: credentialForm.values.name,
+          tenantId: credentialForm.values.tenantId || undefined,
+          appId: credentialForm.values.appId || undefined,
+          clientSecret: credentialForm.values.clientSecret || undefined,
+          clientSecretExpiresAt: credentialForm.values.clientSecretExpiresAt || undefined,
+          certificateThumbprint: credentialForm.values.certificateThumbprint || undefined,
+          isConfigured: credentialForm.values.isConfigured,
         });
       } else {
         await api.post('/intune/credentials', {
-          name: credName || t('intune.credentialsTitle'),
-          tenantId: credTenantId || undefined,
-          appId: credAppId || undefined,
-          clientSecret: credClientSecret || undefined,
-          clientSecretExpiresAt: credClientSecretExpiresAt || undefined,
-          certificateThumbprint: credCertificateThumbprint || undefined,
+          name: credentialForm.values.name || t('intune.credentialsTitle'),
+          tenantId: credentialForm.values.tenantId || undefined,
+          appId: credentialForm.values.appId || undefined,
+          clientSecret: credentialForm.values.clientSecret || undefined,
+          clientSecretExpiresAt: credentialForm.values.clientSecretExpiresAt || undefined,
+          certificateThumbprint: credentialForm.values.certificateThumbprint || undefined,
         });
       }
       setCredentialsOpen(false);
@@ -229,13 +250,42 @@ export default function IntuneAdmin() {
 
   const openCredentialsDialog = () => {
     if (credentials) {
-      setCredName(credentials.name || '');
-      setCredTenantId(credentials.tenantId || '');
-      setCredAppId(credentials.appId || '');
-      setCredIsConfigured(credentials.isConfigured);
+      credentialForm.setFormValues({
+        name: credentials.name || '',
+        tenantId: credentials.tenantId || '',
+        appId: credentials.appId || '',
+        clientSecret: credentials.clientSecret || '',
+        clientSecretExpiresAt: credentials.clientSecretExpiresAt || '',
+        certificateThumbprint: credentials.certificateThumbprint || '',
+        isConfigured: credentials.isConfigured,
+      });
+    } else {
+      credentialForm.setFormValues({
+        name: '',
+        tenantId: '',
+        appId: '',
+        clientSecret: '',
+        clientSecretExpiresAt: '',
+        certificateThumbprint: '',
+        isConfigured: false,
+      });
     }
     setCredentialsOpen(true);
   };
+
+  const handleCredentialsDiscard = useCallback(() => {
+    credentialForm.resetForm();
+    setCredentialsOpen(false);
+  }, [credentialForm]);
+
+  const handleCredentialsModalClose = useCallback(() => {
+    if (credentialForm.isDirty) {
+      pendingClose.current = () => setCredentialsOpen(false);
+      setDiscardConfirmOpen(true);
+    } else {
+      setCredentialsOpen(false);
+    }
+  }, [credentialForm]);
 
   const loadDevices = async () => {
     setLoading(true);
@@ -558,27 +608,46 @@ export default function IntuneAdmin() {
       </Paper>
 
       {/* Credentials Dialog */}
-      <Dialog open={credentialsOpen} onClose={() => setCredentialsOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={credentialsOpen}
+        onClose={handleCredentialsModalClose}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>{credentials ? t('intune.updateCredentials') : t('intune.createCredentials')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label={t('intune.name')} value={credName} onChange={(e) => setCredName(e.target.value)} fullWidth size="small" />
-            <TextField label={t('intune.tenantId')} value={credTenantId} onChange={(e) => setCredTenantId(e.target.value)} fullWidth size="small" />
-            <TextField label={t('intune.appId')} value={credAppId} onChange={(e) => setCredAppId(e.target.value)} fullWidth size="small" />
-            <TextField label={t('intune.clientSecret')} type="password" value={credClientSecret} onChange={(e) => setCredClientSecret(e.target.value)} fullWidth size="small" />
-            <TextField label={t('intune.clientSecretExpiresAt')} type="datetime-local" value={credClientSecretExpiresAt} onChange={(e) => setCredClientSecretExpiresAt(e.target.value)} fullWidth size="small" />
-            <TextField label={t('intune.certificateThumbprint')} value={credCertificateThumbprint} onChange={(e) => setCredCertificateThumbprint(e.target.value)} fullWidth size="small" />
+            <TextField label={t('intune.name')} value={credentialForm.values.name} onChange={(e) => credentialForm.handleChange({ name: e.target.value })} fullWidth size="small" />
+            <TextField label={t('intune.tenantId')} value={credentialForm.values.tenantId} onChange={(e) => credentialForm.handleChange({ tenantId: e.target.value })} fullWidth size="small" />
+            <TextField label={t('intune.appId')} value={credentialForm.values.appId} onChange={(e) => credentialForm.handleChange({ appId: e.target.value })} fullWidth size="small" />
+            <TextField label={t('intune.clientSecret')} type="password" value={credentialForm.values.clientSecret} onChange={(e) => credentialForm.handleChange({ clientSecret: e.target.value })} fullWidth size="small" />
+            <TextField label={t('intune.clientSecretExpiresAt')} type="datetime-local" value={credentialForm.values.clientSecretExpiresAt} onChange={(e) => credentialForm.handleChange({ clientSecretExpiresAt: e.target.value })} fullWidth size="small" />
+            <TextField label={t('intune.certificateThumbprint')} value={credentialForm.values.certificateThumbprint} onChange={(e) => credentialForm.handleChange({ certificateThumbprint: e.target.value })} fullWidth size="small" />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Switch checked={credIsConfigured} onChange={(e) => setCredIsConfigured(e.target.checked)} />
+              <Switch checked={credentialForm.values.isConfigured} onChange={(e) => credentialForm.handleChange({ isConfigured: e.target.checked })} />
               <Typography>{t('intune.isConfigured')}</Typography>
             </Box>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCredentialsOpen(false)}>{t('common.cancel')}</Button>
+          <Button onClick={() => { if (credentialForm.isDirty) { pendingClose.current = () => setCredentialsOpen(false); setDiscardConfirmOpen(true); } else { setCredentialsOpen(false); } }}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSaveCredentials}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
+
+      <DiscardConfirmationDialog
+        open={discardConfirmOpen}
+        onClose={() => {
+          setDiscardConfirmOpen(false);
+          if (pendingClose.current) {
+            pendingClose.current();
+            pendingClose.current = null;
+          }
+        }}
+        onDiscard={handleCredentialsDiscard}
+        titleKey="Discard Changes"
+        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
 
       {/* Devices */}
       <Paper sx={{ p: 3, bgcolor: 'background.paper', color: 'text.primary' }}>

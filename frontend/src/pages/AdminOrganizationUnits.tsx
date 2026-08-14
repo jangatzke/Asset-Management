@@ -3,6 +3,7 @@ import { adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
+import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface OrganizationUnit {
   id: string;
@@ -46,7 +47,7 @@ const AdminOrganizationUnits = () => {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<OrganizationUnit | null>(null);
-  const [form, setForm] = useState<OrganizationUnitForm>(initialForm);
+  const form = useDirtyForm<OrganizationUnitForm>({ ...initialForm });
   const [parentOption, setParentOption] = useState<{ id: string; label: string } | null>(null);
 
   useEffect(() => {
@@ -80,7 +81,7 @@ const AdminOrganizationUnits = () => {
 
   const openCreateModal = () => {
     setEditingUnit(null);
-    setForm(initialForm);
+    form.setFormValues({ ...initialForm });
     setParentOption(null);
     setError('');
     setModalOpen(true);
@@ -88,14 +89,14 @@ const AdminOrganizationUnits = () => {
 
   const openEditModal = (unit: OrganizationUnit) => {
     setEditingUnit(unit);
-    setForm({ name: unit.name, description: unit.description || '', parentId: unit.parentId || '', type: unit.type || '' });
+    form.setFormValues({ name: unit.name, description: unit.description || '', parentId: unit.parentId || '', type: unit.type || '' });
     setParentOption(unit.parent ? { id: unit.parent.id, label: unit.parent.name } : null);
     setError('');
     setModalOpen(true);
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
+    if (!form.values.name.trim()) {
       setError(t('organizationUnits.nameRequired'));
       return;
     }
@@ -103,10 +104,10 @@ const AdminOrganizationUnits = () => {
     setError('');
     try {
       const payload = {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
+        name: form.values.name.trim(),
+        description: form.values.description.trim() || undefined,
         parentId: parentOption?.id || undefined,
-        type: form.type.trim() || undefined,
+        type: form.values.type.trim() || undefined,
       };
       if (editingUnit) {
         await adminApi.updateOrganizationUnit(editingUnit.id, payload);
@@ -116,15 +117,13 @@ const AdminOrganizationUnits = () => {
         setSuccess(t('organizationUnits.createSuccess'));
       }
       setModalOpen(false);
-      setForm(initialForm);
-      setParentOption(null);
-      setEditingUnit(null);
+      setSaving(false);
       await loadUnits();
-      setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('organizationUnits.saveError'));
-    } finally {
       setSaving(false);
+    } finally {
+      setTimeout(() => setSuccess(''), 3000);
     }
   };
 
@@ -149,6 +148,16 @@ const AdminOrganizationUnits = () => {
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('organizationUnits.restoreError'));
     }
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+  };
+
+  const handleDiscard = () => {
+    form.resetForm();
+    setParentOption(null);
+    setModalOpen(false);
   };
 
   return (
@@ -203,15 +212,15 @@ const AdminOrganizationUnits = () => {
         )}
       </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingUnit ? t('organizationUnits.editUnit') : t('organizationUnits.newUnit')}>
+      <Modal isOpen={modalOpen} onClose={handleModalClose} title={editingUnit ? t('organizationUnits.editUnit') : t('organizationUnits.newUnit')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')}</label>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+            <input value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('organizationUnits.type')}</label>
-            <input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder={t('organizationUnits.typePlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+            <input value={form.values.type} onChange={(e) => form.handleChange({ type: e.target.value })} placeholder={t('organizationUnits.typePlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('organizationUnits.parent')}</label>
@@ -220,10 +229,10 @@ const AdminOrganizationUnits = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('organizationUnits.description')}</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+            <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">{t('common.cancel')}</button>
+            <button onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">{t('common.cancel')}</button>
             <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50">{saving ? t('common.saving') : editingUnit ? t('common.update') : t('common.create')}</button>
           </div>
         </div>

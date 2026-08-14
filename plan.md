@@ -12,7 +12,8 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 
 1. **Asset fields** - missing contract/license info, additional rating dimensions, linked risks/vulnerabilities/incidents as proper relations
 2. **Risk model** - missing process-based assessment support, aggregated view endpoints, linked evidence as proper relation
-3. **Graph visualization** (AST-011) and **impact analysis** (AST-012) - not implemented at all
+3. **Graph visualization** (AST-011) and **impact analysis** (AST-012) - completed
+
 4. **Frontend components** for dependency graph, impact analysis, and risk aggregation views
 
 ---
@@ -137,14 +138,9 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 
 | Requirement | Current Status | Gap |
 |---|---|---|
-| Visual graph of asset dependencies | ❌ **NOT IMPLEMENTED** | No frontend component for graph visualization. No backend API endpoint for graph traversal/query. |
+| Visual graph of asset dependencies | ✅ **IMPLEMENTED** | None |
 
-**What's needed:**
-- Backend: GraphQL query or REST endpoint returning adjacency list / node-edge data structure
-- Frontend: Graph visualization component (using libraries like React Flow, D3.js force-directed graph, or Cytoscape.js)
-- Support for filtering by relationship type, asset type, criticality
-
-**Verdict:** ❌ **NOT COVERED** - Complete feature gap. Requires both backend API and frontend implementation.
+**Verdict:** ✅ **COVERED** - Implementation complete (Asset Tree Viewer).
 
 ---
 
@@ -152,16 +148,12 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 
 | Requirement | Current Status | Gap |
 |---|---|---|
-| Calculate blast radius of asset failure | ❌ **NOT IMPLEMENTED** | No impact analysis service or algorithm |
-| Traverse dependency graph for cascading effects | ❌ **NOT IMPLEMENTED** | No graph traversal service |
-| Identify critical paths and single points of failure | ❌ **NOT IMPLEMENTED** | No analysis algorithms |
+| Calculate blast radius of asset failure | ✅ **IMPLEMENTED** | None |
+| Traverse dependency graph for cascading effects | ✅ **IMPLEMENTED** | None |
+| Identify critical paths and single points of failure | ✅ **IMPLEMENTED** | None |
 
-**What's needed:**
-- Backend: Impact analysis service with graph traversal (BFS/DFS) along `AssetRelation` edges
-- API endpoint for "what-if" scenario analysis
-- Frontend: Impact analysis UI showing affected assets, processes, and services
+**Verdict:** ✅ **COVERED** - Implementation complete (includes BFS traversal, criticality weighting, and articulation point identification).
 
-**Verdict:** ❌ **NOT COVERED** - Complete feature gap. Requires algorithmic implementation and UI.
 
 ---
 
@@ -424,8 +416,8 @@ riskAssets       RiskAsset[]
 
 | Component | Purpose | Requirement | Status |
 |---|---|---|---|
-| `AssetDependencyGraph` | Interactive graph visualization of asset relationships using React Flow or similar | AST-011 | ❌ Not implemented |
-| `AssetImpactAnalysis` | What-if scenario analysis panel showing cascading effects | AST-012 | ❌ Not implemented |
+| `AssetDependencyGraph` | Interactive graph visualization of asset relationships using React Flow or similar | AST-011 | ✅ Implemented |
+| `AssetImpactAnalysis` | What-if scenario analysis panel showing cascading effects | AST-012 | ✅ Implemented |
 | `ContractManagement` | CRUD interface for contracts linked to assets | AST-002 | ❌ Not implemented |
 | `LicenseManagement` | CRUD interface for licenses linked to assets | AST-002 | ❌ Not implemented |
 | `AssetExtendedRatings` | Form section for additional rating dimensions (personnel safety, regulatory, financial, downtime) | AST-004 | ❌ Not implemented |
