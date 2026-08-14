@@ -22,7 +22,6 @@ export default function NIS2() {
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState('');
   const [catalogError, setCatalogError] = useState('');
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [registrationAssessmentId, setRegistrationAssessmentId] = useState('');
   const [entityType, setEntityType] = useState('important_entity');
   const [deadline, setDeadline] = useState('');
@@ -52,7 +51,6 @@ export default function NIS2() {
       setQuestionnaireVersion((v) => v || q.data[0]?.version || '');
       setRegistrationAssessmentId((v) => v || a.data.find((x) => x.status === 'approved' && x.result !== 'not_in_scope')?.id || '');
       setChangeRegistrationId((v) => v || r.data[0]?.id || '');
-      setCatalogLoaded(true);
     } catch (caught: unknown) {
       const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.loadingError');
       setError(message);

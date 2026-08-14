@@ -41,7 +41,7 @@ BEGIN
     FROM (
       SELECT
         "id",
-        'CAPA-' || LPAD(row_number()::text, 4, '0') AS new_display_id
+        'CAPA-' || LPAD(row_number() OVER ()::text, 4, '0') AS new_display_id
       FROM "corrective_actions"
       WHERE "displayId" IS NULL OR "displayId" = ''
       ORDER BY "id"

@@ -3076,30 +3076,30 @@ model Contract {
 }
 
 model License {
-  id          String    @id @default(uuid())
-  displayId   String    @unique
-  title       String
-  description String?
-  licenseType String // perpetual, subscription, concurrent, etc.
-  vendor      String?
-  productId   String? // Reference to software asset
-  licenseKey  String?
-  seats       Int? // entitlement quantity
-  startDate   DateTime?
-  endDate     DateTime?
-  renewalDate DateTime?
-  cost        Decimal?
-  currency    String?
-  status      String    @default("active")
+  id              String    @id @default(uuid())
+  displayId       String    @unique
+  title           String
+  description     String?
+  licenseType     String // perpetual, subscription, concurrent, etc.
+  vendor          String?
+  productId       String? // Reference to software asset
+  licenseKey      String?
+  seats           Int? // entitlement quantity
+  startDate       DateTime?
+  endDate         DateTime?
+  renewalDate     DateTime?
+  cost            Decimal?
+  currency        String?
+  status          String    @default("active")
   // licensingBasis: "user" or "device"
-  licensingBasis String @default("user")
+  licensingBasis  String    @default("user")
   // assignmentModel: "named" or "concurrent"
-  assignmentModel  String @default("named")
-  isArchived  Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   String?
-  updatedBy   String?
+  assignmentModel String    @default("named")
+  isArchived      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
 
   assetLinks    AssetLicense[]
   contractLinks ContractLicense[]
