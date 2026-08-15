@@ -840,9 +840,8 @@ describe('AdminService', () => {
         const result = await adminService.createRole({
           name: 'security_admin',
           description: 'Security administrator',
-          permissions: [],
+          permissionNames: [],
           canAccessAdmin: true,
-          entityPermissions: { risks: 'readwrite', controls: 'readwrite' },
         });
 
         expect(result.canAccessAdmin).toBe(true);
@@ -863,8 +862,7 @@ describe('AdminService', () => {
 
         const result = await adminService.createRole({
           name: 'viewer',
-          permissions: [],
-          entityPermissions: { assets: 'readonly' },
+          permissionNames: [],
         });
 
         expect(result.canAccessAdmin).toBe(false);

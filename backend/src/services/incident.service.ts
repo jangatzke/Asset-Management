@@ -59,7 +59,10 @@ export interface CreateIncidentData {
   measuresEvaluation?: string;
 }
 
-export type UpdateIncidentData = Partial<CreateIncidentData>;
+export type UpdateIncidentData = Partial<CreateIncidentData> & {
+  status?: string;
+  notificationStatus?: string;
+};
 
 export interface ListIncidentsQuery {
   page?: string;
@@ -391,15 +394,15 @@ export class IncidentService {
   }
 
   async update(id: string, data: UpdateIncidentData, updatedBy?: string) {
-    if (Object.prototype.hasOwnProperty.call(data, 'status') || Object.prototype.hasOwnProperty.call(data, 'notificationStatus')) {
-      throw new AppError('Incident status and notification status may only be changed through dedicated transitions', 400);
-    }
     const existing = await prisma.incident.findUnique({ where: { id } });
-    if (!existing) {
-      throw new AppError('Incident not found', 404);
-    }
+    if (!existing) throw new AppError('Incident not found', 404);
 
-    if (data.knowledgeTime !== undefined && new Date(data.knowledgeTime).getTime() !== existing.knowledgeTime.getTime()) {
+    // Detect status change for STATUS_CHANGE history entry
+    const statusChanged = data.status !== undefined && data.status !== existing.status;
+    const oldStatus = existing.status;
+    const newStatus = data.status;
+
+    if (data.knowledgeTime !== undefined && existing.knowledgeTime !== null && new Date(data.knowledgeTime).getTime() !== existing.knowledgeTime.getTime()) {
       throw new AppError('Knowledge time is protected and must be changed through the dedicated endpoint with reason', 400);
     }
 
@@ -416,7 +419,7 @@ export class IncidentService {
     const significance = significanceInputsChanged ? this.evaluateSignificance(mergedIncident, ruleVersion) : undefined;
 
     // Compute field changes for history (AUDIT-001)
-    const fieldChanges: Record<string, { old?: unknown; new?: unknown }> = {};
+    const fieldChanges: Record<string, { old?: unknown; new?: unknown } | unknown> = {};
     const allFields = Object.keys(data).filter(k => !this.relationUpdateFields.includes(k) && (data as any)[k] !== undefined);
     for (const key of allFields) {
       const oldVal = (existing as any)[key];
@@ -459,8 +462,19 @@ export class IncidentService {
       return result;
     });
 
-    // Incident history entry (AUDIT-001): one summarized entry per update request.
-    if (Object.keys(fieldChanges).length > 0) {
+    // Incident history entry (AUDIT-001): STATUS_CHANGE + UPDATE on status change, or just UPDATE otherwise.
+    if (statusChanged) {
+      // Include status in fieldChanges for the summary
+      fieldChanges.oldStatus = oldStatus;
+      fieldChanges.newStatus = newStatus;
+      // Remove 'status' key from fieldChanges (we use oldStatus/newStatus instead)
+      delete fieldChanges.status;
+      const changedFields = Object.keys(fieldChanges).filter(k => k !== 'oldStatus' && k !== 'newStatus').join(', ');
+      const summary = changedFields
+        ? `Status changed from ${oldStatus} to ${newStatus}; updated fields: ${changedFields}`
+        : `Status changed from ${oldStatus} to ${newStatus}`;
+      await this.recordHistoryEntry(id, 'STATUS_CHANGE', summary, fieldChanges, updatedBy);
+    } else if (Object.keys(fieldChanges).length > 0) {
       const changedFields = Object.keys(fieldChanges).join(', ');
       await this.recordHistoryEntry(id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
     }
@@ -612,16 +626,17 @@ export class IncidentService {
     if (!reason?.trim()) throw new AppError('Changing knowledge time requires a reason', 400);
     const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
     if (!incident) throw new AppError('Incident not found', 404);
+    const oldKnowledgeTime = incident.knowledgeTime ? new Date(incident.knowledgeTime) : new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      await (tx as any).incidentKnowledgeTimeChange.create({ data: { incidentId, oldKnowledgeTime: incident.knowledgeTime, newKnowledgeTime, reason, changedBy } });
+      await (tx as any).incidentKnowledgeTimeChange.create({ data: { incidentId, oldKnowledgeTime: oldKnowledgeTime, newKnowledgeTime, reason, changedBy } });
       const result = await tx.incident.update({ where: { id: incidentId }, data: { knowledgeTime: newKnowledgeTime, updatedBy: changedBy } });
       await tx.notificationDeadline.deleteMany({ where: { incidentId, status: 'pending' } });
       await this.createDeadlinesForIncident(tx, incidentId, newKnowledgeTime);
       return result;
     });
-    await auditService.logEventStandalone(prisma, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: incident.knowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
+    await auditService.logEventStandalone(prisma, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: oldKnowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
     // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: incident.knowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
+    await this.recordHistoryEntry(incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: oldKnowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
     return updated;
   }
 
