@@ -123,7 +123,7 @@ const Layout = () => {
         Skip to main content
       </a>
       <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label="Main navigation">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between min-h-16 gap-3 py-2 lg:py-0">
             <div className="flex items-center flex-1 min-w-0 overflow-hidden">
               <div className="flex-shrink-0 flex items-center min-w-0">
@@ -248,7 +248,7 @@ const Layout = () => {
         </div>
       </nav>
       {isAdmin && location.pathname.startsWith('/admin') && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm border-b border-gray-200 dark:border-gray-700 mb-6 py-3 overflow-visible">
             {adminSubPages.map((page) => (
               <Link
@@ -266,7 +266,7 @@ const Layout = () => {
           </nav>
         </div>
       )}
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
+      <main id="main-content" className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
         <Outlet />
       </main>
     </div>

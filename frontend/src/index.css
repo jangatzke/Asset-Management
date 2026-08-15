@@ -51,6 +51,14 @@ body {
 }
 
 @layer base {
+  /* Allow long (unbreakable) words – e.g. German compound words in table
+     headers like "Eintrittswahrscheinlichkeit" – to wrap, so data tables
+     shrink to fit the available width and only scroll when necessary. */
+  th,
+  td {
+    overflow-wrap: anywhere;
+  }
+
   input:not([type='checkbox']):not([type='radio']),
   textarea,
   select {
