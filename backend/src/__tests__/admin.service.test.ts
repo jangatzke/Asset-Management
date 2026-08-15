@@ -49,6 +49,13 @@ const mockPrismaClient: any = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  permission: {
+    findMany: jest.fn(),
+  },
+  rolePermission: {
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   assetType: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -119,6 +126,12 @@ describe('AdminService', () => {
       updatedAt: new Date(),
     });
     mockPrismaClient.passwordHistory.findMany.mockResolvedValue([]);
+    // Echo back the canonical permission names requested by replaceRolePermissions
+    mockPrismaClient.permission.findMany.mockImplementation((args: any) =>
+      Promise.resolve((args?.where?.name?.in ?? []).map((name: string, i: number) => ({ id: 'perm-' + i, name })))
+    );
+    mockPrismaClient.rolePermission.createMany.mockResolvedValue({ count: 0 });
+    mockPrismaClient.rolePermission.deleteMany.mockResolvedValue({ count: 0 });
   });
 
   describe('listUsers', () => {
@@ -336,32 +349,38 @@ describe('AdminService', () => {
       const roleData: any = {
         name: 'custom_role',
         description: 'Custom role',
-        permissions: [{ assetType: 'assets', level: 'read' }],
+        permissionNames: ['assets.read'],
         canAccessAdmin: false,
-        entityPermissions: { assets: 'none', risks: 'none', controls: 'none', incidents: 'none' },
       };
 
-      mockPrismaClient.role.findUnique.mockResolvedValue(null);
-      mockPrismaClient.role.create.mockResolvedValue({
+      const createdRole = {
         ...roleData,
         id: 'role-new',
         isBuiltIn: false,
+        rolePermissions: [
+          { id: 'rp-1', roleId: 'role-new', permissionId: 'perm-1', permission: { id: 'perm-1', name: 'assets.read' } },
+        ],
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      };
+
+      // First call: duplicate-name check; second call: refetch inside the transaction
+      mockPrismaClient.role.findUnique.mockResolvedValueOnce(null);
+      mockPrismaClient.role.findUnique.mockResolvedValue(createdRole);
+      mockPrismaClient.role.create.mockResolvedValue({ id: 'role-new' });
 
       const result = await adminService.createRole(roleData);
 
       expect(result.name).toBe('custom_role');
+      expect(result.permissionNames).toEqual(['assets.read']);
     });
 
     it('should throw an error if role name already exists', async () => {
       const roleData: any = {
         name: testRole.name,
         description: 'Duplicate',
-        permissions: [],
+        permissionNames: [],
         canAccessAdmin: false,
-        entityPermissions: { assets: 'none' as const, risks: 'none' as const, controls: 'none' as const, incidents: 'none' as const },
       };
 
       mockPrismaClient.role.findUnique.mockResolvedValue(testRole);
@@ -386,6 +405,12 @@ describe('AdminService', () => {
       };
       mockPrismaClient.role.findUnique.mockResolvedValueOnce(nonBuiltInRole);
       mockPrismaClient.role.findUnique.mockResolvedValueOnce(null);
+      // Third call: final refetch with rolePermissions include inside the transaction
+      mockPrismaClient.role.findUnique.mockResolvedValue({
+        ...nonBuiltInRole,
+        ...updateData,
+        rolePermissions: [],
+      });
       mockPrismaClient.role.update.mockResolvedValue({
         ...nonBuiltInRole,
         ...updateData,
@@ -397,6 +422,8 @@ describe('AdminService', () => {
     });
 
     it('should throw an error for built-in roles', async () => {
+      mockPrismaClient.role.findUnique.mockResolvedValue(testRole);
+
       await expect(adminService.updateRole(testRole.id, { name: 'new_name' } as any)).rejects.toThrow('Built-in roles cannot be modified');
     });
 
@@ -450,6 +477,7 @@ describe('AdminService', () => {
     it('should create built-in roles if they do not exist', async () => {
       // All findUnique calls return null (role doesn't exist)
       mockPrismaClient.role.findUnique.mockResolvedValue(null);
+      mockPrismaClient.role.create.mockResolvedValue({ id: 'role-builtin' });
 
       await adminService.initializeBuiltInRoles();
 
@@ -468,7 +496,7 @@ describe('AdminService', () => {
 
   describe('listGroups', () => {
     it('should return a list of groups', async () => {
-      mockPrismaClient.group.findMany.mockResolvedValue([testGroup]);
+      mockPrismaClient.group.findMany.mockResolvedValue([{ ...testGroup, userGroups: [], groupRoles: [] }]);
 
       const result = await adminService.listGroups();
 
@@ -571,6 +599,7 @@ describe('AdminService', () => {
   describe('assignRolesToGroup', () => {
     it('should assign roles to group', async () => {
       mockPrismaClient.group.findUnique.mockResolvedValue(testGroup);
+      mockPrismaClient.role.findMany.mockResolvedValue([{ id: 'role-123', name: 'employee' }]);
       mockPrismaClient.groupRole.create.mockResolvedValue(testGroupRole);
 
       await adminService.assignRolesToGroup(testGroup.id, { roles: ['employee'] as any });
@@ -826,16 +855,19 @@ describe('AdminService', () => {
   describe('Role-based Authorization', () => {
     describe('createRole with canAccessAdmin', () => {
       it('should create role with canAccessAdmin=true', async () => {
-        mockPrismaClient.role.findUnique.mockResolvedValue(null);
-        mockPrismaClient.role.create.mockResolvedValue({
+        const createdRole = {
           id: 'new-role',
           name: 'security_admin',
           description: 'Security administrator',
           isBuiltIn: false,
           permissions: [],
           canAccessAdmin: true,
-          entityPermissions: { risks: 'readwrite', controls: 'readwrite' },
-        });
+          rolePermissions: [],
+        };
+        // First call: duplicate-name check; second call: refetch inside the transaction
+        mockPrismaClient.role.findUnique.mockResolvedValueOnce(null);
+        mockPrismaClient.role.findUnique.mockResolvedValue(createdRole);
+        mockPrismaClient.role.create.mockResolvedValue({ id: 'new-role' });
 
         const result = await adminService.createRole({
           name: 'security_admin',
@@ -845,20 +877,23 @@ describe('AdminService', () => {
         });
 
         expect(result.canAccessAdmin).toBe(true);
-        expect(result.entityPermissions.risks).toBe('readwrite');
+        expect(result.permissionNames).toEqual([]);
       });
 
       it('should create role with canAccessAdmin=false by default', async () => {
-        mockPrismaClient.role.findUnique.mockResolvedValue(null);
-        mockPrismaClient.role.create.mockResolvedValue({
+        const createdRole = {
           id: 'new-role',
           name: 'viewer',
           description: 'Read-only viewer',
           isBuiltIn: false,
           permissions: [],
           canAccessAdmin: false,
-          entityPermissions: { assets: 'readonly' },
-        });
+          rolePermissions: [],
+        };
+        // First call: duplicate-name check; second call: refetch inside the transaction
+        mockPrismaClient.role.findUnique.mockResolvedValueOnce(null);
+        mockPrismaClient.role.findUnique.mockResolvedValue(createdRole);
+        mockPrismaClient.role.create.mockResolvedValue({ id: 'new-role' });
 
         const result = await adminService.createRole({
           name: 'viewer',
@@ -871,11 +906,18 @@ describe('AdminService', () => {
 
     describe('updateRole canAccessAdmin', () => {
       it('should update canAccessAdmin flag on custom role', async () => {
-        mockPrismaClient.role.findUnique.mockResolvedValue({
+        mockPrismaClient.role.findUnique.mockResolvedValueOnce({
           id: 'role-123',
           name: 'custom_role',
           isBuiltIn: false,
           canAccessAdmin: false,
+        });
+        mockPrismaClient.role.findUnique.mockResolvedValue({
+          id: 'role-123',
+          name: 'custom_role',
+          isBuiltIn: false,
+          canAccessAdmin: true,
+          rolePermissions: [],
         });
         mockPrismaClient.role.update.mockResolvedValue({
           id: 'role-123',

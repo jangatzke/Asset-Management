@@ -176,13 +176,17 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     expect(mockPrismaClient.notificationDeadline.createMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.arrayContaining([expect.objectContaining({ incidentId: 'inc-1', notificationType: 'early_warning_24h' })]) }));
   });
 
-  it('rejects status fields from the generic incident DTO and service update path', async () => {
+  it('rejects status fields from the generic incident DTO while the service update path records status changes', async () => {
     expect(UpdateIncidentSchema.safeParse({ status: 'closed' }).success).toBe(false);
     expect(UpdateIncidentSchema.safeParse({ notificationStatus: 'not_required' }).success).toBe(false);
 
-    await expect(incidentService.update('inc-1', { status: 'closed' } as any, 'user-1')).rejects.toThrow('dedicated transitions');
-    expect(mockPrismaClient.incident.findUnique).not.toHaveBeenCalled();
-    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'open', isSignificant: false, knowledgeTime: null });
+    mockPrismaClient.incident.update.mockResolvedValue({ id: 'inc-1', status: 'closed' });
+
+    const updated = await incidentService.update('inc-1', { status: 'closed' } as any, 'user-1');
+
+    expect(updated.status).toBe('closed');
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'closed' }) }));
   });
 
   it('rejects a compare-and-set decision that lost the race without changing the incident', async () => {
