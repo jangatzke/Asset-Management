@@ -11,6 +11,7 @@ import EntitySearchSelect from '../components/EntitySearchSelect';
 import AssetGraph from '../components/AssetGraph';
 import AssetImpactAnalysis from '../components/AssetImpactAnalysis';
 import { useI18n } from '../context/I18nContext';
+import { useToast } from '../components/ToastProvider';
 
 interface Asset {
   id: string;
@@ -54,6 +55,9 @@ interface AssetRelation {
 
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
+const PAGE_SIZE = 50;
+const messageFrom = (error: any, fallback: string) =>
+  error?.response?.data?.error?.message ?? error?.response?.data?.error ?? error?.message ?? fallback;
 
 interface CreateAssetForm {
   name: string;
@@ -101,10 +105,17 @@ const initialForm: CreateAssetForm = {
 const Assets = () => {
   const location = useLocation();
   const { t } = useI18n();
+  const { addToast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetTypes, setAssetTypes] = useState<AssetType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterCriticality, setFilterCriticality] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 1 });
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -124,8 +135,8 @@ const Assets = () => {
   const [newRelationType, setNewRelationType] = useState('depends_on');
   const [existingRelations, setExistingRelations] = useState<AssetRelation[]>([]);
 
-  useEffect(() => { loadAssets(); loadAssetTypes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial asset page load only; loaders use current translation fallback for this mount.
+  useEffect(() => { loadAssetTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial asset-type load only; the fetch effect handles the initial asset page load.
   }, []);
 
   useEffect(() => {
@@ -160,15 +171,28 @@ const Assets = () => {
     }
   }, [form]);
 
-  const loadAssets = async () => {
+  const loadAssets = useCallback(async (overrides?: { page?: number; search?: string; assetTypeId?: string; criticality?: string; lifecycleStatus?: string }) => {
     try {
       setLoading(true);
-      const response = await assetApi.list({ page: 1, limit: 50 });
+      const params: any = {
+        page: overrides?.page ?? 1,
+        limit: PAGE_SIZE,
+        search: overrides?.search || undefined,
+        assetTypeId: overrides?.assetTypeId || undefined,
+        criticality: overrides?.criticality || undefined,
+        lifecycleStatus: overrides?.lifecycleStatus || undefined,
+      };
+      const response = await assetApi.list(params);
       setAssets(response.data?.data || []);
+      const paginationData = response.data?.pagination;
+      if (paginationData) {
+        setPagination({ total: paginationData.total ?? 0, totalPages: paginationData.totalPages ?? 1 });
+      }
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.saveError'));
+      setError(messageFrom(err, t('common.saveError')));
+      addToast('error', messageFrom(err, t('common.saveError')));
     } finally { setLoading(false); }
-  };
+  }, [t, addToast]);
 
   const loadAssetTypes = async () => {
     try {
@@ -180,7 +204,7 @@ const Assets = () => {
   // Search endpoint factories for EntitySearchSelect
   const searchAssets = async (q: string) => {
     try {
-      const res = await assetApi.list({ q, limit: 20 });
+      const res = await assetApi.list({ search: q, limit: 20 });
       return res.data?.data ?? [];
     } catch { return []; }
   };
@@ -210,10 +234,29 @@ const Assets = () => {
     } catch { return []; }
   };
 
-  const filteredAssets = assets.filter((asset) =>
-    asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    asset.displayId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Debounce the search input before hitting the server
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset to first page whenever filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterType, filterCriticality, filterStatus]);
+
+  // Fetch the current page from the server whenever the query changes
+  useEffect(() => {
+    void loadAssets({
+      page,
+      search: debouncedSearch,
+      assetTypeId: filterType,
+      criticality: filterCriticality,
+      lifecycleStatus: filterStatus,
+    });
+  }, [loadAssets, page, debouncedSearch, filterType, filterCriticality, filterStatus]);
 
   const selectedType = assetTypes.find((type) => type.id === form.values.assetTypeId);
   const selectedSubtype = selectedType?.subtypes?.find((subtype) => subtype.id === form.values.assetSubtypeId);
@@ -274,13 +317,16 @@ const Assets = () => {
       setModalOpen(false);
       form.resetForm();
       setExistingRelations([]);
+      addToast('success', editingId ? t('assets.updateSuccess') : t('assets.createSuccess'));
       await loadAssets();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assets.createSuccess'));
+      const message = messageFrom(err, t('common.saveError'));
+      setError(message);
+      addToast('error', message);
     } finally {
       setSaving(false);
     }
-  }, [form, editingId, existingRelations, t]);
+  }, [form, editingId, existingRelations, t, addToast, loadAssets]);
 
   const handleEdit = useCallback(async (asset: Asset) => {
       const openEditor = (data: any) => {
@@ -329,17 +375,22 @@ const Assets = () => {
       openEditor(res.data);
     } catch (err: any) {
       console.error('Failed to load asset details for editing:', err);
-      setError(err.response?.data?.error?.message || err.response?.data?.details?.[0]?.message || t('assets.loadDetailsError'));
+      const message = messageFrom(err, t('assets.loadDetailsError'));
+      setError(message);
+      addToast('error', message);
     }
-  }, [form, t]);
+  }, [form, t, addToast]);
 
   const handleDelete = async (id: string) => {
     if (!confirm(t('assets.deleteConfirm'))) return;
     try {
       await assetApi.delete(id);
+      addToast('success', t('assets.deleteSuccess'));
       await loadAssets();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.deleteError'));
+      const message = messageFrom(err, t('common.deleteError'));
+      setError(message);
+      addToast('error', message);
     }
   };
 
@@ -432,9 +483,42 @@ const Assets = () => {
             </div>
           )}
 
-          <div className="mb-4">
-            <input type="text" placeholder={t('assets.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="mb-4 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input type="text" placeholder={t('assets.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} aria-label={t('assets.fields.assetType')}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">{t('common.all')} {t('assets.fields.assetType')}</option>
+                {assetTypes.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
+              <select value={filterCriticality} onChange={(e) => setFilterCriticality(e.target.value)} aria-label={t('assets.fields.criticality')}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">{t('common.all')} {t('assets.fields.criticality')}</option>
+                <option value="low">{t('assets.criticality.low')}</option>
+                <option value="medium">{t('assets.criticality.medium')}</option>
+                <option value="high">{t('assets.criticality.high')}</option>
+                <option value="critical">{t('assets.criticality.critical')}</option>
+              </select>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} aria-label={t('assets.fields.lifecycleStatus')}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">{t('common.all')} {t('assets.fields.lifecycleStatus')}</option>
+                <option value="planned">{t('assets.lifecycleStatus.planned')}</option>
+                <option value="ordered">{t('assets.lifecycleStatus.ordered')}</option>
+                <option value="in_stock">{t('assets.lifecycleStatus.in_stock')}</option>
+                <option value="active">{t('assets.lifecycleStatus.active')}</option>
+                <option value="maintenance">{t('assets.lifecycleStatus.maintenance')}</option>
+                <option value="isolated">{t('assets.lifecycleStatus.isolated')}</option>
+                <option value="decommissioned">{t('assets.lifecycleStatus.decommissioned')}</option>
+                <option value="disposed">{t('assets.lifecycleStatus.disposed')}</option>
+                <option value="destroyed">{t('assets.lifecycleStatus.destroyed')}</option>
+                <option value="lost">{t('assets.lifecycleStatus.lost')}</option>
+                <option value="unknown">{t('assets.lifecycleStatus.unknown')}</option>
+              </select>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} {t('assets.results')}</p>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -452,9 +536,9 @@ const Assets = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredAssets.length === 0 ? (
+                {assets.length === 0 ? (
                    <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('assets.noAssets')}</td></tr>
-                ) : filteredAssets.map((asset) => (
+                ) : assets.map((asset) => (
                   <tr key={asset.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.displayId}</td>
                     <td className="px-6 py-4 text-sm font-medium text-blue-600 dark:text-blue-400 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
@@ -493,6 +577,20 @@ const Assets = () => {
               </tbody>
             </table>
           </div>
+
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {t('common.back')}
+              </button>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{page} / {pagination.totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages}
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {t('common.next')}
+              </button>
+            </div>
+          )}
         </>
       )}
 

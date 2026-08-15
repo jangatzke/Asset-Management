@@ -43,6 +43,7 @@
     "roles": "Roles",
     "update": "Update",
     "back": "Back",
+    "next": "Next",
     "allStatuses": "All Statuses",
     "all": "All",
     "number": "Number",
@@ -471,6 +472,7 @@
     "assetTreeViewerDescription": "Shows the selected asset with all upstream and downstream dependencies as a dependency graph. Edge labels identify the relationship type.",
     "searchPlaceholder": "Search assets...",
     "noAssets": "No assets found",
+    "results": "results",
     "columns": {
       "id": "ID",
       "name": "Name",

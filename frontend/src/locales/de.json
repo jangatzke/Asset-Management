@@ -43,6 +43,7 @@
     "roles": "Rollen",
     "update": "Aktualisieren",
     "back": "Zurück",
+    "next": "Weiter",
     "allStatuses": "Alle Status",
     "all": "Alle",
     "number": "Nummer",
@@ -471,6 +472,7 @@
     "assetTreeViewerDescription": "Zeigt das ausgewählte Asset mit allen eingehenden und ausgehenden Abhängigkeiten als Dependency Graph. Kantenbeschriftungen zeigen den Beziehungstyp.",
     "searchPlaceholder": "Assets suchen...",
     "noAssets": "Keine Assets gefunden",
+    "results": "Ergebnisse",
     "columns": {
       "id": "ID",
       "name": "Name",
