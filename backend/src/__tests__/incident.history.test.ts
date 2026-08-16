@@ -24,6 +24,7 @@ jest.mock('../config/database', () => ({
 
 jest.mock('../services/audit.service', () => ({
   auditService: {
+    logEvent: jest.fn().mockResolvedValue({}),
     logEventStandalone: jest.fn().mockResolvedValue({}),
   },
 }));

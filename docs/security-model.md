@@ -241,9 +241,13 @@ Limitierung pro Proxy-IP statt pro Endnutzer-IP.
 
 **Kompatibilität:** Bestehende AES-256-CBC-Werte (2-segmentiges
 `iv:ciphertext`-Format) bleiben lesbar; neu gespeicherte Werte nutzen das
-3-segmentige `iv:authTag:ciphertext`-Format (AES-256-GCM). Beim nächsten
-Update des jeweiligen Credentials wird automatisch im GCM-Format
-neu verschlüsselt.
+3-segmentige `iv:authTag:ciphertext`-Format (AES-256-GCM). Die
+Neuverschlüsselung eines Legacy-Wertes erfolgt nur, wenn bei einem Update
+des Credentials `password` bzw. `apiToken` tatsächlich mitgegeben wird –
+ein reines Umbenennen (Name/Username/IsDefault) verändert den gespeicherten
+Wert nicht und verschlüsselt ihn nicht neu. Um Legacy-Werte zu
+migrieren, muss also einmalig das Passwort/der API-Token des jeweiligen
+Credentials neu gespeichert werden.
 
 ## Phase 3 Pre-Authentication MFA and Password Gates
 
@@ -269,7 +273,7 @@ Expired or administrator-required password changes use a password-change pre-aut
 | `PROXMOX_ENCRYPTION_KEY` | Bei Nutzung Proxmox | **Kein Default (fail-closed)** | AES-256-GCM Key, exakt 32 Zeichen |
 | `MFA_ENCRYPTION_KEY` | Empfehlung | abgeleitet aus `JWT_SECRET` | AES-256-GCM Key für TOTP-Secrets |
 | `WEBHOOK_SIGNATURE_SECRET` | Bei X-Webhook-Secret | – | Inbound Shared Secret (`WEBHOOK_SECRET` als Legacy-Fallback) |
-| `TRUST_PROXY` | Bei Proxy | `true` (1 Hop) | Proxy-Hops für korrekte IP-Bestimmung (Rate-Limiting, Audit) |
+| `TRUST_PROXY` | Bei Proxy | `1` (1 Hop) | Proxy-Hops für korrekte IP-Bestimmung (Rate-Limiting, Audit); `true` wird explizit in die Zahl `1` übersetzt – boolean `true` würde den linksten, von Clients fälschbaren `X-Forwarded-For`-Eintrag vertrauen |
 | `HOST` | Nein | `127.0.0.1` | Bind-Adresse; `0.0.0.0` nur bei externer Erreichbarkeit |
 | `CORS_ORIGINS` | Production | `http://localhost:3000` | Erlaubte CORS-Origin(en), kommagetrennt |
 | `REFRESH_RATE_LIMIT_MAX` | Nein | `120` | Rate-Limit für `/auth/refresh` |

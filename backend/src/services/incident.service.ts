@@ -151,9 +151,11 @@ export class IncidentService {
   /**
    * Record a history entry for an incident change.
    * Append-only: each call creates a new record.
+   * Accepts the prisma client or a transaction handle so the entry can be
+   * written atomically together with the business change and the audit entry.
    */
-  private async recordHistoryEntry(incidentId: string, action: IncidentHistoryAction, summary: string, fieldChanges: Record<string, { old?: unknown; new?: unknown } | unknown> = {}, actorId?: string, ipAddress?: string, userAgent?: string) {
-    const historyEntry = (prisma as any).incidentHistoryEntry;
+  private async recordHistoryEntry(db: any, incidentId: string, action: IncidentHistoryAction, summary: string, fieldChanges: Record<string, { old?: unknown; new?: unknown } | unknown> = {}, actorId?: string, ipAddress?: string, userAgent?: string) {
+    const historyEntry = db.incidentHistoryEntry;
     if (!historyEntry) {
       console.warn('IncidentService.recordHistoryEntry: incidentHistoryEntry model not available on prisma client');
       return;
@@ -388,7 +390,7 @@ export class IncidentService {
     }
 
     // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(incident.id, 'CREATE', `Created incident: ${data.title}`, {}, createdBy);
+    await this.recordHistoryEntry(prisma, incident.id, 'CREATE', `Created incident: ${data.title}`, {}, createdBy);
 
     return incident;
   }
@@ -463,7 +465,7 @@ export class IncidentService {
     // Incident history entry (AUDIT-001)
     if (Object.keys(fieldChanges).length > 0) {
       const changedFields = Object.keys(fieldChanges).join(', ');
-      await this.recordHistoryEntry(id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
+      await this.recordHistoryEntry(prisma, id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
     }
 
     return incident;
@@ -487,7 +489,7 @@ export class IncidentService {
     }
 
     // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(id, 'DELETE', `Archived incident: ${existing.title}`, {}, deletedBy);
+    await this.recordHistoryEntry(prisma, id, 'DELETE', `Archived incident: ${existing.title}`, {}, deletedBy);
 
     await prisma.incident.update({
       where: { id },
@@ -551,7 +553,7 @@ export class IncidentService {
     });
 
     // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(incidentId, 'ASSESSMENT', `Assessed incident: ${data.isReportable ? 'reportable' : 'not reportable'}`, { isReportable: data.isReportable, justification: data.reportingJustification }, actorId);
+    await this.recordHistoryEntry(prisma, incidentId, 'ASSESSMENT', `Assessed incident: ${data.isReportable ? 'reportable' : 'not reportable'}`, { isReportable: data.isReportable, justification: data.reportingJustification }, actorId);
 
     return assessment;
   }
@@ -585,7 +587,7 @@ export class IncidentService {
       });
       return (tx as any).incidentAssessment.findUnique({ where: { incidentId } });
     });
-    await this.recordHistoryEntry(incidentId, 'ASSESSMENT', approved ? 'Approved non-reportable decision' : `Returned non-reportable decision: ${data.returnReason}`, { decision: data.decision }, actorId);
+    await this.recordHistoryEntry(prisma, incidentId, 'ASSESSMENT', approved ? 'Approved non-reportable decision' : `Returned non-reportable decision: ${data.returnReason}`, { decision: data.decision }, actorId);
     return updated;
   }
 
@@ -623,7 +625,7 @@ export class IncidentService {
     });
     await auditService.logEventStandalone(prisma, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: oldKnowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
     // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: oldKnowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
+    await this.recordHistoryEntry(prisma, incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: oldKnowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
     return updated;
   }
 
@@ -647,15 +649,23 @@ export class IncidentService {
     // still the value we validated against. A concurrent status change in the
     // window between the read and the write loses the race and receives a clean
     // 409 Conflict (same error class as the non-reportable approval race).
-    const updateResult = await prisma.incident.updateMany({
-      where: { id: incidentId, status: oldStatus },
-      data: { status: newStatus, updatedBy: actorId },
-    } as any);
-    if (updateResult?.count !== 1) throw new AppError('Incident status changed concurrently', 409);
-    const updated = await prisma.incident.findUnique({ where: { id: incidentId } });
-    await auditService.logEventStandalone(prisma, { userId: actorId, action: 'INCIDENT_STATUS_CHANGE', entityType: 'Incident', entityId: incidentId, details: data.reason, oldValue: { status: oldStatus }, newValue: { status: newStatus } });
-    // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(incidentId, 'STATUS_CHANGE', `Status changed from ${oldStatus} to ${newStatus}: ${data.reason}`, { oldStatus, newStatus }, actorId);
+    //
+    // CAS update, audit entry and history entry run in ONE database
+    // transaction: if the audit or history write fails, the status change
+    // rolls back as well — the client never observes a changed status without
+    // a complete audit trail (and vice versa).
+    const updated = await prisma.$transaction(async (tx) => {
+      const updateResult = await (tx as any).incident.updateMany({
+        where: { id: incidentId, status: oldStatus },
+        data: { status: newStatus, updatedBy: actorId },
+      } as any);
+      if (updateResult?.count !== 1) throw new AppError('Incident status changed concurrently', 409);
+      const current = await tx.incident.findUnique({ where: { id: incidentId } });
+      await auditService.logEvent(tx, { userId: actorId, action: 'INCIDENT_STATUS_CHANGE', entityType: 'Incident', entityId: incidentId, details: data.reason, oldValue: { status: oldStatus }, newValue: { status: newStatus } });
+      // Incident history entry (AUDIT-001)
+      await this.recordHistoryEntry(tx, incidentId, 'STATUS_CHANGE', `Status changed from ${oldStatus} to ${newStatus}: ${data.reason}`, { oldStatus, newStatus }, actorId);
+      return current;
+    });
     return updated;
   }
 
@@ -726,8 +736,8 @@ export class IncidentService {
     const updated = await prisma.incident.update({ where: { id: incidentId }, data: { rootCause, lessonsLearned: data.lessonsLearned ?? incident.lessonsLearned, measuresEvaluation, closureSummary: data.closureSummary, status: 'closed', closedAt: new Date(), closedBy, updatedBy: closedBy } as any });
     await auditService.logEventStandalone(prisma, { userId: closedBy, action: 'INCIDENT_CLOSE', entityType: 'Incident', entityId: incidentId, details: data.closureSummary ?? 'Closed incident with root cause and measures evaluation' });
     // Incident history entries (AUDIT-001)
-    await this.recordHistoryEntry(incidentId, 'STATUS_CHANGE', `Status changed to closed`, { oldStatus: incident.status, newStatus: 'closed' }, closedBy);
-    await this.recordHistoryEntry(incidentId, 'CLOSE', data.closureSummary ?? 'Closed incident with root cause and measures evaluation', { rootCause, measuresEvaluation, closureSummary: data.closureSummary }, closedBy);
+    await this.recordHistoryEntry(prisma, incidentId, 'STATUS_CHANGE', `Status changed to closed`, { oldStatus: incident.status, newStatus: 'closed' }, closedBy);
+    await this.recordHistoryEntry(prisma, incidentId, 'CLOSE', data.closureSummary ?? 'Closed incident with root cause and measures evaluation', { rootCause, measuresEvaluation, closureSummary: data.closureSummary }, closedBy);
     return updated;
   }
 

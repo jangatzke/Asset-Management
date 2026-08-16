@@ -72,13 +72,20 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 // Resolve the trust-proxy setting BEFORE any middleware that relies on the
 // client IP (rate limiting, audit IPs, CORS).
-//   TRUST_PROXY=true/1   → trust the first proxy hop (default behind one LB)
+//   TRUST_PROXY=true/1   → trust exactly one proxy hop (default behind one LB)
 //   TRUST_PROXY=2        → trust two proxy hops (e.g. CDN → LB → app)
 //   TRUST_PROXY=false/0  → disabled (direct connection, dev)
+//
+// Security note: never resolve to boolean `true`. In Express, `trust proxy = true`
+// trusts the LEFTMOST X-Forwarded-For entry, which a client can spoof unless the
+// last proxy unconditionally overwrites every X-Forwarded-* header. A numeric
+// value limits trust to exactly N hops from the socket and is the only setting
+// that keeps req.ip honest for rate limiting and audit logging. "true" is
+// therefore explicitly translated to the number 1.
 function resolveTrustProxy(): number | boolean {
   const raw = process.env.TRUST_PROXY;
   if (raw === undefined) return 1;
-  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'true' || raw === '1') return 1;
   if (raw === 'false' || raw === '0') return false;
   const num = Number(raw);
   return Number.isInteger(num) && num > 0 ? num : false;

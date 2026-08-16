@@ -48,8 +48,9 @@ temp/
 tmp/
 
 # Local tool output files (jest/vitest/tsc captures, accidental shell artifacts)
-$null
 jest_output*.txt
 jest_result*.txt
 *_output.txt
 tsc_*.txt
+# Patch/diff artifacts
+*.patch
