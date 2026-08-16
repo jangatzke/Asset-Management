@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { DocumentPlusIcon, PencilSquareIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { incidentApi } from '../services/api';
+import type { CreateIncidentDTO, UpdateIncidentDTO } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
 import { useDirtyForm } from '../hooks/useDirtyForm';
@@ -55,12 +56,11 @@ interface IncidentForm {
   detectionTime: string;
   knowledgeTime: string;
   incidentManagerId: string;
-  severity: string;
-  status: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
   reporterSource: string;
-  confidentialityImpact: string;
-  integrityImpact: string;
-  availabilityImpact: string;
+  confidentialityImpact: 'none' | 'low' | 'medium' | 'high';
+  integrityImpact: 'none' | 'low' | 'medium' | 'high';
+  availabilityImpact: 'none' | 'low' | 'medium' | 'high';
   operationalImpact: string;
   financialImpact: string;
   legalImpact: string;
@@ -88,7 +88,6 @@ const initialIncidentForm = (currentUserId = ''): IncidentForm => {
     knowledgeTime: now,
     incidentManagerId: currentUserId,
     severity: 'medium',
-    status: 'new',
     reporterSource: '',
     confidentialityImpact: 'none',
     integrityImpact: 'none',
@@ -240,12 +239,11 @@ const Incidents = () => {
       detectionTime: toDateTimeLocal(incident.detectionTime),
       knowledgeTime: toDateTimeLocal(incident.knowledgeTime),
       incidentManagerId: incident.incidentManagerId || currentUser?.id || '',
-      severity: incident.severity || 'medium',
-      status: incident.status || 'new',
+      severity: (['low', 'medium', 'high', 'critical'].includes(incident.severity) ? incident.severity : 'medium') as IncidentForm['severity'],
       reporterSource: incident.reporterSource || '',
-      confidentialityImpact: incident.confidentialityImpact || 'none',
-      integrityImpact: incident.integrityImpact || 'none',
-      availabilityImpact: incident.availabilityImpact || 'none',
+      confidentialityImpact: (['none', 'low', 'medium', 'high'].includes(incident.confidentialityImpact || '') ? incident.confidentialityImpact : 'none') as IncidentForm['confidentialityImpact'],
+      integrityImpact: (['none', 'low', 'medium', 'high'].includes(incident.integrityImpact || '') ? incident.integrityImpact : 'none') as IncidentForm['integrityImpact'],
+      availabilityImpact: (['none', 'low', 'medium', 'high'].includes(incident.availabilityImpact || '') ? incident.availabilityImpact : 'none') as IncidentForm['availabilityImpact'],
       operationalImpact: incident.operationalImpact || '',
       financialImpact: incident.financialImpact?.toString() || '',
       legalImpact: incident.legalImpact || '',
@@ -263,13 +261,13 @@ const Incidents = () => {
     setModalOpen(true);
   }, [form, currentUser, t]);
 
-  const buildIncidentPayload = () => {
+  const buildIncidentPayload = (): CreateIncidentDTO => {
     const v = form.values;
-    const payload: any = {
+    const payload: CreateIncidentDTO = {
       title: v.title.trim(),
       description: v.description.trim(),
-      detectionTime: new Date(v.detectionTime).toISOString(),
-      knowledgeTime: new Date(v.knowledgeTime).toISOString(),
+      detectionTime: new Date(v.detectionTime),
+      knowledgeTime: new Date(v.knowledgeTime),
       incidentManagerId: v.incidentManagerId.trim(),
       severity: v.severity,
       reporterSource: v.reporterSource.trim() || undefined,
@@ -287,7 +285,6 @@ const Incidents = () => {
     };
 
     if (v.financialImpact.trim()) payload.financialImpact = Number(v.financialImpact);
-    if (editingIncident) payload.status = v.status;
     return payload;
   };
 
@@ -304,7 +301,7 @@ const Incidents = () => {
     try {
       const payload = buildIncidentPayload();
       if (editingIncident) {
-        await incidentApi.update(editingIncident.id, payload);
+        await incidentApi.update(editingIncident.id, payload satisfies UpdateIncidentDTO);
         setActionMessage(t('incidents.updateSuccess'));
       } else {
         await incidentApi.create(payload);
@@ -523,18 +520,10 @@ const Incidents = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.severity')}</label>
-              <select value={form.values.severity} onChange={(e) => form.handleChange({ severity: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {['low', 'medium', 'high', 'critical'].map((severity) => <option key={severity} value={severity}>{t(`incidents.severity.${severity}`)}</option>)}
+              <select value={form.values.severity} onChange={(e) => form.handleChange({ severity: e.target.value as IncidentForm['severity'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {(['low', 'medium', 'high', 'critical'] as const).map((severity) => <option key={severity} value={severity}>{t(`incidents.severity.${severity}`)}</option>)}
               </select>
             </div>
-            {editingIncident && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.status')}</label>
-                <select value={form.values.status} onChange={(e) => form.handleChange({ status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {['new', 'under_investigation', 'contained', 'resolved', 'closed'].map((status) => <option key={status} value={status}>{t(`incidents.status.${status}`)}</option>)}
-                </select>
-              </div>
-            )}
             <EntityPicker
               labelKey="incidents.fields.incidentManagerId"
               entityType="user"
@@ -573,20 +562,20 @@ const Incidents = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.confidentialityImpact')}</label>
-              <select value={form.values.confidentialityImpact} onChange={(e) => form.handleChange({ confidentialityImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {['none', 'low', 'medium', 'high'].map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
+              <select value={form.values.confidentialityImpact} onChange={(e) => form.handleChange({ confidentialityImpact: e.target.value as IncidentForm['confidentialityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.integrityImpact')}</label>
-              <select value={form.values.integrityImpact} onChange={(e) => form.handleChange({ integrityImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {['none', 'low', 'medium', 'high'].map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
+              <select value={form.values.integrityImpact} onChange={(e) => form.handleChange({ integrityImpact: e.target.value as IncidentForm['integrityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.availabilityImpact')}</label>
-              <select value={form.values.availabilityImpact} onChange={(e) => form.handleChange({ availabilityImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {['none', 'low', 'medium', 'high'].map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
+              <select value={form.values.availabilityImpact} onChange={(e) => form.handleChange({ availabilityImpact: e.target.value as IncidentForm['availabilityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>

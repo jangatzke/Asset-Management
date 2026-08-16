@@ -30,6 +30,19 @@ export interface TransitionValidationResult {
 }
 
 // ==========================================
+// Incident transitions (workflow states)
+// new -> under_investigation | contained | resolved
+// under_investigation -> new | contained | resolved
+// contained -> under_investigation | resolved
+// resolved is terminal; 'closed' is only reachable via the gated /close endpoint
+// ==========================================
+const incidentTransitions: Record<string, Set<string>> = {
+  new: new Set(['under_investigation', 'contained', 'resolved']),
+  under_investigation: new Set(['new', 'contained', 'resolved']),
+  contained: new Set(['under_investigation', 'resolved']),
+};
+
+// ==========================================
 // Corrective Action transitions
 // open -> in_progress | deferred | cancelled
 // in_progress -> completed | deferred
@@ -152,6 +165,7 @@ const securityObjectiveTransitions: Record<string, Set<string>> = {
 
 // Build the full matrix
 export const transitionMatrix: TransitionMatrix = {
+  incidents: { ...incidentTransitions },
   correctiveActions: { ...correctiveActionTransitions },
   auditFindings: { ...auditFindingTransitions },
   bias: { ...biaTransitions },

@@ -4,7 +4,7 @@ import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, r
 import { validateBody } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';
 import { authorizationService } from '../services/authorization.service';
-import { AssessIncidentSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
+import { AssessIncidentSchema, ChangeIncidentStatusSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
 
 export const incidentRouter = Router();
 
@@ -92,6 +92,17 @@ incidentRouter.post('/:id/assess', authenticate, requireEntityPermission('incide
 incidentRouter.post('/:id/non-reportable-approval', authenticate, requirePermission('nis2.approve'), requireEntityPermission('incidents.read', 'incidents'), validateBody(DecideIncidentNonReportableApprovalSchema), async (req: AuthRequest, res, next) => {
   try {
     res.json(await incidentService.decideNonReportableAssessment(req.params.id, req.body, req.userId!));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Dedicated status transition: workflow state changes run exclusively through
+// this endpoint. 'closed' is not a valid target here (use /:id/close).
+incidentRouter.post('/:id/status', authenticate, authorizeEntityWrite('incidents'), validateBody(ChangeIncidentStatusSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const incident = await incidentService.changeIncidentStatus(req.params.id, req.body, req.userId ?? 'system');
+    res.json(incident);
   } catch (error) {
     next(error);
   }

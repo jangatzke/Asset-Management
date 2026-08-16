@@ -131,9 +131,9 @@ describe('Incident History (AUDIT-001)', () => {
       );
     });
 
-    it('creates one summarized history entry when status and other fields change in one save', async () => {
-      // Set up findUnique to return existing incident for update
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+    it('records a field-change entry and a separate status transition entry when both change in one save', async () => {
+      // Set up findUnique to return existing incident for update and status transition
+      mockPrisma.incident.findUnique.mockResolvedValue({
         id: 'incident-1',
         title: 'Test Incident',
         description: 'Original description',
@@ -145,7 +145,7 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:00:00Z'),
       } as any);
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
+      mockPrisma.incident.update.mockResolvedValue({
         id: 'incident-1',
         title: 'Updated Incident',
         description: 'Updated description',
@@ -161,30 +161,43 @@ describe('Incident History (AUDIT-001)', () => {
         title: 'Updated Incident',
         description: 'Updated description',
         severity: 'high',
-        status: 'under_investigation',
         availabilityImpact: 'high',
       }, 'user-1');
 
-      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(1);
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
 
-      const statusChangeCall = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls[0];
-      expect(statusChangeCall[0].data).toEqual(
+      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(2);
+
+      const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
+      expect(createCalls.map((call: any) => call[0].data.action)).toEqual(['UPDATE', 'STATUS_CHANGE']);
+
+      const updateEntry = createCalls[0][0].data;
+      expect(updateEntry).toEqual(
         expect.objectContaining({
           incidentId: 'incident-1',
-          action: 'STATUS_CHANGE',
-          summary: 'Status changed from new to under_investigation; updated fields: title, description, severity, availabilityImpact',
+          action: 'UPDATE',
+          summary: 'Updated incident: Test Incident (title, description, severity, availabilityImpact)',
           actorId: 'user-1',
         })
       );
+      expect(updateEntry.fieldChanges).toEqual({
+        title: { old: 'Test Incident', new: 'Updated Incident' },
+        description: { old: 'Original description', new: 'Updated description' },
+        severity: { old: 'low', new: 'high' },
+        availabilityImpact: { old: 'medium', new: 'high' },
+      });
+      expect(updateEntry.fieldChanges).not.toHaveProperty('oldStatus');
 
-      // Verify fieldChanges contains status plus the other changed fields in the single summarized entry
-      const fieldChanges = statusChangeCall[0].data.fieldChanges;
-      expect(fieldChanges).toEqual(expect.objectContaining({ oldStatus: 'new', newStatus: 'under_investigation' }));
-      expect(fieldChanges).toHaveProperty('title');
-      expect(fieldChanges).toHaveProperty('severity');
-      expect(fieldChanges).not.toHaveProperty('status');
-      expect(fieldChanges.title).toEqual({ old: 'Test Incident', new: 'Updated Incident' });
-      expect(fieldChanges.severity).toEqual({ old: 'low', new: 'high' });
+      const statusChangeCall = createCalls[1][0].data;
+      expect(statusChangeCall).toEqual(
+        expect.objectContaining({
+          incidentId: 'incident-1',
+          action: 'STATUS_CHANGE',
+          summary: 'Status changed from new to under_investigation: Starting investigation',
+          actorId: 'user-1',
+          fieldChanges: { oldStatus: 'new', newStatus: 'under_investigation' },
+        })
+      );
     });
 
     it('creates visible creation and status transition history entries for new to under investigation', async () => {
@@ -221,7 +234,7 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:15:00Z'),
       } as any);
 
-      await incidentService.update('incident-1', { status: 'under_investigation' }, 'user-1');
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
 
       const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
       expect(createCalls).toHaveLength(2);
@@ -238,14 +251,14 @@ describe('Incident History (AUDIT-001)', () => {
         expect.objectContaining({
           incidentId: 'incident-1',
           action: 'STATUS_CHANGE',
-          summary: 'Status changed from new to under_investigation',
+          summary: 'Status changed from new to under_investigation: Starting investigation',
           actorId: 'user-1',
           fieldChanges: { oldStatus: 'new', newStatus: 'under_investigation' },
         })
       );
     });
 
-    it('creates only create and status-change history when frontend edit payload changes new to under investigation with no other actual changes', async () => {
+    it('creates only create and status-change history when only the status changes', async () => {
       await incidentService.create(
         {
           title: 'Investigation Incident',
@@ -258,7 +271,7 @@ describe('Incident History (AUDIT-001)', () => {
         'user-1'
       );
 
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+      mockPrisma.incident.findUnique.mockResolvedValue({
         id: 'incident-1',
         title: 'Investigation Incident',
         description: 'A test incident requiring investigation',
@@ -267,26 +280,11 @@ describe('Incident History (AUDIT-001)', () => {
         detectionTime: new Date('2026-01-01T10:00:00Z'),
         knowledgeTime: new Date('2026-01-01T10:05:00Z'),
         incidentManagerId: 'manager-1',
-        reporterSource: null,
-        confidentialityImpact: 'none',
-        integrityImpact: 'none',
-        availabilityImpact: 'none',
-        operationalImpact: null,
-        financialImpact: null,
-        legalImpact: null,
-        personalDataImpact: false,
-        suspectedCause: null,
-        isIntentional: null,
-        hasCrossBorderImpact: null,
-        affectedCustomers: [],
-        affectedThirdParties: [],
-        indicatorsOfCompromise: [],
-        immediateActions: [],
         createdAt: new Date('2026-01-01T10:00:00Z'),
         updatedAt: new Date('2026-01-01T10:00:00Z'),
       } as any);
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
+      mockPrisma.incident.update.mockResolvedValue({
         id: 'incident-1',
         title: 'Investigation Incident',
         description: 'A test incident requiring investigation',
@@ -299,25 +297,7 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:15:00Z'),
       } as any);
 
-      await incidentService.update('incident-1', {
-        title: 'Investigation Incident',
-        description: 'A test incident requiring investigation',
-        detectionTime: new Date('2026-01-01T10:00:00Z'),
-        knowledgeTime: new Date('2026-01-01T10:05:00Z'),
-        incidentManagerId: 'manager-1',
-        severity: 'medium',
-        status: 'under_investigation',
-        reporterSource: undefined,
-        confidentialityImpact: 'none',
-        integrityImpact: 'none',
-        availabilityImpact: 'none',
-        operationalImpact: undefined,
-        legalImpact: undefined,
-        personalDataImpact: false,
-        suspectedCause: undefined,
-        isIntentional: false,
-        hasCrossBorderImpact: false,
-      }, 'user-1');
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
 
       const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
       expect(createCalls).toHaveLength(2);
@@ -326,7 +306,7 @@ describe('Incident History (AUDIT-001)', () => {
         expect.objectContaining({
           incidentId: 'incident-1',
           action: 'STATUS_CHANGE',
-          summary: 'Status changed from new to under_investigation',
+          summary: 'Status changed from new to under_investigation: Starting investigation',
           actorId: 'user-1',
           fieldChanges: { oldStatus: 'new', newStatus: 'under_investigation' },
         })
@@ -339,7 +319,7 @@ describe('Incident History (AUDIT-001)', () => {
         toJSON: () => '0.00',
       };
 
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+      mockPrisma.incident.findUnique.mockResolvedValue({
         id: 'incident-1',
         title: 'Contained Incident',
         description: 'A contained incident',
@@ -353,7 +333,7 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:15:00Z'),
       } as any);
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
+      mockPrisma.incident.update.mockResolvedValue({
         id: 'incident-1',
         title: 'Contained Incident',
         description: 'A contained incident',
@@ -367,10 +347,11 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:30:00Z'),
       } as any);
 
-      await incidentService.update('incident-1', {
-        status: 'contained',
-        financialImpact: 0,
-      }, 'user-1');
+      // Sending the unchanged Decimal-normalized financialImpact via the generic
+      // update path must not create a history entry (value normalization).
+      await incidentService.update('incident-1', { financialImpact: 0 }, 'user-1');
+
+      await incidentService.changeIncidentStatus('incident-1', { status: 'contained', reason: 'Contained' }, 'user-1');
 
       expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(1);
 
@@ -379,12 +360,11 @@ describe('Incident History (AUDIT-001)', () => {
         expect.objectContaining({
           incidentId: 'incident-1',
           action: 'STATUS_CHANGE',
-          summary: 'Status changed from under_investigation to contained',
+          summary: 'Status changed from under_investigation to contained: Contained',
           actorId: 'user-1',
           fieldChanges: { oldStatus: 'under_investigation', newStatus: 'contained' },
         })
       );
-      expect(statusChangeCall[0].data.summary).not.toContain('updated fields');
       expect(statusChangeCall[0].data.summary).not.toContain('financialImpact');
       expect(statusChangeCall[0].data.fieldChanges).not.toHaveProperty('financialImpact');
     });
@@ -733,7 +713,7 @@ describe('Incident History (AUDIT-001)', () => {
       expect(data.fieldChanges).toBeDefined();
     });
 
-    it('captures status and other changed fields in one summarized status-change entry', async () => {
+    it('records a field-change entry and a separate status entry when status and fields change', async () => {
       // Reset mocks completely for this test
       mockPrisma.incident.findUnique.mockReset();
       mockPrisma.incident.findUnique.mockResolvedValue({
@@ -766,27 +746,35 @@ describe('Incident History (AUDIT-001)', () => {
       await incidentService.update('incident-1', {
         title: 'New Title',
         severity: 'critical',
-        status: 'under_investigation',
         availabilityImpact: 'high',
       }, 'user-1');
 
-      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(1);
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
 
-      const statusChangeCall = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls.find((call: any) => call[0].data.action === 'STATUS_CHANGE');
-      expect(statusChangeCall).toBeDefined();
-      const fieldChanges = statusChangeCall[0].data.fieldChanges;
+      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(2);
 
-      expect(fieldChanges.oldStatus).toBe('new');
-      expect(fieldChanges.newStatus).toBe('under_investigation');
+      const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
 
-      // Only changed fields should be recorded
-      expect(fieldChanges.title).toEqual({ old: 'Original Title', new: 'New Title' });
-      expect(fieldChanges.severity).toEqual({ old: 'low', new: 'critical' });
-      expect(fieldChanges.availabilityImpact).toEqual({ old: 'medium', new: 'high' });
+      const updateEntry = createCalls.find((call: any) => call[0].data.action === 'UPDATE');
+      expect(updateEntry).toBeDefined();
+      const updateFieldChanges = updateEntry[0].data.fieldChanges;
+
+      // Only changed fields should be recorded in the update entry
+      expect(updateFieldChanges.title).toEqual({ old: 'Original Title', new: 'New Title' });
+      expect(updateFieldChanges.severity).toEqual({ old: 'low', new: 'critical' });
+      expect(updateFieldChanges.availabilityImpact).toEqual({ old: 'medium', new: 'high' });
 
       // Unchanged fields should NOT be in fieldChanges
-      expect(fieldChanges.description).toBeUndefined();
-      expect(fieldChanges.confidentialityImpact).toBeUndefined();
+      expect(updateFieldChanges.description).toBeUndefined();
+      expect(updateFieldChanges.confidentialityImpact).toBeUndefined();
+      expect(updateFieldChanges).not.toHaveProperty('oldStatus');
+      expect(updateFieldChanges).not.toHaveProperty('newStatus');
+
+      const statusChangeCall = createCalls.find((call: any) => call[0].data.action === 'STATUS_CHANGE');
+      expect(statusChangeCall).toBeDefined();
+      const statusFieldChanges = statusChangeCall[0].data.fieldChanges;
+      expect(statusFieldChanges.oldStatus).toBe('new');
+      expect(statusFieldChanges.newStatus).toBe('under_investigation');
     });
   });
 
@@ -818,7 +806,7 @@ describe('Incident History (AUDIT-001)', () => {
 
   describe('Status change fieldChanges integrity', () => {
     it('status change from contained to under_investigation stores oldStatus/newStatus but no duplicate field entries', async () => {
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+      mockPrisma.incident.findUnique.mockResolvedValue({
         id: 'incident-1',
         title: 'Contained Incident',
         description: 'A test incident',
@@ -829,7 +817,7 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:00:00Z'),
       } as any);
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
+      mockPrisma.incident.update.mockResolvedValue({
         id: 'incident-1',
         title: 'Contained Incident',
         description: 'A test incident',
@@ -840,12 +828,12 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:15:00Z'),
       } as any);
 
-      await incidentService.update('incident-1', { status: 'under_investigation' }, 'user-1');
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Reopening investigation' }, 'user-1');
 
       expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(1);
       const callArgs = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls[0][0];
       expect(callArgs.data.action).toBe('STATUS_CHANGE');
-      expect(callArgs.data.summary).toBe('Status changed from contained to under_investigation');
+      expect(callArgs.data.summary).toBe('Status changed from contained to under_investigation: Reopening investigation');
 
       // Verify fieldChanges contains oldStatus/newStatus but no bogus empty-field entries.
       const fieldChanges = callArgs.data.fieldChanges as Record<string, unknown>;
@@ -855,8 +843,8 @@ describe('Incident History (AUDIT-001)', () => {
       expect(Object.keys(fieldChanges)).toEqual(['oldStatus', 'newStatus']);
     });
 
-    it('status change with additional field changes includes them alongside oldStatus/newStatus', async () => {
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+    it('status transition with additional field changes stores a field entry and a status entry', async () => {
+      mockPrisma.incident.findUnique.mockResolvedValue({
         id: 'incident-1',
         title: 'Test Incident',
         description: 'Original',
@@ -867,7 +855,7 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:00:00Z'),
       } as any);
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
+      mockPrisma.incident.update.mockResolvedValue({
         id: 'incident-1',
         title: 'Test Incident Updated',
         description: 'Original',
@@ -878,22 +866,35 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:15:00Z'),
       } as any);
 
-      await incidentService.update('incident-1', { status: 'under_investigation', severity: 'high', title: 'Test Incident Updated' }, 'user-1');
+      await incidentService.update('incident-1', { severity: 'high', title: 'Test Incident Updated' }, 'user-1');
 
-      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(1);
-      const callArgs = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls[0][0];
-      const fieldChanges = callArgs.data.fieldChanges as Record<string, unknown>;
-      expect(fieldChanges.oldStatus).toBe('new');
-      expect(fieldChanges.newStatus).toBe('under_investigation');
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
+
+      expect(mockPrisma.incidentHistoryEntry.create).toHaveBeenCalledTimes(2);
+      const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
+
+      const updateEntry = createCalls.find((call: any) => call[0].data.action === 'UPDATE');
+      expect(updateEntry).toBeDefined();
+      const updateFieldChanges = updateEntry[0].data.fieldChanges as Record<string, unknown>;
       // Other changed fields should be stored with {old, new} structure.
-      expect((fieldChanges.severity as { old: string; new: string }).old).toBe('low');
-      expect((fieldChanges.severity as { old: string; new: string }).new).toBe('high');
+      expect((updateFieldChanges.severity as { old: string; new: string }).old).toBe('low');
+      expect((updateFieldChanges.severity as { old: string; new: string }).new).toBe('high');
+      expect((updateFieldChanges.title as { old: string; new: string }).old).toBe('Test Incident');
+      expect((updateFieldChanges.title as { old: string; new: string }).new).toBe('Test Incident Updated');
+      expect(updateFieldChanges).not.toHaveProperty('oldStatus');
+      expect(updateFieldChanges).not.toHaveProperty('newStatus');
+
+      const statusEntry = createCalls.find((call: any) => call[0].data.action === 'STATUS_CHANGE');
+      expect(statusEntry).toBeDefined();
+      const statusFieldChanges = statusEntry[0].data.fieldChanges as Record<string, unknown>;
+      expect(statusFieldChanges.oldStatus).toBe('new');
+      expect(statusFieldChanges.newStatus).toBe('under_investigation');
     });
   });
 
   describe('Actor attribution on history entries', () => {
     it('all status-change and update history entries include actorId when provided', async () => {
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+      mockPrisma.incident.findUnique.mockResolvedValue({
         id: 'incident-1',
         title: 'Test Incident',
         description: 'Original',
@@ -904,9 +905,9 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:00:00Z'),
       } as any);
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
+      mockPrisma.incident.update.mockResolvedValue({
         id: 'incident-1',
-        title: 'Test Incident Updated',
+        title: 'Test Incident',
         description: 'Original',
         severity: 'high',
         status: 'under_investigation',
@@ -915,10 +916,13 @@ describe('Incident History (AUDIT-001)', () => {
         updatedAt: new Date('2026-01-01T10:15:00Z'),
       } as any);
 
-      await incidentService.update('incident-1', { status: 'under_investigation', severity: 'high' }, 'user-42');
+      await incidentService.update('incident-1', { severity: 'high' }, 'user-42');
 
-      const callArgs = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls[0][0];
-      expect(callArgs.data.actorId).toBe('user-42');
+      await incidentService.changeIncidentStatus('incident-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-42');
+
+      const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
+      expect(createCalls).toHaveLength(2);
+      expect(createCalls.map((call: any) => call[0].data.actorId)).toEqual(['user-42', 'user-42']);
     });
 
     it('incident creation history entry includes createdBy as actorId', async () => {

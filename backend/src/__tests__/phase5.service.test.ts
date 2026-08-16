@@ -176,17 +176,56 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     expect(mockPrismaClient.notificationDeadline.createMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.arrayContaining([expect.objectContaining({ incidentId: 'inc-1', notificationType: 'early_warning_24h' })]) }));
   });
 
-  it('rejects status fields from the generic incident DTO while the service update path records status changes', async () => {
+  it('rejects status fields from the generic incident DTO and in the service update path', async () => {
     expect(UpdateIncidentSchema.safeParse({ status: 'closed' }).success).toBe(false);
     expect(UpdateIncidentSchema.safeParse({ notificationStatus: 'not_required' }).success).toBe(false);
 
-    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'open', isSignificant: false, knowledgeTime: null });
-    mockPrismaClient.incident.update.mockResolvedValue({ id: 'inc-1', status: 'closed' });
+    await expect(incidentService.update('inc-1', { status: 'closed' } as any, 'user-1')).rejects.toThrow('dedicated status transition endpoint');
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.auditLog.create).not.toHaveBeenCalled();
+  });
 
-    const updated = await incidentService.update('inc-1', { status: 'closed' } as any, 'user-1');
+  it('applies a valid incident status transition with reason, audit, and history', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'new', isSignificant: false, knowledgeTime: null });
+    mockPrismaClient.incident.update.mockResolvedValue({ id: 'inc-1', status: 'under_investigation' });
 
-    expect(updated.status).toBe('closed');
-    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'closed' }) }));
+    const updated = await incidentService.changeIncidentStatus('inc-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
+
+    expect(updated.status).toBe('under_investigation');
+    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith({ where: { id: 'inc-1' }, data: { status: 'under_investigation', updatedBy: 'user-1' } });
+    expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'user-1', action: 'INCIDENT_STATUS_CHANGE' }) }));
+  });
+
+  it('rejects closed as a status transition target (requires the dedicated close endpoint)', async () => {
+    await expect(incidentService.changeIncidentStatus('inc-1', { status: 'closed', reason: 'Done' }, 'user-1')).rejects.toThrow('dedicated close endpoint');
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an incident status transition without a reason', async () => {
+    await expect(incidentService.changeIncidentStatus('inc-1', { status: 'under_investigation', reason: '   ' }, 'user-1')).rejects.toThrow('reason');
+    expect(mockPrismaClient.incident.findUnique).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the incident does not exist for a status transition', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue(null);
+
+    await expect(incidentService.changeIncidentStatus('inc-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1')).rejects.toThrow('not found');
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a transition from the terminal resolved incident status', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'resolved' });
+
+    await expect(incidentService.changeIncidentStatus('inc-1', { status: 'new', reason: 'Reopen' }, 'user-1')).rejects.toThrow('not valid');
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an incident status transition to the current status', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'new' });
+
+    await expect(incidentService.changeIncidentStatus('inc-1', { status: 'new', reason: 'No change' }, 'user-1')).rejects.toThrow('already in status');
+    expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
   });
 
   it('rejects a compare-and-set decision that lost the race without changing the incident', async () => {

@@ -3,6 +3,7 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
+import { validateTransition } from './statusTransition';
 
 // ==========================================
 // Incident History (AUDIT-001)
@@ -59,10 +60,9 @@ export interface CreateIncidentData {
   measuresEvaluation?: string;
 }
 
-export type UpdateIncidentData = Partial<CreateIncidentData> & {
-  status?: string;
-  notificationStatus?: string;
-};
+// Workflow state (status/notificationStatus) is intentionally excluded:
+// state changes run exclusively through the dedicated status transition endpoint.
+export type UpdateIncidentData = Partial<CreateIncidentData>;
 
 export interface ListIncidentsQuery {
   page?: string;
@@ -394,13 +394,11 @@ export class IncidentService {
   }
 
   async update(id: string, data: UpdateIncidentData, updatedBy?: string) {
+    if ((data as Record<string, unknown>).status !== undefined || (data as Record<string, unknown>).notificationStatus !== undefined) {
+      throw new AppError('Incident status is workflow state and can only be changed through the dedicated status transition endpoint', 400);
+    }
     const existing = await prisma.incident.findUnique({ where: { id } });
     if (!existing) throw new AppError('Incident not found', 404);
-
-    // Detect status change for STATUS_CHANGE history entry
-    const statusChanged = data.status !== undefined && data.status !== existing.status;
-    const oldStatus = existing.status;
-    const newStatus = data.status;
 
     if (data.knowledgeTime !== undefined && existing.knowledgeTime !== null && new Date(data.knowledgeTime).getTime() !== existing.knowledgeTime.getTime()) {
       throw new AppError('Knowledge time is protected and must be changed through the dedicated endpoint with reason', 400);
@@ -462,19 +460,8 @@ export class IncidentService {
       return result;
     });
 
-    // Incident history entry (AUDIT-001): STATUS_CHANGE + UPDATE on status change, or just UPDATE otherwise.
-    if (statusChanged) {
-      // Include status in fieldChanges for the summary
-      fieldChanges.oldStatus = oldStatus;
-      fieldChanges.newStatus = newStatus;
-      // Remove 'status' key from fieldChanges (we use oldStatus/newStatus instead)
-      delete fieldChanges.status;
-      const changedFields = Object.keys(fieldChanges).filter(k => k !== 'oldStatus' && k !== 'newStatus').join(', ');
-      const summary = changedFields
-        ? `Status changed from ${oldStatus} to ${newStatus}; updated fields: ${changedFields}`
-        : `Status changed from ${oldStatus} to ${newStatus}`;
-      await this.recordHistoryEntry(id, 'STATUS_CHANGE', summary, fieldChanges, updatedBy);
-    } else if (Object.keys(fieldChanges).length > 0) {
+    // Incident history entry (AUDIT-001)
+    if (Object.keys(fieldChanges).length > 0) {
       const changedFields = Object.keys(fieldChanges).join(', ');
       await this.recordHistoryEntry(id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
     }
@@ -637,6 +624,29 @@ export class IncidentService {
     await auditService.logEventStandalone(prisma, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: oldKnowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
     // Incident history entry (AUDIT-001)
     await this.recordHistoryEntry(incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: oldKnowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
+    return updated;
+  }
+
+  /**
+   * Dedicated incident status transition. Workflow state changes run exclusively
+   * through this method (never through the generic update path). 'closed' is
+   * intentionally not reachable here: closing requires the gated closeIncident
+   * flow (root cause, measures evaluation, final report).
+   */
+  async changeIncidentStatus(incidentId: string, data: { status: string; reason: string }, actorId: string) {
+    if (!data?.reason?.trim()) throw new AppError('Changing incident status requires a reason', 400);
+    const newStatus = data.status;
+    if (newStatus === 'closed') throw new AppError('Closing an incident requires the dedicated close endpoint with root cause, measures evaluation and final report', 400);
+    const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
+    if (!incident) throw new AppError('Incident not found', 404);
+    if (incident.status === newStatus) throw new AppError(`Incident is already in status '${newStatus}'`, 400);
+    const validation = validateTransition('incidents', incident.status, newStatus);
+    if (!validation.allowed) throw new AppError(validation.message ?? `Invalid incident status transition from '${incident.status}' to '${newStatus}'`, 400);
+    const oldStatus = incident.status;
+    const updated = await prisma.incident.update({ where: { id: incidentId }, data: { status: newStatus, updatedBy: actorId } } as any);
+    await auditService.logEventStandalone(prisma, { userId: actorId, action: 'INCIDENT_STATUS_CHANGE', entityType: 'Incident', entityId: incidentId, details: data.reason, oldValue: { status: oldStatus }, newValue: { status: newStatus } });
+    // Incident history entry (AUDIT-001)
+    await this.recordHistoryEntry(incidentId, 'STATUS_CHANGE', `Status changed from ${oldStatus} to ${newStatus}: ${data.reason}`, { oldStatus, newStatus }, actorId);
     return updated;
   }
 

@@ -646,7 +646,22 @@ export type CreateIncidentDTO = z.input<typeof CreateIncidentSchema>;
 // Workflow state is intentionally omitted: only dedicated incident transitions
 // may change status or notificationStatus.
 export const UpdateIncidentSchema = CreateIncidentSchema.partial().strict();
-export type UpdateIncidentDTO = z.infer<typeof UpdateIncidentSchema>;
+// HTTP clients send JSON-compatible input (for example ISO-8601 strings for
+// coerced dates); the route validates and coerces it before invoking services.
+export type UpdateIncidentDTO = z.input<typeof UpdateIncidentSchema>;
+
+// Dedicated status transition: workflow state changes run exclusively through
+// this endpoint. 'closed' is intentionally not a valid target here: closing an
+// incident requires the gated /close endpoint (root cause, measures evaluation,
+// and final report).
+export const TransitionableIncidentStatusSchema = z.enum(['new', 'under_investigation', 'contained', 'resolved']);
+export type TransitionableIncidentStatus = z.infer<typeof TransitionableIncidentStatusSchema>;
+
+export const ChangeIncidentStatusSchema = z.object({
+  status: TransitionableIncidentStatusSchema,
+  reason: z.string().min(1, 'Changing incident status requires a reason'),
+});
+export type ChangeIncidentStatusDTO = z.infer<typeof ChangeIncidentStatusSchema>;
 
 export const AssessIncidentSchema = z.object({
   isReportable: z.boolean(),

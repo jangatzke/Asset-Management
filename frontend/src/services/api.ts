@@ -4,6 +4,7 @@ import type {
   ArchiveAssetDTO,
   AssetQueryDTO,
   AssessIncidentDTO,
+  ChangeIncidentStatusDTO,
   ChangeKnowledgeTimeDTO,
   CloseIncidentDTO,
   ControlImplementationDTO,
@@ -35,6 +36,8 @@ import type {
   UpdateRiskControlDTO,
   UpdateRiskDTO,
 } from '../../../shared/src';
+
+export type { CreateIncidentDTO, UpdateIncidentDTO };
 
 export interface PaginatedApiResponse<T> {
   data: T[];
@@ -436,6 +439,7 @@ export const incidentApi = {
   update: (id: string, data: UpdateIncidentDTO) => api.put(`/incidents/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/incidents/${id}`),
   assess: (id: string, data: AssessIncidentDTO) => api.post(`/incidents/${id}/assess`, data),
+  changeStatus: (id: string, data: ChangeIncidentStatusDTO) => api.post(`/incidents/${id}/status`, data),
   decideNonReportableApproval: (id: string, data: { decision: 'approve' | 'reject'; returnReason?: string }) => api.post(`/incidents/${id}/non-reportable-approval`, data),
   changeKnowledgeTime: (id: string, data: ChangeKnowledgeTimeDTO) => api.post(`/incidents/${id}/knowledge-time`, data),
   recalculateDeadlines: (id: string) => api.post<IncidentDeadlineResponse[]>(`/incidents/${id}/recalculate-deadlines`),

@@ -1,5 +1,5 @@
 /**
- * Regression test for the corrective_actions.displayId repair migration.
+ * Regression test for the corrective_actions.displayId collision repair migration.
  *
  * Validates that the migration:
  *   - Adds the displayId column if missing
@@ -17,7 +17,7 @@ import path from 'path';
 
 const migrationPath = path.resolve(
   __dirname,
-  '../../prisma/migrations/20260813175600_repair_corrective_actions_displayid/migration.sql',
+  '../../prisma/migrations/20260816151000_fix_corrective_action_displayid_collisions/migration.sql',
 );
 
 const databaseUrl = process.env.MIGRATION_TEST_DATABASE_URL;
@@ -48,7 +48,7 @@ const runSql = (url: string, sql: string): string =>
     { encoding: 'utf8', stdio: 'pipe' },
   ).trim();
 
-describe('corrective_actions.displayId repair migration', () => {
+describe('corrective_actions.displayId collision repair migration', () => {
   const runIfDatabaseAvailable = databaseUrl && canUsePsql() ? it : it.skip;
 
   const createSchema = (schemaName: string, url: string) =>

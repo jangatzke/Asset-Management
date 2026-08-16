@@ -1,0 +1,3 @@
+-- Migration: 0027_widen_license_assignment_model
+-- Description: Widen licenses.assignmentModel from VARCHAR(8) to VARCHAR(16) so the value 'concurrent' (10 chars) fits; 'named' (5 chars) was the only value that fit before
+-- Date: 2026-08-16

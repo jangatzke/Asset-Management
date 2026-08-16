@@ -1647,24 +1647,24 @@ model Incident {
 }
 
 model IncidentAssessment {
-  id                        String    @id @default(uuid())
-  incidentId                String    @unique
-  assessorId                String
-  isReportable              Boolean   @default(false)
-  reportingJustification    String?
-  decisionNotToReport       String?
+  id                         String    @id @default(uuid())
+  incidentId                 String    @unique
+  assessorId                 String
+  isReportable               Boolean   @default(false)
+  reportingJustification     String?
+  decisionNotToReport        String?
   decisionApprovalAssigneeId String?
-  decisionApprovedBy        String?
-  decisionApprovedAt        DateTime?
-  significanceRuleVersionId String?
-  evaluatedRules            String? @db.NVarChar(Max)
-  assessmentDate            DateTime  @default(now())
-  status                    String    @default("active")
-  isArchived                Boolean   @default(false)
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  createdBy                 String?
-  updatedBy                 String?
+  decisionApprovedBy         String?
+  decisionApprovedAt         DateTime?
+  significanceRuleVersionId  String?
+  evaluatedRules             String? @db.NVarChar(Max)
+  assessmentDate             DateTime  @default(now())
+  status                     String    @default("active")
+  isArchived                 Boolean   @default(false)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  createdBy                  String?
+  updatedBy                  String?
 
   incident                Incident                             @relation(fields: [incidentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   significanceRuleVersion Nis2IncidentSignificanceRuleVersion? @relation(fields: [significanceRuleVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -3068,26 +3068,30 @@ model Contract {
 }
 
 model License {
-  id          String    @id @default(uuid())
-  displayId   String    @unique
-  title       String
-  description String?
-  licenseType String // perpetual, subscription, concurrent, etc.
-  vendor      String?
-  productId   String? // Reference to software asset
-  licenseKey  String?
-  seats       Int?
-  startDate   DateTime?
-  endDate     DateTime?
-  renewalDate DateTime?
-  cost        Decimal?
-  currency    String?
-  status      String    @default("active")
-  isArchived  Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   String?
-  updatedBy   String?
+  id              String    @id @default(uuid())
+  displayId       String    @unique
+  title           String
+  description     String?
+  licenseType     String // perpetual, subscription, concurrent, etc.
+  vendor          String?
+  productId       String? // Reference to software asset
+  licenseKey      String?
+  seats           Int? // entitlement quantity
+  startDate       DateTime?
+  endDate         DateTime?
+  renewalDate     DateTime?
+  cost            Decimal?
+  currency        String?
+  status          String    @default("active")
+  // licensingBasis: "user" or "device"
+  licensingBasis  String    @default("user")
+  // assignmentModel: "named" or "concurrent"
+  assignmentModel String    @default("named")
+  isArchived      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
 
   assetLinks    AssetLicense[]
   contractLinks ContractLicense[]
