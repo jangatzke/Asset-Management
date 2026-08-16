@@ -2,36 +2,90 @@
  * VMware Credential Service
  *
  * Manages encrypted credentials for VMware vCenter authentication.
- * Passwords are encrypted with AES-256-CBC before storage.
+ * Passwords are encrypted with authenticated AES-256-GCM before storage.
+ * Legacy AES-256-CBC values remain readable (backward compatible).
+ *
+ * Key handling is fail-closed: the service refuses to run when
+ * VMWARE_ENCRYPTION_KEY is missing or not exactly 32 characters.
  */
 
 import { prisma } from '../config/database';
 import crypto from 'crypto';
 import { AppError } from '../middleware/errorHandler';
 
-const ENCRYPTION_KEY = (process.env.VMWARE_ENCRYPTION_KEY || 'default-32-byte-key-for-dev!!').padEnd(32, '0').slice(0, 32);
-const ALGORITHM = 'aes-256-cbc';
+const ENCRYPTION_KEY_ENV = 'VMWARE_ENCRYPTION_KEY';
+const LEGACY_ALGORITHM = 'aes-256-cbc';
 
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const key = Buffer.from(ENCRYPTION_KEY);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+function resolveEncryptionKey(): Buffer {
+  const rawKey = process.env[ENCRYPTION_KEY_ENV];
+  if (!rawKey) {
+    throw new AppError(
+      `${ENCRYPTION_KEY_ENV} is not set. Set it to a 32-character secret before starting the server.`,
+      500,
+      true
+    );
+  }
+  if (rawKey.length !== 32) {
+    throw new AppError(
+      `${ENCRYPTION_KEY_ENV} must be exactly 32 characters long (got ${rawKey.length}).`,
+      500,
+      true
+    );
+  }
+  return Buffer.from(rawKey, 'utf8');
 }
 
+/**
+ * Encrypt plaintext with AES-256-GCM.
+ * Output format: `<ivHex>:<authTagHex>:<ciphertextHex>` (three parts).
+ */
+function encrypt(text: string): string {
+  const iv = crypto.randomBytes(12);
+  const key = resolveEncryptionKey();
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag();
+  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+}
+
+/**
+ * Decrypt a stored value.
+ * Supports both:
+ *  - new format:  `<ivHex>:<authTagHex>:<ciphertextHex>` (AES-256-GCM)
+ *  - legacy:      `<ivHex>:<ciphertextHex>` (AES-256-CBC)
+ */
 function decrypt(encryptedText: string): string {
-  const [ivHex, encrypted] = encryptedText.split(':');
-  if (!ivHex || !encrypted) {
-    throw new AppError('Invalid encrypted data format', 500);
+  const parts = encryptedText.split(':');
+  const key = resolveEncryptionKey();
+
+  if (parts.length === 3) {
+    const [ivHex, authTagHex, ciphertextHex] = parts;
+    if (!ivHex || !authTagHex || !ciphertextHex) {
+      throw new AppError('Invalid encrypted data format', 500);
+    }
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(ciphertextHex, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
   }
-  const iv = Buffer.from(ivHex, 'hex');
-  const key = Buffer.from(ENCRYPTION_KEY);
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+
+  if (parts.length === 2) {
+    const [ivHex, ciphertextHex] = parts;
+    if (!ivHex || !ciphertextHex) {
+      throw new AppError('Invalid encrypted data format', 500);
+    }
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv(LEGACY_ALGORITHM, key, iv);
+    let decrypted = decipher.update(ciphertextHex, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  }
+
+  throw new AppError('Invalid encrypted data format', 500);
 }
 
 export interface VmwareCredentialDto {

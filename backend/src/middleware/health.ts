@@ -245,6 +245,32 @@ async function checkOptionalIntegration(
     return { status: 'skipped', details: `${name} integration not configured` };
   }
 
+  return runIntegrationCheck(name, checkFn);
+}
+
+/**
+ * Check an integration that is "configured" when its secret/env var is set
+ * (as opposed to a boolean *_ENABLED flag). Used for encryption keys, which
+ * are arbitrary strings and therefore cannot be tested against 'true'/'1'.
+ */
+async function checkKeyBasedIntegration(
+  name: string,
+  keyVar: string,
+  checkFn: () => Promise<boolean>
+): Promise<HealthCheckResult> {
+  const key = process.env[keyVar];
+  if (!key) {
+    return { status: 'skipped', details: `${name} integration not configured (${keyVar} not set)` };
+  }
+
+  return runIntegrationCheck(name, checkFn);
+}
+
+async function runIntegrationCheck(
+  name: string,
+  checkFn: () => Promise<boolean>
+): Promise<HealthCheckResult> {
+
   try {
     const healthy = await checkFn();
     return {
@@ -325,18 +351,20 @@ export const healthReady = async (_req: Request, res: Response): Promise<void> =
     async () => !!process.env.SMTP_HOST && !!process.env.SMTP_USER
   );
 
-  // VMware vCenter
-  checks['vmware'] = await checkOptionalIntegration(
+  // VMware vCenter — configured when the encryption key is set (key-based gating)
+  checks['vmware'] = await checkKeyBasedIntegration(
     'VMware',
     'VMWARE_ENCRYPTION_KEY',
     async () => !!process.env.VMWARE_ENCRYPTION_KEY && process.env.VMWARE_ENCRYPTION_KEY.length === 32
   );
 
-  // Proxmox
-  checks['proxmox'] = await checkOptionalIntegration(
+  // Proxmox — configured when the encryption key is set (key-based gating).
+  // Previously gated on PROXMOX_ENABLED with a stub check that always passed,
+  // which was inconsistent with the VMware check and gave a false "healthy".
+  checks['proxmox'] = await checkKeyBasedIntegration(
     'Proxmox',
-    'PROXMOX_ENABLED',
-    async () => true
+    'PROXMOX_ENCRYPTION_KEY',
+    async () => !!process.env.PROXMOX_ENCRYPTION_KEY && process.env.PROXMOX_ENCRYPTION_KEY.length === 32
   );
 
   // 5. Registered runtime health checks

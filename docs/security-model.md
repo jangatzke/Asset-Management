@@ -214,10 +214,14 @@ app.use(helmet({
 
 | Endpoint | Limit | Fenster |
 |----------|-------|---------|
-| `/auth/login` | 5 Versuche | 1 Minute pro IP |
-| `/auth/register` | 3 Versuche | 10 Minuten pro IP |
-| `/oidc/callback` | 10 Versuche | 1 Minute pro IP |
-| Alle anderen API-Endpunkte | 100 Requests | 1 Minute pro Token |
+| `/auth/login`, `/auth/register`, `/auth/login/mfa`, `/auth/preauth/*`, `/auth/oidc/*`, `/auth/me/*` | `AUTH_RATE_LIMIT_MAX` (Default 20) | `AUTH_RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+| `/auth/refresh` | `REFRESH_RATE_LIMIT_MAX` (Default 120) | `AUTH_RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+| `/service-accounts/auth` (Token-Verifizierung) | Globaler API-Limiter | `RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+| Alle anderen API-Endpunkte | `RATE_LIMIT_MAX_REQUESTS` (Default 100) | `RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+
+Hinweis: Die Rate-Limiter werten `req.ip` aus; hinter Reverse-Proxy/Load-Balancer
+muss `TRUST_PROXY` korrekt gesetzt sein (Default: 1 Hop), sonst greift die
+Limitierung pro Proxy-IP statt pro Endnutzer-IP.
 
 ---
 
@@ -230,8 +234,16 @@ app.use(helmet({
 | Passwörter | bcrypt Hashing – nie im Klartext speichern oder loggen |
 | JWT Secrets | Umgebungsvariable – nie im Code |
 | OIDC Client Secret | Verschlüsselt in DB (zukünftig) |
-| Intune/vCenter/Proxmox Credentials | `passwordEncrypted` Feld – AES-256-GCM mit Application-Key |
+| vCenter Credentials | `passwordEncrypted` – AES-256-**GCM** (authentifizierte Verschlüsselung), Key aus `VMWARE_ENCRYPTION_KEY` (fail-closed, exakt 32 Zeichen) |
+| Proxmox Credentials | `passwordEncrypted`/`apiToken` – AES-256-**GCM**, Key aus `PROXMOX_ENCRYPTION_KEY` (fail-closed, exakt 32 Zeichen) |
+| MFA (TOTP) Secrets | `mfaSecret` – AES-256-GCM, Key aus `MFA_ENCRYPTION_KEY` (Fallback: abgeleitet aus `JWT_SECRET`) |
 | PII (Namen, E-Mails) | Zugriffsbeschränkung via RBAC |
+
+**Kompatibilität:** Bestehende AES-256-CBC-Werte (2-segmentiges
+`iv:ciphertext`-Format) bleiben lesbar; neu gespeicherte Werte nutzen das
+3-segmentige `iv:authTag:ciphertext`-Format (AES-256-GCM). Beim nächsten
+Update des jeweiligen Credentials wird automatisch im GCM-Format
+neu verschlüsselt.
 
 ## Phase 3 Pre-Authentication MFA and Password Gates
 
@@ -251,10 +263,17 @@ Expired or administrator-required password changes use a password-change pre-aut
 
 | Variable | Erforderlich | Default | Beschreibung |
 |----------|-------------|---------|-------------|
-| `DATABASE_URL` | Ja | – | PostgreSQL Verbindungsstring |
+| `DATABASE_URL` | Ja | – | PostgreSQL/SQL-Server Verbindungsstring |
 | `JWT_SECRET` | Ja | **Kein Default** | JWT Signatur-Secret (≥ 32 Zeichen) |
-| `CORS_ORIGIN` | Production | `*` (Dev nur) | Erlaubte CORS-Origin(en) |
-| `BCRYPT_ROUNDS` | Nein | `10` | bcrypt Hashing-Runden |
+| `VMWARE_ENCRYPTION_KEY` | Bei Nutzung vCenter | **Kein Default (fail-closed)** | AES-256-GCM Key, exakt 32 Zeichen |
+| `PROXMOX_ENCRYPTION_KEY` | Bei Nutzung Proxmox | **Kein Default (fail-closed)** | AES-256-GCM Key, exakt 32 Zeichen |
+| `MFA_ENCRYPTION_KEY` | Empfehlung | abgeleitet aus `JWT_SECRET` | AES-256-GCM Key für TOTP-Secrets |
+| `WEBHOOK_SIGNATURE_SECRET` | Bei X-Webhook-Secret | – | Inbound Shared Secret (`WEBHOOK_SECRET` als Legacy-Fallback) |
+| `TRUST_PROXY` | Bei Proxy | `true` (1 Hop) | Proxy-Hops für korrekte IP-Bestimmung (Rate-Limiting, Audit) |
+| `HOST` | Nein | `127.0.0.1` | Bind-Adresse; `0.0.0.0` nur bei externer Erreichbarkeit |
+| `CORS_ORIGINS` | Production | `http://localhost:3000` | Erlaubte CORS-Origin(en), kommagetrennt |
+| `REFRESH_RATE_LIMIT_MAX` | Nein | `120` | Rate-Limit für `/auth/refresh` |
+| `BACKUP_MAX_FILE_SIZE_MB` | Nein | `50` | Maximale Backup-Upload-Größe (Disk-Storage) |
 | `NODE_ENV` | Nein | `development` | Umgebungsmodus |
 
 ---
@@ -270,8 +289,8 @@ Expired or administrator-required password changes use a password-change pre-aut
 
 ### 7.2 Session-Management
 
-- Access-Token: 1 Stunde TTL
-- Refresh-Token: 7 Tage TTL mit Rotation
+- Access-Token: 20 Minuten TTL (`JWT_ACCESS_TOKEN_EXPIRES_IN`)
+- Refresh-Token: 7 Tage TTL mit Rotation + Reuse-Detection (Familien-Revocation)
 - Automatische Invalidierung bei Passwortänderung
 - Logout invalidiert alle aktiven Sessions des Benutzers
 
@@ -329,3 +348,43 @@ Refresh tokens are generated with 256 bits of random entropy, stored only as SHA
 Frontend session handling now stores the access token only in memory. Durable `localStorage` access-token use was removed. Axios retries an original request exactly once after a successful refresh, and concurrent 401 responses share one in-flight refresh request.
 
 Phase 1 historical context: the Phase 1 integration commit included pre-existing unrelated risk-control workflow changes according to `git show --stat`. Phase 2 did not expand or refactor those unrelated changes.
+
+---
+
+## 10. Offene Punkte (bekannt, nicht kritisch)
+
+Die folgenden Punkte wurden im Sicherheits-/Code-Review identifiziert, sind
+aber nicht als kritisch/hoch eingestuft und sind mit Planungs- oder
+Abwägungsbedarf verbunden. Stand: 2026-08-16.
+
+### 10.1 Authentifizierung & Sessions
+
+| # | Punkt | Priorität | Hinweis / nächste Aktion |
+|---|-------|-----------|--------------------------|
+| 1 | MFA-Key fällt auf abgeleiteten `JWT_SECRET` zurück | Mittel | `MFA_ENCRYPTION_KEY` dediziert setzen (siehe `.env.example`). Langfristig: fail-closed wie bei Credential-Keys. |
+| 2 | Service-Account `/auth`-Endpoint nicht separat rate-limitiert | Mittel | Profitiert vom globalen Limiter; bei hohem Volumen eigenen Limiter ergänzen. |
+| 3 | `POST /auth/logout` ohne eigenen Limiter | Niedrig | Logout ist idempotent; Risiko gering, aber Limiter ergänzbar. |
+
+### 10.2 Performance / Skalierung
+
+| # | Punkt | Priorität | Hinweis / nächste Aktion |
+|---|-------|-----------|--------------------------|
+| 4 | `webhookAuth.ts` nutzt pro Request `await import('../config/database.js')` | Mittel | Statisch importieren (modul-Loader-Overhead vermeiden). |
+| 5 | In-Memory-Idempotency-Store wächst ohne Redis | Mittel | Redis aktivieren (`.env.example`) oder TTL-Budget prüfen; Cleanup-Interval bereits vorhanden. |
+| 6 | Webhook-Queue-Polling (5 s) statt Push | Niedrig | Akzeptabel; bei höherem Volumen Worker-Count/Redis-Queues prüfen. |
+
+### 10.3 Architektur / Wartbarkeit
+
+| # | Punkt | Priorität | Hinweis / nächste Aktion |
+|---|-------|-----------|--------------------------|
+| 7 | Fragiles Regex-Parsing der Prisma-Schema-JSON-Felder (`config/database.ts`) | Mittel | Robuster Parser oder Metadaten-Datei statt Schema-Text-Parsing. |
+| 8 | `displayId`-Erstellung bei Service Accounts: Race bei paralleler Anlage | Niedrig | DB-Constraint (unique) + Retry statt Anwendungsfeststellung. |
+| 9 | Duplizierte Token-Validierungslogik in `serviceAccountAuth.ts` und `serviceAccount.routes.ts` | Niedrig | Gemeinsame Funktion in `utils/` extrahieren. |
+
+### 10.4 Abhängigkeiten
+
+| # | Punkt | Priorität | Hinweis / nächste Aktion |
+|---|-------|-----------|--------------------------|
+| 10 | `multer` ^1.4.5-lts.1 (ältere Major-Version) | Mittel | Upgrade auf multer 2.x (API-kompatibel für diskStorage) im nächsten Wartungsfenster. |
+| 11 | `express` ^4.18.2 (v5 verfügbar) | Niedrig | Migration bewusst planen (Router/Body-Parser-Änderungen). |
+| 12 | `bcryptjs` (pure JS) statt nativen `bcrypt`/`argon2` | Niedrig | Funktionell OK; native Variante schneller bei hoher Last. Argon2id wäre die krypto-bestpractice-Option. |

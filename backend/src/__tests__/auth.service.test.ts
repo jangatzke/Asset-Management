@@ -216,6 +216,9 @@ describe('AuthService', () => {
         password: testUserPassword,
       };
 
+      // Login now always verifies the password first (timing-side-channel fix),
+      // so the compare result must be explicitly set for this case.
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
       mockPrismaClient.user.findUnique.mockResolvedValue({
         ...testUser,
         isActive: false,

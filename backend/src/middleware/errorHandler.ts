@@ -37,24 +37,38 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
-  const statusCode = (err as AppError).statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-  
+  const appError = err as AppError;
+  const isOperational = appError.name === 'AppError' && appError.isOperational !== false;
+  const statusCode = appError.statusCode || 500;
+
+  // Non-operational errors (unexpected failures) must never leak internal
+  // details (stack, SQL, file paths, environment) to the client. Log the full
+  // error server-side and return a generic message instead.
+  if (!isOperational) {
+    console.error('[errorHandler] Unhandled (non-operational) error:', err);
+  }
+
+  const message = isOperational
+    ? (err.message || 'Internal Server Error')
+    : (statusCode === 404 ? 'Resource not found' : 'Internal Server Error');
+
   // Determine error code for better client-side handling
-  let errorCode = (err as AppError).name === 'AppError' ? 'OPERATIONAL_ERROR' : 'INTERNAL_ERROR';
-  
+  let errorCode = isOperational ? 'OPERATIONAL_ERROR' : 'INTERNAL_ERROR';
+
   // Map common status codes to error codes
   if (statusCode === 404) errorCode = 'NOT_FOUND';
   if (statusCode === 401) errorCode = 'UNAUTHORIZED';
   if (statusCode === 403) errorCode = 'FORBIDDEN';
   if (statusCode === 409) errorCode = 'CONFLICT';
-  
+
   res.status(statusCode).json({
     success: false,
     error: {
       message,
       code: errorCode,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+      // Stack traces only for operational errors in development — never for
+      // non-operational (internal) errors, as they can leak sensitive details.
+      ...(process.env.NODE_ENV === 'development' && isOperational && { stack: err.stack }),
     },
   });
 };

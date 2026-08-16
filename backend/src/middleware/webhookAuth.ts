@@ -10,6 +10,7 @@
 
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+import { secureCompare } from '../utils/secureCompare';
 
 export interface WebhookRequest extends Request {
   webhookPrincipal?: {
@@ -63,21 +64,22 @@ export async function authenticateWebhook(
         },
         select: { id: true, name: true, accessTokenSalt: true, accessTokenHash: true },
       });
-
-      if (account) {
-        // Verify using stored salt
-        const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
-        if (computedHash !== account.accessTokenHash) {
-          account = null;
-        }
-      }
-    }
+       if (account) {
+         // Verify using stored salt (constant-time comparison to avoid timing side channels)
+         const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
+         if (!secureCompare(computedHash, account.accessTokenHash)) {
+           account = null;
+         }
+       }
+     }
 
     if (account) {
       await prisma.serviceAccount.update({
         where: { id: account.id },
         data: { lastUsedAt: new Date() },
-      }).catch(() => {});
+      }).catch(() => {
+        // Best-effort bookkeeping: a failed lastUsedAt update must not break the request
+      });
 
       req.webhookPrincipal = {
         type: 'webhook',
@@ -90,9 +92,9 @@ export async function authenticateWebhook(
 
   // Mode 2: X-Webhook-Secret header (for simple integrations)
   const webhookSecret = req.headers['x-webhook-secret'] as string | undefined;
-  const expectedSecret = process.env.WEBHOOK_SECRET;
+  const expectedSecret = process.env.WEBHOOK_SIGNATURE_SECRET || process.env.WEBHOOK_SECRET;
 
-  if (webhookSecret && expectedSecret && webhookSecret === expectedSecret) {
+  if (webhookSecret && expectedSecret && secureCompare(webhookSecret, expectedSecret)) {
     req.webhookPrincipal = {
       type: 'webhook',
       source: 'secret-header',

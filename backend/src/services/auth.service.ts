@@ -376,23 +376,39 @@ export class AuthService {
     return this.issueAuthenticatedSession(user, context);
   }
 
+  // Pre-computed bcrypt hash used to equalize response timing when the user
+  // does not exist (or is inactive), so an attacker cannot distinguish
+  // "unknown user" from "wrong password" by measuring response time.
+  private static dummyPasswordHash: string | null = null;
+
+  private getDummyPasswordHash(): string {
+    if (AuthService.dummyPasswordHash === null) {
+      AuthService.dummyPasswordHash = bcrypt.hashSync(
+        'dummy-password-for-timing-equalization',
+        10
+      );
+    }
+    return AuthService.dummyPasswordHash;
+  }
+
   async login(credentials: LoginCredentials, context: SessionContext = {}): Promise<AuthFlowResult> {
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
     }) as LocalAuthUser | null;
 
-    if (!user) {
+    // Always run a bcrypt comparison (against the real hash, or a dummy one)
+    // so the timing profile is identical regardless of user existence.
+    const isValid = await bcrypt.compare(
+      credentials.password,
+      user?.passwordHash ?? this.getDummyPasswordHash()
+    );
+
+    if (!user || !isValid) {
       throw new AppError('Invalid email or password', 401);
     }
 
     if (!user.isActive) {
       return { state: 'disabled' };
-    }
-
-    const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
-
-    if (!isValid) {
-      throw new AppError('Invalid email or password', 401);
     }
 
     return this.nextStateAfterPassword(user, context);

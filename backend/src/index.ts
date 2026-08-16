@@ -25,7 +25,7 @@ import { setupGracefulShutdown } from './middleware/gracefulShutdown';
 import { initializeIdempotency, initializeRedisClient } from './middleware/idempotency';
 
 // Existing imports
-import { errorHandler } from './middleware/errorHandler';
+import { errorHandler, notFound } from './middleware/errorHandler';
 import { authRouter } from './routes/auth.routes';
 import { userRouter } from './routes/user.routes';
 import { assetRouter } from './routes/asset.routes';
@@ -66,7 +66,24 @@ import { ensureStandardAssetTypes } from './services/bootstrap.service';
 const app: Application = express();
 const DEFAULT_BACKEND_PORT = 3001;
 const FRONTEND_DEV_PORT = 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+// Bind to loopback by default (defense in depth). Deployments that need to be
+// reachable from other hosts must explicitly set HOST=0.0.0.0 (or an interface IP).
+const HOST = process.env.HOST || '127.0.0.1';
+
+// Resolve the trust-proxy setting BEFORE any middleware that relies on the
+// client IP (rate limiting, audit IPs, CORS).
+//   TRUST_PROXY=true/1   → trust the first proxy hop (default behind one LB)
+//   TRUST_PROXY=2        → trust two proxy hops (e.g. CDN → LB → app)
+//   TRUST_PROXY=false/0  → disabled (direct connection, dev)
+function resolveTrustProxy(): number | boolean {
+  const raw = process.env.TRUST_PROXY;
+  if (raw === undefined) return 1;
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return false;
+  const num = Number(raw);
+  return Number.isInteger(num) && num > 0 ? num : false;
+}
+app.set('trust proxy', resolveTrustProxy());
 
 function resolveBackendPort(): number {
   const configuredPort = Number(process.env.PORT || DEFAULT_BACKEND_PORT);
@@ -202,6 +219,9 @@ app.use('/api/v1/service-accounts/auth', serviceAccountAuthRouter);
 app.use('/api/v1/service-accounts', authenticate, authorize('admin'), idempotency(), serviceAccountRouter);
 
 // ==================== Error Handling ====================
+// 404 handler for any route that did not match (returns JSON, not Express's
+// default HTML page). Must be registered after all routes, before errorHandler.
+app.use(notFound);
 app.use(errorHandler);
 
 // ==================== Server Startup ====================

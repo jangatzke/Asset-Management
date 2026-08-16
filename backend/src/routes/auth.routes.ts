@@ -62,6 +62,18 @@ const authRateLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test' && process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS !== 'true',
 });
 
+// The /refresh endpoint is called far more often than login (token renewal on
+// every expired access token), so it gets its own, less restrictive limiter to
+// prevent brute-force / replay of refresh tokens without breaking normal usage.
+const refreshRateLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  limit: () => Number(process.env.REFRESH_RATE_LIMIT_MAX || 120),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: { message: 'Too many token refresh attempts. Please try again later.' } },
+  skip: () => process.env.NODE_ENV === 'test' && process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS !== 'true',
+});
+
 authRouter.get('/has-admin', async (_req, res, next) => {
   try {
     const hasAdmin = await authService.hasAdminUsers();
@@ -179,7 +191,7 @@ authRouter.get('/oidc/config', authenticate, async (_req, res, next) => {
   }
 });
 
-authRouter.post('/refresh', async (req: AuthRequest, res, next) => {
+authRouter.post('/refresh', refreshRateLimiter, async (req: AuthRequest, res, next) => {
   try {
     const refreshToken = readCookie(req, REFRESH_COOKIE_NAME);
     const result = await authService.refreshToken(refreshToken ?? '', requestContext(req));

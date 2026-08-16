@@ -9,6 +9,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
+import { secureCompare } from '../utils/secureCompare';
 
 // ==================== Management Router ====================
 // Protected by authenticate + authorize('admin') middleware applied in index.ts
@@ -504,13 +505,13 @@ authRouter.post(
         return;
       }
 
-      // Verify using stored salt
+      // Verify using stored salt (constant-time comparison to avoid timing side channels)
       const computedHash = crypto
         .createHash('sha256')
         .update(`${accessToken}${account.accessTokenSalt}`)
         .digest('hex');
 
-      if (computedHash !== account.accessTokenHash) {
+      if (!secureCompare(computedHash, account.accessTokenHash)) {
         res.status(401).json({
           error: 'Authentication Failed',
           message: 'Invalid access token',

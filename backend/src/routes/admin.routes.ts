@@ -1,4 +1,6 @@
 import { NextFunction, Response, Router } from 'express';
+import fs from 'fs/promises';
+import os from 'os';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
@@ -13,7 +15,21 @@ import { auditIntegrityService } from '../services/auditIntegrity.service';
 import { databaseBackupService, PortableBackupPayload } from '../services/databaseBackup.service';
 
 export const adminRouter = Router();
-const uploadBackup = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+// Backups are streamed to a file on disk (not held in memory) to avoid DoS
+// via memory exhaustion from large uploads. A 50 MB cap is generous for the
+// JSON portable-backup format while keeping the exposure bounded.
+const BACKUP_MAX_FILE_SIZE = Number(process.env.BACKUP_MAX_FILE_SIZE_MB || 50) * 1024 * 1024;
+const uploadBackup = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, _file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `backup-import-${unique}.json`);
+    },
+  }),
+  limits: { fileSize: BACKUP_MAX_FILE_SIZE },
+});
 
 adminRouter.get('/database/config', authenticate, requireAdminAccess, async (_req, res, next) => {
   try {
@@ -36,8 +52,15 @@ adminRouter.get('/database/export', authenticate, requireAdminAccess, async (req
 });
 
 adminRouter.post('/database/import', authenticate, requireAdminAccess, uploadBackup.single('backup'), async (req: AuthRequest, res, next) => {
+  const uploadedPath: string | undefined = req.file?.path;
   try {
-    const rawPayload = req.file?.buffer?.toString('utf8') ?? JSON.stringify(req.body?.backup ?? req.body);
+    let rawPayload: string;
+    if (uploadedPath) {
+      // Read from the temp file on disk (bounded by the multer size limit).
+      rawPayload = await fs.readFile(uploadedPath, 'utf8');
+    } else {
+      rawPayload = JSON.stringify(req.body?.backup ?? req.body);
+    }
     const payload = JSON.parse(rawPayload) as PortableBackupPayload;
     const result = await databaseBackupService.importPortable(payload, {
       mode: req.query.mode === 'append' || req.body?.mode === 'append' ? 'append' : 'replace',
@@ -47,6 +70,11 @@ adminRouter.post('/database/import', authenticate, requireAdminAccess, uploadBac
     res.json(result);
   } catch (error) {
     next(error);
+  } finally {
+    // Best-effort cleanup of the uploaded temp file, regardless of outcome.
+    if (uploadedPath) {
+      fs.unlink(uploadedPath).catch(() => { /* ignore */ });
+    }
   }
 });
 

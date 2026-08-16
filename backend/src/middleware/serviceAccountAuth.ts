@@ -11,6 +11,7 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
+import { secureCompare } from '../utils/secureCompare';
 
 export interface ServiceAccountRequest extends Request {
   serviceAccount?: {
@@ -113,9 +114,9 @@ const account = await prisma.serviceAccount.findFirst({
     return;
   }
 
-  // Verify using stored salt
+  // Verify using stored salt (constant-time comparison to avoid timing side channels)
   const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
-  if (computedHash !== account.accessTokenHash) {
+  if (!secureCompare(computedHash, account.accessTokenHash)) {
     res.status(401).json({
       success: false,
       error: {
@@ -133,22 +134,17 @@ const account = await prisma.serviceAccount.findFirst({
   }).catch(() => {
     // Best-effort: don't fail the request if update fails
   });
-
-  // Parse scopes from JSON (Prisma stores as Json)
-  const rawAccount = await prisma.serviceAccount.findUnique({
-    where: { id: account.id },
-    select: { scopes: true },
-  });
-
+  // Parse scopes from JSON (Prisma stores as Json) — already included in the
+  // lookup above, so no second round-trip to the database is needed.
   let scopes: string[] = account.scopes as unknown as string[];
-  if (rawAccount && typeof rawAccount.scopes === 'string') {
+  if (typeof account.scopes === 'string') {
     try {
-      scopes = JSON.parse(rawAccount.scopes);
+      scopes = JSON.parse(account.scopes);
     } catch {
       scopes = [];
     }
-  } else if (Array.isArray(rawAccount?.scopes)) {
-    scopes = rawAccount.scopes as string[];
+  } else if (!Array.isArray(scopes)) {
+    scopes = [];
   }
 
   req.serviceAccount = {
