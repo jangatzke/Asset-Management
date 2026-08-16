@@ -9,7 +9,9 @@
 --
 -- Steps:
 --   1. Add displayId TEXT column if missing (nullable to allow backfill).
---   2. Backfill legacy rows with unique CAPA-XXXX values.
+--   2. Backfill legacy rows with unique CAPA-XXXX values, starting after the
+--      highest existing numeric CAPA suffix (collision-safe on partially
+--      migrated databases).
 --   3. Set NOT NULL constraint once all rows have values.
 --   4. Add unique index if not already present.
 
@@ -18,7 +20,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public'
+    WHERE table_schema = current_schema()
       AND table_name = 'corrective_actions'
       AND column_name = 'displayId'
   ) THEN
@@ -27,24 +29,37 @@ BEGIN
 END $$;
 
 -- Step 2: Backfill NULL displayId values with unique CAPA-XXXX identifiers.
--- Uses row number ordered by id (stable, deterministic) to avoid collisions.
+-- Collision-safe: numbering starts after the highest existing numeric CAPA
+-- suffix (so a database that already contains CAPA-0001 / CAPA-0002 never
+-- receives duplicate CAPA-0001 / CAPA-0002), and new rows are numbered
+-- deterministically with row_number() OVER (ORDER BY "id").
+-- Only values matching ^CAPA-\d+$ are considered when computing the max, so
+-- non-numeric displayIds (e.g. CAPA-EXISTING) cannot break the CAST.
 DO $$
+DECLARE
+  max_existing BIGINT;
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public'
+    WHERE table_schema = current_schema()
       AND table_name = 'corrective_actions'
       AND column_name = 'displayId'
   ) THEN
+    SELECT COALESCE(MAX(assigned), 0) INTO max_existing
+    FROM (
+      SELECT CAST(regexp_replace("displayId", '^CAPA-(\d+)$', '\1') AS BIGINT) AS assigned
+      FROM "corrective_actions"
+      WHERE "displayId" ~ '^CAPA-\d+$'
+    ) AS existing;
+
     UPDATE "corrective_actions"
     SET "displayId" = sub.new_display_id
     FROM (
       SELECT
         "id",
-        'CAPA-' || LPAD(row_number() OVER ()::text, 4, '0') AS new_display_id
+        'CAPA-' || LPAD((max_existing + row_number() OVER (ORDER BY "id"))::text, 4, '0') AS new_display_id
       FROM "corrective_actions"
       WHERE "displayId" IS NULL OR "displayId" = ''
-      ORDER BY "id"
     ) AS sub
     WHERE "corrective_actions"."id" = sub."id";
   END IF;

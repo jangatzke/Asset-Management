@@ -9,6 +9,7 @@
  *  - Toast feedback: create success, create failure (shows server error, NOT success),
  *    delete success, and load failure (error banner + toast)
  */
+import * as React from 'react';
 import { render, screen, fireEvent, waitFor, act, cleanup, within } from '@testing-library/react';
 
 // --- Mock I18nContext (t returns the key itself, so assertions are deterministic) ---
@@ -45,7 +46,9 @@ const mockListUsers = vi.fn();
 
 vi.mock('../services/api', () => ({
   assetApi: {
-    list: (...args: unknown[]) => mockList(...args),
+    // Forward only `params`; the optional `config` (AbortSignal) is internal plumbing,
+    // not behavior under test.
+    list: (params?: unknown) => mockList(params),
     getTypes: (...args: unknown[]) => mockGetTypes(...args),
     create: (...args: unknown[]) => mockCreate(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
@@ -231,6 +234,56 @@ describe('Assets page', () => {
         expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ criticality: 'critical', page: 1 }));
       });
     });
+it('discards a stale, out-of-order response when a newer request resolves first', async () => {
+  // StrictMode double-invokes the mount effect (dev-mode behavior), which yields two
+  // overlapping list requests — the real-world race the latestRequestId guard protects
+  // against. The first (older) request is held back; the second (newer) resolves first.
+  let resolveStale: (value: unknown) => void = () => undefined;
+  const staleRequest = new Promise((resolve) => {
+    resolveStale = resolve;
+  });
+  let call = 0;
+  mockList.mockImplementation(async () => {
+    call += 1;
+    if (call === 1) {
+      return await staleRequest; // older request: held back
+    }
+    return paginatedResponse(
+      [{ ...assetFixture, id: 'a-3', name: 'Fresh Asset' }],
+      { page: 1, limit: 50, total: 1, totalPages: 1 },
+    ); // newer request: resolves immediately
+  });
+
+  const { unmount } = render(
+    <React.StrictMode>
+      <ToastProvider>
+        <Assets />
+      </ToastProvider>
+    </React.StrictMode>,
+  );
+  try {
+    // Let the newer (second) request settle.
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+    });
+    expect(screen.getByText('Fresh Asset')).toBeInTheDocument();
+
+    // Now release the older, stale response — it must be discarded.
+    await act(async () => {
+      resolveStale(paginatedResponse([{ ...assetFixture, id: 'a-9', name: 'Stale Asset' }]));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+    });
+
+    expect(screen.queryByText('Stale Asset')).not.toBeInTheDocument();
+    expect(screen.getByText('Fresh Asset')).toBeInTheDocument();
+  } finally {
+    unmount();
+  }
+    });
   });
 
   describe('toast feedback', () => {
@@ -292,6 +345,53 @@ describe('Assets page', () => {
         expect(screen.getByText('assets.deleteSuccess')).toBeInTheDocument();
       });
       expect(mockDelete).toHaveBeenCalledWith('a-1');
+    });
+
+    it('keeps the current page and filters when refreshing after delete', async () => {
+      vi.stubGlobal('confirm', vi.fn(() => true));
+      mockList.mockImplementation(async (params: any) =>
+        paginatedResponse(
+          params.page === 2 ? [{ ...assetFixture, id: 'a-2', name: 'Page Two Asset' }] : [assetFixture],
+          { page: params.page, limit: 50, total: 120, totalPages: 3 },
+        ),
+      );
+
+      renderAssets();
+      await flush();
+
+      // Apply a criticality filter, then move to page 2 (the reported scenario:
+      // UI shows page 2 with an active filter).
+      fireEvent.change(screen.getByRole('combobox', { name: 'assets.fields.criticality' }), { target: { value: 'critical' } });
+      await waitFor(() => {
+        expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ criticality: 'critical', page: 1 }));
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'common.next' }));
+      await waitFor(() => {
+        expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, criticality: 'critical' }));
+      });
+      expect(screen.getByText('Page Two Asset')).toBeInTheDocument();
+
+      const callsBeforeDelete = mockList.mock.calls.length;
+
+      // Delete the asset on the current page.
+      fireEvent.click(screen.getByRole('button', { name: 'common.delete: Page Two Asset' }));
+
+      await waitFor(() => {
+        expect(mockDelete).toHaveBeenCalledWith('a-2');
+      });
+      await waitFor(() => {
+        expect(screen.getByText('assets.deleteSuccess')).toBeInTheDocument();
+      });
+
+      // Exactly one refresh request after the delete ...
+      await waitFor(() => {
+        expect(mockList.mock.calls.length).toBe(callsBeforeDelete + 1);
+      });
+
+      // ... and it must re-run the active query (page 2 + criticality filter),
+      // not reset to unfiltered page 1.
+      expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, criticality: 'critical' }));
     });
 
     it('does not delete when the user cancels the confirmation', async () => {

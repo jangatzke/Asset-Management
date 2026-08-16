@@ -123,6 +123,10 @@ const Assets = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const pendingClose = useRef<(() => void) | null>(null);
+  // Guard against out-of-order / stale list responses (same pattern as ISMS Phase 6):
+  // only the most recent request may update state, all others are discarded.
+  const latestRequestId = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null);
 
   // Asset detail view state
@@ -172,6 +176,15 @@ const Assets = () => {
   }, [form]);
 
   const loadAssets = useCallback(async (overrides?: { page?: number; search?: string; assetTypeId?: string; criticality?: string; lifecycleStatus?: string }) => {
+    // Cancel any in-flight request and mark this one as the latest.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const requestId = latestRequestId.current + 1;
+    latestRequestId.current = requestId;
+
+    const isStale = () => requestId !== latestRequestId.current;
+
     try {
       setLoading(true);
       const params: any = {
@@ -182,17 +195,39 @@ const Assets = () => {
         criticality: overrides?.criticality || undefined,
         lifecycleStatus: overrides?.lifecycleStatus || undefined,
       };
-      const response = await assetApi.list(params);
+      const response = await assetApi.list(params, { signal: controller.signal });
+      if (isStale()) return;
       setAssets(response.data?.data || []);
       const paginationData = response.data?.pagination;
       if (paginationData) {
         setPagination({ total: paginationData.total ?? 0, totalPages: paginationData.totalPages ?? 1 });
       }
     } catch (err: any) {
-      setError(messageFrom(err, t('common.saveError')));
-      addToast('error', messageFrom(err, t('common.saveError')));
-    } finally { setLoading(false); }
+      if (isStale()) return;
+      // Aborted requests (superseded or unmount) are silent by design.
+      if (err?.name === 'CanceledError' || controller.signal.aborted) return;
+      const message = messageFrom(err, t('common.saveError'));
+      setError(message);
+      addToast('error', message);
+    } finally {
+      if (!isStale() && !controller.signal.aborted) setLoading(false);
+    }
   }, [t, addToast]);
+
+  // Single refresh path used after create/update/delete: re-runs the *current*
+  // query (page, search, filters) instead of resetting to unfiltered page 1.
+  const refreshCurrentQuery = useCallback(async () => {
+    await loadAssets({
+      page,
+      search: debouncedSearch,
+      assetTypeId: filterType,
+      criticality: filterCriticality,
+      lifecycleStatus: filterStatus,
+    });
+  }, [loadAssets, page, debouncedSearch, filterType, filterCriticality, filterStatus]);
+
+  // Abort any in-flight request when the page unmounts.
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   const loadAssetTypes = async () => {
     try {
@@ -249,14 +284,8 @@ const Assets = () => {
 
   // Fetch the current page from the server whenever the query changes
   useEffect(() => {
-    void loadAssets({
-      page,
-      search: debouncedSearch,
-      assetTypeId: filterType,
-      criticality: filterCriticality,
-      lifecycleStatus: filterStatus,
-    });
-  }, [loadAssets, page, debouncedSearch, filterType, filterCriticality, filterStatus]);
+    void refreshCurrentQuery();
+  }, [refreshCurrentQuery]);
 
   const selectedType = assetTypes.find((type) => type.id === form.values.assetTypeId);
   const selectedSubtype = selectedType?.subtypes?.find((subtype) => subtype.id === form.values.assetSubtypeId);
@@ -318,7 +347,7 @@ const Assets = () => {
       form.resetForm();
       setExistingRelations([]);
       addToast('success', editingId ? t('assets.updateSuccess') : t('assets.createSuccess'));
-      await loadAssets();
+      await refreshCurrentQuery();
     } catch (err: any) {
       const message = messageFrom(err, t('common.saveError'));
       setError(message);
@@ -326,7 +355,7 @@ const Assets = () => {
     } finally {
       setSaving(false);
     }
-  }, [form, editingId, existingRelations, t, addToast, loadAssets]);
+  }, [form, editingId, existingRelations, t, addToast, refreshCurrentQuery]);
 
   const handleEdit = useCallback(async (asset: Asset) => {
       const openEditor = (data: any) => {
@@ -386,7 +415,7 @@ const Assets = () => {
     try {
       await assetApi.delete(id);
       addToast('success', t('assets.deleteSuccess'));
-      await loadAssets();
+      await refreshCurrentQuery();
     } catch (err: any) {
       const message = messageFrom(err, t('common.deleteError'));
       setError(message);

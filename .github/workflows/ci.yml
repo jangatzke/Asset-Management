@@ -537,6 +537,13 @@ jobs:
         run: |
           npm test --workspace=backend -- --testPathPattern=integration --coverage=false
 
+      - name: Run CAPA displayId repair migration regression tests
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb_empty
+          MIGRATION_TEST_DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb_empty
+        run: |
+          npm test --workspace=backend -- --testPathPattern=correctiveActionsDisplayIdMigration --coverage=false
+
   # =====================================================================
   # CI CONFIG VALIDATION TESTS
   # =====================================================================

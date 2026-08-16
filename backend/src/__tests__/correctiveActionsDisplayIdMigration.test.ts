@@ -85,7 +85,7 @@ describe('corrective_actions.displayId repair migration', () => {
             "version" TEXT NOT NULL DEFAULT '1.0.0',
             "isArchived" BOOLEAN NOT NULL DEFAULT false,
             "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
-            "updatedAt" TIMESTAMP(3) NOT NULL
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
           );`,
         );
 
@@ -152,7 +152,7 @@ describe('corrective_actions.displayId repair migration', () => {
         const formatResult = JSON.parse(
           runSql(databaseUrl!, `
             SET search_path TO "${schemaName}";
-            SELECT json_agg("displayId") FROM "corrective_actions" ORDER BY "displayId";
+            SELECT json_agg("displayId" ORDER BY "displayId") FROM "corrective_actions";
           `),
         ) as string[];
 
@@ -238,6 +238,99 @@ describe('corrective_actions.displayId repair migration', () => {
   );
 
   runIfDatabaseAvailable(
+    'continues numbering after existing numeric CAPA IDs on a partially migrated database',
+    () => {
+      const schemaName = `capa_displayid_collision_${Date.now()}_${process.pid}`.replace(/[^a-zA-Z0-9_]/g, '_');
+
+      try {
+        createSchema(schemaName, databaseUrl!);
+        setSearchPath(schemaName, databaseUrl!);
+
+        // Simulate a partially migrated database: some rows already have
+        // numeric displayIds (CAPA-0001, CAPA-0002), the rest are still NULL.
+        // The old migration would have re-issued CAPA-0001 / CAPA-0002 for the
+        // NULL rows and crashed on the unique index creation.
+        runSql(
+          databaseUrl!,
+          `SET search_path TO "${schemaName}"; CREATE TABLE "corrective_actions" (
+            "id" TEXT PRIMARY KEY,
+            "displayId" TEXT,
+            "title" TEXT NOT NULL DEFAULT 'CAPA',
+            "sourceType" TEXT NOT NULL DEFAULT 'audit',
+            "ownerId" TEXT NOT NULL DEFAULT 'owner-1',
+            "dueDate" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+            "status" TEXT NOT NULL DEFAULT 'open',
+            "version" TEXT NOT NULL DEFAULT '1.0.0'
+          );`,
+        );
+
+        runSql(
+          databaseUrl!,
+          `SET search_path TO "${schemaName}";
+           INSERT INTO "corrective_actions" ("id", "displayId", "title") VALUES ('capa-a', 'CAPA-0001', 'Existing CAPA 1');
+           INSERT INTO "corrective_actions" ("id", "displayId", "title") VALUES ('capa-b', 'CAPA-0002', 'Existing CAPA 2');
+           INSERT INTO "corrective_actions" ("id", "displayId", "title") VALUES ('capa-c', NULL, 'Null CAPA 1');
+           INSERT INTO "corrective_actions" ("id", "displayId", "title") VALUES ('capa-d', NULL, 'Null CAPA 2');`,
+        );
+
+        // Run migration; ON_ERROR_STOP=1 makes the old duplicate backfill fail
+        // here when the unique index is created.
+        execFileSync(
+          'psql',
+          [
+            databaseUrl!,
+            '--set',
+            'ON_ERROR_STOP=1',
+            '--quiet',
+            '--no-psqlrc',
+            '--command',
+            `SET search_path TO "${schemaName}";`,
+            '--file',
+            migrationPath,
+          ],
+          { encoding: 'utf8', stdio: 'pipe' },
+        );
+
+        // Existing numeric displayIds are preserved; NULL rows continue the
+        // numeric sequence (CAPA-0003, CAPA-0004).
+        const result = JSON.parse(
+          runSql(databaseUrl!, `
+            SET search_path TO "${schemaName}";
+            SELECT json_agg(json_build_object('id', "id", 'displayId', "displayId") ORDER BY "id")
+            FROM "corrective_actions";
+          `),
+        ) as Array<{ id: string; displayId: string }>;
+
+        expect(result).toHaveLength(4);
+        expect(result.find((row) => row.id === 'capa-a')?.displayId).toBe('CAPA-0001');
+        expect(result.find((row) => row.id === 'capa-b')?.displayId).toBe('CAPA-0002');
+        expect(result.find((row) => row.id === 'capa-c')?.displayId).toBe('CAPA-0003');
+        expect(result.find((row) => row.id === 'capa-d')?.displayId).toBe('CAPA-0004');
+
+        // The unique index must exist — it is only reachable when the backfill
+        // produced collision-free values.
+        const uniqueCheck = JSON.parse(
+          runSql(databaseUrl!, `
+            SET search_path TO "${schemaName}";
+            SELECT json_build_object(
+              'allUnique', count(*) = count(DISTINCT "displayId"),
+              'uniqueIndexPresent', (SELECT count(*) FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND indexname = 'corrective_actions_displayId_key') > 0
+            )::text
+            FROM "corrective_actions";
+          `),
+        ) as { allUnique: boolean; uniqueIndexPresent: boolean };
+
+        expect(uniqueCheck.allUnique).toBe(true);
+        expect(uniqueCheck.uniqueIndexPresent).toBe(true);
+      } finally {
+        dropSchema(schemaName, databaseUrl!);
+      }
+    },
+  );
+
+  runIfDatabaseAvailable(
     'Action Center CAPA query returns items with displayId after migration',
     () => {
       const schemaName = `capa_actioncenter_${Date.now()}_${process.pid}`.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -262,7 +355,7 @@ describe('corrective_actions.displayId repair migration', () => {
             "version" TEXT NOT NULL DEFAULT '1.0.0',
             "isArchived" BOOLEAN NOT NULL DEFAULT false,
             "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
-            "updatedAt" TIMESTAMP(3) NOT NULL
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW()
           );`,
         );
 
@@ -306,12 +399,11 @@ describe('corrective_actions.displayId repair migration', () => {
               'status', "status",
               'ownerId', "ownerId",
               'dueDate', "dueDate"
-            ))
+            ) ORDER BY "dueDate", "sourceType", "id")
             FROM "corrective_actions"
             WHERE "status" IN ('open', 'pending', 'assigned', 'in_progress', 'planned', 'running', 'active', 'draft')
               AND "ownerId" = 'user-1'
-              AND ("isArchived" = false)
-            ORDER BY "dueDate", "sourceType", "id";
+              AND ("isArchived" = false);
           `),
         ) as Array<{ id: string; title: string; displayId: string; status: string; ownerId: string; dueDate: string }>;
 

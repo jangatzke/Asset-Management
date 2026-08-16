@@ -312,7 +312,7 @@ export const authApi = {
 };
 
 export const assetApi = {
-  list: (params?: Partial<AssetQueryDTO> & { q?: string }) => api.get('/assets', { params }),
+  list: (params?: Partial<AssetQueryDTO> & { q?: string }, config?: { signal?: AbortSignal }) => api.get('/assets', { params, signal: config?.signal }),
   getById: (id: string) => api.get(`/assets/${id}`),
   create: (data: CreateAssetDTO) => api.post('/assets', data),
   update: (id: string, data: UpdateAssetDTO) => api.put(`/assets/${id}`, data),
