@@ -220,17 +220,28 @@ describe('corrective_actions.displayId repair migration', () => {
           runSql(databaseUrl!, `
             SET search_path TO "${schemaName}";
             SELECT json_build_object(
-              'existingPreserved', "displayId" = 'CAPA-EXISTING',
+              'existingPreserved', "displayId" = 'CAPA-EXISTING'
+            )::text
+            FROM "corrective_actions"
+            WHERE "id" = 'capa-existing';
+          `),
+        ) as { existingPreserved: boolean };
+
+        expect(preserveResult.existingPreserved).toBe(true);
+
+        const aggregateCheck = JSON.parse(
+          runSql(databaseUrl!, `
+            SET search_path TO "${schemaName}";
+            SELECT json_build_object(
               'allNotNull', count(*) FILTER (WHERE "displayId" IS NULL) = 0,
               'allUnique', count(*) = count(DISTINCT "displayId")
             )::text
             FROM "corrective_actions";
           `),
-        ) as { existingPreserved: boolean; allNotNull: boolean; allUnique: boolean };
+        ) as { allNotNull: boolean; allUnique: boolean };
 
-        expect(preserveResult.existingPreserved).toBe(true);
-        expect(preserveResult.allNotNull).toBe(true);
-        expect(preserveResult.allUnique).toBe(true);
+        expect(aggregateCheck.allNotNull).toBe(true);
+        expect(aggregateCheck.allUnique).toBe(true);
       } finally {
         dropSchema(schemaName, databaseUrl!);
       }
