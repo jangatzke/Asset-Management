@@ -6,6 +6,8 @@
  * Transitions not in the matrix are rejected with a machine-readable reason code.
  */
 
+import { INCIDENT_TRANSITIONS } from 'shared';
+
 export type TransitionMatrix = Record<string, Record<string, Set<string>>>;
 
 /**
@@ -31,16 +33,15 @@ export interface TransitionValidationResult {
 
 // ==========================================
 // Incident transitions (workflow states)
+// Single source of truth: shared/src/incidentTransitions.ts
 // new -> under_investigation | contained | resolved
 // under_investigation -> new | contained | resolved
 // contained -> under_investigation | resolved
 // resolved is terminal; 'closed' is only reachable via the gated /close endpoint
 // ==========================================
-const incidentTransitions: Record<string, Set<string>> = {
-  new: new Set(['under_investigation', 'contained', 'resolved']),
-  under_investigation: new Set(['new', 'contained', 'resolved']),
-  contained: new Set(['under_investigation', 'resolved']),
-};
+const incidentTransitions: Record<string, Set<string>> = Object.fromEntries(
+  Object.entries(INCIDENT_TRANSITIONS).map(([from, targets]) => [from, new Set(targets as readonly string[])]),
+);
 
 // ==========================================
 // Corrective Action transitions

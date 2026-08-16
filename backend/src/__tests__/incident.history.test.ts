@@ -76,6 +76,9 @@ describe('Incident History (AUDIT-001)', () => {
       updatedAt: new Date('2026-01-01T12:00:00Z'),
     });
 
+    // Setup incident updateMany for the compare-and-set status transition path
+    mockPrisma.incident.updateMany.mockResolvedValue({ count: 1 });
+
     // Setup incident history entry create
     mockPrisma.incidentHistoryEntry.create.mockResolvedValue({
       id: 'history-1',

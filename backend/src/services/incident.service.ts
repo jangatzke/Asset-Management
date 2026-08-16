@@ -643,7 +643,16 @@ export class IncidentService {
     const validation = validateTransition('incidents', incident.status, newStatus);
     if (!validation.allowed) throw new AppError(validation.message ?? `Invalid incident status transition from '${incident.status}' to '${newStatus}'`, 400);
     const oldStatus = incident.status;
-    const updated = await prisma.incident.update({ where: { id: incidentId }, data: { status: newStatus, updatedBy: actorId } } as any);
+    // Compare-and-set: atomically apply the transition only if the status is
+    // still the value we validated against. A concurrent status change in the
+    // window between the read and the write loses the race and receives a clean
+    // 409 Conflict (same error class as the non-reportable approval race).
+    const updateResult = await prisma.incident.updateMany({
+      where: { id: incidentId, status: oldStatus },
+      data: { status: newStatus, updatedBy: actorId },
+    } as any);
+    if (updateResult?.count !== 1) throw new AppError('Incident status changed concurrently', 409);
+    const updated = await prisma.incident.findUnique({ where: { id: incidentId } });
     await auditService.logEventStandalone(prisma, { userId: actorId, action: 'INCIDENT_STATUS_CHANGE', entityType: 'Incident', entityId: incidentId, details: data.reason, oldValue: { status: oldStatus }, newValue: { status: newStatus } });
     // Incident history entry (AUDIT-001)
     await this.recordHistoryEntry(incidentId, 'STATUS_CHANGE', `Status changed from ${oldStatus} to ${newStatus}: ${data.reason}`, { oldStatus, newStatus }, actorId);

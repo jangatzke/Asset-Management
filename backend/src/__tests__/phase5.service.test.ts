@@ -1,5 +1,5 @@
 const mockPrismaClient: any = {
-  incident: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+  incident: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn(), findMany: jest.fn() },
   user: { findFirst: jest.fn() },
   notificationDeadline: { createMany: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
   incidentAssessment: { upsert: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
@@ -186,25 +186,37 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
   });
 
   it('applies a valid incident status transition with reason, audit, and history', async () => {
-    mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'new', isSignificant: false, knowledgeTime: null });
-    mockPrismaClient.incident.update.mockResolvedValue({ id: 'inc-1', status: 'under_investigation' });
+    mockPrismaClient.incident.findUnique
+      .mockResolvedValueOnce({ id: 'inc-1', title: 'Outage', status: 'new', isSignificant: false, knowledgeTime: null })
+      .mockResolvedValue({ id: 'inc-1', title: 'Outage', status: 'under_investigation', isSignificant: false, knowledgeTime: null });
+    mockPrismaClient.incident.updateMany.mockResolvedValue({ count: 1 });
 
     const updated = await incidentService.changeIncidentStatus('inc-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1');
 
     expect(updated.status).toBe('under_investigation');
-    expect(mockPrismaClient.incident.update).toHaveBeenCalledWith({ where: { id: 'inc-1' }, data: { status: 'under_investigation', updatedBy: 'user-1' } });
+    expect(mockPrismaClient.incident.updateMany).toHaveBeenCalledWith({ where: { id: 'inc-1', status: 'new' }, data: { status: 'under_investigation', updatedBy: 'user-1' } });
     expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'user-1', action: 'INCIDENT_STATUS_CHANGE' }) }));
+  });
+
+  it('returns 409 when a concurrent status change wins the compare-and-set race', async () => {
+    mockPrismaClient.incident.findUnique.mockResolvedValueOnce({ id: 'inc-1', title: 'Outage', status: 'new', isSignificant: false, knowledgeTime: null });
+    mockPrismaClient.incident.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(incidentService.changeIncidentStatus('inc-1', { status: 'contained', reason: 'Contain' }, 'user-1')).rejects.toMatchObject({ message: 'Incident status changed concurrently', statusCode: 409 });
+    expect(mockPrismaClient.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('rejects closed as a status transition target (requires the dedicated close endpoint)', async () => {
     await expect(incidentService.changeIncidentStatus('inc-1', { status: 'closed', reason: 'Done' }, 'user-1')).rejects.toThrow('dedicated close endpoint');
     expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects an incident status transition without a reason', async () => {
     await expect(incidentService.changeIncidentStatus('inc-1', { status: 'under_investigation', reason: '   ' }, 'user-1')).rejects.toThrow('reason');
     expect(mockPrismaClient.incident.findUnique).not.toHaveBeenCalled();
     expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.updateMany).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the incident does not exist for a status transition', async () => {
@@ -212,6 +224,7 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
 
     await expect(incidentService.changeIncidentStatus('inc-1', { status: 'under_investigation', reason: 'Starting investigation' }, 'user-1')).rejects.toThrow('not found');
     expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects a transition from the terminal resolved incident status', async () => {
@@ -219,6 +232,7 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
 
     await expect(incidentService.changeIncidentStatus('inc-1', { status: 'new', reason: 'Reopen' }, 'user-1')).rejects.toThrow('not valid');
     expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects an incident status transition to the current status', async () => {
@@ -226,6 +240,7 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
 
     await expect(incidentService.changeIncidentStatus('inc-1', { status: 'new', reason: 'No change' }, 'user-1')).rejects.toThrow('already in status');
     expect(mockPrismaClient.incident.update).not.toHaveBeenCalled();
+    expect(mockPrismaClient.incident.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects a compare-and-set decision that lost the race without changing the incident', async () => {

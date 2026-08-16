@@ -9,8 +9,56 @@ import {
   isTerminalStatus,
   TransitionReason,
 } from '../services/statusTransition';
+import { INCIDENT_TRANSITIONS } from 'shared';
 
 describe('Status Transition Automaton', () => {
+  describe('Incident transitions', () => {
+    it('allows new -> under_investigation, contained, and resolved', () => {
+      expect(getAllowedTransitions('incidents', 'new').sort()).toEqual(['contained', 'resolved', 'under_investigation']);
+      expect(validateTransition('incidents', 'new', 'under_investigation').allowed).toBe(true);
+      expect(validateTransition('incidents', 'new', 'contained').allowed).toBe(true);
+      expect(validateTransition('incidents', 'new', 'resolved').allowed).toBe(true);
+    });
+
+    it('allows under_investigation -> new, contained, and resolved', () => {
+      expect(getAllowedTransitions('incidents', 'under_investigation').sort()).toEqual(['contained', 'new', 'resolved']);
+      expect(validateTransition('incidents', 'under_investigation', 'new').allowed).toBe(true);
+      expect(validateTransition('incidents', 'under_investigation', 'contained').allowed).toBe(true);
+      expect(validateTransition('incidents', 'under_investigation', 'resolved').allowed).toBe(true);
+    });
+
+    it('allows contained -> under_investigation and resolved but NOT new (UI parity with backend)', () => {
+      expect(getAllowedTransitions('incidents', 'contained').sort()).toEqual(['resolved', 'under_investigation']);
+      expect(getAllowedTransitions('incidents', 'contained')).not.toContain('new');
+      expect(validateTransition('incidents', 'contained', 'under_investigation').allowed).toBe(true);
+      expect(validateTransition('incidents', 'contained', 'resolved').allowed).toBe(true);
+      expect(validateTransition('incidents', 'contained', 'new').allowed).toBe(false);
+      expect(validateTransition('incidents', 'contained', 'new').reason).toBe(TransitionReason.NOT_ALLOWED);
+    });
+
+    it('rejects transitions from the terminal resolved status', () => {
+      expect(getAllowedTransitions('incidents', 'resolved')).toEqual([]);
+      expect(isTerminalStatus('incidents', 'resolved')).toBe(true);
+      expect(validateTransition('incidents', 'resolved', 'new').allowed).toBe(false);
+    });
+
+    it('treats closed as unreachable via the transition automaton (gated close endpoint only)', () => {
+      expect(getAllowedTransitions('incidents', 'closed')).toEqual([]);
+      expect(validateTransition('incidents', 'new', 'closed').allowed).toBe(false);
+    });
+
+    it('mirrors the shared INCIDENT_TRANSITIONS matrix (single source of truth)', () => {
+      const sharedKeys = Object.keys(INCIDENT_TRANSITIONS).sort();
+      expect(sharedKeys).toEqual(['contained', 'new', 'under_investigation']);
+      for (const fromStatus of Object.keys(INCIDENT_TRANSITIONS)) {
+        const sharedTargets = (INCIDENT_TRANSITIONS[fromStatus] as readonly string[]).slice().sort();
+        expect(getAllowedTransitions('incidents', fromStatus).sort()).toEqual(sharedTargets);
+      }
+      expect(getAllowedTransitions('incidents', 'resolved')).toEqual([]);
+      expect(getAllowedTransitions('incidents', 'closed')).toEqual([]);
+    });
+  });
+
   describe('Corrective Action transitions', () => {
     it('allows open -> in_progress', () => {
       const result = validateTransition('correctiveActions', 'open', 'in_progress');

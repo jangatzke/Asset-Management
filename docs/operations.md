@@ -19,8 +19,9 @@
 9. [Environment Separation](#9-environment-separation)
 10. [Graceful Shutdown](#10-graceful-shutdown)
 11. [CI/CD Release Gates](#11-cicd-release-gates)
-12. [Disaster Recovery](#12-disaster-recovery)
-13. [Runbook: Common Issues](#13-runbook-common-issues)
+12. [Branch Protection](#12-branch-protection)
+13. [Disaster Recovery](#13-disaster-recovery)
+14. [Runbook: Common Issues](#14-runbook-common-issues)
 
 ---
 
@@ -553,7 +554,62 @@ curl -s http://localhost:3000/health/ready | jq .
 
 ---
 
-## 12. Disaster Recovery
+## 12. Branch Protection
+
+### Required protection for `main`
+
+Branch protection is a repository-administration setting and cannot be enabled
+by an application pull request or by the ordinary read-only GitHub Actions
+token. A repository administrator must enable the following active branch
+ruleset for `main` before the next production release:
+
+| Rule | Required setting |
+|------|------------------|
+| Target | Include the default branch: `main` |
+| Pull requests | Require a pull request before merging; require at least one approving review |
+| Review freshness | Dismiss stale approvals when new commits are pushed |
+| Required checks | Require status checks to pass and require branches to be up to date; select `Release Gates` |
+| Force pushes | Disallow |
+| Deletions | Disallow |
+| Bypasses | Do not grant a bypass to individuals, teams, or GitHub Apps except an explicitly approved emergency-break-glass process |
+
+`Release Gates` is the aggregate workflow job in `.github/workflows/ci.yml`.
+It only succeeds after the build, schema validation, test, security, SBOM,
+requirements, and migration checks have succeeded. Requiring this single
+check avoids an incomplete branch-protection configuration when CI jobs are
+changed over time.
+
+### Administrator procedure (GitHub UI)
+
+1. Open **Repository settings → Rules → Rulesets → New branch ruleset**.
+2. Name the ruleset `Protect main`, set enforcement to **Active**, and target
+   the default branch (`main`).
+3. Enable the rules in the table above. Under required status checks, choose
+   **Require status checks to pass**, **Require branches to be up to date
+   before merging**, and add the `Release Gates` check.
+4. Save the ruleset, then create a test pull request. Confirm direct pushes to
+   `main` are rejected and merge remains blocked until `Release Gates` and the
+   required review succeed.
+
+### API verification (administrator token)
+
+With a fine-grained personal access token that has repository administration
+permission, verify the active protection configuration after any ruleset
+change:
+
+```bash
+curl --fail-with-body \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $GITHUB_ADMIN_TOKEN" \
+  "https://api.github.com/repos/OWNER/REPOSITORY/branches/main/protection"
+```
+
+The response must show required status checks enabled and include the
+`Release Gates` context. Record the verification in the release evidence.
+
+---
+
+## 13. Disaster Recovery
 
 ### RTO/RPO Targets
 | Metric | Target | Current |
@@ -580,7 +636,7 @@ curl -s http://localhost:3000/health/ready | jq .
 
 ---
 
-## 13. Runbook: Common Issues
+## 14. Runbook: Common Issues
 
 ### Issue: High Error Rate
 ```bash
