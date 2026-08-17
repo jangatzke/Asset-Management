@@ -625,8 +625,15 @@ export class IncidentService {
     // The knowledge time is a NIS2-relevant moment: it drives every statutory
     // reporting deadline, so its audit trail must be atomic with the change.
     const updated = await prisma.$transaction(async (tx) => {
+      // Compare-and-set: do not overwrite or audit a stale predecessor when
+      // another request has changed the statutory timestamp after our read.
+      const updateResult = await (tx as any).incident.updateMany({
+        where: { id: incidentId, knowledgeTime: oldKnowledgeTime },
+        data: { knowledgeTime: newKnowledgeTime, updatedBy: changedBy },
+      } as any);
+      if (updateResult?.count !== 1) throw new AppError('Incident knowledge time changed concurrently', 409);
       await (tx as any).incidentKnowledgeTimeChange.create({ data: { incidentId, oldKnowledgeTime: oldKnowledgeTime, newKnowledgeTime, reason, changedBy } });
-      const result = await tx.incident.update({ where: { id: incidentId }, data: { knowledgeTime: newKnowledgeTime, updatedBy: changedBy } });
+      const result = await tx.incident.findUnique({ where: { id: incidentId } });
       await tx.notificationDeadline.deleteMany({ where: { incidentId, status: 'pending' } });
       await this.createDeadlinesForIncident(tx, incidentId, newKnowledgeTime);
       await auditService.logEvent(tx, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: oldKnowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
@@ -752,17 +759,16 @@ export class IncidentService {
     //    rolls back. The client never observes a closed incident without a
     //    complete audit trail (same guarantee as changeIncidentStatus).
     //
-    // 2. Concurrency — the updateMany is only applied while the incident is
-    //    still in an open state (status != 'closed'). A second parallel
-    //    /close request loses the race, sees count !== 1, and receives a
-    //    clean 409 Conflict instead of rewriting closedAt/closedBy and
-    //    duplicating the CLOSE/STATUS_CHANGE history entries.
+    // 2. Concurrency — the updateMany is only applied while the status is
+    //    still the value validated above. Any concurrent transition (not just
+    //    another close) loses the race and receives a clean 409 Conflict,
+    //    preserving an accurate predecessor in the audit trail.
     const updated = await prisma.$transaction(async (tx) => {
       const updateResult = await (tx as any).incident.updateMany({
-        where: { id: incidentId, status: { not: 'closed' } },
+        where: { id: incidentId, status: oldStatus },
         data: { rootCause, lessonsLearned: data.lessonsLearned ?? incident.lessonsLearned, measuresEvaluation, closureSummary: data.closureSummary, status: 'closed', closedAt: new Date(), closedBy, updatedBy: closedBy },
       } as any);
-      if (updateResult?.count !== 1) throw new AppError('Incident is already closed', 409);
+      if (updateResult?.count !== 1) throw new AppError('Incident status changed concurrently', 409);
       const current = await tx.incident.findUnique({ where: { id: incidentId } });
       await auditService.logEvent(tx, { userId: closedBy, action: 'INCIDENT_CLOSE', entityType: 'Incident', entityId: incidentId, details: data.closureSummary ?? 'Closed incident with root cause and measures evaluation' });
       // Incident history entries (AUDIT-001)

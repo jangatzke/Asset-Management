@@ -453,7 +453,7 @@ describe('Incident History (AUDIT-001)', () => {
           closedAt: new Date(),
           closedBy: 'user-1',
         } as any);
-      // CAS update guard must match exactly one (still open) incident.
+      // CAS update guard must match exactly the status validated before close.
       mockPrisma.incident.updateMany.mockResolvedValue({ count: 1 });
 
       const updated = await incidentService.closeIncident('incident-1', {
@@ -464,10 +464,10 @@ describe('Incident History (AUDIT-001)', () => {
 
       expect(updated.status).toBe('closed');
 
-      // CAS: the update is guarded on the incident still being open.
+      // CAS: the update is guarded on the status observed before validation.
       expect(mockPrisma.incident.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ id: 'incident-1', status: { not: 'closed' } }),
+          where: expect.objectContaining({ id: 'incident-1', status: 'under_investigation' }),
           data: expect.objectContaining({ status: 'closed', closedBy: 'user-1', updatedBy: 'user-1' }),
         })
       );
@@ -521,7 +521,7 @@ describe('Incident History (AUDIT-001)', () => {
       expect(mockPrisma.incidentHistoryEntry.create).not.toHaveBeenCalled();
     });
 
-    it('returns 409 when a concurrent close wins the compare-and-set race, without audit or history', async () => {
+    it('returns 409 when a concurrent status change wins the close compare-and-set race, without audit or history', async () => {
       mockPrisma.incident.findUnique.mockResolvedValueOnce({
         id: 'incident-1',
         status: 'under_investigation',
@@ -530,16 +530,16 @@ describe('Incident History (AUDIT-001)', () => {
         measuresEvaluation: 'Controls improved',
         reports: [],
       } as any);
-      // The CAS update matches no row: a second /close committed first.
+      // The CAS update matches no row: another status change committed first.
       mockPrisma.incident.updateMany.mockResolvedValueOnce({ count: 0 });
 
       await expect(incidentService.closeIncident('incident-1', {
         rootCause: 'Patch gap',
         measuresEvaluation: 'Controls improved',
-      }, 'user-1')).rejects.toMatchObject({ message: 'Incident is already closed', statusCode: 409 });
+      }, 'user-1')).rejects.toMatchObject({ message: 'Incident status changed concurrently', statusCode: 409 });
 
       expect(mockPrisma.incident.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ id: 'incident-1', status: { not: 'closed' } }) })
+        expect.objectContaining({ where: expect.objectContaining({ id: 'incident-1', status: 'under_investigation' }) })
       );
       // The losing race must not re-audit or duplicate the CLOSE/STATUS_CHANGE history.
       expect(mockAuditService.logEvent).not.toHaveBeenCalled();
@@ -647,7 +647,8 @@ describe('Incident History (AUDIT-001)', () => {
             create: jest.fn().mockResolvedValue({}),
           },
           incident: {
-            update: jest.fn().mockResolvedValue({
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            findUnique: jest.fn().mockResolvedValue({
               id: 'incident-1',
               knowledgeTime: new Date('2026-01-01T12:00:00Z'),
             }),
@@ -697,6 +698,30 @@ describe('Incident History (AUDIT-001)', () => {
       expect(mockAuditService.logEventStandalone).not.toHaveBeenCalled();
     });
 
+    it('rejects a stale knowledge-time change before writing its audit trail', async () => {
+      const oldKnowledgeTime = new Date('2026-01-01T10:00:00Z');
+      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+        id: 'incident-1',
+        title: 'Test Incident',
+        knowledgeTime: oldKnowledgeTime,
+      } as any);
+      mockPrisma.incident.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(incidentService.changeKnowledgeTime(
+        'incident-1',
+        new Date('2026-01-01T12:00:00Z'),
+        'Forensic correction',
+        'user-1',
+      )).rejects.toMatchObject({ message: 'Incident knowledge time changed concurrently', statusCode: 409 });
+
+      expect(mockPrisma.incident.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'incident-1', knowledgeTime: oldKnowledgeTime },
+        data: expect.objectContaining({ knowledgeTime: new Date('2026-01-01T12:00:00Z'), updatedBy: 'user-1' }),
+      }));
+      expect(mockAuditService.logEvent).not.toHaveBeenCalled();
+      expect(mockPrisma.incidentHistoryEntry.create).not.toHaveBeenCalled();
+    });
+
     it('rolls back the knowledge-time change when the audit write fails inside the transaction', async () => {
       mockPrisma.incident.findUnique.mockResolvedValueOnce({
         id: 'incident-1',
@@ -709,7 +734,8 @@ describe('Incident History (AUDIT-001)', () => {
         return cb({
           incidentKnowledgeTimeChange: { create: jest.fn().mockResolvedValue({}) },
           incident: {
-            update: jest.fn().mockResolvedValue({
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            findUnique: jest.fn().mockResolvedValue({
               id: 'incident-1',
               knowledgeTime: new Date('2026-01-01T12:00:00Z'),
             }),

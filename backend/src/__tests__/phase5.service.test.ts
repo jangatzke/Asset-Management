@@ -57,12 +57,19 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
     const oldKnowledgeTime = new Date('2026-07-18T10:00:00Z');
     const newKnowledgeTime = new Date('2026-07-18T12:00:00Z');
     mockPrismaClient.incident.findUnique.mockResolvedValue({ id: 'inc-1', title: 'Outage', knowledgeTime: oldKnowledgeTime });
-    mockPrismaClient.incident.update.mockResolvedValue({ id: 'inc-1', knowledgeTime: newKnowledgeTime });
+    mockPrismaClient.incident.updateMany.mockResolvedValue({ count: 1 });
+    mockPrismaClient.incident.findUnique
+      .mockResolvedValueOnce({ id: 'inc-1', title: 'Outage', knowledgeTime: oldKnowledgeTime })
+      .mockResolvedValueOnce({ id: 'inc-1', knowledgeTime: newKnowledgeTime });
 
     await expect(incidentService.changeKnowledgeTime('inc-1', newKnowledgeTime, '', 'user-1')).rejects.toThrow('reason');
     await incidentService.changeKnowledgeTime('inc-1', newKnowledgeTime, 'Forensic timestamp correction', 'user-1');
 
     expect(mockPrismaClient.incidentKnowledgeTimeChange.create).toHaveBeenCalledWith({ data: expect.objectContaining({ reason: 'Forensic timestamp correction' }) });
+    expect(mockPrismaClient.incident.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'inc-1', knowledgeTime: oldKnowledgeTime },
+      data: expect.objectContaining({ knowledgeTime: newKnowledgeTime, updatedBy: 'user-1' }),
+    }));
     expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE' }) });
   });
 
