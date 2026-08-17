@@ -34,9 +34,25 @@ describe('Webhook Service', () => {
       const secret = 'test-secret';
       const payload1: WebhookPayload = { id: 'evt-1', type: 'asset.created' as WebhookEvent, data: { id: 1 }, timestamp: new Date().toISOString() };
       const payload2: WebhookPayload = { id: 'evt-2', type: 'asset.updated' as WebhookEvent, data: { id: 2 }, timestamp: new Date().toISOString() };
+      const signingTimestamp = 1_704_067_200_000;
 
-      expect(generateHmacSignature(secret, payload1)).not.toBe(
-        generateHmacSignature(secret, payload2)
+      expect(generateHmacSignature(secret, payload1, signingTimestamp)).not.toBe(
+        generateHmacSignature(secret, payload2, signingTimestamp)
+      );
+    });
+
+    test('should generate the same signature for the same secret, payload, and timestamp', () => {
+      const secret = 'test-secret';
+      const signingTimestamp = 1_704_067_200_000;
+      const payload: WebhookPayload = {
+        id: 'evt-123',
+        type: 'asset.created' as WebhookEvent,
+        timestamp: '2024-01-01T00:00:00.000Z',
+        data: { assetId: 'asset-456' },
+      };
+
+      expect(generateHmacSignature(secret, payload, signingTimestamp)).toBe(
+        generateHmacSignature(secret, payload, signingTimestamp)
       );
     });
   });

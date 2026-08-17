@@ -75,10 +75,16 @@ function serializeWebhookPayload(payload: unknown): string {
  *
  * @param secret - The HMAC secret key
  * @param payload - The webhook payload
+ * @param timestamp - Unix timestamp in milliseconds to include in the signed
+ *   message. Defaults to the current time; provide this value when a
+ *   reproducible signature is required.
  * @returns Signed string with timestamp and HMAC hex digest
  */
-export function generateHmacSignature(secret: string, payload: WebhookPayload): string {
-  const timestamp = Date.now();
+export function generateHmacSignature(
+  secret: string,
+  payload: WebhookPayload,
+  timestamp: number = Date.now()
+): string {
   const message = `${timestamp}.${serializeWebhookPayload(payload)}`;
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(message);

@@ -182,6 +182,7 @@ describe('Webhook Security', () => {
 
       it('should generate deterministic signatures for same input', () => {
         const secret = 'test-secret';
+        const signingTimestamp = 1_704_067_200_000;
         const payload: WebhookPayload = {
           id: 'evt-123',
           type: 'asset.created' as WebhookEvent,
@@ -189,8 +190,8 @@ describe('Webhook Security', () => {
           data: { assetId: 'asset-456' },
         };
 
-        const sig1 = generateHmacSignature(secret, payload);
-        const sig2 = generateHmacSignature(secret, payload);
+        const sig1 = generateHmacSignature(secret, payload, signingTimestamp);
+        const sig2 = generateHmacSignature(secret, payload, signingTimestamp);
 
         expect(sig1).toBe(sig2);
       });
