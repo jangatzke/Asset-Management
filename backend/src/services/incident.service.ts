@@ -616,16 +616,24 @@ export class IncidentService {
     const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
     if (!incident) throw new AppError('Incident not found', 404);
     const oldKnowledgeTime = incident.knowledgeTime ? new Date(incident.knowledgeTime) : new Date();
+    // Knowledge-time change, deadline recalculation, audit entry and history
+    // entry run in ONE database transaction: if the audit or history write
+    // fails, the knowledge-time change and the deadline recalculation roll
+    // back as well — the client never observes a changed knowledge time
+    // without a complete audit trail (and vice versa).
+    //
+    // The knowledge time is a NIS2-relevant moment: it drives every statutory
+    // reporting deadline, so its audit trail must be atomic with the change.
     const updated = await prisma.$transaction(async (tx) => {
       await (tx as any).incidentKnowledgeTimeChange.create({ data: { incidentId, oldKnowledgeTime: oldKnowledgeTime, newKnowledgeTime, reason, changedBy } });
       const result = await tx.incident.update({ where: { id: incidentId }, data: { knowledgeTime: newKnowledgeTime, updatedBy: changedBy } });
       await tx.notificationDeadline.deleteMany({ where: { incidentId, status: 'pending' } });
       await this.createDeadlinesForIncident(tx, incidentId, newKnowledgeTime);
+      await auditService.logEvent(tx, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: oldKnowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
+      // Incident history entry (AUDIT-001)
+      await this.recordHistoryEntry(tx, incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: oldKnowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
       return result;
     });
-    await auditService.logEventStandalone(prisma, { userId: changedBy, action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE', entityType: 'Incident', entityId: incidentId, details: reason, oldValue: { knowledgeTime: oldKnowledgeTime.toISOString() }, newValue: { knowledgeTime: newKnowledgeTime.toISOString() } });
-    // Incident history entry (AUDIT-001)
-    await this.recordHistoryEntry(prisma, incidentId, 'KNOWLEDGE_TIME_CHANGE', `Changed knowledge time: ${reason}`, { oldKnowledgeTime: oldKnowledgeTime.toISOString(), newKnowledgeTime: newKnowledgeTime.toISOString() }, changedBy);
     return updated;
   }
 
@@ -725,6 +733,9 @@ export class IncidentService {
   async closeIncident(incidentId: string, data: { rootCause?: string; lessonsLearned?: string; measuresEvaluation?: string; closureSummary?: string }, closedBy: string) {
     const incident = await prisma.incident.findUnique({ where: { id: incidentId }, include: { reports: true } as Prisma.IncidentInclude }) as any;
     if (!incident) throw new AppError('Incident not found', 404);
+    // Fast-fail before any write: closing an already closed incident is a
+    // client error, not a concurrent-change race.
+    if (incident.status === 'closed') throw new AppError('Incident is already closed', 409);
     const rootCause = data.rootCause ?? incident.rootCause;
     const measuresEvaluation = data.measuresEvaluation ?? incident.measuresEvaluation;
     if (!rootCause?.trim()) throw new AppError('Incident cannot be closed without root cause', 400);
@@ -733,11 +744,32 @@ export class IncidentService {
       const finalReport = incident.reports?.find((report: any) => report.reportType === 'monthly_final_report' && report.status === 'submitted');
       if (!finalReport) throw new AppError('Significant incident requires submitted monthly final report before closure', 400);
     }
-    const updated = await prisma.incident.update({ where: { id: incidentId }, data: { rootCause, lessonsLearned: data.lessonsLearned ?? incident.lessonsLearned, measuresEvaluation, closureSummary: data.closureSummary, status: 'closed', closedAt: new Date(), closedBy, updatedBy: closedBy } as any });
-    await auditService.logEventStandalone(prisma, { userId: closedBy, action: 'INCIDENT_CLOSE', entityType: 'Incident', entityId: incidentId, details: data.closureSummary ?? 'Closed incident with root cause and measures evaluation' });
-    // Incident history entries (AUDIT-001)
-    await this.recordHistoryEntry(prisma, incidentId, 'STATUS_CHANGE', `Status changed to closed`, { oldStatus: incident.status, newStatus: 'closed' }, closedBy);
-    await this.recordHistoryEntry(prisma, incidentId, 'CLOSE', data.closureSummary ?? 'Closed incident with root cause and measures evaluation', { rootCause, measuresEvaluation, closureSummary: data.closureSummary }, closedBy);
+    const oldStatus = incident.status;
+    // Compare-and-set guard + audit entry + both history entries run in ONE
+    // database transaction:
+    //
+    // 1. Atomicity — if the audit or history write fails, the close itself
+    //    rolls back. The client never observes a closed incident without a
+    //    complete audit trail (same guarantee as changeIncidentStatus).
+    //
+    // 2. Concurrency — the updateMany is only applied while the incident is
+    //    still in an open state (status != 'closed'). A second parallel
+    //    /close request loses the race, sees count !== 1, and receives a
+    //    clean 409 Conflict instead of rewriting closedAt/closedBy and
+    //    duplicating the CLOSE/STATUS_CHANGE history entries.
+    const updated = await prisma.$transaction(async (tx) => {
+      const updateResult = await (tx as any).incident.updateMany({
+        where: { id: incidentId, status: { not: 'closed' } },
+        data: { rootCause, lessonsLearned: data.lessonsLearned ?? incident.lessonsLearned, measuresEvaluation, closureSummary: data.closureSummary, status: 'closed', closedAt: new Date(), closedBy, updatedBy: closedBy },
+      } as any);
+      if (updateResult?.count !== 1) throw new AppError('Incident is already closed', 409);
+      const current = await tx.incident.findUnique({ where: { id: incidentId } });
+      await auditService.logEvent(tx, { userId: closedBy, action: 'INCIDENT_CLOSE', entityType: 'Incident', entityId: incidentId, details: data.closureSummary ?? 'Closed incident with root cause and measures evaluation' });
+      // Incident history entries (AUDIT-001)
+      await this.recordHistoryEntry(tx, incidentId, 'STATUS_CHANGE', `Status changed to closed`, { oldStatus, newStatus: 'closed' }, closedBy);
+      await this.recordHistoryEntry(tx, incidentId, 'CLOSE', data.closureSummary ?? 'Closed incident with root cause and measures evaluation', { rootCause, measuresEvaluation, closureSummary: data.closureSummary }, closedBy);
+      return current;
+    });
     return updated;
   }
 

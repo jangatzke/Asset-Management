@@ -30,6 +30,7 @@ jest.mock('../services/audit.service', () => ({
 }));
 
 const { incidentService } = require('../services/incident.service');
+const { auditService: mockAuditService } = require('../services/audit.service');
 
 describe('Incident History (AUDIT-001)', () => {
   let createdIncidentId: string;
@@ -433,31 +434,55 @@ describe('Incident History (AUDIT-001)', () => {
       );
     });
 
-    it('creates history entries on incident close', async () => {
-      mockPrisma.incident.findUnique.mockResolvedValueOnce({
-        id: 'incident-1',
-        title: 'Test Incident',
-        status: 'under_investigation',
-        isSignificant: false,
-        rootCause: 'Patch gap identified',
-        measuresEvaluation: 'Controls improved',
-        reports: [],
-      } as any);
+    it('closes the incident atomically: CAS guard, audit and both history entries in one transaction', async () => {
+      // First findUnique (pre-transaction validation read) → open incident;
+      // second findUnique (inside the transaction, after the CAS update) → closed.
+      mockPrisma.incident.findUnique
+        .mockResolvedValueOnce({
+          id: 'incident-1',
+          title: 'Test Incident',
+          status: 'under_investigation',
+          isSignificant: false,
+          rootCause: 'Patch gap identified',
+          measuresEvaluation: 'Controls improved',
+          reports: [],
+        } as any)
+        .mockResolvedValueOnce({
+          id: 'incident-1',
+          status: 'closed',
+          closedAt: new Date(),
+          closedBy: 'user-1',
+        } as any);
+      // CAS update guard must match exactly one (still open) incident.
+      mockPrisma.incident.updateMany.mockResolvedValue({ count: 1 });
 
-      mockPrisma.incident.update.mockResolvedValueOnce({
-        id: 'incident-1',
-        status: 'closed',
-        closedAt: new Date(),
-        closedBy: 'user-1',
-      } as any);
-
-      await incidentService.closeIncident('incident-1', {
+      const updated = await incidentService.closeIncident('incident-1', {
         rootCause: 'Patch gap identified',
         measuresEvaluation: 'Controls improved',
         closureSummary: 'Resolved and closed',
       }, 'user-1');
 
-      // Should create both STATUS_CHANGE and CLOSE entries
+      expect(updated.status).toBe('closed');
+
+      // CAS: the update is guarded on the incident still being open.
+      expect(mockPrisma.incident.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'incident-1', status: { not: 'closed' } }),
+          data: expect.objectContaining({ status: 'closed', closedBy: 'user-1', updatedBy: 'user-1' }),
+        })
+      );
+
+      // One transaction for update + audit + both history entries.
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+
+      // Audit uses the in-transaction writer, not the standalone (post-commit) writer.
+      expect(mockAuditService.logEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ userId: 'user-1', action: 'INCIDENT_CLOSE' })
+      );
+      expect(mockAuditService.logEventStandalone).not.toHaveBeenCalled();
+
+      // Both STATUS_CHANGE and CLOSE history entries are written.
       const createCalls = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls;
       const actions = createCalls.map((call: any) => call[0].data.action);
 
@@ -475,6 +500,80 @@ describe('Incident History (AUDIT-001)', () => {
       const closeCall = createCalls.find((call: any) => call[0].data.action === 'CLOSE');
       expect(closeCall).toBeDefined();
       expect(closeCall[0].data.summary).toBe('Resolved and closed');
+    });
+
+    it('rejects closing an already closed incident before any write', async () => {
+      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+        id: 'incident-1',
+        status: 'closed',
+        isSignificant: false,
+        reports: [],
+      } as any);
+
+      await expect(incidentService.closeIncident('incident-1', {
+        rootCause: 'Patch gap',
+        measuresEvaluation: 'Controls improved',
+      }, 'user-1')).rejects.toMatchObject({ message: 'Incident is already closed', statusCode: 409 });
+
+      // No CAS update, no audit, no history — a re-close is a clean conflict.
+      expect(mockPrisma.incident.updateMany).not.toHaveBeenCalled();
+      expect(mockAuditService.logEvent).not.toHaveBeenCalled();
+      expect(mockPrisma.incidentHistoryEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 when a concurrent close wins the compare-and-set race, without audit or history', async () => {
+      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+        id: 'incident-1',
+        status: 'under_investigation',
+        isSignificant: false,
+        rootCause: 'Patch gap',
+        measuresEvaluation: 'Controls improved',
+        reports: [],
+      } as any);
+      // The CAS update matches no row: a second /close committed first.
+      mockPrisma.incident.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(incidentService.closeIncident('incident-1', {
+        rootCause: 'Patch gap',
+        measuresEvaluation: 'Controls improved',
+      }, 'user-1')).rejects.toMatchObject({ message: 'Incident is already closed', statusCode: 409 });
+
+      expect(mockPrisma.incident.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 'incident-1', status: { not: 'closed' } }) })
+      );
+      // The losing race must not re-audit or duplicate the CLOSE/STATUS_CHANGE history.
+      expect(mockAuditService.logEvent).not.toHaveBeenCalled();
+      expect(mockPrisma.incidentHistoryEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the close when the audit write fails inside the transaction', async () => {
+      mockPrisma.incident.findUnique
+        .mockResolvedValueOnce({
+          id: 'incident-1',
+          status: 'under_investigation',
+          isSignificant: false,
+          rootCause: 'Patch gap',
+          measuresEvaluation: 'Controls improved',
+          reports: [],
+        } as any)
+        .mockResolvedValueOnce({
+          id: 'incident-1',
+          status: 'closed',
+          closedBy: 'user-1',
+        } as any);
+      mockPrisma.incident.updateMany.mockResolvedValueOnce({ count: 1 });
+      // Simulate the audit write failing after the CAS update applied.
+      mockAuditService.logEvent.mockRejectedValueOnce(new Error('audit write failed'));
+
+      await expect(incidentService.closeIncident('incident-1', {
+        rootCause: 'Patch gap',
+        measuresEvaluation: 'Controls improved',
+      }, 'user-1')).rejects.toThrow('audit write failed');
+
+      // The CAS update is rolled back with the failed audit write: no history
+      // entries may have been persisted, and everything ran in one transaction.
+      expect(mockPrisma.incidentHistoryEntry.create).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
     it('creates a history entry on incident assessment', async () => {
@@ -557,6 +656,10 @@ describe('Incident History (AUDIT-001)', () => {
             deleteMany: jest.fn().mockResolvedValue({}),
             createMany: jest.fn().mockResolvedValue({ count: 0 }),
           },
+          // A real transaction handle exposes the same models; the audit and
+          // history writes now run inside this transaction, so the tx mock
+          // must provide the history model as well.
+          incidentHistoryEntry: mockPrisma.incidentHistoryEntry,
         });
       });
 
@@ -583,6 +686,52 @@ describe('Incident History (AUDIT-001)', () => {
       const callArgs = (mockPrisma.incidentHistoryEntry.create as jest.Mock).mock.calls[0][0];
       expect(callArgs.data.fieldChanges).toHaveProperty('oldKnowledgeTime');
       expect(callArgs.data.fieldChanges).toHaveProperty('newKnowledgeTime');
+
+      // NIS2-relevant timestamp: knowledge-time change, deadline recalculation,
+      // audit and history must commit atomically in a single transaction.
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockAuditService.logEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ userId: 'user-1', action: 'INCIDENT_KNOWLEDGE_TIME_CHANGE' })
+      );
+      expect(mockAuditService.logEventStandalone).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the knowledge-time change when the audit write fails inside the transaction', async () => {
+      mockPrisma.incident.findUnique.mockResolvedValueOnce({
+        id: 'incident-1',
+        title: 'Test Incident',
+        knowledgeTime: new Date('2026-01-01T10:00:00Z'),
+      } as any);
+
+      const auditCreate = jest.fn().mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation(async (cb: any) => {
+        return cb({
+          incidentKnowledgeTimeChange: { create: jest.fn().mockResolvedValue({}) },
+          incident: {
+            update: jest.fn().mockResolvedValue({
+              id: 'incident-1',
+              knowledgeTime: new Date('2026-01-01T12:00:00Z'),
+            }),
+          },
+          notificationDeadline: {
+            deleteMany: jest.fn().mockResolvedValue({}),
+            createMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
+          incidentHistoryEntry: { create: auditCreate },
+        });
+      });
+
+      // Simulate the audit write failing after the knowledge-time change applied.
+      mockAuditService.logEvent.mockRejectedValueOnce(new Error('audit write failed'));
+
+      await expect(incidentService.changeKnowledgeTime('incident-1', new Date('2026-01-01T12:00:00Z'), 'Forensic correction', 'user-1'))
+        .rejects.toThrow('audit write failed');
+
+      // The knowledge-time change, deadline recalculation and history entry are
+      // rolled back with the failed audit write: nothing is partially persisted.
+      expect(auditCreate).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
     });
   });
 
