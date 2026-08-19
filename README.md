@@ -175,13 +175,15 @@ The central backend configuration is provided through [`backend/.env`](backend/.
 
 | Group | Examples | Purpose |
 |---|---|---|
-| Base | `NODE_ENV`, `HOST`, `PORT`, `DB_PROVIDER`, `DATABASE_URL`, `DATABASE_URL_FILE` | Runtime, network binding, and database connection |
-| Auth/Sessions | `JWT_SECRET`, token lifetimes, pre-auth/MFA configurations | Local authentication, JWTs, session/refresh flows |
-| CORS/HTTP | `CORS_ORIGINS`, rate limit options, upload limits | Browser access, API hardening, and request limits |
+| Base | `NODE_ENV`, `HOST`, `PORT`, `TRUST_PROXY`, `DB_PROVIDER`, `DATABASE_URL`, `DATABASE_URL_FILE` | Runtime, network binding, proxy trust, and database connection |
+| Auth/Sessions | `JWT_SECRET`, token lifetimes, pre-auth/MFA configurations, `MFA_ENCRYPTION_KEY` | Local authentication, JWTs, session/refresh flows, MFA secret encryption |
+| CORS/HTTP | `CORS_ORIGINS`, rate limit options (`AUTH_RATE_LIMIT_MAX`, `REFRESH_RATE_LIMIT_MAX`), upload limits, `BACKUP_MAX_FILE_SIZE_MB` | Browser access, API hardening, and request limits |
 | Monitoring | `METRICS_TOKEN`, log/health-related variables | Access to metrics and operational observability |
-| Integrations | `INTUNE_*`, `VMWARE_ENCRYPTION_KEY`, Proxmox/webhook/SMTP-related variables | External systems and background jobs |
+| Integrations | `INTUNE_*`, `VMWARE_ENCRYPTION_KEY`, `PROXMOX_ENCRYPTION_KEY`, Proxmox/webhook/SMTP-related variables | External systems, credential encryption, and background jobs |
 
 Details on operational variables and production considerations are available in [`docs/operations.md`](docs/operations.md) and [`docs/security-model.md`](docs/security-model.md).
+
+> **Note:** `HOST` defaults to `127.0.0.1` (loopback) for defense in depth; deployments that need to be reachable from other hosts must explicitly set `HOST=0.0.0.0` (or an interface IP). `TRUST_PROXY` controls how many reverse-proxy hops are trusted for client-IP resolution (rate limiting, audit IPs, CORS): `1` by default (one hop), `2` for CDN → LB → app, `false` to disable. Never resolve to boolean `true`, which would trust a client-spoofable `X-Forwarded-For` entry.
 
 ### Database provider configuration and migration / Datenbankanbieter und Migration
 
