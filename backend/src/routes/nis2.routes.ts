@@ -96,6 +96,24 @@ nis2Router.post('/registrations/:id/changes', authenticate, authorizeEntityWrite
   }
 });
 
+// NIS2 sectors reference data
+nis2Router.get('/sectors', authenticate, authorizeEntityRead('controls'), async (_req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.listSectors()); } catch (error) { next(error); }
+});
+
+// NIS2 questionnaire v2.0
+nis2Router.get('/questionnaire/v2', authenticate, authorizeEntityRead('controls'), async (_req: AuthRequest, res, next) => {
+  try { res.json(await nis2Service.getQuestionnaireV2()); } catch (error) { next(error); }
+});
+
+// Seed NIS2 questionnaire v2.0
+nis2Router.post('/questionnaire/v2/ensure', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await nis2Service.ensureV2Questionnaire(req.userId);
+    res.status(201).json(result);
+  } catch (error) { next(error); }
+});
+
 nis2Router.post('/measures-catalogue/ensure', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
   try {
     const result = await nis2Service.ensureMeasuresCatalogue(req.userId);

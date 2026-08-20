@@ -5,6 +5,7 @@ import { validateBody } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';
 import { authorizationService } from '../services/authorization.service';
 import { AssessIncidentSchema, ChangeIncidentStatusSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
+import { z } from 'zod';
 
 export const incidentRouter = Router();
 
@@ -181,4 +182,43 @@ incidentRouter.get('/:id/history', authenticate, requireEntityPermission('incide
   } catch (error) {
     next(error);
   }
+});
+
+// ==========================================
+// NIS2 Incident Reporting (Art. 23)
+// ==========================================
+
+incidentRouter.post('/:id/nis2/mark-relevant', authenticate, authorizeEntityWrite('incidents'), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await incidentService.markNis2Relevant(req.params.id, req.userId ?? 'system');
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+incidentRouter.post('/:id/nis2/early-warning', authenticate, authorizeEntityWrite('incidents'), validateBody(z.object({ description: z.string().min(1) })), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await incidentService.submitNis2EarlyWarning(req.params.id, req.body, req.userId ?? 'system');
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+incidentRouter.post('/:id/nis2/notification', authenticate, authorizeEntityWrite('incidents'), validateBody(z.object({ description: z.string().min(1) })), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await incidentService.submitNis2Notification(req.params.id, req.body, req.userId ?? 'system');
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+incidentRouter.post('/:id/nis2/final-report', authenticate, authorizeEntityWrite('incidents'), validateBody(z.object({ description: z.string().min(1), content: z.string().min(1) })), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await incidentService.submitNis2FinalReport(req.params.id, req.body, req.userId ?? 'system');
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+incidentRouter.get('/:id/nis2/reporting-status', authenticate, requireEntityPermission('incidents.read', 'incidents'), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await incidentService.getNis2ReportingStatus(req.params.id);
+    res.json(result);
+  } catch (error) { next(error); }
 });

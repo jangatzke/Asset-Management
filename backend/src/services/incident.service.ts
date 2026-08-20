@@ -790,6 +790,197 @@ export class IncidentService {
 
     return this.createIncidentReport(incidentId, { reportType: 'interim_report', title: reportData.title, content: { text: reportData.content } }, actorId);
   }
+
+  // ==========================================
+  // NIS2 Incident Reporting (Art. 23)
+  // ==========================================
+
+  /**
+   * Marks an incident as NIS2-relevant and calculates the 24h notification
+   * and 30-day final report deadlines based on the knowledge time.
+   */
+  async markNis2Relevant(incidentId: string, actorId: string) {
+    const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
+    if (!incident) throw new AppError('Incident not found', 404);
+
+    const knowledgeTime = new Date(incident.knowledgeTime);
+    const reportDeadline = new Date(knowledgeTime.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+    const finalReportDue = new Date(knowledgeTime.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await (tx as any).incident.updateMany({
+        where: { id: incidentId, nis2Relevant: false },
+        data: {
+          nis2Relevant: true,
+          nis2Severity: 'not_assessed',
+          nis2ReportDeadline: reportDeadline,
+          nis2FinalReportDue: finalReportDue,
+          updatedBy: actorId,
+        },
+      } as any);
+      if (result?.count !== 1) throw new AppError('Incident already marked as NIS2-relevant', 409);
+      await auditService.logEvent(tx, {
+        userId: actorId,
+        action: 'INCIDENT_NIS2_MARK_RELEVANT',
+        entityType: 'Incident',
+        entityId: incidentId,
+        details: 'Marked incident as NIS2-relevant with 24h notification and 30-day final report deadlines',
+        newValue: { nis2ReportDeadline: reportDeadline.toISOString(), nis2FinalReportDue: finalReportDue.toISOString() },
+      });
+      return tx.incident.findUnique({ where: { id: incidentId } });
+    });
+
+    return updated;
+  }
+
+  /**
+   * Submits the early warning (Frühwarnung) for a NIS2-relevant incident.
+   * NIS2 Art. 23: "as soon as possible" after detection.
+   */
+  async submitNis2EarlyWarning(incidentId: string, data: { description: string }, actorId: string) {
+    const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
+    if (!incident) throw new AppError('Incident not found', 404);
+    if (!incident.nis2Relevant) throw new AppError('Incident must be marked as NIS2-relevant first', 400);
+    if (incident.nis2Severity !== 'not_assessed') throw new AppError('Early warning already submitted', 409);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await (tx as any).incident.updateMany({
+        where: { id: incidentId, nis2Severity: 'not_assessed' },
+        data: {
+          nis2Severity: 'early_warning',
+          nis2ReportedAt: new Date(),
+          updatedBy: actorId,
+        },
+      } as any);
+      if (result?.count !== 1) throw new AppError('NIS2 early warning already submitted', 409);
+      await auditService.logEvent(tx, {
+        userId: actorId,
+        action: 'INCIDENT_NIS2_EARLY_WARNING',
+        entityType: 'Incident',
+        entityId: incidentId,
+        details: `Early warning submitted: ${data.description}`,
+        newValue: { nis2ReportedAt: new Date().toISOString(), nis2Severity: 'early_warning' },
+      });
+      return tx.incident.findUnique({ where: { id: incidentId } });
+    });
+
+    return updated;
+  }
+
+  /**
+   * Submits the formal NIS2 notification (24h-Meldung) to the competent authority.
+   * NIS2 Art. 23: within 24 hours of detection.
+   */
+  async submitNis2Notification(incidentId: string, data: { description: string }, actorId: string) {
+    const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
+    if (!incident) throw new AppError('Incident not found', 404);
+    if (!incident.nis2Relevant) throw new AppError('Incident must be marked as NIS2-relevant first', 400);
+    if (incident.nis2Severity === 'final') throw new AppError('Final report already submitted', 409);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await (tx as any).incident.updateMany({
+        where: { id: incidentId, nis2Severity: { in: ['not_assessed', 'early_warning'] } },
+        data: {
+          nis2Severity: 'notification',
+          nis2ReportedAt: incident.nis2ReportedAt ?? new Date(),
+          updatedBy: actorId,
+        },
+      } as any);
+      if (result?.count !== 1) throw new AppError('NIS2 notification already submitted', 409);
+      await auditService.logEvent(tx, {
+        userId: actorId,
+        action: 'INCIDENT_NIS2_NOTIFICATION',
+        entityType: 'Incident',
+        entityId: incidentId,
+        details: `NIS2 notification submitted: ${data.description}`,
+        newValue: { nis2Severity: 'notification' },
+      });
+      return tx.incident.findUnique({ where: { id: incidentId } });
+    });
+
+    return updated;
+  }
+
+  /**
+   * Submits the final NIS2 report (30-day Abschlussbericht).
+   * NIS2 Art. 23: within 30 days of detection.
+   */
+  async submitNis2FinalReport(incidentId: string, data: { description: string; content: string }, actorId: string) {
+    const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
+    if (!incident) throw new AppError('Incident not found', 404);
+    if (!incident.nis2Relevant) throw new AppError('Incident must be marked as NIS2-relevant first', 400);
+    if (incident.nis2Severity === 'final') throw new AppError('Final report already submitted', 409);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await (tx as any).incident.updateMany({
+        where: { id: incidentId, nis2Severity: { in: ['not_assessed', 'early_warning', 'notification'] } },
+        data: {
+          nis2Severity: 'final',
+          nis2ReportedAt: incident.nis2ReportedAt ?? new Date(),
+          updatedBy: actorId,
+        },
+      } as any);
+      if (result?.count !== 1) throw new AppError('NIS2 final report already submitted', 409);
+      await auditService.logEvent(tx, {
+        userId: actorId,
+        action: 'INCIDENT_NIS2_FINAL_REPORT',
+        entityType: 'Incident',
+        entityId: incidentId,
+        details: `NIS2 final report submitted: ${data.description}`,
+        newValue: { nis2Severity: 'final', finalReportContent: data.content },
+      });
+      return tx.incident.findUnique({ where: { id: incidentId } });
+    });
+
+    return updated;
+  }
+
+  /**
+   * Calculates the current NIS2 reporting status for an incident.
+   * Returns the status with deadline information and overdue flags.
+   */
+  async getNis2ReportingStatus(incidentId: string) {
+    const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
+    if (!incident) throw new AppError('Incident not found', 404);
+
+    if (!incident.nis2Relevant) {
+      return {
+        isRelevant: false,
+        severity: 'not_assessed',
+        reportedAt: null,
+        reportDeadline: null,
+        finalReportDue: null,
+        isReportDeadlineOverdue: false,
+        isFinalReportDueOverdue: false,
+      };
+    }
+
+    const now = new Date();
+    const reportDeadline = incident.nis2ReportDeadline ? new Date(incident.nis2ReportDeadline) : null;
+    const finalReportDue = incident.nis2FinalReportDue ? new Date(incident.nis2FinalReportDue) : null;
+
+    let status = 'not_reported';
+    if (incident.nis2Severity === 'final') {
+      status = 'final_report_submitted';
+    } else if (incident.nis2Severity === 'notification') {
+      status = 'notification_submitted';
+    } else if (incident.nis2Severity === 'early_warning') {
+      status = 'early_warning_submitted';
+    } else if (reportDeadline && reportDeadline < now) {
+      status = 'report_deadline_overdue';
+    }
+
+    return {
+      isRelevant: true,
+      severity: incident.nis2Severity,
+      reportedAt: incident.nis2ReportedAt,
+      reportDeadline,
+      finalReportDue,
+      isReportDeadlineOverdue: reportDeadline !== null && reportDeadline < now,
+      isFinalReportDueOverdue: finalReportDue !== null && finalReportDue < now,
+      status,
+    };
+  }
 }
 
 export const incidentService = new IncidentService();

@@ -1620,6 +1620,12 @@ model Incident {
   status                    String    @default("new")
   severity                  String    @default("low")
   notificationStatus        String    @default("not_required")
+  // NIS2 incident reporting fields (Art. 23)
+  nis2Relevant              Boolean   @default(false)
+  nis2Severity              String    @default("not_assessed") // not_assessed, early_warning, notification, final
+  nis2ReportedAt            DateTime?
+  nis2ReportDeadline        DateTime?
+  nis2FinalReportDue        DateTime?
   significanceRuleVersionId String?
   isSignificant             Boolean   @default(false)
   significanceReasons       String[]  @default([])

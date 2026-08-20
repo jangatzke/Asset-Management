@@ -2,6 +2,181 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
+/**
+ * NIS2 Sectors (NIS2-Umsetzungsgesetz — NIS2UmsuCG)
+ *
+ * Die 18 Sektoren des Anhangs des NIS2-Umsetzungsgesetzes.
+ */
+export const NIS2_SECTORS = [
+  {
+    key: 'energy',
+    nameDe: 'Energie',
+    nameEn: 'Energy',
+    subSectors: ['Strom', 'Gas', 'Öl', 'Energieübertragung und -verteilung'],
+  },
+  {
+    key: 'transport',
+    nameDe: 'Verkehr',
+    nameEn: 'Transport',
+    subSectors: ['Luftfahrt', 'Bahn', 'Straßenverkehr', 'Wasserfahrt', 'Öffentlicher Nahverkehr'],
+  },
+  {
+    key: 'banking',
+    nameDe: 'Bankwesen',
+    nameEn: 'Banking',
+    subSectors: ['Kreditinstitute', 'Zahlungsabwicklung'],
+  },
+  {
+    key: 'financial-market-infra',
+    nameDe: 'Finanzmarkt-Infrastruktur',
+    nameEn: 'Financial Market Infrastructures',
+    subSectors: ['Wertpapierhandel', 'Klare Gegenparteien (CCP)', 'Verwahrung'],
+  },
+  {
+    key: 'health',
+    nameDe: 'Gesundheit',
+    nameEn: 'Health',
+    subSectors: ['Herstellende Gesundheitsanbieter', 'Versorgende Gesundheitsanbieter', 'Notfallversorgung', 'Pharma-Produktion'],
+  },
+  {
+    key: 'water',
+    nameDe: 'Wasserversorgung',
+    nameEn: 'Water Supply',
+    subSectors: ['Trinkwasserversorgung', 'Abwasserentsorgung'],
+  },
+  {
+    key: 'digital-infrastructure',
+    nameDe: 'Digitale Infrastruktur',
+    nameEn: 'Digital Infrastructure',
+    subSectors: ['Internet Exchange', 'Cloud Computing Services', 'Rechenzentren', 'Data Centre Interconnect', 'Internet Service Provider (ISP)', 'Domain Name Systems (DNS)'],
+  },
+  {
+    key: 'ict-service-mgmt',
+    nameDe: 'IT-Dienstleistungsmanagement',
+    nameEn: 'ICT Service Management',
+    subSectors: ['Managed Security Service Provider (MSSP)', 'Software und Hardware (Vertrieb)', 'IT-Projektmanagement', 'Softwareentwicklung'],
+  },
+  {
+    key: 'space',
+    nameDe: 'Weltraum',
+    nameEn: 'Space',
+    subSectors: ['Satelliten', 'Satellitengrundinfrastruktur', 'Weltraumbetrieb'],
+  },
+  {
+    key: 'public-admin',
+    nameDe: 'Öffentliche Verwaltung',
+    nameEn: 'Public Administration',
+    subSectors: ['Verwaltungen allgemein', 'Zertifizierungsstellen (Trust Service Providers)'],
+  },
+  {
+    key: 'postal',
+    nameDe: 'Post und Kurier',
+    nameEn: 'Postal and Courier Services',
+    subSectors: ['Post', 'Kurierdienste', 'Paketdienste'],
+  },
+  {
+    key: 'waste',
+    nameDe: 'Abfallwirtschaft',
+    nameEn: 'Waste Management',
+    subSectors: ['Siedlungsabfall', 'Gefährlicher Abfall'],
+  },
+  {
+    key: 'chemicals',
+    nameDe: 'Chemie',
+    nameEn: 'Chemicals',
+    subSectors: ['Industrielle Chemie', 'Pharmazeutische Chemie'],
+  },
+  {
+    key: 'food',
+    nameDe: 'Lebensmittel',
+    nameEn: 'Food',
+    subSectors: ['Lebensmittelproduktion', 'Lebensmittelverteilung'],
+  },
+  {
+    key: 'construction',
+    nameDe: 'Baugewerbe',
+    nameEn: 'Construction',
+    subSectors: ['Bauunternehmen', 'Baustoffproduktion'],
+  },
+  {
+    key: 'digital',
+    nameDe: 'Digitale Produkte',
+    nameEn: 'Digital Products',
+    subSectors: ['Endgeräte', 'Sicherheitskomponenten'],
+  },
+  {
+    key: 'ict-education',
+    nameDe: 'IT-Schulung',
+    nameEn: 'ICT Education',
+    subSectors: ['IT-Ausbildungseinrichtungen'],
+  },
+  {
+    key: 'research',
+    nameDe: 'Forschung und Entwicklung',
+    nameEn: 'Research and Development',
+    subSectors: ['Forschungseinrichtungen', 'Forschungsdatenverarbeitung'],
+  },
+];
+
+/**
+ * NIS2 v2.0 Applicability Questionnaire.
+ * Implements sector-based classification with employee count,
+ * revenue and balance sheet thresholds per NIS2UmsuCG.
+ */
+export const NIS2_APPLICABILITY_QUESTIONNAIRE = {
+  version: '2.0.0',
+  title: 'NIS2 Anwendbarkeits-Fragebogen',
+  description: 'Ermittelt, ob die Organisation als besonders wichtige oder wichtige Einrichtung einzustufen ist.',
+  questions: [
+    {
+      id: 'sector',
+      type: 'select',
+      labelDe: 'Sektor',
+      labelEn: 'Sector',
+      options: NIS2_SECTORS.map((s) => ({ value: s.key, labelDe: s.nameDe, labelEn: s.nameEn })),
+      required: true,
+    },
+    {
+      id: 'employeeCount',
+      type: 'number',
+      labelDe: 'Anzahl der Beschäftigten',
+      labelEn: 'Number of employees',
+      required: true,
+    },
+    {
+      id: 'annualRevenue',
+      type: 'number',
+      labelDe: 'Jahresumsatz in Mio. €',
+      labelEn: 'Annual revenue in Mio. €',
+      required: true,
+    },
+    {
+      id: 'balanceSheetTotal',
+      type: 'number',
+      labelDe: 'Bilanzsumme in Mio. €',
+      labelEn: 'Balance sheet total in Mio. €',
+      required: true,
+    },
+  ],
+  scoringRules: {
+    essential_entity: {
+      condition: 'employeeCount >= 250 OR (annualRevenue >= 50 AND balanceSheetTotal >= 43)',
+      labelDe: 'Besonders wichtige Einrichtung (bwE)',
+      labelEn: 'Essential Entity',
+    },
+    important_entity: {
+      condition: 'employeeCount >= 50 OR (annualRevenue >= 10 AND balanceSheetTotal >= 10)',
+      labelDe: 'Wichtige Einrichtung (wE)',
+      labelEn: 'Important Entity',
+    },
+    not_applicable: {
+      condition: 'Below important entity thresholds',
+      labelDe: 'Nicht anwendbar',
+      labelEn: 'Not Applicable',
+    },
+  },
+};
+
 export const NIS2_TOPICS = [
   { key: 'risk_management', title: 'Risk management policies and information system security' },
   { key: 'incident_handling', title: 'Incident handling' },
@@ -15,6 +190,24 @@ export const NIS2_TOPICS = [
   { key: 'asset_management_mfa', title: 'Asset management, MFA and secured communications' },
 ];
 
+/**
+ * NIS2-Anwendbarkeits-Prüfung nach NIS2UmsuCG:
+ * - bwE (essential): ≥ 250 MA ODER (≥ 50 Mio. € Umsatz UND ≥ 43 Mio. € Bilanzsumme)
+ * - wE (important): ≥ 50 MA ODER (≥ 10 Mio. € Umsatz UND ≥ 10 Mio. € Bilanzsumme)
+ */
+const NIS2_SCORING_RULES = {
+  essentialEntity: {
+    employeeThreshold: 250,
+    revenueThresholdEurMillion: 50,
+    balanceSheetThresholdEurMillion: 43,
+  },
+  importantEntity: {
+    employeeThreshold: 50,
+    revenueThresholdEurMillion: 10,
+    balanceSheetThresholdEurMillion: 10,
+  },
+};
+
 const DEFAULT_QUESTIONNAIRE = {
   version: '1.0',
   title: 'NIS-2 applicability questionnaire',
@@ -25,10 +218,7 @@ const DEFAULT_QUESTIONNAIRE = {
     { key: 'criticalService', label: 'Provides essential or important service', type: 'boolean', required: true },
     { key: 'crossBorderService', label: 'Provides cross-border services', type: 'boolean', required: false },
   ],
-  scoringRules: {
-    essentialIf: { criticalService: true, employeeCountAtLeast: 250, revenueAtLeast: 50 },
-    importantIf: { employeeCountAtLeast: 50, revenueAtLeast: 10 },
-  },
+  scoringRules: NIS2_SCORING_RULES,
 };
 
 export interface CreateApplicabilityAssessmentData {
@@ -116,13 +306,63 @@ export class Nis2Service {
     return created;
   }
 
+  /**
+   * Evaluates NIS2 applicability based on NIS2UmsuCG thresholds:
+   * - bwE (essential_entity): ≥ 250 employees OR (≥ €50M revenue AND ≥ €43M balance sheet)
+   * - wE (important_entity): ≥ 50 employees OR (≥ €10M revenue AND ≥ €10M balance sheet)
+   */
   private evaluateApplicability(answers: Record<string, any>) {
     const employees = Number(answers.employeeCount ?? 0);
     const revenue = Number(answers.annualRevenueMillionEur ?? 0);
+    const balanceSheet = Number(answers.balanceSheetMillionEur ?? 0);
     const criticalService = answers.criticalService === true;
-    if (criticalService && (employees >= 250 || revenue >= 50)) return { result: 'essential_entity', justification: 'Critical service and size thresholds indicate essential entity applicability.' };
-    if (criticalService || employees >= 50 || revenue >= 10) return { result: 'important_entity', justification: 'Thresholds or critical service indicate important entity applicability.' };
-    return { result: 'not_in_scope', justification: 'Provided answers do not meet configured NIS-2 thresholds.' };
+    const sector = answers.sector ?? 'unknown';
+
+    // Check essential entity (bwE) thresholds
+    const meetsEssentialEmployee = employees >= NIS2_SCORING_RULES.essentialEntity.employeeThreshold;
+    const meetsEssentialFinancial = revenue >= NIS2_SCORING_RULES.essentialEntity.revenueThresholdEurMillion
+      && balanceSheet >= NIS2_SCORING_RULES.essentialEntity.balanceSheetThresholdEurMillion;
+    if (criticalService && (meetsEssentialEmployee || meetsEssentialFinancial)) {
+      const reasons: string[] = [];
+      if (meetsEssentialEmployee) reasons.push(`${employees} employees (≥ ${NIS2_SCORING_RULES.essentialEntity.employeeThreshold})`);
+      if (meetsEssentialFinancial) reasons.push(`€${revenue}M revenue + €${balanceSheet}M balance sheet (threshold: €${NIS2_SCORING_RULES.essentialEntity.revenueThresholdEurMillion}M + €${NIS2_SCORING_RULES.essentialEntity.balanceSheetThresholdEurMillion}M)`);
+      return {
+        result: 'essential_entity',
+        justification: `Sector: ${sector}. Meets essential entity thresholds: ${reasons.join(' and ')}.`,
+        sector,
+        employees,
+        revenue,
+        balanceSheet,
+      };
+    }
+
+    // Check important entity (wE) thresholds
+    const meetsImportantEmployee = employees >= NIS2_SCORING_RULES.importantEntity.employeeThreshold;
+    const meetsImportantFinancial = revenue >= NIS2_SCORING_RULES.importantEntity.revenueThresholdEurMillion
+      && balanceSheet >= NIS2_SCORING_RULES.importantEntity.balanceSheetThresholdEurMillion;
+    if (criticalService || meetsImportantEmployee || meetsImportantFinancial) {
+      const reasons: string[] = [];
+      if (criticalService) reasons.push('critical service provider');
+      if (meetsImportantEmployee) reasons.push(`${employees} employees (≥ ${NIS2_SCORING_RULES.importantEntity.employeeThreshold})`);
+      if (meetsImportantFinancial) reasons.push(`€${revenue}M revenue + €${balanceSheet}M balance sheet (threshold: €${NIS2_SCORING_RULES.importantEntity.revenueThresholdEurMillion}M + €${NIS2_SCORING_RULES.importantEntity.balanceSheetThresholdEurMillion}M)`);
+      return {
+        result: 'important_entity',
+        justification: `Sector: ${sector}. Meets important entity criteria: ${reasons.join(' and ')}.`,
+        sector,
+        employees,
+        revenue,
+        balanceSheet,
+      };
+    }
+
+    return {
+      result: 'not_in_scope',
+      justification: `Sector: ${sector}. Provided answers do not meet configured NIS-2 thresholds (employees: ${employees}, revenue: €${revenue}M, balance sheet: €${balanceSheet}M).`,
+      sector,
+      employees,
+      revenue,
+      balanceSheet,
+    };
   }
 
   async createApplicabilityAssessment(data: CreateApplicabilityAssessmentData, createdBy?: string) {
@@ -217,6 +457,33 @@ export class Nis2Service {
     }
     if (createdBy) await auditService.logEventStandalone(prisma, { userId: createdBy, action: 'NIS2_MEASURES_CATALOGUE_ENSURE', entityType: 'FrameworkVersion', entityId: frameworkVersion.id, details: 'Ensured ten NIS-2 topic areas as requirements and controls', newValue: { topics: NIS2_TOPICS.map((topic) => topic.key) } });
     return { frameworkVersion, controls, topics: NIS2_TOPICS };
+  }
+
+  /**
+   * GET /nis2/sectors
+   * Returns the static list of 18 NIS2 sectors for the self-assessment selector.
+   */
+  async listSectors() {
+    return NIS2_SECTORS;
+  }
+
+  /**
+   * GET /nis2/questionnaire/v2
+   * Returns the v2.0 applicability questionnaire with sector options and scoring rules.
+   */
+  async getQuestionnaireV2() {
+    return NIS2_APPLICABILITY_QUESTIONNAIRE;
+  }
+
+  /**
+   * Seeds the v2.0 questionnaire into the database (idempotent).
+   */
+  async ensureV2Questionnaire(createdBy?: string) {
+    return (prisma as any).nis2QuestionnaireVersion.upsert({
+      where: { version: NIS2_APPLICABILITY_QUESTIONNAIRE.version },
+      update: { status: 'active' },
+      create: { ...NIS2_APPLICABILITY_QUESTIONNAIRE, createdBy },
+    });
   }
 }
 
