@@ -47,6 +47,12 @@ interface CatalogOption {
   itemCount: number;
 }
 
+interface IsmsScopeOption {
+  id: string;
+  name: string;
+  version: string;
+}
+
 interface CreateControlForm {
   catalogId: string;
   catalogVersion: string;
@@ -109,6 +115,10 @@ const Controls = () => {
   const [frameworkCount, setFrameworkCount] = useState(0);
   const [soaCount, setSoaCount] = useState(0);
   const [evidenceCount, setEvidenceCount] = useState(0);
+  const [ismsScopes, setIsmsScopes] = useState<IsmsScopeOption[]>([]);
+  const [selectedSoAScopeId, setSelectedSoAScopeId] = useState('');
+  const [generatingSoA, setGeneratingSoA] = useState(false);
+  const [soaSuccessMessage, setSoaSuccessMessage] = useState('');
   const [catalogOptions, setCatalogOptions] = useState<CatalogOption[]>([]);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
   const [implementationModalOpen, setImplementationModalOpen] = useState(false);
@@ -129,6 +139,7 @@ const Controls = () => {
   useEffect(() => {
     loadControls();
     loadCatalogOptions();
+    loadIsmsScopes();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial controls page load only; loaders use current translation fallback for this mount.
   }, []);
 
@@ -138,6 +149,15 @@ const Controls = () => {
       setCatalogOptions(response.data || []);
     } catch (err) {
       console.error('Failed to load catalog options:', err);
+    }
+  };
+
+  const loadIsmsScopes = async () => {
+    try {
+      const response = await organizationApi.listScopes();
+      setIsmsScopes(response.data?.data ?? []);
+    } catch (err) {
+      console.error('Failed to load ISMS scopes:', err);
     }
   };
 
@@ -195,6 +215,23 @@ const Controls = () => {
     const catalog = catalogOptions.find(c => c.id === catalogId);
     if (catalog) {
       formState.handleChange({ catalogId: `${catalog.name} - ${catalog.version}`, catalogVersion: catalog.version || '' });
+    }
+  };
+
+  const handleGenerateIso27001SoA = async () => {
+    if (!selectedSoAScopeId || generatingSoA) return;
+    try {
+      setGeneratingSoA(true);
+      setError('');
+      setSoaSuccessMessage('');
+      const response = await controlApi.generateIso27001AnnexASoA(selectedSoAScopeId);
+      const itemCount = response.data?.items?.length ?? 93;
+      setSoaSuccessMessage(`ISO/IEC 27001:2022 SoA draft created with ${itemCount} Annex A controls. Review applicability and replace every pending rationale before submission.`);
+      await loadControls();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Could not generate the ISO/IEC 27001 SoA draft.');
+    } finally {
+      setGeneratingSoA(false);
     }
   };
 
@@ -357,6 +394,41 @@ const Controls = () => {
           {error}
         </div>
       )}
+
+      {soaSuccessMessage && (
+        <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 p-3 rounded mb-4" role="status">
+          {soaSuccessMessage}
+        </div>
+      )}
+
+      <section className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4" aria-labelledby="iso27001-soa-generator-title">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="iso27001-soa-generator-title" className="font-semibold text-gray-900 dark:text-white">Generate ISO/IEC 27001:2022 Annex A SoA</h2>
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">Creates a new editable draft containing all 93 Annex A controls. Applicability is intentionally set to under review; complete the scope-specific decision and rationale for every item before submitting.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <label className="sr-only" htmlFor="iso27001-soa-scope">Approved ISMS scope</label>
+            <select
+              id="iso27001-soa-scope"
+              value={selectedSoAScopeId}
+              onChange={(event) => setSelectedSoAScopeId(event.target.value)}
+              className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md"
+            >
+              <option value="">Select an approved ISMS scope</option>
+              {ismsScopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.name} (v{scope.version})</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={handleGenerateIso27001SoA}
+              disabled={!selectedSoAScopeId || generatingSoA}
+              className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {generatingSoA ? 'Generating…' : 'Generate SoA draft'}
+            </button>
+          </div>
+        </div>
+      </section>
 
       <div className="mb-4">
         <input

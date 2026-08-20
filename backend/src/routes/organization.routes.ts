@@ -34,9 +34,17 @@ orgRouter.post('/units', authenticate, (_req, res, _next) => {
   res.status(501).json({ error: 'Not Implemented', message: 'Create org unit endpoint is not yet implemented' });
 });
 
-orgRouter.get('/scopes', authenticate, (_req, res, _next) => {
-  // TODO: Implement ISMS scopes listing
-  res.status(501).json({ error: 'Not Implemented', message: 'List scopes endpoint is not yet implemented' });
+orgRouter.get('/scopes', authenticate, async (_req, res, next) => {
+  try {
+    const scopes = await prisma.ismsScope.findMany({
+      where: { isArchived: false, approvalStatus: 'approved' },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, version: true, nextReviewDate: true },
+    });
+    res.json({ data: scopes });
+  } catch (error) {
+    next(error);
+  }
 });
 
 orgRouter.post('/scopes', authenticate, (_req, res, _next) => {

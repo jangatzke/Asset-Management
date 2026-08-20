@@ -377,6 +377,7 @@ export const controlApi = {
   createTest: (data: CreateControlTestDTO) => api.post('/controls/tests', data),
   listSoA: (params?: any) => api.get('/controls/soa', { params }),
   createSoA: (data: CreateSoADTO) => api.post('/controls/soa', data),
+  generateIso27001AnnexASoA: (scopeId: string) => api.post('/controls/soa/generate/iso27001-annex-a', { scopeId }),
   submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
   history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/controls/${id}/history`, { params }),
@@ -404,6 +405,7 @@ export const userSearchApi = {
 };
 
 export const organizationApi = {
+  listScopes: () => api.get('/organization/scopes'),
   listUnits: (params?: { q?: string; limit?: number }) => api.get('/organization/units', { params }),
 };
 

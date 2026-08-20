@@ -1,6 +1,13 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import {
+  ISO27001_ANNEX_A_2022_CATALOG_CODE,
+  ISO27001_ANNEX_A_2022_CONTROLS,
+  ISO27001_ANNEX_A_2022_VERSION,
+} from '../data/iso27001AnnexA2022';
+
+const ISO27001_ANNEX_A_2022_CATALOG_ID = '00000000-0000-4000-8000-000000000001';
 
 export interface CreateCatalogData {
   name: string;
@@ -45,6 +52,69 @@ export interface CatalogOption {
 }
 
 export class CatalogService {
+  /**
+   * Maintains the complete ISO/IEC 27001:2022 Annex A reference catalogue.
+   *
+   * The entries intentionally contain identifiers, titles, themes and original
+   * short objectives instead of reproducing licensed ISO standard text.
+   */
+  async ensureIso27001AnnexA2022Catalog() {
+    return prisma.$transaction(async (tx) => {
+      const catalog = await tx.controlCatalog.upsert({
+        where: { id: ISO27001_ANNEX_A_2022_CATALOG_ID },
+        create: {
+          id: ISO27001_ANNEX_A_2022_CATALOG_ID,
+          name: 'ISO/IEC 27001:2022 Annex A',
+          description: 'Complete ISO/IEC 27001:2022 Annex A reference catalogue with 93 control identifiers and implementation objectives.',
+          version: ISO27001_ANNEX_A_2022_VERSION,
+          url: 'https://www.iso.org/standard/27001.html',
+          isActive: true,
+        },
+        update: {
+          name: 'ISO/IEC 27001:2022 Annex A',
+          description: 'Complete ISO/IEC 27001:2022 Annex A reference catalogue with 93 control identifiers and implementation objectives.',
+          version: ISO27001_ANNEX_A_2022_VERSION,
+          url: 'https://www.iso.org/standard/27001.html',
+          isActive: true,
+        },
+      });
+
+      for (const [index, control] of ISO27001_ANNEX_A_2022_CONTROLS.entries()) {
+        await tx.controlCatalogItem.upsert({
+          where: {
+            catalogId_controlId: {
+              catalogId: catalog.id,
+              controlId: control.controlId,
+            },
+          },
+          create: {
+            catalogId: catalog.id,
+            controlId: control.controlId,
+            title: control.title,
+            description: control.objective,
+            category: control.category,
+            subcategory: control.controlId.split('.')[1],
+            sortOrder: index + 1,
+            tags: [ISO27001_ANNEX_A_2022_CATALOG_CODE, control.category.toLowerCase()],
+          },
+          update: {
+            title: control.title,
+            description: control.objective,
+            category: control.category,
+            subcategory: control.controlId.split('.')[1],
+            sortOrder: index + 1,
+            tags: [ISO27001_ANNEX_A_2022_CATALOG_CODE, control.category.toLowerCase()],
+          },
+        });
+      }
+
+      return tx.controlCatalog.findUniqueOrThrow({
+        where: { id: catalog.id },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+  }
+
   async listCatalogs(query: ListCatalogsQuery) {
     const page = parseInt(query.page as string) || 1;
     const limit = parseInt(query.limit as string) || 20;
@@ -259,3 +329,5 @@ export class CatalogService {
     }));
   }
 }
+
+export const catalogService = new CatalogService();

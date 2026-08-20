@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { ISO27001_STANDARD_ASSET_TYPES } from '../src/services/bootstrap.service';
 import { GRANULAR_PERMISSIONS } from '../src/services/authorization.service';
+import { catalogService } from '../src/services/catalog.service';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: false });
 
@@ -560,6 +561,8 @@ async function main(): Promise<void> {
     await seedIntuneSyncConfig();
     await seedTestUser();
     await seedNormalizedRiskControlDemo();
+    const isoCatalog = await catalogService.ensureIso27001AnnexA2022Catalog();
+    console.log(`  ✓ ISO/IEC 27001:2022 Annex A catalogue (${isoCatalog.items.length} controls)`);
 
     console.log('\n✅ Seed completed successfully!\n');
   } catch (error) {

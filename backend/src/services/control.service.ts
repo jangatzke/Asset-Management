@@ -5,9 +5,16 @@ import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
+import { catalogService } from './catalog.service';
+import {
+  ISO27001_ANNEX_A_2022_CATALOG_CODE,
+  ISO27001_ANNEX_A_2022_CONTROLS,
+  ISO27001_ANNEX_A_2022_VERSION,
+} from '../data/iso27001AnnexA2022';
 
 const db = prisma as any;
 const DEPRECATED_CONTROL_FIELDS = ['relatedRiskIds', 'riskIds', 'evidenceIds', 'risks'];
+const ISO27001_SOA_PENDING_JUSTIFICATION = 'Scope-specific applicability decision pending; assess the associated risk and document the rationale before submitting this SoA.';
 
 async function resolveImplementationTargetScope(data: { scopeId?: string | null; organizationUnitId?: string | null; siteId?: string | null }): Promise<ScopeConstraints> {
   const [organizationUnit, site] = await Promise.all([
@@ -387,6 +394,137 @@ export class ControlService {
     return soa;
   }
 
+  /**
+   * Creates a complete, editable ISO/IEC 27001:2022 Annex A SoA draft.
+   *
+   * Annex A controls are a selection baseline, not a blanket applicability
+   * decision. Each generated item is therefore marked under_review and has a
+   * precise placeholder that must be replaced before submission.
+   */
+  async generateIso27001AnnexASOA(scopeId: string, createdBy: string) {
+    const scope = await db.ismsScope.findUnique({ where: { id: scopeId }, select: { id: true } });
+    if (!scope) throw new AppError('ISMS scope not found', 404);
+
+    await authorizationService.requireForScope(createdBy, 'controls.write', {
+      scopeId,
+      legalEntityId: null,
+      organizationUnitId: null,
+      siteId: null,
+    });
+    const catalog = await catalogService.ensureIso27001AnnexA2022Catalog();
+    if (catalog.items.length !== ISO27001_ANNEX_A_2022_CONTROLS.length) {
+      throw new AppError('ISO/IEC 27001:2022 Annex A catalogue is incomplete', 409);
+    }
+
+    const soa = await prisma.$transaction(async (tx) => {
+      const framework = await tx.framework.upsert({
+        where: { code: ISO27001_ANNEX_A_2022_CATALOG_CODE },
+        create: {
+          code: ISO27001_ANNEX_A_2022_CATALOG_CODE,
+          name: 'ISO/IEC 27001:2022',
+          version: ISO27001_ANNEX_A_2022_VERSION,
+          description: 'ISO/IEC 27001:2022 ISMS framework metadata for Annex A Statements of Applicability.',
+          publisher: 'ISO/IEC',
+          licenseInfo: 'ISO/IEC standard text is licensed; this application stores only identifiers, titles and original implementation objectives.',
+          createdBy,
+          updatedBy: createdBy,
+        },
+        update: { version: ISO27001_ANNEX_A_2022_VERSION, updatedBy: createdBy },
+      });
+
+      await tx.frameworkVersion.upsert({
+        where: { frameworkId_version: { frameworkId: framework.id, version: ISO27001_ANNEX_A_2022_VERSION } },
+        create: {
+          frameworkId: framework.id,
+          version: ISO27001_ANNEX_A_2022_VERSION,
+          source: 'ISO/IEC 27001:2022 Annex A control identifiers and original catalogue objectives',
+          licenseInfo: 'No ISO/IEC copyrighted control text stored.',
+          createdBy,
+        },
+        update: {},
+      });
+
+      const controls = [] as Array<{ id: string; controlId: string }>;
+      for (const item of catalog.items) {
+        const existingControl = await tx.control.findFirst({
+          where: {
+            catalogId: ISO27001_ANNEX_A_2022_CATALOG_CODE,
+            catalogVersion: ISO27001_ANNEX_A_2022_VERSION,
+            title: item.title,
+          },
+          select: { id: true, catalogId: true },
+        });
+        const control = existingControl
+          ? await tx.control.update({
+            where: { id: existingControl.id },
+            data: {
+              description: item.description ?? `Implement ${item.title}.`,
+              controlGoal: item.description ?? `Implement ${item.title}.`,
+              updatedBy: createdBy,
+            },
+            select: { id: true },
+          })
+          : await tx.control.create({
+            data: {
+              catalogId: ISO27001_ANNEX_A_2022_CATALOG_CODE,
+              catalogVersion: ISO27001_ANNEX_A_2022_VERSION,
+              title: item.title,
+              description: item.description ?? `Implement ${item.title}.`,
+              controlGoal: item.description ?? `Implement ${item.title}.`,
+              applicability: 'under_review',
+              applicabilityJustification: 'Generated from ISO/IEC 27001:2022 Annex A; scope-specific applicability decision pending.',
+              implementationStatus: 'planned',
+              createdBy,
+              updatedBy: createdBy,
+            },
+            select: { id: true },
+          });
+        controls.push({ id: control.id, controlId: item.controlId });
+      }
+
+      const controlByIdentifier = new Map(controls.map((control) => [control.controlId, control.id]));
+      const latestVersion = await tx.statementOfApplicability.aggregate({
+        where: {
+          scopeId,
+          frameworkId: framework.id,
+          frameworkVersion: ISO27001_ANNEX_A_2022_VERSION,
+        },
+        _max: { version: true },
+      });
+      return tx.statementOfApplicability.create({
+        data: {
+          frameworkId: framework.id,
+          frameworkVersion: ISO27001_ANNEX_A_2022_VERSION,
+          scopeId,
+          version: (latestVersion._max.version ?? 0) + 1,
+          createdBy,
+          updatedBy: createdBy,
+          items: {
+            create: catalog.items.map((item: { controlId: string }) => ({
+              controlId: controlByIdentifier.get(item.controlId),
+              applicability: 'under_review',
+              justification: ISO27001_SOA_PENDING_JUSTIFICATION,
+              implementationStatus: 'planned',
+              createdBy,
+              updatedBy: createdBy,
+            })),
+          },
+        },
+        include: { items: { include: { control: true } } },
+      });
+    });
+
+    await auditService.logEventStandalone(prisma, {
+      userId: createdBy,
+      action: 'SOA_CREATE',
+      entityType: 'StatementOfApplicability',
+      entityId: soa.id,
+      details: `Generated ISO/IEC 27001:2022 Annex A SoA draft with ${soa.items.length} controls`,
+      newValue: { scopeId, frameworkVersion: ISO27001_ANNEX_A_2022_VERSION, itemCount: soa.items.length },
+    });
+    return soa;
+  }
+
   async updateSOAItem(itemId: string, data: Partial<CreateSoAItemData>, updatedBy?: string) {
     this.rejectDeprecatedPayload(data as Record<string, unknown>);
     const existing = await prisma.soAItem.findUnique({ where: { id: itemId }, include: { soa: true } });
@@ -436,6 +574,9 @@ export class ControlService {
     if (soa.isImmutable || soa.approvalStatus === 'approved') throw new AppError('Approved SoA versions are immutable', 409);
     if (soa.items.length === 0) throw new AppError('SoA requires at least one item before submission', 400);
     if (soa.items.some((item) => !item.justification?.trim())) throw new AppError('Every SoA item requires a justification', 400);
+    if (soa.items.some((item) => item.applicability === 'under_review' || item.justification === ISO27001_SOA_PENDING_JUSTIFICATION)) {
+      throw new AppError('Every SoA item requires a scope-specific applicability decision and justification before submission', 400);
+    }
 
     const updated = await prisma.statementOfApplicability.update({
       where: { id: soaId },

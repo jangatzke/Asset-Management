@@ -5,7 +5,7 @@ import { controlService } from '../services/control.service';
 import { authorizationService } from '../services/authorization.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams } from '../middleware/validation';
-import { ApproveRiskTreatmentSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
+import { ApproveRiskTreatmentSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, GenerateIso27001SoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
 
 export const controlRouter = Router();
 
@@ -44,6 +44,15 @@ controlRouter.get('/soa', authenticate, async (req, res, next) => {
 controlRouter.post('/soa', authenticate, authorizeEntityWrite('controls'), validateBody(CreateSoASchema), async (req: AuthRequest, res, next) => {
   try {
     const soa = await controlService.createSOA(req.body, req.userId);
+    res.status(201).json(soa);
+  } catch (error) {
+    next(error);
+  }
+});
+
+controlRouter.post('/soa/generate/iso27001-annex-a', authenticate, authorizeEntityWrite('controls'), validateBody(GenerateIso27001SoASchema), async (req: AuthRequest, res, next) => {
+  try {
+    const soa = await controlService.generateIso27001AnnexASOA(req.body.scopeId, req.userId!);
     res.status(201).json(soa);
   } catch (error) {
     next(error);
