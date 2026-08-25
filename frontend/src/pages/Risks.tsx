@@ -717,7 +717,7 @@ const Risks = () => {
               <div className="flex justify-between gap-2">
                 <div className="space-y-1">
                   <div className="font-medium text-gray-900 dark:text-white">{link.controlImplementation?.control?.title ?? link.controlImplementationId}</div>
-                  <div className="text-xs text-gray-500">{t(`risks.controls.roles.${link.role}`)} · {t('risks.controls.dimensions.${link.mitigationDimension}')} · {t('risks.controls.implementationReadiness')}: {link.controlImplementation?.implementationStatus ?? '-'}</div>
+                  <div className="text-xs text-gray-500">{t(`risks.controls.roles.${link.role}`)} · {t(`risks.controls.dimensions.${link.mitigationDimension}`)} · {t('risks.controls.implementationReadiness')}: {link.controlImplementation?.implementationStatus ?? '-'}</div>
                   <div className="text-xs font-semibold text-purple-700 dark:text-purple-300">{t('risks.controls.latestEffectiveness')}: {controlVerificationLabel(link)}</div>
                 </div>
                 <div className="space-x-2 whitespace-nowrap">

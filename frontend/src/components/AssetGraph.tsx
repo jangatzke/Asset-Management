@@ -258,7 +258,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">{t('graph.filters.criticality')}</label>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">{t('graph.filters.criticalityFilter')}</label>
             <select
               value={criticalityFilter}
               onChange={(e) => setCriticalityFilter(e.target.value as CriticalityThreshold)}

@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { riskAggregationApi } from '../services/api';
+import { useI18n } from '../context/I18nContext';
 
 interface AggregationGroup {
   name: string;
@@ -17,6 +18,7 @@ interface AggregationGroup {
 type TabKey = 'location' | 'orgUnit' | 'process' | 'assetType' | 'scope';
 
 const RiskAggregation = () => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabKey>('location');
   const [data, setData] = useState<Record<TabKey, AggregationGroup[]>>({} as any);
   const [loading, setLoading] = useState(true);
@@ -54,18 +56,18 @@ const RiskAggregation = () => {
         scope: parseGroups(results[4]),
       });
     } catch (err: any) {
-      setError(err.message || 'Failed to load aggregation data');
+      setError(err.message || t('riskAggregation.loadError'));
     } finally {
       setLoading(false);
     }
   };
 
   const tabs: { key: TabKey; label: string }[] = [
-    { key: 'location', label: 'By Location' },
-    { key: 'orgUnit', label: 'By Organization Unit' },
-    { key: 'process', label: 'By Business Process' },
-    { key: 'assetType', label: 'By Asset Type' },
-    { key: 'scope', label: 'By ISMS Scope' },
+    { key: 'location', label: t('riskAggregation.tabs.location') },
+    { key: 'orgUnit', label: t('riskAggregation.tabs.orgUnit') },
+    { key: 'process', label: t('riskAggregation.tabs.process') },
+    { key: 'assetType', label: t('riskAggregation.tabs.assetType') },
+    { key: 'scope', label: t('riskAggregation.tabs.scope') },
   ];
 
   const currentData = data[activeTab] || [];
@@ -92,7 +94,7 @@ const RiskAggregation = () => {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Risk Aggregation Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('riskAggregation.title')}</h1>
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -102,7 +104,7 @@ const RiskAggregation = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Risk Aggregation Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('riskAggregation.title')}</h1>
 
       {error && (
         <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">{error}</div>
@@ -112,23 +114,23 @@ const RiskAggregation = () => {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
           <div className="text-2xl font-bold text-gray-900 dark:text-white">{totals.totalRisks}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Total Risks</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t('riskAggregation.summary.totalRisks')}</div>
         </div>
         <div className={`rounded-lg shadow p-4 text-center ${severityBg('critical')}`}>
           <div className="text-2xl font-bold">{totals.critical}</div>
-          <div className="text-sm">Critical/Very High</div>
+          <div className="text-sm">{t('riskAggregation.summary.critical')}</div>
         </div>
         <div className={`rounded-lg shadow p-4 text-center ${severityBg('high')}`}>
           <div className="text-2xl font-bold">{totals.high}</div>
-          <div className="text-sm">High</div>
+          <div className="text-sm">{t('riskAggregation.summary.high')}</div>
         </div>
         <div className={`rounded-lg shadow p-4 text-center ${severityBg('medium')}`}>
           <div className="text-2xl font-bold">{totals.medium}</div>
-          <div className="text-sm">Medium</div>
+          <div className="text-sm">{t('riskAggregation.summary.medium')}</div>
         </div>
         <div className={`rounded-lg shadow p-4 text-center ${severityBg('low')}`}>
           <div className="text-2xl font-bold">{totals.low}</div>
-          <div className="text-sm">Low</div>
+          <div className="text-sm">{t('riskAggregation.summary.low')}</div>
         </div>
       </div>
 
@@ -153,9 +155,9 @@ const RiskAggregation = () => {
 
       {/* Heatmap / Bar Chart */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Distribution</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('riskAggregation.distribution')}</h2>
         {currentData.length === 0 ? (
-          <p className="text-center py-8 text-gray-500 dark:text-gray-400">No data available for this view.</p>
+          <p className="text-center py-8 text-gray-500 dark:text-gray-400">{t('riskAggregation.noData')}</p>
         ) : (
           <div className="space-y-3">
             {currentData.map((group, i) => {
@@ -198,12 +200,12 @@ const RiskAggregation = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Group</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-red-600 dark:text-red-400 uppercase">Critical/VH</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-orange-600 dark:text-orange-400 uppercase">High</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-yellow-600 dark:text-yellow-400 uppercase">Medium</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-green-600 dark:text-green-400 uppercase">Low</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('riskAggregation.table.group')}</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('riskAggregation.table.total')}</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-red-600 dark:text-red-400 uppercase">{t('riskAggregation.table.critical')}</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-orange-600 dark:text-orange-400 uppercase">{t('riskAggregation.table.high')}</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-yellow-600 dark:text-yellow-400 uppercase">{t('riskAggregation.table.medium')}</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-green-600 dark:text-green-400 uppercase">{t('riskAggregation.table.low')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -224,7 +226,7 @@ const RiskAggregation = () => {
       {/* Top Risks per Group */}
       {currentData.some(g => g.risks && g.risks.length > 0) && (
         <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Risks</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('riskAggregation.topRisks')}</h2>
           <div className="space-y-6">
             {currentData.filter(g => g.risks && g.risks.length > 0).map((group, i) => (
               <div key={i}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi } from '../services/api';
+import { getAccessToken } from '../store/accessToken';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
@@ -114,6 +115,9 @@ const Controls = () => {
   const [editingControlId, setEditingControlId] = useState<string | null>(null);
   const [frameworkCount, setFrameworkCount] = useState(0);
   const [soaCount, setSoaCount] = useState(0);
+  const [soaList, setSoaList] = useState<any[]>([]);
+  const [selectedSoAId, setSelectedSoAId] = useState('');
+  const [exportingSoA, setExportingSoA] = useState(false);
   const [evidenceCount, setEvidenceCount] = useState(0);
   const [ismsScopes, setIsmsScopes] = useState<IsmsScopeOption[]>([]);
   const [selectedSoAScopeId, setSelectedSoAScopeId] = useState('');
@@ -182,7 +186,11 @@ const Controls = () => {
         evidenceApi.list(),
       ]);
       if (frameworks.status === 'fulfilled') setFrameworkCount(frameworks.value.data?.length ?? 0);
-      if (soa.status === 'fulfilled') setSoaCount(soa.value.data?.length ?? 0);
+      if (soa.status === 'fulfilled') {
+        const soaItems = soa.value.data ?? [];
+        setSoaCount(soaItems.length);
+        setSoaList(soaItems);
+      }
       if (evidence.status === 'fulfilled') setEvidenceCount(evidence.value.data?.length ?? 0);
     } catch (err: unknown) {
       setError(getErrorMessage(err) || t('common.saveError'));
@@ -226,12 +234,38 @@ const Controls = () => {
       setSoaSuccessMessage('');
       const response = await controlApi.generateIso27001AnnexASoA(selectedSoAScopeId);
       const itemCount = response.data?.items?.length ?? 93;
-      setSoaSuccessMessage(`ISO/IEC 27001:2022 SoA draft created with ${itemCount} Annex A controls. Review applicability and replace every pending rationale before submission.`);
+      setSoaSuccessMessage(t('controls.soaGenerator.success').replace('{count}', String(itemCount)));
       await loadControls();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || 'Could not generate the ISO/IEC 27001 SoA draft.');
+      setError(getErrorMessage(err) || t('controls.soaGenerator.generateError'));
     } finally {
       setGeneratingSoA(false);
+    }
+  };
+
+  const handleExportSoA = async (format: 'csv' | 'html') => {
+    if (!selectedSoAId || exportingSoA) return;
+    try {
+      setExportingSoA(true);
+      setError('');
+      const token = getAccessToken();
+      const response = await fetch(`/api/v1/controls/soa/${selectedSoAId}/export?format=${format}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!response.ok) throw new Error(`Export failed (${response.status})`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `soa-${selectedSoAId.slice(0, 8)}.${format === 'csv' ? 'csv' : 'html'}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('controls.soaGenerator.exportError'));
+    } finally {
+      setExportingSoA(false);
     }
   };
 
@@ -404,18 +438,18 @@ const Controls = () => {
       <section className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4" aria-labelledby="iso27001-soa-generator-title">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 id="iso27001-soa-generator-title" className="font-semibold text-gray-900 dark:text-white">Generate ISO/IEC 27001:2022 Annex A SoA</h2>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">Creates a new editable draft containing all 93 Annex A controls. Applicability is intentionally set to under review; complete the scope-specific decision and rationale for every item before submitting.</p>
+            <h2 id="iso27001-soa-generator-title" className="font-semibold text-gray-900 dark:text-white">{t('controls.soaGenerator.title')}</h2>
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('controls.soaGenerator.description')}</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <label className="sr-only" htmlFor="iso27001-soa-scope">Approved ISMS scope</label>
+            <label className="sr-only" htmlFor="iso27001-soa-scope">{t('controls.soaGenerator.scopeLabel')}</label>
             <select
               id="iso27001-soa-scope"
               value={selectedSoAScopeId}
               onChange={(event) => setSelectedSoAScopeId(event.target.value)}
               className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md"
             >
-              <option value="">Select an approved ISMS scope</option>
+              <option value="">{t('controls.soaGenerator.scopePlaceholder')}</option>
               {ismsScopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.name} (v{scope.version})</option>)}
             </select>
             <button
@@ -424,10 +458,44 @@ const Controls = () => {
               disabled={!selectedSoAScopeId || generatingSoA}
               className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {generatingSoA ? 'Generating…' : 'Generate SoA draft'}
+              {generatingSoA ? t('controls.soaGenerator.generating') : t('controls.soaGenerator.generateButton')}
             </button>
           </div>
         </div>
+        {soaList.length > 0 && (
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <label className="sr-only" htmlFor="iso27001-soa-export">{t('controls.soaGenerator.exportTitle')}</label>
+            <select
+              id="iso27001-soa-export"
+              value={selectedSoAId}
+              onChange={(event) => setSelectedSoAId(event.target.value)}
+              className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md"
+            >
+              <option value="">{t('controls.soaGenerator.soaPlaceholder')}</option>
+              {soaList.map((soa) => (
+                <option key={soa.id} value={soa.id}>
+                  {soa.frameworkId} v{soa.frameworkVersion} · {soa.approvalStatus} · {soa.items?.length ?? 0} items
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => handleExportSoA('csv')}
+              disabled={!selectedSoAId || exportingSoA}
+              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingSoA ? t('controls.soaGenerator.exportInProgress') : t('controls.soaGenerator.exportCsv')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportSoA('html')}
+              disabled={!selectedSoAId || exportingSoA}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingSoA ? t('controls.soaGenerator.exportInProgress') : t('controls.soaGenerator.exportPdf')}
+            </button>
+          </div>
+        )}
       </section>
 
       <div className="mb-4">
@@ -512,7 +580,7 @@ const Controls = () => {
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => handleEditControl(control)} aria-label={`Bearbeiten: ${control.title}`} title="Bearbeiten" className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <button onClick={() => handleEditControl(control)} aria-label={`${t('common.edit')}: ${control.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                       <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
@@ -531,7 +599,7 @@ const Controls = () => {
       </div>
 
       {/* Control Modal */}
-      <Modal isOpen={modalOpen} onClose={handleControlModalClose} title={editingControlId ? 'Control bearbeiten' : t('controls.createControl')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleControlDiscard}>
+      <Modal isOpen={modalOpen} onClose={handleControlModalClose} title={editingControlId ? t('controls.editControlTitle') : t('controls.createControl')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleControlDiscard}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -766,8 +834,8 @@ const Controls = () => {
           setControlDiscardConfirmOpen(false);
         }}
         onDiscard={handleControlDiscard}
-        titleKey="Discard Changes"
-        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+        titleKey="common.discardChangesTitle"
+        messageKey="common.discardChangesMessage"
       />
 
       {/* Discard Confirmation Dialog for Implementation Modal */}
@@ -781,8 +849,8 @@ const Controls = () => {
           setImplementationDiscardConfirmOpen(false);
         }}
         onDiscard={handleImplementationDiscard}
-        titleKey="Discard Changes"
-        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+        titleKey="common.discardChangesTitle"
+        messageKey="common.discardChangesMessage"
       />
     </div>
   );

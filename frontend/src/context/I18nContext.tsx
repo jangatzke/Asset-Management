@@ -15,6 +15,7 @@ interface I18nContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
+  tObject: (key: string) => Record<string, string>;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
@@ -79,8 +80,21 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return typeof value === 'string' ? value : key;
   }, [language]);
 
+  const tObject = useCallback((key: string): Record<string, string> => {
+    const keys = key.split('.');
+    let value: any = translations[language];
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return {};
+      }
+    }
+    return typeof value === 'object' && value !== null ? value : {};
+  }, [language]);
+
   return (
-    <I18nContext.Provider value={{ language, setLanguage, t }}>
+    <I18nContext.Provider value={{ language, setLanguage, t, tObject }}>
       {children}
     </I18nContext.Provider>
   );

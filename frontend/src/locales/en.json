@@ -31,6 +31,7 @@
     "deleteError": "Failed to delete",
     "name": "Name",
     "description": "Description",
+    "title": "Title",
     "status": "Status",
     "type": "Type",
     "created": "Created",
@@ -84,6 +85,7 @@
     "processes": "Processes",
     "costPlanning": "Cost Planning",
     "ismsOperations": "ISMS Operations",
+    "ismsProcessWorkspace": "ISMS Process",
     "riskAggregation": "Risk Aggregation",
     "reminderSettings": "Reminder Automation",
     "fiscalYearSettings": "Fiscal Year",
@@ -162,6 +164,61 @@
       "reportsEvidence": "Report runs and evidence-ready operational exports."
     }
   },
+  "ismsProcess": {
+    "title": "ISMS Process Workspace",
+    "description": "Context, leadership and support under ISO/IEC 27001:2022 — clause 4 (context of the organization), clause 5 (leadership) and clause 7 (support: competence and awareness).",
+    "navigationLabel": "ISMS process clauses",
+    "loadError": "Data could not be loaded.",
+    "saveError": "Could not save.",
+    "clause4": {
+      "label": "Clause 4 – Context of the organization",
+      "description": "Context analysis and management of interested parties and their requirements.",
+      "partiesHeading": "Interested Parties",
+      "addParty": "Add interested party",
+      "noParties": "No interested parties are recorded yet.",
+      "name": "Name",
+      "type": "Category",
+      "contactEmail": "Contact email",
+      "partyTypes": {
+        "customers": "Customers",
+        "suppliers": "Suppliers",
+        "employees": "Employees",
+        "owners": "Owners",
+        "partners": "Partners",
+        "regulators": "Regulators",
+        "community": "Community"
+      }
+    },
+    "clause5": {
+      "label": "Clause 5 – Leadership",
+      "description": "ISMS policy, leadership and organizational roles. Manage and approve your ISMS documents.",
+      "documentsHeading": "ISMS Documents",
+      "addDocument": "Add ISMS document",
+      "noDocuments": "No ISMS documents are recorded yet.",
+      "title": "Title",
+      "documentType": "Document type",
+      "version": "Version",
+      "owner": "Owner",
+      "content": "Content",
+      "approve": "Approve",
+      "policyTypes": {
+        "informationSecurityPolicy": "Information security policy",
+        "riskAcceptancePolicy": "Risk tolerance and acceptance policy",
+        "ismsScope": "ISMS scope",
+        "awarenessPolicy": "Awareness policy",
+        "backupPolicy": "Backup policy",
+        "accessControlPolicy": "Access control policy"
+      }
+    },
+    "clause7": {
+      "label": "Clause 7 – Support",
+      "description": "Competence, awareness and communication. Evidence for training and awareness activities (e.g. NIS2 Art. 29).",
+      "courses": "Training courses",
+      "assignments": "Training assignments",
+      "completions": "Training completions",
+      "acknowledgements": "Awareness acknowledgements"
+    }
+  },
   "fiscalYear": {
     "title": "Fiscal-year settings",
     "startMonth": "Start month",
@@ -192,6 +249,7 @@
   },
   "costPlanning": {
     "title": "Cost Planning",
+    "fiscalYear": "Fiscal Year",
     "planned": "Planned",
     "known": "Known",
     "acquired": "Acquired",
@@ -794,7 +852,25 @@
     "createSuccess": "Control created successfully",
     "updateSuccess": "Control updated successfully",
     "deleteSuccess": "Control deleted successfully",
-    "searchOrganizationUnits": "Search organization units..."
+    "searchOrganizationUnits": "Search organization units...",
+    "loadDetailsError": "Failed to load control details",
+    "editControlTitle": "Edit Control",
+    "soaGenerator": {
+      "title": "Generate ISO/IEC 27001:2022 Annex A SoA",
+      "description": "Creates a new editable draft containing all 93 Annex A controls. Applicability is intentionally set to under review; complete the scope-specific decision and rationale for every item before submitting.",
+      "scopeLabel": "Approved ISMS scope",
+      "scopePlaceholder": "Select an approved ISMS scope",
+      "generateButton": "Generate SoA draft",
+      "generating": "Generating…",
+      "exportTitle": "Select Statement of Applicability to export",
+      "soaPlaceholder": "Select a Statement of Applicability",
+      "exportCsv": "Export CSV",
+      "exportPdf": "Export PDF (HTML)",
+      "exportInProgress": "Exporting…",
+      "exportError": "Could not export the Statement of Applicability",
+      "generateError": "Could not generate the ISO/IEC 27001 SoA draft",
+      "success": "ISO/IEC 27001:2022 SoA draft created with {count} Annex A controls. Review applicability and replace every pending rationale before submission."
+    }
   },
   "incidents": {
     "title": "Incident Management",
@@ -1024,7 +1100,17 @@
     "noServersConfigured": "No Proxmox servers configured",
     "noCredentialsConfigured": "No credentials configured",
     "useApiToken": "Use API Token (instead of password)",
-    "authType": "Auth Type"
+    "authType": "Auth Type",
+    "username": "Username",
+    "apiToken": "API Token",
+    "confirmPassword": "Confirm password",
+    "default": "Default",
+    "editServer": "Edit Proxmox Server",
+    "newApiTokenKeep": "New API token (leave blank to keep current)",
+    "newPasswordKeep": "New password (leave blank to keep current)",
+    "nodeIdOptional": "Node ID (optional)",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "selectCredential": "Select a credential"
   },
   "contracts": {
     "title": "Contracts",
@@ -1195,6 +1281,7 @@
       "directionUpstream": "Dependencies",
       "directionDownstream": "Dependent assets",
       "relationType": "Relation Type",
+      "criticalityFilter": "Criticality",
       "all": "All",
       "criticality": {
         "all": "All",
@@ -1305,6 +1392,35 @@
     },
     "current": "Current"
   },
+  "riskAggregation": {
+    "title": "Risk Aggregation Dashboard",
+    "loadError": "Failed to load aggregation data",
+    "tabs": {
+      "location": "By Location",
+      "orgUnit": "By Organization Unit",
+      "process": "By Business Process",
+      "assetType": "By Asset Type",
+      "scope": "By ISMS Scope"
+    },
+    "summary": {
+      "totalRisks": "Total Risks",
+      "critical": "Critical/Very High",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "distribution": "Risk Distribution",
+    "noData": "No data available for this view.",
+    "table": {
+      "group": "Group",
+      "total": "Total",
+      "critical": "Critical/VH",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "topRisks": "Top Risks"
+  },
   "operationsWorkspace": {
     "title": "Operations workspace",
     "description": "Run operational processes without identifiers or JSON editors.",
@@ -1355,6 +1471,14 @@
     "catalogEnsuring": "Ensuring catalogue…",
     "catalogEnsured": "NIS2 measures catalogue ensured.",
     "catalogError": "Failed to ensure the NIS2 measures catalogue.",
+    "obligationsCatalogueTitle": "NIS2 Article 23–27 obligation catalogue",
+    "obligationsCatalogueDescription": "The obligation catalogue lists the NIS2 requirements (Articles 23–27) and, where applicable, maps each to the corresponding ISO 27001:2022 Annex A control. Expanding an article shows the mapped controls.",
+    "obligationsEnsureButton": "Ensure NIS2 obligation catalogue",
+    "obligationsEnsuring": "Ensuring obligation catalogue…",
+    "obligationsEnsured": "NIS2 obligation catalogue ensured.",
+    "obligationsError": "Failed to ensure the NIS2 obligation catalogue.",
+    "isoCrosswalk": "Mapped ISO 27001:2022 controls",
+    "isoControls": "ISO control(s)",
     "noQuestionnaires": "No questionnaires available. Create one via the API or use the default questionnaire endpoint.",
     "noAssessments": "No assessments created yet.",
     "noRegistrations": "No registrations created yet.",
@@ -1396,8 +1520,10 @@
     "operationError": "The operation could not be completed.",
     "noApprovedAssessments": "No approved assessments available for registration yet.",
     "questionnaireLabels": {
-      "sector": "NIS-2 sector or subsector",
-      "employeeCount": "Employee count",
+      "sector": "Sector",
+      "employeeCount": "Number of employees",
+      "annualRevenue": "Annual revenue in Mio. €",
+      "balanceSheetTotal": "Balance sheet total in Mio. €",
       "annualRevenueMillionEur": "Annual revenue in million EUR",
       "criticalService": "Provides essential or important service",
       "crossBorderService": "Provides cross-border services"

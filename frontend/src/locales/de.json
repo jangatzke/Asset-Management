@@ -31,6 +31,7 @@
     "deleteError": "Löschen fehlgeschlagen",
     "name": "Name",
     "description": "Beschreibung",
+    "title": "Titel",
     "status": "Status",
     "type": "Typ",
     "created": "Erstellt",
@@ -84,6 +85,7 @@
     "processes": "Prozesse",
     "costPlanning": "Kostenplanung",
     "ismsOperations": "ISMS-Betrieb",
+    "ismsProcessWorkspace": "ISMS-Prozess",
     "riskAggregation": "Risikoaggregation",
     "reminderSettings": "Erinnerungsautomatisierung",
     "fiscalYearSettings": "Geschäftsjahr",
@@ -162,6 +164,61 @@
       "reportsEvidence": "Berichtsläufe und nachweisfähige operative Exporte."
     }
   },
+  "ismsProcess": {
+    "title": "ISMS-Prozess-Workspace",
+    "description": "Kontext, Führung und Unterstützung nach ISO 27001:2022 – Klausel 4 (Organisation und Kontext), Klausel 5 (Führung und ISMS-Politik) und Klausel 7 (Unterstützung: Kompetenz und Awareness).",
+    "navigationLabel": "ISMS-Prozess-Klauseln",
+    "loadError": "Daten konnten nicht geladen werden.",
+    "saveError": "Speichern fehlgeschlagen.",
+    "clause4": {
+      "label": "Klausel 4 – Kontext der Organisation",
+      "description": "Kontextanalyse und Verwaltung interessierter Parteien sowie ihrer Anforderungen.",
+      "partiesHeading": "Interessierte Parteien",
+      "addParty": "Interessierte Partei hinzufügen",
+      "noParties": "Es sind noch keine interessierten Parteien hinterlegt.",
+      "name": "Name",
+      "type": "Kategorie",
+      "contactEmail": "Kontakt-E-Mail",
+      "partyTypes": {
+        "customers": "Kunden",
+        "suppliers": "Lieferanten",
+        "employees": "Mitarbeiter",
+        "owners": "Eigentümer",
+        "partners": "Partner",
+        "regulators": "Aufseher",
+        "community": "Gemeinschaft"
+      }
+    },
+    "clause5": {
+      "label": "Klausel 5 – Führung",
+      "description": "ISMS-Politik, Führung und Verantwortlichkeiten. Verwalten und freigeben Sie Ihre ISMS-Dokumente.",
+      "documentsHeading": "ISMS-Dokumente",
+      "addDocument": "ISMS-Dokument hinzufügen",
+      "noDocuments": "Es sind noch keine ISMS-Dokumente hinterlegt.",
+      "title": "Titel",
+      "documentType": "Dokumenttyp",
+      "version": "Version",
+      "owner": "Verantwortlicher",
+      "content": "Inhalt",
+      "approve": "Freigeben",
+      "policyTypes": {
+        "informationSecurityPolicy": "Informationssicherheitspolitik",
+        "riskAcceptancePolicy": "Risikotoleranz- und -akzeptanzpolitik",
+        "ismsScope": "ISMS-Geltungsbereich",
+        "awarenessPolicy": "Awareness-Politik",
+        "backupPolicy": "Backup-Politik",
+        "accessControlPolicy": "Access-Control-Politik"
+      }
+    },
+    "clause7": {
+      "label": "Klausel 7 – Unterstützung",
+      "description": "Kompetenz, Awareness und Kommunikation. Nachweise für Schulungen und Awareness-Maßnahmen (u. a. NIS2 Art. 29).",
+      "courses": "Schulungskurse",
+      "assignments": "Schulungszuweisungen",
+      "completions": "Schulungsabschlüsse",
+      "acknowledgements": "Awareness-Nachweise"
+    }
+  },
   "fiscalYear": {
     "title": "Geschäftsjahr-Einstellungen",
     "startMonth": "Startmonat",
@@ -192,6 +249,7 @@
   },
   "costPlanning": {
     "title": "Kostenplanung",
+    "fiscalYear": "Geschäftsjahr",
     "planned": "Geplant",
     "known": "Bekannt",
     "acquired": "Beschafft",
@@ -794,7 +852,25 @@
     "createSuccess": "Kontrolle erfolgreich erstellt",
     "updateSuccess": "Kontrolle erfolgreich aktualisiert",
     "deleteSuccess": "Kontrolle erfolgreich gelöscht",
-    "searchOrganizationUnits": "Organisationseinheiten suchen..."
+    "searchOrganizationUnits": "Organisationseinheiten suchen...",
+    "loadDetailsError": "Kontrolldetails konnten nicht geladen werden",
+    "editControlTitle": "Kontrolle bearbeiten",
+    "soaGenerator": {
+      "title": "ISO/IEC 27001:2022 Annex-A-SoA generieren",
+      "description": "Erstellt einen neuen, editierbaren Entwurf mit allen 93 Annex-A-Kontrollen. Die Anwendbarkeit ist bewusst auf „In Prüfung“ gesetzt; ergänzen Sie für jeden Punkt die standortbezogene Entscheidung und Begründung vor der Einreichung.",
+      "scopeLabel": "Genehmigter ISMS-Scope",
+      "scopePlaceholder": "Genehmigten ISMS-Scope auswählen",
+      "generateButton": "SoA-Entwurf generieren",
+      "generating": "Wird generiert…",
+      "exportTitle": "Anwendbarkeitserklärung zum Export auswählen",
+      "soaPlaceholder": "Anwendbarkeitserklärung auswählen",
+      "exportCsv": "Als CSV exportieren",
+      "exportPdf": "Als PDF (HTML) exportieren",
+      "exportInProgress": "Wird exportiert…",
+      "exportError": "Die Anwendbarkeitserklärung konnte nicht exportiert werden",
+      "generateError": "Der ISO/IEC 27001:2022-SoA-Entwurf konnte nicht generiert werden",
+      "success": "ISO/IEC 27001:2022-SoA-Entwurf mit {count} Annex-A-Kontrollen erstellt. Prüfen Sie die Anwendbarkeit und ersetzen Sie alle ausstehenden Begründungen vor der Einreichung."
+    }
   },
   "incidents": {
     "title": "Vorfallsmanagement",
@@ -1024,7 +1100,17 @@
     "noServersConfigured": "Keine Proxmox-Server konfiguriert",
     "noCredentialsConfigured": "Keine Anmeldeinformationen konfiguriert",
     "useApiToken": "API-Token verwenden (statt Passwort)",
-    "authType": "Auth-Typ"
+    "authType": "Auth-Typ",
+    "username": "Benutzername",
+    "apiToken": "API-Token",
+    "confirmPassword": "Passwort bestätigen",
+    "default": "Standard",
+    "editServer": "Proxmox-Server bearbeiten",
+    "newApiTokenKeep": "Neues API-Token (leer lassen, um das aktuelle zu behalten)",
+    "newPasswordKeep": "Neues Passwort (leer lassen, um das aktuelle zu behalten)",
+    "nodeIdOptional": "Node-ID (optional)",
+    "passwordsDoNotMatch": "Passwörter stimmen nicht überein",
+    "selectCredential": "Anmeldeinformation auswählen"
   },
   "contracts": {
     "title": "Verträge",
@@ -1195,6 +1281,7 @@
       "directionUpstream": "Abhängigkeiten",
       "directionDownstream": "Abhängige Assets",
       "relationType": "Beziehungstyp",
+      "criticalityFilter": "Kritikalität",
       "all": "Alle",
       "criticality": {
         "all": "Alle",
@@ -1305,6 +1392,35 @@
     },
     "current": "Aktuell"
   },
+  "riskAggregation": {
+    "title": "Risikoaufbereitungs-Dashboard",
+    "loadError": "Aggregationsdaten konnten nicht geladen werden",
+    "tabs": {
+      "location": "Nach Standort",
+      "orgUnit": "Nach Organisationseinheit",
+      "process": "Nach Geschäftsprozess",
+      "assetType": "Nach Asset-Typ",
+      "scope": "Nach ISMS-Umfang"
+    },
+    "summary": {
+      "totalRisks": "Gesamt-Risiken",
+      "critical": "Kritisch/Sehr hoch",
+      "high": "Hoch",
+      "medium": "Mittel",
+      "low": "Niedrig"
+    },
+    "distribution": "Risiko-Verteilung",
+    "noData": "Keine Daten für diese Ansicht verfügbar.",
+    "table": {
+      "group": "Gruppe",
+      "total": "Gesamt",
+      "critical": "Kritisch/S.h.",
+      "high": "Hoch",
+      "medium": "Mittel",
+      "low": "Niedrig"
+    },
+    "topRisks": "Top-Risiken"
+  },
   "operationsWorkspace": {
     "title": "Betriebsarbeitsbereich",
     "description": "Führen Sie operative Prozesse ohne Kennungen oder JSON-Editoren aus.",
@@ -1347,6 +1463,14 @@
     "catalogEnsuring": "Katalog wird sichergestellt…",
     "catalogEnsured": "NIS2-Maßnahmenkatalog sichergestellt.",
     "catalogError": "Sicherstellung des NIS2-Maßnahmenkatalogs fehlgeschlagen.",
+    "obligationsCatalogueTitle": "Verpflichtungskatalog nach Art. 23–27 NIS2",
+    "obligationsCatalogueDescription": "Der Verpflichtungskatalog listet die NIS2-Anforderungen (Artikel 23–27) auf und weist, wo zutreffend, jedem die entsprechenden ISO-27001-Annex-A-Kontrollen zu. Das Aufklappen eines Artikels zeigt die zugeordneten Kontrollen.",
+    "obligationsEnsureButton": "Verpflichtungskatalog nach Art. 23–27 sicherstellen",
+    "obligationsEnsuring": "Verpflichtungskatalog wird sichergestellt…",
+    "obligationsEnsured": "Verpflichtungskatalog nach Art. 23–27 sichergestellt.",
+    "obligationsError": "Sicherstellung des Verpflichtungskatalogs fehlgeschlagen.",
+    "isoCrosswalk": "Zugeordnete ISO-27001-Annex-A-Kontrollen",
+    "isoControls": "ISO-Kontrolle(n)",
     "noQuestionnaires": "Keine Fragebögen verfügbar. Erstellen Sie einen über die API oder verwenden Sie den Standardfragebogen.",
     "noAssessments": "Noch keine Bewertungen erstellt.",
     "noRegistrations": "Noch keine Registrierungen erstellt.",
@@ -1389,10 +1513,12 @@
     "noApprovedAssessments": "Noch keine genehmigten Bewertungen für die Registrierung verfügbar.",
     "questionnaireLabels": {
       "sector": "NIS-2-Sektor oder Untersektor",
-      "employeeCount": "Mitarbeiteranzahl",
+      "employeeCount": "Anzahl der Beschäftigten",
+      "annualRevenue": "Jahresumsatz in Mio. €",
+      "balanceSheetTotal": "Bilanzsumme in Mio. €",
       "annualRevenueMillionEur": "Jahresumsatz in Millionen EUR",
       "criticalService": "Bietet wesentliche oder wichtige Dienste an",
-      "crossBorderService": "Bietet grenzüberschreitende Dienste an"
+      "crossBorderService": "Bietet grenüberschreitende Dienste an"
     },
     "emptyQuestionnaireExplanation": "Derzeit ist kein aktiver Fragebogen verfügbar. Ohne Fragebogen können Sie keine Bewertung erstellen. Verwenden Sie den Standardfragebogen-Endpunkt, um einen zu erstellen, und kehren Sie hierher zurück, um die Antworten auszufüllen.",
     "loadDefaultQuestionnaire": "Standardfragebogen laden",

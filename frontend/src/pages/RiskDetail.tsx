@@ -77,7 +77,7 @@ const RiskDetail = () => {
       setRisk(response.data);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.message || t('risks.loadError'));
+      setError(err.response?.data?.message || t('riskDetailExtra.loadError'));
     } finally {
       setLoading(false);
     }
@@ -103,11 +103,11 @@ const RiskDetail = () => {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('risks.likelihood')}</h3>
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('riskDetailExtra.likelihood')}</h3>
             <p className={`text-xl font-bold ${getScoreColor(risk.likelihood)}`}>{risk.likelihood}</p>
           </div>
           <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('risks.impact')}</h3>
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('riskDetailExtra.impact')}</h3>
             <p className={`text-xl font-bold ${getScoreColor(risk.impact)}`}>{risk.impact}</p>
           </div>
         </div>
@@ -129,7 +129,7 @@ const RiskDetail = () => {
     if (!risk) return null;
     const assessments = risk.riskAssessmentVersions || [];
     if (assessments.length === 0) {
-      return <p className="text-gray-500 dark:text-gray-400">{t('risks.noAssessments')}</p>;
+      return <p className="text-gray-500 dark:text-gray-400">{t('riskDetailExtra.noAssessments')}</p>;
     }
     return (
       <div className="space-y-4">
@@ -137,25 +137,25 @@ const RiskDetail = () => {
           <div key={a.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-medium text-gray-900 dark:text-white">
-                {t(`risks.assessmentType.${a.assessmentType}`)}
+                {t(`riskDetailExtra.assessmentType.${a.assessmentType}`)}
               </h4>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                 a.isCurrent ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}>
-                {a.isCurrent ? t('risks.current') : ''}
+                {a.isCurrent ? t('riskDetailExtra.current') : ''}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('risks.likelihood')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('riskDetailExtra.likelihood')}</p>
                 <p className="font-medium">{a.likelihood}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('risks.impact')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('riskDetailExtra.impact')}</p>
                 <p className="font-medium">{a.impact}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t(`risks.riskLevel.${a.assessmentType}`)}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t(`riskDetailExtra.riskLevel.${a.assessmentType}`)}</p>
                 <p className={`font-bold ${getScoreColor(a.assessmentType === 'inherent' ? a.likelihood * a.impact : a.assessmentType === 'current' ? (a.likelihood + a.impact) / 2 : parseInt(a.targetRisk || '0'))}`}>
                   {a.inherentRisk}
                 </p>
@@ -171,7 +171,7 @@ const RiskDetail = () => {
     if (!risk) return null;
     const controls = risk.riskControls || [];
     if (controls.length === 0) {
-      return <p className="text-gray-500 dark:text-gray-400">{t('risks.noControls')}</p>;
+      return <p className="text-gray-500 dark:text-gray-400">{t('riskDetailExtra.noControls')}</p>;
     }
     return (
       <div className="space-y-3">
@@ -187,7 +187,7 @@ const RiskDetail = () => {
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                 c.isKeyControl ? 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}>
-                {c.isKeyControl ? t('risks.keyControl') : ''}
+                {c.isKeyControl ? t('riskDetailExtra.keyControl') : ''}
               </span>
             </div>
           </div>
@@ -199,7 +199,7 @@ const RiskDetail = () => {
   const renderTreatment = () => {
     return (
       <div className="space-y-4">
-        <p className="text-gray-500 dark:text-gray-400">{t('risks.treatmentDescription')}</p>
+        <p className="text-gray-500 dark:text-gray-400">{t('riskDetailExtra.treatmentDescription')}</p>
         <button
           type="button"
           onClick={() => navigate(`/risks/${riskId}/treatment/new`)}
@@ -214,7 +214,7 @@ const RiskDetail = () => {
   const renderEvidence = () => {
     return (
       <div className="space-y-4">
-        <p className="text-gray-500 dark:text-gray-400">{t('risks.evidenceDescription')}</p>
+        <p className="text-gray-500 dark:text-gray-400">{t('riskDetailExtra.evidenceDescription')}</p>
       </div>
     );
   };
@@ -223,14 +223,14 @@ const RiskDetail = () => {
     if (!risk) return null;
     const assessments = risk.riskAssessmentVersions || [];
     if (assessments.length === 0) {
-      return <p className="text-gray-500 dark:text-gray-400">{t('risks.noHistory')}</p>;
+      return <p className="text-gray-500 dark:text-gray-400">{t('riskDetailExtra.noHistory')}</p>;
     }
     return (
       <div className="space-y-3">
         {assessments.map((a, idx) => (
           <div key={a.id} className="flex items-center gap-3 border-b border-gray-200 dark:border-gray-700 pb-2">
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">v{idx + 1}</span>
-            <span className="text-sm text-gray-700 dark:text-gray-300">{t(`risks.assessmentType.${a.assessmentType}`)}</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">{t(`riskDetailExtra.assessmentType.${a.assessmentType}`)}</span>
             <span className={`px-2 py-0.5 rounded-full text-xs ${
               a.status === 'closed' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
             }`}>
@@ -245,8 +245,8 @@ const RiskDetail = () => {
   const renderAudit = () => {
     return (
       <div className="space-y-4">
-        <p className="text-gray-500 dark:text-gray-400">{t('risks.auditTrailDescription')}</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500">{t('risks.auditTrailComingSoon')}</p>
+        <p className="text-gray-500 dark:text-gray-400">{t('riskDetailExtra.auditTrailDescription')}</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">{t('riskDetailExtra.auditTrailComingSoon')}</p>
       </div>
     );
   };
@@ -273,7 +273,7 @@ const RiskDetail = () => {
   }
 
   if (!risk) {
-    return <div className="text-gray-500 dark:text-gray-400 p-4">{t('risks.notFound')}</div>;
+    return <div className="text-gray-500 dark:text-gray-400 p-4">{t('riskDetailExtra.notFound')}</div>;
   }
 
   return (

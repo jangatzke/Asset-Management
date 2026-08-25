@@ -404,7 +404,7 @@ const actionIconClassName = 'h-4 w-4';
 // ─── Component ──────────────────────────────────────────────────────────────
 
 const ISMSPhase6 = () => {
-  const { t } = useI18n();
+  const { t, tObject } = useI18n();
   const [resource, setResource] = useState('suppliers');
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -963,7 +963,7 @@ const ISMSPhase6 = () => {
                               onChange={(e) => updateSecurityRequirement(req.id, 'category', e.target.value)}
                               className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                             >
-                              {Object.entries(t('securityRequirements.categories') as unknown as Record<string, string>).map(([k, v]) => (
+                              {Object.entries(tObject('securityRequirements.categories')).map(([k, v]) => (
                                 <option key={k} value={k}>{v}</option>
                               ))}
                             </select>
@@ -972,7 +972,7 @@ const ISMSPhase6 = () => {
                               onChange={(e) => updateSecurityRequirement(req.id, 'status', e.target.value)}
                               className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                             >
-                              {Object.entries(t('securityRequirements.statuses') as unknown as Record<string, string>).map(([k, v]) => (
+                              {Object.entries(tObject('securityRequirements.statuses')).map(([k, v]) => (
                                 <option key={k} value={k}>{v}</option>
                               ))}
                             </select>
