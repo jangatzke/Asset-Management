@@ -1553,13 +1553,13 @@ model SoAItem {
   soa                 StatementOfApplicability       @relation(fields: [soaId], references: [id], onDelete: Cascade)
   control             Control?                       @relation(fields: [controlId], references: [id], onDelete: SetNull)
   implementationLinks SoAItemControlImplementation[]
+  riskLinks           SoAItemRiskAssessment[]
 
   @@index([soaId])
   @@index([requirementId])
   @@index([controlId])
   @@map("soa_items")
 }
-
 model SoAItemControlImplementation {
   id                      String @id @default(uuid())
   soaItemId               String
@@ -1570,6 +1570,18 @@ model SoAItemControlImplementation {
   @@unique([soaItemId, controlImplementationId])
   @@index([controlImplementationId])
   @@map("soa_item_control_implementations")
+}
+
+model SoAItemRiskAssessment {
+  id                    String @id @default(uuid())
+  soaItemId             String
+  riskAssessmentVersionId String
+
+  soaItem SoAItem @relation(fields: [soaItemId], references: [id], onDelete: Cascade)
+
+  @@unique([soaItemId, riskAssessmentVersionId])
+  @@index([riskAssessmentVersionId])
+  @@map("soa_item_risk_assessments")
 }
 
 model SoAApproval {
@@ -3669,6 +3681,7 @@ model ControlCatalogItem {
   subcategory String?
   sortOrder   Int?
   tags        String[]
+  crosswalk   String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

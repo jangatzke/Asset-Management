@@ -124,13 +124,13 @@ const CostPlanning = () => {
     setFiscalYearLabel(defaultLabel);
   };
 
-  const ensurePlan = async () => {
+  const ensurePlan = useCallback(async () => {
     if (!fiscalYearLabel) return;
     const { data } = await costPlanningApi.createPlan({ fiscalYearLabel });
     setPlan(data);
     const candidateResponse = await costPlanningApi.candidates({ fiscalYearLabel });
     setCandidates(candidateResponse.data);
-  };
+  }, [fiscalYearLabel]);
 
   const loadSuppliers = async (search = supplierSearch) => {
     try {
@@ -347,7 +347,7 @@ const CostPlanning = () => {
     } catch (error) {
       setMessage(apiErrorMessage(error, t('costPlanning.itemUpdateError')));
     } finally { setEditSaving(false); }
-  }, [editingItem, editForm, t]);
+  }, [editingItem, editForm, t, ensurePlan]);
 
   // Sorting
   const handleSort = (key: keyof CostPlanItem) => {

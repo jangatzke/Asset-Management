@@ -82,9 +82,15 @@ export async function fetchEntities(
     label: getEntityLabel(item),
   }));
 
-  // Determine hasMore from pagination info or array length
+  // Determine hasMore from pagination info or array length.
+  // Prefer the authoritative total from the pagination metadata: there are
+  // more pages only when the number of items received so far is below total.
+  // Falling back to "page is full" only works for non-final pages, so it is
+  // used when no total is available.
   const totalFromResponse = isArrayResponse ? undefined : ((responseData as any)?.pagination?.total ?? responseData.total);
-  const hasMore = isArrayResponse ? (data.length >= limit) : (!!totalFromResponse && data.length >= totalFromResponse ? false : data.length >= limit);
+  const hasMore = typeof totalFromResponse === 'number'
+    ? data.length < totalFromResponse
+    : data.length >= limit;
 
   return { items, hasMore };
 }

@@ -136,3 +136,23 @@ catalogRouter.get('/controls/:controlId/catalogs', authenticate, async (req, res
     next(error);
   }
 });
+
+// Ensure the NIS2 obligation catalogue (controlled write action).
+catalogRouter.post('/catalogs/nis2-articles/ensure', authenticate, requirePermission('controls.write'), async (_req, res, next) => {
+  try {
+    const catalog = await catalogService.ensureNis2UmsuCGCatalog();
+    res.json(catalog);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get the NIS2 obligation catalogue (creates it if missing).
+catalogRouter.get('/catalogs/nis2-articles', authenticate, async (_req, res, next) => {
+  try {
+    const catalog = await catalogService.getNis2ObligationCatalog();
+    res.json(catalog);
+  } catch (error) {
+    next(error);
+  }
+});

@@ -156,7 +156,7 @@ const RiskDetail = () => {
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t(`riskDetailExtra.riskLevel.${a.assessmentType}`)}</p>
-                <p className={`font-bold ${getScoreColor(a.assessmentType === 'inherent' ? a.likelihood * a.impact : a.assessmentType === 'current' ? (a.likelihood + a.impact) / 2 : parseInt(a.targetRisk || '0'))}`}>
+                <p className={`font-bold ${getScoreColor(a.assessmentType === 'inherent' ? a.likelihood * a.impact : a.assessmentType === 'current' ? (a.likelihood + a.impact) / 2 : Number(a.targetRisk || 0))}`}>
                   {a.inherentRisk}
                 </p>
               </div>

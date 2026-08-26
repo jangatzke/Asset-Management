@@ -52,6 +52,7 @@ import { frameworkRouter } from './routes/framework.routes';
 import { evidenceRouter } from './routes/evidence.routes';
 import { documentRouter } from './routes/document.routes';
 import { nis2Router } from './routes/nis2.routes';
+import { nis2Service } from './services/nis2.service';
 import { phase6Router } from './routes/phase6.routes';
 import { actionCenterRouter } from './routes/actionCenter.routes';
 import { catalogRouter } from './routes/catalog.routes';
@@ -258,7 +259,6 @@ async function startServer(): Promise<void> {
     initializeRedisClient().catch(error => {
       console.error('[Idempotency] Failed to initialize Redis client:', error);
     });
-
     try {
       await ensureStandardAssetTypes(prisma);
       setCriticalInitialization('standardAssetTypes', true);
@@ -266,6 +266,14 @@ async function startServer(): Promise<void> {
     } catch (error) {
       setCriticalInitialization('standardAssetTypes', false);
       console.error('Failed to ensure standard ISO27001 asset types:', error);
+    }
+
+    // Seed NIS-2 v2.0 applicability questionnaire (sector-based classification)
+    try {
+      await nis2Service.ensureV2Questionnaire();
+      console.log('NIS-2 v2.0 applicability questionnaire ensured');
+    } catch (error) {
+      console.error('Failed to ensure NIS-2 v2.0 applicability questionnaire:', error);
     }
 
     // Start background services
@@ -312,16 +320,10 @@ async function startServer(): Promise<void> {
   setupGracefulShutdown(server!);
 }
 
-// Handle uncaught errors gracefully
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason);
-  process.exit(1);
-});
+// NOTE: uncaughtException / unhandledRejection handlers are registered inside
+// setupGracefulShutdown (gracefulShutdown.ts) so that the process can be
+// drained gracefully before exiting. Do not register them here again, or the
+// two handler sets will race and the second registration will be ignored.
 
 if (!isTestRuntime()) {
   startServer().catch((error) => {

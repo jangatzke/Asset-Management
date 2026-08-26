@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
@@ -36,13 +36,13 @@ const AdminRoles = () => {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const form = useDirtyForm<RoleForm>(emptyForm());
 
-  const loadRoles = async () => {
+  const loadRoles = useCallback(async () => {
     setLoading(true);
     try { setRoles((await adminApi.getRoles()).data); }
     catch (error) { addToast('error', messageFrom(error, 'Failed to load roles.')); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void loadRoles(); }, []);
+  }, [addToast]);
+  useEffect(() => { void loadRoles(); }, [loadRoles]);
 
   const openCreate = () => { setSelectedRole(null); form.setFormValues(emptyForm()); setModalOpen(true); };
   const openEdit = async (role: Role) => {

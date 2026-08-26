@@ -28,7 +28,13 @@ export class ReminderScheduler {
     }
     const delayMs = Math.max(60_000, (config.intervalMinutes ?? 1440) * 60_000);
     console.log(`[ReminderScheduler] Next reminder run in ${Math.round(delayMs / 60000)} minutes`);
-    this.timer = setTimeout(() => this.runOnce(), delayMs);
+    this.timer = setTimeout(() => {
+      // runOnce is async; attach a catch so a failure inside the timer callback
+      // does not become an unhandled promise rejection.
+      this.runOnce().catch((error) => {
+        console.error('[ReminderScheduler] Unexpected error in runOnce:', error);
+      });
+    }, delayMs);
   }
 
   private async runOnce(): Promise<void> {

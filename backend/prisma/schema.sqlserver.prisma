@@ -1545,13 +1545,13 @@ model SoAItem {
   soa                 StatementOfApplicability       @relation(fields: [soaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   control             Control?                       @relation(fields: [controlId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   implementationLinks SoAItemControlImplementation[]
+  riskLinks           SoAItemRiskAssessment[]
 
   @@index([soaId])
   @@index([requirementId])
   @@index([controlId])
   @@map("soa_items")
 }
-
 model SoAItemControlImplementation {
   id                      String @id @default(uuid())
   soaItemId               String
@@ -1562,6 +1562,18 @@ model SoAItemControlImplementation {
   @@unique([soaItemId, controlImplementationId])
   @@index([controlImplementationId])
   @@map("soa_item_control_implementations")
+}
+
+model SoAItemRiskAssessment {
+  id                    String @id @default(uuid())
+  soaItemId             String
+  riskAssessmentVersionId String
+
+  soaItem SoAItem @relation(fields: [soaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([soaItemId, riskAssessmentVersionId])
+  @@index([riskAssessmentVersionId])
+  @@map("soa_item_risk_assessments")
 }
 
 model SoAApproval {
@@ -1612,6 +1624,12 @@ model Incident {
   status                    String    @default("new")
   severity                  String    @default("low")
   notificationStatus        String    @default("not_required")
+  // NIS2 incident reporting fields (Art. 23)
+  nis2Relevant              Boolean   @default(false)
+  nis2Severity              String    @default("not_assessed") // not_assessed, early_warning, notification, final
+  nis2ReportedAt            DateTime?
+  nis2ReportDeadline        DateTime?
+  nis2FinalReportDue        DateTime?
   significanceRuleVersionId String?
   isSignificant             Boolean   @default(false)
   significanceReasons       String @default("[]") @db.NVarChar(Max)
@@ -3640,6 +3658,7 @@ model ControlCatalogItem {
   subcategory String?
   sortOrder   Int?
   tags        String @default("[]") @db.NVarChar(Max)
+  crosswalk   String @default("[]") @db.NVarChar(Max)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -834,13 +834,16 @@ export class RiskAggregationService {
     for (const a of riskAssessmentVersions) {
       let period: string;
       const d = new Date(a.assessedAt);
+      // Use UTC accessors: the DB stores UTC timestamps, but getFullYear()/getMonth()
+      // operate in the server's local timezone, which can shift an assessment into
+      // the previous/next period near a month/quarter boundary.
       if (groupByPeriod === 'month') {
-        period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        period = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
       } else if (groupByPeriod === 'quarter') {
-        const q = Math.floor(d.getMonth() / 3);
-        period = `${d.getFullYear()}-Q${q + 1}`;
+        const q = Math.floor(d.getUTCMonth() / 3);
+        period = `${d.getUTCFullYear()}-Q${q + 1}`;
       } else {
-        period = String(d.getFullYear());
+        period = String(d.getUTCFullYear());
       }
 
       const entry = periodMap.get(period) || { count: 0, inherentSum: 0, residualSum: 0 };

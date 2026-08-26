@@ -1296,8 +1296,10 @@ export class RiskService {
       });
 
       // Create a ReviewTask for each affected risk
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 7); // Default: review within 7 days
+      // Use UTC-safe arithmetic: Date.setDate/getDate operate in the local
+      // timezone, which can shift the resulting day by ±1 depending on the
+      // server's UTC offset.
+      const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default: review within 7 days
 
       for (const risk of affectedRisks) {
         const task = await this.createReviewTask({

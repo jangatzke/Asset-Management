@@ -112,7 +112,7 @@ export class ActionCenterService {
     ];
     for (const [delegate, permission, sourceType, titleField, href] of authorizedSources) {
       if (!(await can(permission))) continue;
-      const rows = await db[delegate].findMany({ where: delegate === 'documentReview' ? openWhere : openWhere });
+      const rows = await db[delegate].findMany({ where: openWhere });
       rows.forEach((r: any) => {
         const dueDate = r.dueDate;
         if (dueDate && !closed(r.status)) items.push(item(sourceType, r, r[titleField] ?? (sourceType === 'documentReview' ? 'Document review' : sourceType), dueDate, 'authorized', href || undefined, now));

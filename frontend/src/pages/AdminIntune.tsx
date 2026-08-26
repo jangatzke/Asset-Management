@@ -411,7 +411,7 @@ export default function IntuneAdmin() {
                 label={t('intune.fullSync')}
                 type="number"
                 value={config?.fullSyncIntervalHours || 24}
-                onChange={(e) => handleConfigUpdate('fullSyncIntervalHours', parseInt(e.target.value) || 24)}
+                onChange={(e) => handleConfigUpdate('fullSyncIntervalHours', parseInt(e.target.value, 10) || 24)}
                 fullWidth
                 size="small"
                 sx={configTextFieldSx}
@@ -422,7 +422,7 @@ export default function IntuneAdmin() {
                 label={t('intune.incrementalSync')}
                 type="number"
                 value={config?.incrementalSyncIntervalMinutes || 120}
-                onChange={(e) => handleConfigUpdate('incrementalSyncIntervalMinutes', parseInt(e.target.value) || 120)}
+                onChange={(e) => handleConfigUpdate('incrementalSyncIntervalMinutes', parseInt(e.target.value, 10) || 120)}
                 fullWidth
                 size="small"
                 sx={configTextFieldSx}
@@ -433,7 +433,7 @@ export default function IntuneAdmin() {
                 label={t('common.dates')}
                 type="number"
                 value={config?.gracePeriodHours || 168}
-                onChange={(e) => handleConfigUpdate('gracePeriodHours', parseInt(e.target.value) || 168)}
+                onChange={(e) => handleConfigUpdate('gracePeriodHours', parseInt(e.target.value, 10) || 168)}
                 fullWidth
                 size="small"
                 sx={configTextFieldSx}

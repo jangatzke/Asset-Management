@@ -158,6 +158,7 @@ export interface SoAItem extends Omit<BaseEntity, 'version'> {
   justification: string;
   implementationStatus: ControlStatus;
   controlImplementationIds: string[];
+  riskAssessmentIds: string[];
   riskIds: string[];
   evidenceIds: string[];
   version: number;

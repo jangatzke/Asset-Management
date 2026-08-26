@@ -84,8 +84,11 @@ export interface ActionCenterParams {
 }
 
 export type Nis2Answer = string | number | boolean;
-export interface Nis2Question { key: string; label: string; type: 'string' | 'number' | 'boolean'; required?: boolean; }
+export interface Nis2QuestionOption { value: string; labelDe: string; labelEn: string; }
+export interface Nis2Question { key: string; label: string; type: 'string' | 'number' | 'boolean' | 'select'; required?: boolean; options?: Nis2QuestionOption[]; }
 export interface Nis2Questionnaire { id: string; version: string; title: string; questions: Nis2Question[]; effectiveFrom: string; }
+export interface Nis2Sector { key: string; nameDe: string; nameEn: string; subSectors: string[]; }
+export interface Nis2QuestionnaireV2 { version: string; title: string; description: string; questions: Nis2Question[]; scoringRules: Record<string, { condition: string; labelDe: string; labelEn: string }>; }
 export interface Nis2Assessment { id: string; organizationUnitId?: string | null; questionnaireVersion: string; answers?: Record<string, Nis2Answer>; preliminaryResult?: string | null; result?: string | null; justification?: string | null; status: string; submittedForApprovalAt?: string | null; approvedAt?: string | null; createdAt: string; updatedAt: string; }
 export interface Nis2RegistrationChange { id: string; registrationId: string; changeType: string; description: string; changedData: Record<string, string>; notificationDeadline?: string | null; submittedAt?: string | null; submissionProof?: string | null; status: string; createdAt: string; }
 export interface Nis2Registration { id: string; assessmentId?: string | null; entityType: string; registrationDate?: string | null; deadline?: string | null; contactPerson?: string | null; contactDetails?: string | null; submissionProof?: string | null; bsiConfirmation?: string | null; status: string; createdAt: string; updatedAt: string; assessment?: Pick<Nis2Assessment, 'id' | 'organizationUnitId' | 'questionnaireVersion' | 'result' | 'status'> | null; changes?: Nis2RegistrationChange[]; }
@@ -146,6 +149,22 @@ export interface IncidentDetailResponse extends IncidentResponse {
   incidentAssets: Array<{ asset: { id: string; displayId: string; name: string } }>;
   serviceLinks: Array<{ service: { id: string; displayId: string; name: string } }>;
   processLinks: Array<{ process: { id: string; displayId: string; name: string } }>;
+  nis2Relevant?: boolean;
+  nis2Severity?: string | null;
+  nis2ReportedAt?: string | null;
+  nis2ReportDeadline?: string | null;
+  nis2FinalReportDue?: string | null;
+}
+
+export interface Nis2ReportingStatus {
+ isRelevant: boolean;
+ severity: string;
+ reportedAt: string | null;
+ reportDeadline: string | null;
+ finalReportDue: string | null;
+ isReportDeadlineOverdue: boolean;
+ isFinalReportDueOverdue: boolean;
+ status: string;
 }
 
 export interface SupplierFinding { title: string; severity: 'low' | 'medium' | 'high' | 'critical'; description?: string; recommendedAction?: string; }
@@ -255,6 +274,13 @@ export const refreshAccessToken = (): Promise<string> => {
       const token = response.data.token;
       setAccessToken(token);
       return token;
+    }).catch((error) => {
+      // If the refresh itself fails, the stored access token is no longer
+      // valid. Clear it so the app doesn't stay in a broken auth state where
+      // every subsequent request fails with 401 and the interceptor keeps
+      // trying to refresh with an invalid refresh token.
+      setAccessToken(null);
+      throw error;
     }).finally(() => {
       refreshPromise = null;
     });
@@ -378,8 +404,10 @@ export const controlApi = {
   listSoA: (params?: any) => api.get('/controls/soa', { params }),
   createSoA: (data: CreateSoADTO) => api.post('/controls/soa', data),
   generateIso27001AnnexASoA: (scopeId: string) => api.post('/controls/soa/generate/iso27001-annex-a', { scopeId }),
+  updateSoAItem: (itemId: string, data: Partial<CreateSoADTO['items'][number]>) => api.patch(`/controls/soa/items/${itemId}`, data),
   submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
+  exportSoA: (id: string, format: 'csv' | 'html') => api.get(`/controls/soa/${id}/export`, { params: { format } }),
   history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/controls/${id}/history`, { params }),
 };
 
@@ -396,6 +424,8 @@ export const catalogApi = {
   updateItem: (catalogId: string, controlId: string, data: any) => api.patch(`/catalogs/items/${catalogId}/${controlId}`, data),
   deleteItem: (catalogId: string, controlId: string) => api.delete(`/catalogs/items/${catalogId}/${controlId}`),
   getForControl: (controlId: string) => api.get(`/controls/${controlId}/catalogs`),
+  ensureNis2Obligations: () => api.post('/catalogs/nis2-articles/ensure'),
+  getNis2Obligations: () => api.get('/catalogs/nis2-articles'),
 };
 
 export const userSearchApi = {
@@ -425,6 +455,7 @@ export const evidenceApi = {
 };
 
 export const documentApi = {
+  list: (params?: any) => api.get('/documents', { params }),
   create: (data: any) => api.post('/documents', data),
   updateVersion: (versionId: string, data: any) => api.patch(`/documents/versions/${versionId}`, data),
   transition: (id: string, data: any) => api.post(`/documents/${id}/transition`, data),
@@ -450,6 +481,11 @@ export const incidentApi = {
   createCommunication: (id: string, data: CreateIncidentCommunicationDTO) => api.post(`/incidents/${id}/communications`, data),
   close: (id: string, data: CloseIncidentDTO) => api.post(`/incidents/${id}/close`, data),
   history: (id: string, params?: { action?: string; limit?: number; offset?: number }) => api.get(`/incidents/${id}/history`, { params }),
+  markNis2Relevant: (id: string) => api.post(`/incidents/${id}/nis2/mark-relevant`),
+  submitNis2EarlyWarning: (id: string, data: { description: string }) => api.post(`/incidents/${id}/nis2/early-warning`, data),
+  submitNis2Notification: (id: string, data: { description: string }) => api.post(`/incidents/${id}/nis2/notification`, data),
+  submitNis2FinalReport: (id: string, data: { description: string; content: string }) => api.post(`/incidents/${id}/nis2/final-report`, data),
+  getNis2ReportingStatus: (id: string) => api.get<Nis2ReportingStatus>(`/incidents/${id}/nis2/reporting-status`),
 };
 
 export const actionCenterApi = {
@@ -470,6 +506,9 @@ export const nis2Api = {
   createRegistration: (data: { assessmentId: string; entityType: string; deadline: string; registrationDate?: string; contactPerson?: string; contactDetails?: string; submissionProof?: string; bsiConfirmation?: string }) => api.post<Nis2Registration>('/nis2/registrations', data),
   recordRegistrationChange: (id: string, data: { changeType: string; description: string; changedData: Record<string, string>; notificationDeadline?: string; submittedAt?: string; submissionProof?: string }) => api.post<Nis2RegistrationChange>(`/nis2/registrations/${id}/changes`, data),
   ensureMeasuresCatalogue: () => api.post('/nis2/measures-catalogue/ensure'),
+  listSectors: () => api.get<Nis2Sector[]>('/nis2/sectors'),
+  getQuestionnaireV2: () => api.get<Nis2QuestionnaireV2>('/nis2/questionnaire/v2'),
+  ensureV2Questionnaire: () => api.post('/nis2/questionnaire/v2/ensure'),
 };
 
 export const adminApi = {
@@ -664,6 +703,12 @@ export const phase6Api = {
   runReminders: (resource: string) => api.post(`/isms-operations/${resource}/reminders/run`),
   export: (resource: string, params?: any) => api.get(`/isms-operations/${resource}/export`, { params }),
   completeTraining: (assignmentId: string, data: { score?: number; result?: 'passed' | 'failed' | 'completed'; certificateUrl?: string; expiresAt?: string }) => api.post(`/isms-operations/training-assignments/${assignmentId}/complete`, data),
+  interestedParties: {
+    list: () => api.get('/isms-operations/interestedParties'),
+    create: (data: Record<string, unknown>) => api.post('/isms-operations/interestedParties', data),
+    update: (id: string, data: Record<string, unknown>) => api.patch(`/isms-operations/interestedParties/${id}`, data),
+    delete: (id: string) => api.delete(`/isms-operations/interestedParties/${id}`),
+  },
   acknowledgeTraining: (data: { courseId: string; comment?: string }) => api.post('/isms-operations/training-acknowledgements', data),
   createMetricDefinition: (data: Record<string, unknown>) => api.post('/isms-operations/metric-definitions', data),
   enterMetricValue: (data: { metricId: string; value: number; measuredAt?: string; source?: string; comment?: string }) => api.post('/isms-operations/metric-values', data),

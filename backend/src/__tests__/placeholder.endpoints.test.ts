@@ -37,6 +37,9 @@ jest.mock('../config/database', () => ({
     organizationUnit: {
       findMany: jest.fn(() => Promise.resolve([])),
     },
+    ismsScope: {
+      findMany: jest.fn(() => Promise.resolve([])),
+    },
   },
 }));
 
@@ -96,11 +99,11 @@ describe('Placeholder endpoint and implemented-route consistency (P0-04)', () =>
       expect(response.body.error).toBe('Not Implemented');
     });
 
-    it('GET /organization/scopes returns 501 Not Implemented', async () => {
+    it('GET /organization/scopes is implemented', async () => {
       const response = await request(app).get('/organization/scopes');
 
-      expect(response.status).toBe(501);
-      expect(response.body.error).toBe('Not Implemented');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ data: [] });
     });
 
     it('POST /organization/scopes returns 501 Not Implemented', async () => {

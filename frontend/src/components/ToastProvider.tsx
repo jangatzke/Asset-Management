@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -45,16 +45,41 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Auto-remove toasts after duration
+  // Auto-remove toasts after duration.
+  // Track pending timers in a ref so we never recreate timers for toasts
+  // that already have one, and so we can clean them all up on unmount.
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   useEffect(() => {
+    const timers = timersRef.current;
+    // Schedule a timer for any toast that doesn't have one yet.
     toasts.forEach((toast) => {
+      if (timers.has(toast.id)) return;
       const duration = toast.duration ?? 4000;
       const timer = setTimeout(() => {
         removeToast(toast.id);
+        timers.delete(toast.id);
       }, duration);
-      return () => clearTimeout(timer);
+      timers.set(toast.id, timer);
     });
-  }, [toasts.length, removeToast]);
+    // Remove timers for toasts that have disappeared (manual dismiss).
+    const activeIds = new Set(toasts.map((t) => t.id));
+    timers.forEach((timer, id) => {
+      if (!activeIds.has(id)) {
+        clearTimeout(timer);
+        timers.delete(id);
+      }
+    });
+  }, [toasts, removeToast]);
+
+  // Clean up all pending timers on unmount to avoid leaks.
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>

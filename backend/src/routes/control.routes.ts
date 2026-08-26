@@ -83,6 +83,27 @@ controlRouter.post('/soa/:id/approve', authenticate, requirePermission('controls
   }
 });
 
+// GET /soa/:id/export?format=csv|html — Export SoA as CSV or HTML (print-to-PDF)
+controlRouter.get('/soa/:id/export', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
+  try {
+    const format = (req.query.format as string) ?? 'csv';
+    const filename = `soa-${req.params.id.slice(0, 8)}`;
+    if (format === 'html' || format === 'pdf') {
+      const html = await controlService.exportSoAHtml(req.params.id);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}.html`);
+      res.send(html);
+      return;
+    }
+    const csv = await controlService.exportSoACsv(req.params.id);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}.csv`);
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
 controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), validateBody(ControlImplementationSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createImplementation(req.body, req.userId));

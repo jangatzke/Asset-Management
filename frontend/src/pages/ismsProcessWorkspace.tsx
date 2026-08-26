@@ -37,6 +37,12 @@ const INTERESTED_PARTY_TYPES = [
 
 const ISMS_POLICY_TYPES = ['informationSecurityPolicy', 'riskAcceptancePolicy', 'ismsScope', 'awarenessPolicy', 'backupPolicy', 'accessControlPolicy'];
 
+const CLAUSE_TABS: { key: Clause; labelKey: string; descriptionKey: string }[] = [
+  { key: 'clause4', labelKey: 'ismsProcess.clause4.label', descriptionKey: 'ismsProcess.clause4.description' },
+  { key: 'clause5', labelKey: 'ismsProcess.clause5.label', descriptionKey: 'ismsProcess.clause5.description' },
+  { key: 'clause7', labelKey: 'ismsProcess.clause7.label', descriptionKey: 'ismsProcess.clause7.description' },
+];
+
 const ISMSProcessWorkspace = () => {
   const { t } = useI18n();
   const [clause, setClause] = useState<Clause>('clause4');
@@ -232,13 +238,7 @@ const ISMSProcessWorkspace = () => {
     }
   }
 
-  const tabs: { key: Clause; labelKey: string; descriptionKey: string }[] = [
-    { key: 'clause4', labelKey: 'ismsProcess.clause4.label', descriptionKey: 'ismsProcess.clause4.description' },
-    { key: 'clause5', labelKey: 'ismsProcess.clause5.label', descriptionKey: 'ismsProcess.clause5.description' },
-    { key: 'clause7', labelKey: 'ismsProcess.clause7.label', descriptionKey: 'ismsProcess.clause7.description' },
-  ];
-
-  const activeTab = useMemo(() => tabs.find((tab) => tab.key === clause)!, [clause]);
+  const activeTab = useMemo(() => CLAUSE_TABS.find((tab) => tab.key === clause)!, [clause]);
 
   return (
     <div className="space-y-6">
@@ -258,7 +258,7 @@ const ISMSProcessWorkspace = () => {
 
       {/* Clause tabs */}
       <nav className="flex flex-wrap gap-2" aria-label={t('ismsProcess.navigationLabel')}>
-        {tabs.map((tab) => (
+        {CLAUSE_TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setClause(tab.key)}

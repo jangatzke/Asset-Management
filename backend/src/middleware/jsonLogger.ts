@@ -71,25 +71,19 @@ export function redactSensitiveData(obj: unknown, depth = 0): unknown {
  */
 export const jsonLogger = (req: Request, res: Response, next: NextFunction): void => {
   const start = Date.now();
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const originalWriteHead = res.writeHead.bind(res) as any;
-  
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (res as any).writeHead = function(this: any, ...args: any[]) {
-    const statusCode = typeof args[0] === 'number' ? args[0] : 200;
-    logRequest(req, this as unknown as Response, start, statusCode);
-    return originalWriteHead.apply(res, args.length >= 1 ? args : [200]);
+
+  // Log exactly once when the response has been fully sent.
+  // 'finish' fires for both normal responses and HEAD responses;
+  // 'close' covers early-disconnected requests so we never leak unlogged requests.
+  let logged = false;
+  const logOnce = () => {
+    if (logged) return;
+    logged = true;
+    logRequest(req, res, start, res.statusCode);
   };
-  
-  // Fallback for when finish event is used
-  res.on('finish', () => {
-    // Only log if not already logged by writeHead
-    const duration = Date.now() - start;
-    if (duration < 1000) { // Heuristic to avoid double logging
-      logRequest(req, res, start, res.statusCode);
-    }
-  });
+
+  res.on('finish', logOnce);
+  res.on('close', logOnce);
 
   next();
 };
@@ -108,8 +102,8 @@ function logRequest(req: Request, res: Response, start: number, statusCode: numb
     durationMs: duration,
     userAgent: req.headers['user-agent'],
     ipAddress: req.ip || req.socket.remoteAddress,
-    requestSize: parseInt(req.headers['content-length'] || '0', 10),
-    responseSize: parseInt(res.getHeader('content-length') as string || '0', 10),
+    requestSize: parseHeaderNumber(req.headers['content-length']),
+    responseSize: parseHeaderNumber(res.getHeader('content-length')),
   };
 
   // Log error level for server errors
@@ -118,8 +112,18 @@ function logRequest(req: Request, res: Response, start: number, statusCode: numb
   } else if (statusCode >= 400) {
     logEntry.level = 'warn';
   }
+    // Use console.log with JSON for structured logging
+    // In production, this would be piped to a logging service
+    console.log(JSON.stringify(logEntry));
+  }
 
-  // Use console.log with JSON for structured logging
-  // In production, this would be piped to a logging service
-  console.log(JSON.stringify(logEntry));
-}
+  /**
+   * Safely parse a header value that may be a string, a string[] (combined headers)
+   * or undefined into a non-negative integer.
+   */
+  function parseHeaderNumber(value: string | number | string[] | undefined): number {
+    if (value === undefined || value === null) return 0;
+    const str = Array.isArray(value) ? value[0] : typeof value === 'number' ? String(value) : value;
+    const parsed = parseInt(str, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }

@@ -560,6 +560,7 @@ export const CreateSoAItemSchema = z.object({
   justification: z.string().min(1),
   implementationStatus: z.string().default('planned'),
   controlImplementationIds: z.array(z.string().uuid()).default([]),
+  riskAssessmentIds: z.array(z.string().uuid()).default([]),
 }).merge(DeprecatedDirectRiskControlFields);
 
 export const CreateSoASchema = z.object({

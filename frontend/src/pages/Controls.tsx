@@ -738,7 +738,7 @@ const Controls = () => {
               </label>
               <select
                 value={formState.values.maturityLevel}
-                onChange={(e) => formState.handleChange({ maturityLevel: parseInt(e.target.value) })}
+                onChange={(e) => formState.handleChange({ maturityLevel: parseInt(e.target.value, 10) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value={0}>{t('controls.maturity.0')}</option>
@@ -806,7 +806,7 @@ const Controls = () => {
               <option value="tested">{t('controls.implementationStatus.tested')}</option>
               <option value="effective">{t('controls.implementationStatus.effective')}</option>
             </select>
-            <select value={implementationFormState.values.maturityLevel} onChange={(e) => implementationFormState.handleChange({ maturityLevel: parseInt(e.target.value) })}
+            <select value={implementationFormState.values.maturityLevel} onChange={(e) => implementationFormState.handleChange({ maturityLevel: parseInt(e.target.value, 10) })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
               {[0,1,2,3,4,5].map((level) => <option key={level} value={level}>{t(`controls.maturity.${level}`)}</option>)}
             </select>

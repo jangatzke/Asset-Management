@@ -1,76 +1,75 @@
-// Note: `vi` is provided globally by vitest via globals: true in vite.config.ts
+/**
+ * Tests for the entityPickerUtils helpers.
+ *
+ * `vi` is provided globally by vitest via globals: true in vite.config.ts.
+ */
+import { mapEntityToPickerResult, hasMorePages } from './entityPickerUtils';
 
-// Runtime type check for EntityPickerResult
-function assertEntityPickerResult(result: { id: string; label: string }): void {
-  if (typeof result.id !== 'string') throw new Error('id must be string');
-  if (typeof result.label !== 'string') throw new Error('label must be string');
-}
+describe('mapEntityToPickerResult', () => {
+  it('maps entity objects to picker result format', () => {
+    const rawItems = [
+      { id: '1', displayId: 'USR-1', name: 'User One' },
+      { id: '2', legalName: 'Supplier A' },
+      { id: '3', title: 'Control X' },
+    ];
 
-test('EntityPickerResult type requires id and label fields', () => {
-  const result = { id: '1', label: 'Test' } as { id: string; label: string };
-  assertEntityPickerResult(result);
-  expect(result.id).toBe('1');
-  expect(result.label).toBe('Test');
+    const results = rawItems.map((item) => mapEntityToPickerResult(item));
+
+    expect(results[0]).toEqual({ id: '1', label: 'USR-1 - User One' });
+    expect(results[1]).toEqual({ id: '2', label: 'Supplier A' });
+    expect(results[2]).toEqual({ id: '3', label: 'Control X' });
+  });
+
+  it('prefers legalName over name for suppliers', () => {
+    const item = { id: 'sup-1', legalName: 'Acme Corp', name: 'acme-corp-uuid' };
+    expect(mapEntityToPickerResult(item)).toEqual({ id: 'sup-1', label: 'Acme Corp' });
+  });
+
+  it('uses displayId with title when no name is present', () => {
+    const item = { id: 'c-1', displayId: 'CTL-7', title: 'Control X' };
+    expect(mapEntityToPickerResult(item)).toEqual({ id: 'c-1', label: 'CTL-7 - Control X' });
+  });
+
+  it('falls back to email for users without displayId/name', () => {
+    const item = { id: 'u-1', email: 'jane@example.com' };
+    expect(mapEntityToPickerResult(item)).toEqual({ id: 'u-1', label: 'jane@example.com' });
+  });
+
+  it('falls back to the id when no label field exists', () => {
+    const item = { id: 'legacy-42' };
+    expect(mapEntityToPickerResult(item)).toEqual({ id: 'legacy-42', label: 'legacy-42' });
+  });
+
+  it('accepts displayId format labels', () => {
+    const result = mapEntityToPickerResult({ id: 'usr-1', displayId: 'USR-1', name: 'John Doe' });
+    expect(result.id).toBe('usr-1');
+    expect(result.label).toBe('USR-1 - John Doe');
+  });
 });
 
-test('EntityPickerResult accepts displayId format labels', () => {
-  const result = { id: 'usr-1', label: 'USR-1 - John Doe' } as { id: string; label: string };
-  assertEntityPickerResult(result);
-  expect(result.id).toContain('usr');
-  expect(result.label).toContain('-');
-});
+describe('hasMorePages', () => {
+  it('returns false when all items have been fetched (total known)', () => {
+    expect(hasMorePages(50, 20, 50)).toBe(false);
+  });
 
-test('EntityPickerResult accepts simple name labels', () => {
-  const result = { id: 'sup-1', label: 'Acme Corp' } as { id: string; label: string };
-  assertEntityPickerResult(result);
-  expect(result.label).toBe('Acme Corp');
-});
+  it('returns true when the last page is full but more items remain (total known)', () => {
+    // 40 of 50 fetched, page size 20: there is a second page left.
+    expect(hasMorePages(40, 20, 50)).toBe(true);
+  });
 
-test('EntityType includes all required entity types for picker', () => {
-  const supportedTypes = ['user', 'asset', 'organizationUnit', 'supplier', 'risk', 'control', 'businessProcess'] as const;
-  expect(supportedTypes).toContain('user');
-  expect(supportedTypes).toContain('asset');
-  expect(supportedTypes).toContain('supplier');
-  expect(supportedTypes).toContain('risk');
-  expect(supportedTypes).toContain('control');
-  expect(supportedTypes).toContain('businessProcess');
-});
+  it('handles the exact-multiple case correctly (total is a multiple of limit)', () => {
+    // 40 of 40 fetched in pages of 20: no further page, even though the
+    // last page was full.
+    expect(hasMorePages(40, 20, 40)).toBe(false);
+  });
 
-test('EntityType has exactly 7 supported entity types', () => {
-  const supportedTypes = ['user', 'asset', 'organizationUnit', 'supplier', 'risk', 'control', 'businessProcess'] as const;
-  expect(supportedTypes).toHaveLength(7);
-});
+  it('falls back to page-full heuristic when no total is available', () => {
+    expect(hasMorePages(20, 20, undefined)).toBe(true);
+    expect(hasMorePages(7, 20, undefined)).toBe(false);
+  });
 
-test('maps entity objects to picker result format', () => {
-  const rawItems = [
-    { id: '1', displayId: 'USR-1', name: 'User One' },
-    { id: '2', legalName: 'Supplier A' },
-    { id: '3', title: 'Control X' },
-  ];
-
-  const results = rawItems.map((item) => ({
-    id: item.id,
-    label: (item as any).displayId && ((item as any).name || (item as any).title)
-      ? `${(item as any).displayId} - ${(item as any).name || (item as any).title}`
-      : (item as any).legalName || (item as any).name || (item as any).title || item.id,
-  }));
-
-  expect(results[0].label).toBe('USR-1 - User One');
-  expect(results[1].label).toBe('Supplier A');
-  expect(results[2].label).toBe('Control X');
-});
-
-test('handles pagination metadata', () => {
-  const items = [{ id: '1', name: 'Item 1' }];
-  const limit = 20;
-  const total = 50;
-
-  const hasMore = items.length >= limit || (total > items.length);
-  
-  expect(hasMore).toBe(true);
-});
-
-test('handles empty results', () => {
-  const items: Array<{ id: string }> = [];
-  expect(items).toHaveLength(0);
+  it('handles empty results', () => {
+    expect(hasMorePages(0, 20, 0)).toBe(false);
+    expect(hasMorePages(0, 20, undefined)).toBe(false);
+  });
 });

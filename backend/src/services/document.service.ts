@@ -26,6 +26,25 @@ const transitions: Record<string, string[]> = {
 };
 
 export class DocumentControlService {
+  async listDocuments(query: Record<string, unknown> = {}) {
+    const page = Number(query.page ?? 1);
+    const limit = Math.min(Number(query.limit ?? 20), 100);
+    const skip = (page - 1) * limit;
+    const where: Record<string, unknown> = {};
+    if (query.documentType) where.documentType = String(query.documentType);
+    if (query.search) {
+      where.OR = [
+        { title: { contains: String(query.search), mode: 'insensitive' } },
+        { description: { contains: String(query.search), mode: 'insensitive' } },
+      ];
+    }
+    const [data, total] = await Promise.all([
+      prisma.policyDocument.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: { versions: { orderBy: { createdAt: 'desc' }, take: 1 } } }),
+      prisma.policyDocument.count({ where }),
+    ]);
+    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
   async create(data: CreatePolicyDocumentData, userId?: string) {
     const document = await prisma.policyDocument.create({
       data: {

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { incidentApi, type IncidentDeadlineResponse, type IncidentDetailResponse, type IncidentReportType } from '../services/api';
+import { incidentApi, type IncidentDeadlineResponse, type IncidentDetailResponse, type IncidentReportType, type Nis2ReportingStatus } from '../services/api';
 import { useAuthStore } from '../store/auth';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
@@ -41,8 +41,10 @@ const IncidentDetail = () => {
   const [report, setReport] = useState({ reportType: 'early_warning_24h' as IncidentReportType, title: '', content: '', recipient: '', submissionMethod: '', submissionProof: '' });
   const [communication, setCommunication] = useState<{ channel: string; direction: 'inbound' | 'outbound'; recipient: string; sender: string; message: string; scheduledAt: string; sentAt: string }>({ channel: 'email', direction: 'outbound', recipient: '', sender: '', message: '', scheduledAt: '', sentAt: '' });
   const [closure, setClosure] = useState({ rootCause: '', measuresEvaluation: '', lessonsLearned: '', closureSummary: '' });
+  const [nis2Status, setNis2Status] = useState<Nis2ReportingStatus | null>(null);
+  const [nis2Form, setNis2Form] = useState({ earlyWarningDescription: '', notificationDescription: '', finalReportDescription: '', finalReportContent: '' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!incidentId) return;
     setLoading(true);
     try {
@@ -50,6 +52,7 @@ const IncidentDetail = () => {
       const detail = response.data;
       setIncident(detail);
       setKnowledgeChange((current) => ({ ...current, knowledgeTime: toDateTimeLocal(detail.knowledgeTime) }));
+      incidentApi.getNis2ReportingStatus(incidentId).then((statusResponse) => setNis2Status(statusResponse.data)).catch(() => setNis2Status(null));
       setClosure({ rootCause: (detail as any).rootCause || '', measuresEvaluation: (detail as any).measuresEvaluation || '', lessonsLearned: (detail as any).lessonsLearned || '', closureSummary: (detail as any).closureSummary || '' });
       setError(null);
     } catch (requestError) {
@@ -57,9 +60,9 @@ const IncidentDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [incidentId]);
 
-  useEffect(() => { void load(); }, [incidentId]);
+  useEffect(() => { void load(); }, [load]);
 
   const run = async (action: () => Promise<unknown>, message: string) => {
     setBusy(true); setError(null); setNotice(null);
@@ -101,6 +104,53 @@ const IncidentDetail = () => {
     <Section title="NIS2 significance and reportability"><p className="mb-2 text-sm">Significance: <strong>{incident.isSignificant ? 'Significant' : 'Not significant'}</strong></p><p className="mb-4 text-sm text-gray-600">{incident.significanceReasons?.join(', ') || 'No rule reasons recorded.'}</p><div className="mb-4 text-sm">Latest assessment: {(incident.assessments[0] as any)?.isReportable === undefined ? 'Not assessed' : (incident.assessments[0] as any)?.isReportable ? 'Reportable' : `Not reportable · ${(incident.assessments[0] as any)?.status?.replace(/_/g, ' ') || 'pending approval'}`}{(incident.assessments[0] as any)?.decisionApprovedBy ? ` · approved by ${(incident.assessments[0] as any).decisionApprovedBy}` : ''}</div>{(incident.assessments[0] as any)?.status === 'pending_approval' && (incident.assessments[0] as any)?.decisionApprovalAssigneeId === user?.id && <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3"><p className="text-sm font-medium">You are the assigned independent approver.</p><input value={returnReason} onChange={(event) => setReturnReason(event.target.value)} placeholder="Return reason (required to return)" className="mt-2 w-full rounded border p-2" /><div className="mt-2 flex gap-2"><button disabled={busy} onClick={() => run(() => incidentApi.decideNonReportableApproval(incident.id, { decision: 'approve' }), 'Non-reportable decision approved.')} className="rounded bg-green-700 px-3 py-2 text-white disabled:opacity-50">Approve decision</button><button disabled={busy || !returnReason.trim()} onClick={() => run(() => incidentApi.decideNonReportableApproval(incident.id, { decision: 'reject', returnReason }), 'Decision returned to the assessor.')} className="rounded bg-amber-600 px-3 py-2 text-white disabled:opacity-50">Return decision</button></div></div>}<div className="grid gap-3 md:grid-cols-2"><label className="flex gap-2"><input type="checkbox" checked={assessment.isReportable} onChange={(event) => setAssessment({ ...assessment, isReportable: event.target.checked })} /> Reportable</label><textarea value={assessment.isReportable ? assessment.reportingJustification : assessment.decisionNotToReport} onChange={(event) => setAssessment(assessment.isReportable ? { ...assessment, reportingJustification: event.target.value } : { ...assessment, decisionNotToReport: event.target.value })} placeholder={assessment.isReportable ? 'Reporting justification' : 'Decision not to report (required)'} className="rounded border p-2" />{!assessment.isReportable && <EntityPicker label="Approving user" labelKey="entityPicker.searchPlaceholder" entityType="user" value={decisionApprover} onChange={(approver) => { if (approver.id === user?.id) { setError('The assessor cannot be selected as approver.'); return; } setDecisionApprover(approver); setAssessment({ ...assessment, decisionApprovedBy: approver.id }); }} required />}</div><button data-testid="incident-save-assessment" disabled={busy || !user?.id || (!assessment.isReportable && !assessment.decisionApprovedBy)} onClick={() => run(() => incidentApi.assess(incident.id, assessment), assessment.isReportable ? 'Reportability assessment saved.' : 'Non-reportable decision submitted for independent approval.')} className="mt-3 rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">{assessment.isReportable ? 'Save assessment' : 'Submit for approval'}</button></Section>
 
     <Section title="Notification deadlines"><div className="space-y-2">{deadlines.length ? deadlines.map((deadline) => <div key={deadline.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-3"><span>{reportLabels[deadline.notificationType]}</span><span>{toLocal(deadline.deadlineDate)}</span><span className={`rounded px-2 py-1 text-xs font-semibold ${deadlineState(deadline)}`}>{deadline.status}</span></div>) : <p className="text-sm text-gray-500">No notification deadlines exist until the incident is significant/reportable.</p>}</div><div className="mt-5 border-t pt-4"><h3 className="mb-2 font-medium">Correct protected knowledge time</h3><div className="grid gap-2 md:grid-cols-3"><input type="datetime-local" value={knowledgeChange.knowledgeTime} onChange={(event) => setKnowledgeChange({ ...knowledgeChange, knowledgeTime: event.target.value })} className="rounded border p-2" /><input value={knowledgeChange.reason} onChange={(event) => setKnowledgeChange({ ...knowledgeChange, reason: event.target.value })} placeholder="Reason (required)" className="rounded border p-2 md:col-span-2" /></div><button disabled={busy || !knowledgeChange.reason.trim()} onClick={() => run(() => incidentApi.changeKnowledgeTime(incident.id, { knowledgeTime: new Date(knowledgeChange.knowledgeTime), reason: knowledgeChange.reason }), 'Knowledge time changed and deadlines recalculated.')} className="mt-2 rounded bg-amber-600 px-4 py-2 text-white disabled:opacity-50">Change knowledge time</button></div></Section>
+    <Section title="NIS2 reporting (Art. 23)">
+      {!nis2Status?.isRelevant ? (
+        <div className="rounded border border-gray-300 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800">
+          <p className="mb-3 text-sm text-gray-700 dark:text-gray-300">This incident has not been marked as NIS2-relevant. Marking it enables the Art. 23 reporting workflow: <strong>early warning</strong> (as soon as possible), the <strong>24-hour notification</strong> to the competent authority, and the <strong>30-day final report</strong>. The 24h and 30-day deadlines are derived from the knowledge time.</p>
+          <button disabled={busy} onClick={() => run(() => incidentApi.markNis2Relevant(incident.id), 'Incident marked as NIS2-relevant. Deadlines calculated from the knowledge time.')} className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50">Mark as NIS2-relevant</button>
+        </div>
+      ) : (
+        <div>
+          <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+            <span className={'rounded px-2 py-1 text-xs font-semibold ' + (nis2Status.severity === 'final' ? 'bg-green-100 text-green-800' : nis2Status.severity === 'notification' ? 'bg-blue-100 text-blue-800' : nis2Status.severity === 'early_warning' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800')}>{(nis2Status.severity || '').replace(/_/g, ' ')}</span>
+            <span>24h notification deadline: <strong>{toLocal(nis2Status.reportDeadline)}</strong>{nis2Status.isReportDeadlineOverdue && nis2Status.severity !== 'final' && nis2Status.severity !== 'notification' ? <em className="ml-1 text-red-700">(overdue)</em> : null}</span>
+            <span>Final report due: <strong>{toLocal(nis2Status.finalReportDue)}</strong>{nis2Status.isFinalReportDueOverdue && nis2Status.severity !== 'final' ? <em className="ml-1 text-red-700">(overdue)</em> : null}</span>
+            {nis2Status.reportedAt ? <span>Reported at: {toLocal(nis2Status.reportedAt)}</span> : null}
+          </div>
+          {nis2Status.severity === 'final' ? (
+            <p className="text-sm text-green-700 dark:text-green-300">All NIS2 reports have been submitted for this incident.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded border border-gray-300 p-3 dark:border-gray-600">
+                <h3 className="mb-2 text-sm font-medium">1 · Early warning (Frühwarnung)</h3>
+                {nis2Status.severity === 'not_assessed' ? (
+                  <div className="grid gap-2">
+                    <textarea value={nis2Form.earlyWarningDescription} onChange={(event) => setNis2Form({ ...nis2Form, earlyWarningDescription: event.target.value })} placeholder="Short description of the incident for the early warning (required)" className="rounded border p-2" />
+                    <button disabled={busy || !nis2Form.earlyWarningDescription.trim()} onClick={() => run(() => incidentApi.submitNis2EarlyWarning(incident.id, { description: nis2Form.earlyWarningDescription }), 'Early warning submitted.')} className="rounded bg-amber-600 px-4 py-2 text-white disabled:opacity-50">Submit early warning</button>
+                  </div>
+                ) : <p className="text-sm text-gray-600 dark:text-gray-300">Early warning already submitted.</p>}
+              </div>
+              <div className="rounded border border-gray-300 p-3 dark:border-gray-600">
+                <h3 className="mb-2 text-sm font-medium">2 · 24-hour notification (Meldung)</h3>
+                <div className="grid gap-2">
+                  <textarea value={nis2Form.notificationDescription} onChange={(event) => setNis2Form({ ...nis2Form, notificationDescription: event.target.value })} placeholder="Description for the formal 24h notification to the competent authority (required)" className="rounded border p-2" />
+                  <button disabled={busy || !nis2Form.notificationDescription.trim()} onClick={() => run(() => incidentApi.submitNis2Notification(incident.id, { description: nis2Form.notificationDescription }), 'NIS2 notification submitted.')} className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">Submit 24h notification</button>
+                </div>
+              </div>
+              <div className="rounded border border-gray-300 p-3 dark:border-gray-600">
+                <h3 className="mb-2 text-sm font-medium">3 · Final report (30-day Abschlussbericht)</h3>
+                <div className="grid gap-2">
+                  <textarea value={nis2Form.finalReportDescription} onChange={(event) => setNis2Form({ ...nis2Form, finalReportDescription: event.target.value })} placeholder="Summary description (required)" className="rounded border p-2" />
+                  <textarea value={nis2Form.finalReportContent} onChange={(event) => setNis2Form({ ...nis2Form, finalReportContent: event.target.value })} placeholder="Full final report content (required)" className="rounded border p-2" />
+                  <button disabled={busy || !nis2Form.finalReportDescription.trim() || !nis2Form.finalReportContent.trim()} onClick={() => run(() => incidentApi.submitNis2FinalReport(incident.id, { description: nis2Form.finalReportDescription, content: nis2Form.finalReportContent }), 'NIS2 final report submitted.')} className="rounded bg-green-700 px-4 py-2 text-white disabled:opacity-50">Submit final report</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Section>
 
     <Section title="Reports"><div className="space-y-2">{incident.reports.map((entry: any) => <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-3"><span>{reportLabels[entry.reportType as IncidentReportType]} · {entry.status}</span><span className="text-sm">Due {toLocal(entry.dueAt)} {entry.submittedAt ? `· submitted ${toLocal(entry.submittedAt)}` : ''}</span><button onClick={() => void exportReport(entry.id, entry.reportType)} className="text-blue-600 hover:underline">Export</button></div>)}</div><div className="mt-4 grid gap-2 md:grid-cols-2"><select value={report.reportType} onChange={(event) => setReport({ ...report, reportType: event.target.value as IncidentReportType })} className="rounded border p-2">{Object.entries(reportLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><input value={report.title} onChange={(event) => setReport({ ...report, title: event.target.value })} placeholder="Report title" className="rounded border p-2" /><textarea value={report.content} onChange={(event) => setReport({ ...report, content: event.target.value })} placeholder="Report content" className="rounded border p-2 md:col-span-2" /><input value={report.recipient} onChange={(event) => setReport({ ...report, recipient: event.target.value })} placeholder="Recipient" className="rounded border p-2" /><input value={report.submissionProof} onChange={(event) => setReport({ ...report, submissionProof: event.target.value })} placeholder="Submission proof (marks submitted)" className="rounded border p-2" /></div><button disabled={busy || !user?.id || !report.content.trim()} onClick={() => run(() => incidentApi.createReport(incident.id, { ...report, content: { text: report.content }, submissionMethod: report.submissionMethod || undefined, submissionProof: report.submissionProof || undefined }), 'Report saved.')} className="mt-3 rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">Save report</button></Section>
 

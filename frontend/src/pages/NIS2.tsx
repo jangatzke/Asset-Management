@@ -2,13 +2,16 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
-import { nis2Api, type Nis2Answer, type Nis2Assessment, type Nis2Question, type Nis2Questionnaire, type Nis2Registration } from '../services/api';
+import { catalogApi, nis2Api, type Nis2Answer, type Nis2Assessment, type Nis2Question, type Nis2QuestionOption, type Nis2Questionnaire, type Nis2Registration } from '../services/api';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
 
 export default function NIS2() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+
+  // Resolve a questionnaire option label (De/En) for the current UI language.
+  const optionLabel = (opt: Nis2QuestionOption) => (language === 'de' ? opt.labelDe : opt.labelEn);
   const [questionnaires, setQuestionnaires] = useState<Nis2Questionnaire[]>([]);
   const [assessments, setAssessments] = useState<Nis2Assessment[]>([]);
   const [registrations, setRegistrations] = useState<Nis2Registration[]>([]);
@@ -22,6 +25,10 @@ export default function NIS2() {
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState('');
   const [catalogError, setCatalogError] = useState('');
+  const [obligationsCatalog, setObligationsCatalog] = useState<any>(null);
+  const [obligationsBusy, setObligationsBusy] = useState(false);
+  const [obligationsMessage, setObligationsMessage] = useState('');
+  const [obligationsError, setObligationsError] = useState('');
   const [registrationAssessmentId, setRegistrationAssessmentId] = useState('');
   const [entityType, setEntityType] = useState('important_entity');
   const [deadline, setDeadline] = useState('');
@@ -88,6 +95,20 @@ export default function NIS2() {
       const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.catalogError');
       setCatalogError(message);
     } finally { setCatalogBusy(false); }
+  };
+
+  const ensureObligationsCatalogue = async () => {
+    setObligationsBusy(true);
+    setObligationsError('');
+    setObligationsMessage('');
+    try {
+      const { data } = await catalogApi.ensureNis2Obligations();
+      setObligationsCatalog(data);
+      setObligationsMessage(t('nis2.obligationsEnsured'));
+    } catch (caught: unknown) {
+      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.obligationsError');
+      setObligationsError(message);
+    } finally { setObligationsBusy(false); }
   };
 
   const loadDefaultQuestionnaire = async () => {
@@ -170,6 +191,13 @@ export default function NIS2() {
                     <option value="">{t('nis2.select')}</option>
                     <option value="true">Yes</option>
                     <option value="false">No</option>
+                  </select>
+                ) : q.type === 'select' ? (
+                  <select className={input} value={answers[q.key] == null ? '' : String(answers[q.key])} onChange={(e) => setAnswers({ ...answers, [q.key]: e.target.value })} required={q.required}>
+                    <option value="">{t('nis2.select')}</option>
+                    {(q.options || []).map((opt: Nis2QuestionOption) => (
+                      <option key={opt.value} value={opt.value}>{optionLabel(opt)}</option>
+                    ))}
                   </select>
                 ) : (
                   <input
@@ -320,6 +348,59 @@ export default function NIS2() {
         >
           {catalogBusy ? t('nis2.catalogEnsuring') : t('nis2.catalogEnsureButton')}
         </button>
+
+        <div className="mt-6">
+          <h3 className="text-base font-semibold">{t('nis2.obligationsCatalogueTitle')}</h3>
+          <p className="mt-1 text-sm text-gray-600">{t('nis2.obligationsCatalogueDescription')}</p>
+
+          {obligationsMessage && <p className="mt-2 rounded bg-green-50 p-2 text-sm text-green-800">{obligationsMessage}</p>}
+          {obligationsError && <p className="mt-2 rounded bg-red-50 p-2 text-sm text-red-800">{obligationsError}</p>}
+
+          <button
+            disabled={obligationsBusy}
+            onClick={ensureObligationsCatalogue}
+            className="mt-2 rounded border bg-gray-100 px-3 py-1 text-sm hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-700 dark:hover:bg-gray-600"
+          >
+            {obligationsBusy ? t('nis2.obligationsEnsuring') : t('nis2.obligationsEnsureButton')}
+          </button>
+
+          {obligationsCatalog && obligationsCatalog.items.length > 0 && (
+            <div className="mt-4 space-y-4">
+              {obligationsCatalog.items.map((article: any) => (
+                <details key={article.id} className="rounded border border-gray-200 dark:border-gray-700">
+                  <summary className="cursor-pointer px-3 py-2 font-medium text-gray-800 dark:text-gray-100">
+                    {article.title}
+                    {article.crosswalk && article.crosswalk.length > 0 && (
+                      <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                        {article.crosswalk.length} {t('nis2.isoControls')}
+                      </span>
+                    )}
+                  </summary>
+                  <div className="space-y-3 px-3 pb-4">
+                    {article.description && (
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{article.description}</p>
+                    )}
+                    {article.crosswalk && article.crosswalk.length > 0 && (
+                      <div>
+                        <p className="mb-1 text-xs font-semibold uppercase text-gray-500">{t('nis2.isoCrosswalk')}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {article.crosswalk.map((controlId: string) => (
+                            <span
+                              key={controlId}
+                              className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                            >
+                              {controlId}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+        </div>
       </details>
     </div>
   );

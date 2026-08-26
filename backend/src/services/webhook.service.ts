@@ -212,9 +212,11 @@ export async function deliverWebhook(
       };
     }
 
-    // Generate HMAC signature
-    const signature = generateHmacSignature(config.secret, payload);
-    const timestamp = parseInt(signature.match(/^t=(\d+)/)?.[1] || String(Date.now()), 10);
+    // Generate HMAC signature. Capture the timestamp explicitly so the
+    // X-Webhook-Timestamp header always matches the value used to sign,
+    // instead of re-parsing it out of the signature string.
+    const timestamp = Date.now();
+    const signature = generateHmacSignature(config.secret, payload, timestamp);
     const serializedPayload = serializeWebhookPayload(payload);
 
     const axiosConfig: AxiosRequestConfig = {
@@ -297,10 +299,7 @@ export async function deliverWebhookWithRetry(
   let lastError: WebhookDeliveryResult | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const result = await deliverWebhook(payload, {
-      ...config,
-      maxRetries: 1, // We handle retries here
-    });
+    const result = await deliverWebhook(payload, config);
 
     if (result.success) {
       return { ...result, attemptNumber: attempt };

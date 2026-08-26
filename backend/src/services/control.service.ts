@@ -75,6 +75,7 @@ export interface CreateSoAItemData {
   justification: string;
   implementationStatus?: string;
   controlImplementationIds?: string[];
+  riskAssessmentIds?: string[];
 }
 
 export interface CreateControlTestData {
@@ -344,18 +345,26 @@ export class ControlService {
 
     return { success: true };
   }
+async getSOA(scopeId?: string) {
+  const where: Prisma.StatementOfApplicabilityWhereInput = {};
+  if (scopeId) {
+    where.scopeId = scopeId;
+  }
 
-  async getSOA(scopeId?: string) {
-    const where: Prisma.StatementOfApplicabilityWhereInput = {};
-    if (scopeId) {
-      where.scopeId = scopeId;
-    }
-
-    return prisma.statementOfApplicability.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: { items: true, approvals: true },
-    });
+  return prisma.statementOfApplicability.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      items: {
+        include: {
+          control: true,
+          implementationLinks: true,
+          riskLinks: true,
+        },
+      },
+      approvals: true,
+    },
+  });
   }
 
   async createSOA(data: CreateSoAData, createdBy?: string) {
@@ -374,6 +383,7 @@ export class ControlService {
             justification: item.justification,
             implementationStatus: item.implementationStatus ?? 'planned',
             implementationLinks: item.controlImplementationIds?.length ? { create: item.controlImplementationIds.map((controlImplementationId) => ({ controlImplementationId })) } : undefined,
+            riskLinks: item.riskAssessmentIds?.length ? { create: item.riskAssessmentIds.map((riskAssessmentVersionId) => ({ riskAssessmentVersionId })) } : undefined,
             createdBy,
           })),
         } : undefined,
@@ -555,6 +565,16 @@ export class ControlService {
       }
     }
 
+    if (data.riskAssessmentIds !== undefined) {
+      await db.soAItemRiskAssessment.deleteMany({ where: { soaItemId: itemId } });
+      if (data.riskAssessmentIds.length) {
+        await db.soAItemRiskAssessment.createMany({
+          data: data.riskAssessmentIds.map((riskAssessmentVersionId) => ({ soaItemId: itemId, riskAssessmentVersionId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     if (updatedBy) {
       await auditService.logEventStandalone(prisma, {
         userId: updatedBy,
@@ -605,6 +625,184 @@ export class ControlService {
 
     await auditService.logEventStandalone(prisma, { userId: approverId, action: decision === 'approved' ? 'SOA_APPROVE' : 'SOA_REJECT', entityType: 'StatementOfApplicability', entityId: soaId, details: `SoA ${decision}` });
     return updated;
+  }
+
+  /**
+   * Load a SoA with all items, controls, and approvals for export.
+   */
+  private async loadSoAForExport(soaId: string) {
+    const soa = await prisma.statementOfApplicability.findUnique({
+      where: { id: soaId },
+      include: {
+        items: {
+          include: {
+            control: true,
+            implementationLinks: true,
+            riskLinks: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        approvals: { orderBy: { decidedAt: 'desc' } },
+      },
+    });
+    if (!soa) throw new AppError('Statement of Applicability not found', 404);
+    return soa;
+  }
+
+  /**
+   * Export a SoA as CSV. Includes all items with control ID, title, applicability,
+   * justification, implementation status, and version.
+   */
+  async exportSoACsv(soaId: string): Promise<string> {
+    const soa = await this.loadSoAForExport(soaId);
+    const csvEscape = (value: string | null | undefined): string => {
+      const str = value ?? '';
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    const header = [
+      'Control ID', 'Control Title', 'Applicability', 'Justification',
+      'Implementation Status', 'Version', 'Risk Assessment Links', 'Implementation Links',
+    ].join(',');
+    const rows = soa.items.map((item) => [
+      csvEscape(item.control?.catalogId ? `${item.control.catalogId}:${item.controlId}` : item.controlId ?? ''),
+      csvEscape(item.control?.title ?? ''),
+      csvEscape(item.applicability),
+      csvEscape(item.justification),
+      csvEscape(item.implementationStatus),
+      csvEscape(String(item.version)),
+      csvEscape(item.riskLinks.map((link) => link.riskAssessmentVersionId).join('; ')),
+      csvEscape(item.implementationLinks.map((link) => link.controlImplementationId).join('; ')),
+    ].join(','));
+    return [
+      `# Statement of Applicability Export`,
+      `# Framework: ${soa.frameworkId} v${soa.frameworkVersion}`,
+      `# Scope: ${soa.scopeId}`,
+      `# Approval Status: ${soa.approvalStatus}`,
+      `# Approved By: ${soa.approvedBy ?? 'N/A'}`,
+      `# Approved At: ${soa.approvedAt ? new Date(soa.approvedAt).toISOString() : 'N/A'}`,
+      `# Exported At: ${new Date().toISOString()}`,
+      `# Items: ${soa.items.length}`,
+      header,
+      ...rows,
+    ].join('\n');
+  }
+
+  /**
+   * Export a SoA as an HTML document suitable for browser print-to-PDF.
+   * No external dependencies — uses inline CSS with print media queries.
+   */
+  async exportSoAHtml(soaId: string): Promise<string> {
+    const soa = await this.loadSoAForExport(soaId);
+    const formatDate = (date: Date | null | undefined) => date ? new Date(date).toLocaleDateString('de-DE') : '—';
+    const approvalStatusClass = soa.approvalStatus === 'approved' ? 'status-approved' : soa.approvalStatus === 'under_review' ? 'status-review' : 'status-draft';
+    const itemsHtml = soa.items.map((item, index) => {
+      const riskIds = item.riskLinks.map((link) => link.riskAssessmentVersionId).join(', ');
+      const implIds = item.implementationLinks.map((link) => link.controlImplementationId).join(', ');
+      return `
+        <tr class="item-row ${item.applicability === 'not_applicable' ? 'row-excluded' : ''}">
+          <td class="cell-index">${index + 1}</td>
+          <td class="cell-control-id">${item.controlId ?? '—'}</td>
+          <td class="cell-title">${item.control?.title ?? '—'}</td>
+          <td class="cell-applicability"><span class="badge badge-${item.applicability}">${item.applicability.replace(/_/g, ' ')}</span></td>
+          <td class="cell-justification">${item.justification}</td>
+          <td class="cell-status">${item.implementationStatus}</td>
+          <td class="cell-links">${riskIds ? `R: ${riskIds}` : ''}${implIds ? (riskIds ? '<br/>' : '') + `I: ${implIds}` : ''}</td>
+        </tr>`;
+    }).join('\n');
+
+    const approvalsHtml = soa.approvals.length > 0
+      ? soa.approvals.map((approval) => `<li>${approval.decision} by ${approval.approverId} on ${formatDate(approval.decidedAt)}${approval.comment ? ` - ${approval.comment}` : ''}</li>`).join('')
+      : '<li>No approval decisions recorded.</li>';
+
+    return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SoA Export — ${soa.frameworkId} v${soa.frameworkVersion}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; color: #1a1a2e; margin: 0; padding: 24px; }
+    @media print {
+      body { padding: 0; font-size: 11px; }
+      .header { break-inside: avoid; }
+      table { break-inside: auto; }
+      tr { break-inside: avoid; }
+      thead { display: table-header-group; }
+    }
+    .header { margin-bottom: 24px; border-bottom: 2px solid #1a1a2e; padding-bottom: 16px; }
+    .header h1 { font-size: 20px; margin: 0 0 8px; }
+    .header h2 { font-size: 14px; color: #555; font-weight: normal; margin: 0; }
+    .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 12px; font-size: 12px; }
+    .meta dt { font-weight: 600; color: #555; }
+    .meta dd { margin: 0; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .status-approved { background: #d4edda; color: #155724; }
+    .status-review { background: #fff3cd; color: #856404; }
+    .status-draft { background: #e2e3e5; color: #383d41; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    thead th { background: #1a1a2e; color: white; padding: 8px 6px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody td { padding: 6px; border-bottom: 1px solid #dee2e6; vertical-align: top; font-size: 12px; }
+    tbody tr:nth-child(even) { background: #f8f9fa; }
+    .cell-index { width: 28px; color: #888; font-size: 11px; }
+    .cell-control-id { width: 80px; font-family: monospace; font-size: 11px; }
+    .cell-applicability { width: 90px; }
+    .cell-status { width: 80px; font-size: 11px; }
+    .cell-links { font-size: 10px; color: #666; width: 120px; word-break: break-all; }
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+    .badge-applicable { background: #d4edda; color: #155724; }
+    .badge-not_applicable { background: #f8d7da; color: #721c24; }
+    .badge-under_review { background: #fff3cd; color: #856404; }
+    .badge-modified { background: #cce5ff; color: #004085; }
+    .row-excluded { opacity: 0.6; }
+    .approvals-section { margin-top: 24px; border-top: 1px solid #dee2e6; padding-top: 12px; }
+    .approvals-section h3 { font-size: 13px; margin: 0 0 8px; }
+    .approvals-section ul { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+    .approvals-section li { padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+    .footer { margin-top: 24px; font-size: 10px; color: #999; border-top: 1px solid #dee2e6; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Statement of Applicability (SoA)</h1>
+    <h2>ISO/IEC 27001:2022 Annex A — ${soa.frameworkVersion}</h2>
+    <dl class="meta">
+      <div><dt>Scope</dt><dd>${soa.scopeId}</dd></div>
+      <div><dt>Version</dt><dd>${soa.version}</dd></div>
+      <div><dt>Status</dt><dd><span class="status-badge ${approvalStatusClass}">${soa.approvalStatus.replace(/_/g, ' ')}</span></dd></div>
+      <div><dt>Submitted</dt><dd>${formatDate(soa.submittedAt)}</dd></div>
+      <div><dt>Approved By</dt><dd>${soa.approvedBy ?? '—'}</dd></div>
+      <div><dt>Approved At</dt><dd>${formatDate(soa.approvedAt)}</dd></div>
+    </dl>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Control ID</th>
+        <th>Control Title</th>
+        <th>Applicability</th>
+        <th>Justification</th>
+        <th>Impl. Status</th>
+        <th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHtml}
+    </tbody>
+  </table>
+  <div class="approvals-section">
+    <h3>Approval History</h3>
+    <ul>${approvalsHtml}</ul>
+  </div>
+  <div class="footer">
+    <p>Exported: ${new Date().toLocaleDateString('de-DE')} · Items: ${soa.items.length} · Generated by Asset Management ISMS</p>
+  </div>
+</body>
+</html>`;
   }
 
   async createImplementation(data: CreateControlImplementationData, createdBy?: string) {

@@ -6,6 +6,12 @@ import {
   ISO27001_ANNEX_A_2022_CONTROLS,
   ISO27001_ANNEX_A_2022_VERSION,
 } from '../data/iso27001AnnexA2022';
+import {
+  NIS2_ARTICLES,
+  NIS2_ARTICLES_CATALOG_CODE,
+  NIS2_ARTICLES_CATALOG_ID,
+  NIS2_ARTICLES_CATALOG_VERSION,
+} from '../data/nis2UmsuCGArticles';
 
 const ISO27001_ANNEX_A_2022_CATALOG_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -113,6 +119,95 @@ export class CatalogService {
         include: { items: { orderBy: { sortOrder: 'asc' } } },
       });
     });
+  }
+
+  /**
+   * Maintains the NIS2-Umsetzungsgesetz (NIS2UmsuCG) obligation catalogue.
+   *
+   * Stores each obligation Article (23, 24, 25, 26, 27, 29, 30) as a
+   * `ControlCatalogItem`. The Article's `crosswalk` field carries the list of
+   * ISO/IEC 27001:2022 Annex A controls that fulfil the Article so the frontend
+   * can render a crosswalk (which ISO controls satisfy which NIS2 obligation).
+   *
+   * The catalogue uses a fixed, deterministic id so it can be referenced from
+   * the frontend and tests without a lookup.
+   */
+  async ensureNis2UmsuCGCatalog() {
+    return prisma.$transaction(async (tx) => {
+      const catalog = await tx.controlCatalog.upsert({
+        where: { id: NIS2_ARTICLES_CATALOG_ID },
+        create: {
+          id: NIS2_ARTICLES_CATALOG_ID,
+          name: 'NIS2-Umsetzungsgesetz (Obligation Articles)',
+          description:
+            'Obligation Articles of the NIS2-Umsetzungsgesetz (Art. 23–30) with crosswalk to ISO/IEC 27001:2022 Annex A controls.',
+          version: NIS2_ARTICLES_CATALOG_VERSION,
+          isActive: true,
+        },
+        update: {
+          name: 'NIS2-Umsetzungsgesetz (Obligation Articles)',
+          description:
+            'Obligation Articles of the NIS2-Umsetzungsgesetz (Art. 23–30) with crosswalk to ISO/IEC 27001:2022 Annex A controls.',
+          version: NIS2_ARTICLES_CATALOG_VERSION,
+          isActive: true,
+        },
+      });
+
+      for (const [index, article] of NIS2_ARTICLES.entries()) {
+        await tx.controlCatalogItem.upsert({
+          where: {
+            catalogId_controlId: {
+              catalogId: catalog.id,
+              controlId: `Article-${article.articleId}`,
+            },
+          },
+          create: {
+            catalogId: catalog.id,
+            controlId: `Article-${article.articleId}`,
+            title: `${article.article} ${article.titleEn}`,
+            description: `${article.descriptionEn}\n\n${article.descriptionDe}`,
+            category: 'NIS2UmsuCG',
+            subcategory: article.article,
+            sortOrder: index + 1,
+            tags: [NIS2_ARTICLES_CATALOG_CODE, 'obligation'],
+            crosswalk: article.isoCrosswalk,
+          },
+          update: {
+            title: `${article.article} ${article.titleEn}`,
+            description: `${article.descriptionEn}\n\n${article.descriptionDe}`,
+            category: 'NIS2UmsuCG',
+            subcategory: article.article,
+            sortOrder: index + 1,
+            tags: [NIS2_ARTICLES_CATALOG_CODE, 'obligation'],
+            crosswalk: article.isoCrosswalk,
+          },
+        });
+      }
+
+      return tx.controlCatalog.findUniqueOrThrow({
+        where: { id: catalog.id },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+  }
+
+  /**
+   * Returns the NIS2 obligation catalogue together with its crosswalk data.
+   *
+   * If the catalogue has not been seeded yet (e.g. on a fresh database that was
+   * not run through the seed script) it is created first and then returned.
+   */
+  async getNis2ObligationCatalog(): Promise<Prisma.ControlCatalogGetPayload<{ include: { items: { orderBy: { sortOrder: 'asc' } } } }> | null> {
+    const existing = await prisma.controlCatalog.findUnique({
+      where: { id: NIS2_ARTICLES_CATALOG_ID },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.ensureNis2UmsuCGCatalog();
   }
 
   async listCatalogs(query: ListCatalogsQuery) {

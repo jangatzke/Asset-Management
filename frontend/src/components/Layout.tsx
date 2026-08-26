@@ -18,6 +18,7 @@ import {
   BanknotesIcon,
   ServerIcon,
   ChartBarIcon,
+  ClipboardDocumentCheckIcon,
   Bars3Icon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -75,6 +76,7 @@ const Layout = () => {
     { name: t('navigation.processes'), href: '/processes', icon: ServerIcon },
     { name: t('navigation.costPlanning'), href: '/cost-planning', icon: BanknotesIcon },
     { name: t('navigation.ismsOperations'), href: '/isms-operations', icon: ChartBarIcon },
+    { name: t('navigation.ismsProcessWorkspace'), href: '/isms-operations/process', icon: ClipboardDocumentCheckIcon },
     ...(isAdmin ? [
       { name: t('navigation.riskAggregation'), href: '/risk-aggregation', icon: ChartBarIcon },
       { name: t('navigation.admin'), href: '/admin/users', icon: Cog6ToothIcon },
@@ -85,16 +87,11 @@ const Layout = () => {
     if (href === '/admin/users' && location.pathname.startsWith('/admin')) {
       return true;
     }
-    if (href === '/isms-operations' && location.pathname === '/isms-phase6') {
-      return true;
+    if (href === '/isms-operations') {
+      return location.pathname === '/isms-operations' || location.pathname === '/isms-phase6';
     }
-    // Check for sub-path matches for new pages
-    const pathParts = location.pathname.split('/').filter(Boolean);
-    const hrefParts = href.split('/').filter(Boolean);
-    if (pathParts.length > 0 && hrefParts.length > 0) {
-      return pathParts[0] === hrefParts[hrefParts.length - 1];
-    }
-    return location.pathname === href;
+    // Exact match or sub-path match (e.g. /isms-operations/process)
+    return location.pathname === href || location.pathname.startsWith(href + '/');
   };
 
   const adminSubPages = [

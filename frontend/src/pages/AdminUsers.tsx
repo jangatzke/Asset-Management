@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -87,12 +87,7 @@ const AdminUsers = () => {
   const formatUserLabel = (key: string, user: User) =>
     t(key).replace('{name}', `${user.firstName} ${user.lastName}`);
 
-  useEffect(() => {
-    loadUsers();
-    loadRoles();
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await adminApi.listUsers();
@@ -102,16 +97,21 @@ const AdminUsers = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  const loadRoles = async () => {
+  const loadRoles = useCallback(async () => {
     try {
       const response = await adminApi.getRoles();
       setRoles(response.data || []);
     } catch (err) {
       // Roles may not load
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+    loadRoles();
+  }, [loadUsers, loadRoles]);
 
   const filteredUsers = users.filter(
     (u) =>

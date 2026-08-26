@@ -121,7 +121,11 @@ export class IntuneSyncScheduler {
 
     // Set up health check timer (every 30 minutes)
     this.healthCheckTimer = setInterval(() => {
-      this.checkHealth();
+      // checkHealth is async; attach a catch so a failure inside the timer
+      // callback does not become an unhandled promise rejection.
+      void this.checkHealth().catch((error: unknown) => {
+        console.error('[IntuneScheduler] Health check failed:', error);
+      });
     }, 30 * 60 * 1000);
 
     console.log('[IntuneScheduler] Scheduler started successfully');

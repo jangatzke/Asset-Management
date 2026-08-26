@@ -1,9 +1,13 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityWrite } from '../middleware/entityAuth';
+import { authorizeEntityRead, authorizeEntityWrite } from '../middleware/entityAuth';
 import { documentControlService } from '../services/document.service';
 
 export const documentRouter = Router();
+
+documentRouter.get('/', authenticate, authorizeEntityRead('controls'), async (req: AuthRequest, res, next) => {
+  try { res.json(await documentControlService.listDocuments(req.query)); } catch (error) { next(error); }
+});
 
 documentRouter.post('/', authenticate, authorizeEntityWrite('controls'), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await documentControlService.create(req.body, req.userId)); } catch (error) { next(error); }

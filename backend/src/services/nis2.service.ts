@@ -313,9 +313,11 @@ export class Nis2Service {
    */
   private evaluateApplicability(answers: Record<string, any>) {
     const employees = Number(answers.employeeCount ?? 0);
-    const revenue = Number(answers.annualRevenueMillionEur ?? 0);
-    const balanceSheet = Number(answers.balanceSheetMillionEur ?? 0);
-    const criticalService = answers.criticalService === true;
+    // Accept both the v2.0 questionnaire keys (annualRevenue / balanceSheetTotal)
+    // and the legacy v1.0 keys (annualRevenueMillionEur / balanceSheetMillionEur).
+    const revenue = Number(answers.annualRevenue ?? answers.annualRevenueMillionEur ?? 0);
+    const balanceSheet = Number(answers.balanceSheetTotal ?? answers.balanceSheetMillionEur ?? 0);
+    const criticalService = answers.criticalService === true || answers.critical === true;
     const sector = answers.sector ?? 'unknown';
 
     // Check essential entity (bwE) thresholds
@@ -477,14 +479,19 @@ export class Nis2Service {
 
   /**
    * Seeds the v2.0 questionnaire into the database (idempotent).
+   *
+   * Only fields present in the Nis2QuestionnaireVersion model are passed to
+   * Prisma; the questionnaire `description` is intentionally excluded because
+   * it is not a stored column.
    */
-  async ensureV2Questionnaire(createdBy?: string) {
-    return (prisma as any).nis2QuestionnaireVersion.upsert({
-      where: { version: NIS2_APPLICABILITY_QUESTIONNAIRE.version },
-      update: { status: 'active' },
-      create: { ...NIS2_APPLICABILITY_QUESTIONNAIRE, createdBy },
-    });
-  }
+ async ensureV2Questionnaire(createdBy?: string) {
+   const { description: _description, ...persistable } = NIS2_APPLICABILITY_QUESTIONNAIRE;
+   return (prisma as any).nis2QuestionnaireVersion.upsert({
+     where: { version: NIS2_APPLICABILITY_QUESTIONNAIRE.version },
+     update: { status: 'active' },
+     create: { ...persistable, createdBy },
+   });
+ }
 }
 
 export const nis2Service = new Nis2Service();

@@ -37,6 +37,7 @@ const CostPlanning = lazy(() => import('./pages/CostPlanning'));
 const ActionCenter = lazy(() => import('./pages/ActionCenter'));
 const NIS2 = lazy(() => import('./pages/NIS2'));
 const OperationsWorkspace = lazy(() => import('./pages/OperationsWorkspace'));
+const ISMSProcessWorkspace = lazy(() => import('./pages/ismsProcessWorkspace'));
 
 const LoadingSpinner = (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -70,6 +71,7 @@ function App() {
             <Route path="risk-aggregation" element={<RiskAggregation />} />
             <Route path="isms-operations" element={<ISMSPhase6 />} />
             <Route path="isms-operations/workspace" element={<OperationsWorkspace />} />
+            <Route path="isms-operations/process" element={<ISMSProcessWorkspace />} />
             <Route path="isms-operations/audits" element={<AuditWorkspace />} />
             <Route path="isms-operations/bcm/:kind/:id" element={<BcmDetail />} />
             <Route path="isms-operations/suppliers/:supplierId" element={<SupplierDetail />} />

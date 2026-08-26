@@ -23,4 +23,5 @@ export const PHASE6_MODEL_MAP: Record<string, { delegate: string; entityType: st
   reportDefinitions: { delegate: 'reportDefinition', entityType: 'ReportDefinition', prefix: 'RPD', searchable: ['name', 'description', 'module', 'status'] },
   reportRuns: { delegate: 'reportRun', entityType: 'ReportRun', prefix: 'RPR', searchable: ['module', 'status'], defaultOrderBy: { startedAt: 'desc' } },
   exportJobs: { delegate: 'exportJob', entityType: 'ExportJob', prefix: 'EXP', searchable: ['entityType', 'format', 'status'], defaultOrderBy: { requestedAt: 'desc' } },
+  interestedParties: { delegate: 'interestedParty', entityType: 'InterestedParty', prefix: 'IP', searchable: ['name', 'type', 'contactPerson', 'contactEmail'] },
 };

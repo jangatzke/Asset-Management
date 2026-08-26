@@ -13,6 +13,7 @@ export const GRANULAR_PERMISSIONS = [
   'correctiveActions.read', 'correctiveActions.write', 'correctiveActions.verify',
   'training.read', 'training.manage',
   'documents.read', 'documents.write', 'documents.approve',
+  'interestedParties.read', 'interestedParties.write',
   'evidence.read', 'evidence.write', 'evidence.export',
   'nis2.read', 'nis2.write', 'nis2.approve',
   'administration.access',
@@ -31,6 +32,7 @@ export type EntityType =
   | 'correctiveActions'
   | 'training'
   | 'documents'
+  | 'interestedParties'
   | 'evidence'
   | 'nis2'
   | 'administration'
@@ -75,6 +77,7 @@ export const WRITE_PERMISSION_BY_RESOURCE: Record<string, PermissionName> = {
   correctiveActions: 'correctiveActions.write',
   trainingAssignments: 'training.manage',
   documents: 'documents.write',
+  interestedParties: 'interestedParties.write',
   evidence: 'evidence.write',
   nis2: 'nis2.write',
   controls: 'controls.write',
@@ -91,6 +94,7 @@ export const READ_PERMISSION_BY_RESOURCE: Record<string, PermissionName> = {
   correctiveActions: 'correctiveActions.read',
   trainingAssignments: 'training.read',
   documents: 'documents.read',
+  interestedParties: 'interestedParties.read',
   evidence: 'evidence.read',
   nis2: 'nis2.read',
   controls: 'controls.read',

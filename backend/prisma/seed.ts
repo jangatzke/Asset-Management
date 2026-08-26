@@ -22,8 +22,8 @@ const prisma = new PrismaClient();
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   system_admin: [...GRANULAR_PERMISSIONS],
   ism_manager: [...GRANULAR_PERMISSIONS],
-  auditor: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'suppliers.read', 'bcm.read', 'audits.read', 'correctiveActions.read', 'training.read', 'documents.read', 'evidence.read', 'nis2.read'],
-  employee: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'training.read', 'documents.read'],
+  auditor: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'suppliers.read', 'bcm.read', 'audits.read', 'correctiveActions.read', 'training.read', 'documents.read', 'interestedParties.read', 'evidence.read', 'nis2.read'],
+  employee: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'training.read', 'documents.read', 'interestedParties.read'],
 };
 
 // ---------------------------------------------------------------------------
@@ -563,6 +563,9 @@ async function main(): Promise<void> {
     await seedNormalizedRiskControlDemo();
     const isoCatalog = await catalogService.ensureIso27001AnnexA2022Catalog();
     console.log(`  ✓ ISO/IEC 27001:2022 Annex A catalogue (${isoCatalog.items.length} controls)`);
+
+    const nis2Catalog = await catalogService.ensureNis2UmsuCGCatalog();
+    console.log(`  ✓ NIS2 obligation catalogue (${nis2Catalog.items.length} Articles)`);
 
     console.log('\n✅ Seed completed successfully!\n');
   } catch (error) {

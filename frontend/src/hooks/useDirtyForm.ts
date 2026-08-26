@@ -9,6 +9,13 @@ function deepEqual(a: unknown, b: unknown): boolean {
   if (a == null || b == null) return false;
   if (typeof a !== typeof b) return false;
 
+  // Compare Date objects by their time value, not by enumerable keys
+  // (Date instances have no own enumerable keys, so a key-based
+  // comparison would treat any two Dates as equal).
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+
   if (Array.isArray(a)) {
     if (!Array.isArray(b)) return false;
     if (a.length !== b.length) return false;
@@ -45,7 +52,6 @@ export interface UseDirtyFormReturn<T> {
 
 export function useDirtyForm<T>(initialValues: T): UseDirtyFormReturn<T> {
   const [values, setValues] = useState<T>(initialValues);
-  const [isDirty, setIsDirty] = useState(false);
   // Use a ref so the snapshot survives re-renders but can be updated via setFormValues
   const snapshotRef = useRef<T>(initialValues);
 
@@ -56,35 +62,28 @@ export function useDirtyForm<T>(initialValues: T): UseDirtyFormReturn<T> {
     setValues(newValues);
     snapshotRef.current = newValues;
     initialValuesRef.current = newValues;
-    setIsDirty(false);
   }, []);
 
   const handleChange = useCallback((partial: Partial<T>) => {
-    setValues((prev) => {
-      const next = { ...prev, ...partial };
-      if (!deepEqual(next, snapshotRef.current)) {
-        setIsDirty(true);
-      }
-      return next;
-    });
+    setValues((prev) => ({ ...prev, ...partial }));
   }, []);
 
   const resetForm = useCallback(() => {
     setValues(initialValuesRef.current);
     snapshotRef.current = initialValuesRef.current;
-    setIsDirty(false);
   }, []);
 
   // Internal setValues wrapper that also triggers dirty detection
   const setValuesWrapper = useCallback((fn: (prev: T) => T) => {
-    setValues((prev) => {
-      const next = fn(prev);
-      if (!deepEqual(next, snapshotRef.current)) {
-        setIsDirty(true);
-      }
-      return next;
-    });
+    setValues((prev) => fn(prev));
   }, []);
+
+  // Derive isDirty from values instead of maintaining it as separate state.
+  // This fixes the stale-dirty bug: previously the flag was only ever set to
+  // true (never back to false), so a form that was edited and then changed
+  // back to the snapshot still reported dirty. Deriving it also removes the
+  // anti-pattern of calling setIsDirty inside a setValues updater.
+  const isDirty = !deepEqual(values, snapshotRef.current);
 
   return {
     values,

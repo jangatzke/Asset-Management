@@ -54,10 +54,24 @@ async function gracefulShutdown(
 ): Promise<void> {
   console.log('Starting graceful shutdown...');
 
+  // Force exit after timeout if graceful shutdown takes too long.
+  // Stored so it can be cleared once a clean shutdown completes,
+  // otherwise the timer would keep the event loop alive unnecessarily.
+  const forceExitTimer = setTimeout(() => {
+    console.error(`Graceful shutdown timed out after ${signalTimeout}ms. Forcing exit.`);
+
+    // Try to disconnect DB one more time
+    prisma.$disconnect().catch(() => {
+      // Ignore errors during forced shutdown
+    });
+
+    process.exit(1);
+  }, signalTimeout);
+
   // Stop accepting new connections
   server.close(async () => {
     console.log('HTTP server closed. All existing connections drained.');
-    
+
     // Clean up idempotency cleanup interval
     stopIdempotencyCleanup();
 
@@ -68,7 +82,7 @@ async function gracefulShutdown(
     try {
       await Promise.race([
         prisma.$disconnect(),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Database disconnect timeout')), dbTimeout)
         ),
       ]);
@@ -77,21 +91,11 @@ async function gracefulShutdown(
       console.error('Error closing database connection:', error);
     }
 
+    // Clean shutdown finished, cancel the force-exit timer.
+    clearTimeout(forceExitTimer);
     console.log('Graceful shutdown completed.');
     process.exit(0);
   });
-
-  // Force exit after timeout if graceful shutdown takes too long
-  setTimeout(() => {
-    console.error(`Graceful shutdown timed out after ${signalTimeout}ms. Forcing exit.`);
-    
-    // Try to disconnect DB one more time
-    prisma.$disconnect().catch(() => {
-      // Ignore errors during forced shutdown
-    });
-
-    process.exit(1);
-  }, signalTimeout).unref();
 
   // Log active connections draining
   console.log('Draining existing connections...');
