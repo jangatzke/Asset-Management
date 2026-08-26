@@ -146,7 +146,11 @@ jobs:
         run: npx prisma validate --schema=backend/prisma/schema.prisma
 
       - name: Format check (Prisma)
-        run: npx prisma format --check --schema=backend/prisma/schema.prisma
+        run: |
+          # Prisma 5.x has no `format --check` flag (added in v6). Format in place and
+          # fail the job if the canonical formatting differs from what is committed.
+          npx prisma format --schema=backend/prisma/schema.prisma
+          git diff --exit-code -- backend/prisma/schema.prisma
 
   # =====================================================================
   # UNIT TESTS
