@@ -149,13 +149,6 @@ export default function IntuneAdmin() {
     isConfigured: false,
   });
 
-  useEffect(() => {
-    loadConfig();
-    loadSyncStatus();
-    loadHealth();
-    loadCredentials();
-  }, []);
-
   const loadConfig = async () => {
     try {
       const res = await api.get('/intune/config');
@@ -207,6 +200,14 @@ export default function IntuneAdmin() {
       setCredentials(null);
     }
   };
+
+  useEffect(() => {
+    loadConfig();
+    loadSyncStatus();
+    loadHealth();
+    loadCredentials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap; loaders are stable across renders
+  }, []);
 
   const handleSaveCredentials = async () => {
     try {

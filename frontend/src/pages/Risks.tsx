@@ -11,6 +11,7 @@ import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
 import { getRiskColor, getErrorMessage } from '../utils/statusHelpers';
+import { normalizeRiskStatusFilter, matchesRiskStatusFilter } from './riskStatusHelpers';
 
 interface Risk {
   id: string;
@@ -37,6 +38,7 @@ interface RiskAssessmentVersion {
   targetRisk: string;
   isCurrent: boolean;
   status?: string;
+  versionNumber?: number;
   controlAssessments?: Array<{ effectivenessStatus: string; riskControl?: RiskControlLink }>;
 }
 
@@ -130,16 +132,8 @@ const initialTreatmentForm: TreatmentForm = {
 
 const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: false, status: 'active' };
 const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { RiskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
-const openRiskStatuses = ['identified', 'assessed', 'treatment_planned', 'treatment_in_progress'];
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
-
-export const normalizeRiskStatusFilter = (value: string | null) => value === 'open' ? 'open' : value ?? '';
-export const matchesRiskStatusFilter = (risk: Pick<Risk, 'status'>, statusFilter: string) => {
-  if (!statusFilter) return true;
-  if (statusFilter === 'open') return openRiskStatuses.includes(risk.status);
-  return risk.status === statusFilter;
-};
 
 const Risks = () => {
   const { t } = useI18n();
@@ -452,6 +446,7 @@ const Risks = () => {
     resetForm();
     formState.setFormValues(initialForm);
     setModalOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resetForm is a stable helper; omitting it avoids unnecessary callback recreation
   }, [formState]);
 
   const handleCreateTreatment = async () => {
@@ -731,7 +726,7 @@ const Risks = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-900 p-3 rounded">
                   <select value={assessmentForm.RiskAssessmentVersionId} onChange={(e) => setAssessmentForm({ ...assessmentForm, RiskAssessmentVersionId: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     <option value="">{t('risks.controls.selectAssessmentVersion')}</option>
-                    {(riskDetails[selectedRiskForControls?.id ?? '']?.riskAssessmentVersions ?? []).filter((v: RiskAssessmentVersion) => !v.status || !['closed', 'completed', 'approved'].includes(v.status)).map((v: any) => <option key={v.id} value={v.id}>{v.assessmentType} #{v.versionNumber ?? v.versionNumber ?? ''} ({v.status ?? 'draft'})</option>)}
+                    {(riskDetails[selectedRiskForControls?.id ?? '']?.riskAssessmentVersions ?? []).filter((v: RiskAssessmentVersion) => !v.status || !['closed', 'completed', 'approved'].includes(v.status)).map((v: RiskAssessmentVersion) => <option key={v.id} value={v.id}>{v.assessmentType} #{v.versionNumber ?? ''} ({v.status ?? 'draft'})</option>)}
                   </select>
                   <select value={assessmentForm.effectivenessStatus} onChange={(e) => setAssessmentForm({ ...assessmentForm, effectivenessStatus: e.target.value })} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     {['effective', 'partially_effective', 'ineffective', 'not_tested', 'not_applicable'].map((status) => <option key={status} value={status}>{t(`risks.controls.effectiveness.${status}`)}</option>)}

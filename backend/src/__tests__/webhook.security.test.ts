@@ -9,7 +9,6 @@
 
 import {
   validateWebhookUrl,
-  checkWebhookUrlSSRF,
   checkResolvedIp,
 } from '../services/urlValidator';
 import {

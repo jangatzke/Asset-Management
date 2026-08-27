@@ -33,8 +33,6 @@ const { incidentService } = require('../services/incident.service');
 const { auditService: mockAuditService } = require('../services/audit.service');
 
 describe('Incident History (AUDIT-001)', () => {
-  let createdIncidentId: string;
-
   beforeEach(() => {
     jest.clearAllMocks();
 

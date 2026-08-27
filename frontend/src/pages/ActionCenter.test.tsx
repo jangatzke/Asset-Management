@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { ACTION_CENTER_SOURCE_OPTIONS } from './ActionCenter';
+import { ACTION_CENTER_SOURCE_OPTIONS } from './actionCenterHelpers';
 
 test('Action Center exposes every Phase-6 source type supported by the API with its explicit label', () => {
   expect(ACTION_CENTER_SOURCE_OPTIONS).toEqual(expect.arrayContaining([

@@ -10,6 +10,7 @@ import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDial
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useAuthStore } from '../store/auth';
+import { normalizeIncidentStatusFilter, matchesIncidentStatusFilter } from './incidentStatusHelpers';
 
 interface HistoryEntry {
   id: string;
@@ -104,17 +105,8 @@ const initialIncidentForm = (currentUserId = ''): IncidentForm => {
   };
 };
 
-const activeIncidentStatuses = ['new', 'under_investigation', 'contained'];
-
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
-
-export const normalizeIncidentStatusFilter = (value: string | null) => value === 'open' ? 'open' : value ?? '';
-export const matchesIncidentStatusFilter = (incident: Pick<Incident, 'status'>, statusFilter: string) => {
-  if (!statusFilter) return true;
-  if (statusFilter === 'open') return activeIncidentStatuses.includes(incident.status);
-  return incident.status === statusFilter;
-};
 
 const Incidents = () => {
   const { t } = useI18n();
@@ -193,7 +185,7 @@ const Incidents = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial incidents load only; loader uses current translation fallback for this mount.
   }, []);
 
-  const loadIncidents = async () => {
+  const loadIncidents = useCallback(async () => {
     try {
       setLoading(true);
       const params: { page: number; limit: number; status?: string } = { page: 1, limit: 50 };
@@ -206,7 +198,7 @@ const Incidents = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, t]);
 
   const createEarlyWarning = async (incident: Incident) => {
     try {
@@ -229,7 +221,7 @@ const Incidents = () => {
     setAffectedProcesses([]);
     setError(null);
     setModalOpen(true);
-  }, [form, currentUser, t]);
+  }, [form, currentUser]);
 
   const openEditModal = useCallback((incident: Incident) => {
     setEditingIncident(incident);
@@ -261,7 +253,7 @@ const Incidents = () => {
     setModalOpen(true);
   }, [form, currentUser, t]);
 
-  const buildIncidentPayload = (): CreateIncidentDTO => {
+  const buildIncidentPayload = useCallback((): CreateIncidentDTO => {
     const v = form.values;
     const payload: CreateIncidentDTO = {
       title: v.title.trim(),
@@ -286,7 +278,7 @@ const Incidents = () => {
 
     if (v.financialImpact.trim()) payload.financialImpact = Number(v.financialImpact);
     return payload;
-  };
+  }, [form]);
 
   const saveIncident = useCallback(async () => {
     const v = form.values;
@@ -318,7 +310,7 @@ const Incidents = () => {
     } finally {
       setSaving(false);
     }
-  }, [form, editingIncident, t]);
+  }, [form, editingIncident, t, buildIncidentPayload, loadIncidents]);
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -672,7 +664,7 @@ const Incidents = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {t(`incidents.history.actions.${entry.action}` as any) || entry.action}
+                            {t(`incidents.history.actions.${entry.action}`) || entry.action}
                           </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(entry.createdAt).toLocaleString()}

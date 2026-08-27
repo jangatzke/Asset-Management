@@ -573,7 +573,7 @@ export type CreateSoADTO = z.infer<typeof CreateSoASchema>;
 
 /** Generates a new ISO/IEC 27001:2022 Annex A SoA draft for one ISMS scope. */
 export const GenerateIso27001SoASchema = z.object({
-  scopeId: z.string().uuid(),
+  scopeId: z.string().min(1, 'ISMS scope ID is required'),
 });
 export type GenerateIso27001SoADTO = z.infer<typeof GenerateIso27001SoASchema>;
 

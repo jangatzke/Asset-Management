@@ -27,8 +27,6 @@ jest.mock('../config/database', () => ({ prisma: mockPrisma }));
 import { authenticate, authorize } from '../middleware/auth';
 import { idempotency } from '../middleware/idempotency';
 import { authenticateServiceAccount } from '../middleware/serviceAccountAuth';
-import { authenticateWebhook } from '../middleware/webhookAuth';
-import { requireScopes } from '../middleware/apiScopes';
 
 // ==================== Test Helpers ====================
 
@@ -45,17 +43,6 @@ function generateServiceAccountToken(): { token: string; id: string; salt: strin
 }
 
 /**
- * Create a mock JWT token for testing.
- */
-function createMockJwt(userId: string, roles: string[] = ['admin']): string {
-  // In real tests we'd use jsonwebtoken, but for simplicity we'll use a mock
-  // that the authenticate middleware can verify against a test secret
-  const jwt = require('jsonwebtoken');
-  const secret = process.env.JWT_SECRET || 'test-secret-that-is-long-enough-for-testing-purposes';
-  return jwt.sign({ userId, roles, typ: 'Bearer' }, secret, { expiresIn: '1h' });
-}
-
-/**
  * Mock authenticate middleware for testing without real JWT.
  */
 function mockAuthenticateMiddleware(req: Request, _res: Response, next: NextFunction): void {
@@ -64,19 +51,7 @@ function mockAuthenticateMiddleware(req: Request, _res: Response, next: NextFunc
   next();
 }
 
-/**
- * Mock authorize middleware.
- */
-function mockAuthorizeMiddleware(req: Request, res: Response, next: NextFunction): void {
-  if (!(req as any).userId) {
-    res.status(401).json({ error: 'Authentication required' });
-    return;
-  }
-  next();
-}
-
 // ==================== Test Suites ====================
-
 describe('Service-Account Token Identity (ID-based lookup)', () => {
   describe('Token creation', () => {
     test('should generate token with UUID embedded as DB id', () => {

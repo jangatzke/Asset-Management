@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
-import { paginatedTotal } from './Dashboard';
-import { matchesIncidentStatusFilter, normalizeIncidentStatusFilter } from './Incidents';
-import { matchesRiskStatusFilter, normalizeRiskStatusFilter } from './Risks';
+import { paginatedTotal } from './dashboardHelpers';
+import { matchesIncidentStatusFilter, normalizeIncidentStatusFilter } from './incidentStatusHelpers';
+import { matchesRiskStatusFilter, normalizeRiskStatusFilter } from './riskStatusHelpers';
 
 test('paginatedTotal reads totals from paginated backend responses', () => {
   expect(paginatedTotal({ data: [{ id: 'asset-1' }], pagination: { total: 42 } })).toBe(42);

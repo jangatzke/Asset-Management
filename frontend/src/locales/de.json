@@ -172,13 +172,17 @@
     "saveError": "Speichern fehlgeschlagen.",
     "clause4": {
       "label": "Klausel 4 – Kontext der Organisation",
-      "description": "Kontextanalyse und Verwaltung interessierter Parteien sowie ihrer Anforderungen.",
+      "description": "Kontextanalyse und Verwaltung interessierter Parteien sowie ihrer Anforderungen (ISO 27001:2022 Klausel 4.1–4.4).",
       "partiesHeading": "Interessierte Parteien",
       "addParty": "Interessierte Partei hinzufügen",
-      "noParties": "Es sind noch keine interessierten Parteien hinterlegt.",
+      "noParties": "Es sind noch keine interessierten Parteien hinterlegt. Fügen Sie hier Kunden, Lieferanten, Mitarbeiter, Aufseher und andere Interessengruppen hinzu, die Einfluss auf oder Interesse am ISMS haben.",
       "name": "Name",
       "type": "Kategorie",
+      "contactPerson": "Kontaktperson",
+      "contactPhone": "Kontakttelefon",
       "contactEmail": "Kontakt-E-Mail",
+      "requirements": "Anforderungen (JSON)",
+      "status": "Status",
       "partyTypes": {
         "customers": "Kunden",
         "suppliers": "Lieferanten",
@@ -191,16 +195,17 @@
     },
     "clause5": {
       "label": "Klausel 5 – Führung",
-      "description": "ISMS-Politik, Führung und Verantwortlichkeiten. Verwalten und freigeben Sie Ihre ISMS-Dokumente.",
+      "description": "ISMS-Politik, Führung und Verantwortlichkeiten (ISO 27001:2022 Klausel 5.1–5.4). Verwalten Sie Ihre ISMS-Dokumente durch den Freigabe-Workflow (Entwurf → Prüfung → Freigegeben).",
       "documentsHeading": "ISMS-Dokumente",
       "addDocument": "ISMS-Dokument hinzufügen",
-      "noDocuments": "Es sind noch keine ISMS-Dokumente hinterlegt.",
+      "noDocuments": "Es sind noch keine ISMS-Dokumente hinterlegt. Erstellen Sie hier Ihre ISMS-Politik und weitere Kern-Dokumente.",
       "title": "Titel",
       "documentType": "Dokumenttyp",
       "version": "Version",
       "owner": "Verantwortlicher",
       "content": "Inhalt",
       "approve": "Freigeben",
+      "submitForReview": "Zur Prüfung einreichen",
       "policyTypes": {
         "informationSecurityPolicy": "Informationssicherheitspolitik",
         "riskAcceptancePolicy": "Risikotoleranz- und -akzeptanzpolitik",
@@ -212,11 +217,45 @@
     },
     "clause7": {
       "label": "Klausel 7 – Unterstützung",
-      "description": "Kompetenz, Awareness und Kommunikation. Nachweise für Schulungen und Awareness-Maßnahmen (u. a. NIS2 Art. 29).",
+      "description": "Kompetenz, Awareness und Kommunikation (ISO 27001:2022 Klausel 7.1–7.4, NIS2 Art. 29). Verwalten Sie Schulungskurse, Zuweisungen, Abschlüsse und Awareness-Nachweise.",
       "courses": "Schulungskurse",
       "assignments": "Schulungszuweisungen",
       "completions": "Schulungsabschlüsse",
-      "acknowledgements": "Awareness-Nachweise"
+      "acknowledgements": "Awareness-Nachweise",
+      "noRecords": "Keine Einträge vorhanden.",
+      "dueDateDisplay": "Fällig am {date}",
+      "addCourse": "Kurs hinzufügen",
+      "assignCourse": "Kurs zuweisen",
+      "recordCompletion": "Abschluss erfassen",
+      "acknowledgeCourse": "Nachweis abgeben",
+      "title": "Titel",
+      "category": "Kategorie",
+      "description": "Beschreibung",
+      "mandatory": "Pflichtschulung",
+      "course": "Kurs",
+      "assignee": "Zugewiesene Person",
+      "dueDate": "Fällig am",
+      "notes": "Hinweise",
+      "score": "Punktzahl (0–100)",
+      "result": "Ergebnis",
+      "comment": "Kommentar",
+      "categories": {
+        "security_awareness": "IT-Sicherheits-Bewusstsein",
+        "role_specific": "Rollenbezogene Schulung",
+        "compliance": "Compliance",
+        "technical": "Technische Schulung"
+      },
+      "results": {
+        "passed": "Bestanden",
+        "failed": "Nicht bestanden",
+        "completed": "Abgeschlossen"
+      },
+      "modal": {
+        "course": "Schulungskurs anlegen",
+        "assignment": "Schulung zuweisen",
+        "completion": "Schulungsabschluss erfassen",
+        "acknowledgement": "Awareness-Nachweis abgeben"
+      }
     }
   },
   "fiscalYear": {
@@ -975,7 +1014,15 @@
     "totalControls": "Kontrollen gesamt",
     "openIncidents": "Offene Vorfälle",
     "highRisks": "Hohe Risiken",
-    "recentActivity": "Letzte Aktivitäten"
+    "recentActivity": "Letzte Aktivitäten",
+    "openRisks": "Offene Risiken",
+    "activeIncidents": "Aktive Vorfälle",
+    "controls": "Kontrollen",
+    "costReport": "Kostenbericht",
+    "currentFiscalYear": "Aktuelles Geschäftsjahr {fiscalYear}",
+    "knownCostsNextFiscalYear": "Bekannte Kosten nächstes Geschäftsjahr",
+    "acquiredCurrentFiscalYear": "Erwirktes Geschäftsjahr",
+    "historicalDevelopment": "Historische Entwicklung"
   },
   "login": {
     "title": "Login",
@@ -1110,7 +1157,22 @@
     "newPasswordKeep": "Neues Passwort (leer lassen, um das aktuelle zu behalten)",
     "nodeIdOptional": "Node-ID (optional)",
     "passwordsDoNotMatch": "Passwörter stimmen nicht überein",
-    "selectCredential": "Anmeldeinformation auswählen"
+    "selectCredential": "Anmeldeinformation auswählen",
+    "deleteCredentialConfirm": "Sind Sie sicher, dass Sie diese Anmeldeinformation löschen möchten?",
+    "deleteServerConfirm": "Sind Sie sicher, dass Sie diesen Proxmox-Server löschen möchten?",
+    "updateCredentialError": "Anmeldeinformation konnte nicht aktualisiert werden",
+    "createCredentialError": "Anmeldeinformation konnte nicht erstellt werden",
+    "deleteCredentialError": "Anmeldeinformation konnte nicht gelöscht werden",
+    "saveServerError": "Proxmox-Server konnte nicht gespeichert werden",
+    "deleteServerError": "Proxmox-Server konnte nicht gelöscht werden",
+    "updateServerError": "Server konnte nicht aktualisiert werden",
+    "connectionTestFailed": "Verbindungstest fehlgeschlagen",
+    "importFailed": "Import fehlgeschlagen"
+  },
+  "processes": {
+    "saveError": "Speichern fehlgeschlagen",
+    "deleteConfirm": "Sind Sie sicher, dass Sie diesen Prozess löschen möchten?",
+    "deleteError": "Löschen fehlgeschlagen"
   },
   "contracts": {
     "title": "Verträge",

@@ -172,13 +172,17 @@
     "saveError": "Could not save.",
     "clause4": {
       "label": "Clause 4 – Context of the organization",
-      "description": "Context analysis and management of interested parties and their requirements.",
+      "description": "Context analysis and management of interested parties and their requirements (ISO/IEC 27001:2022 clauses 4.1–4.4).",
       "partiesHeading": "Interested Parties",
       "addParty": "Add interested party",
-      "noParties": "No interested parties are recorded yet.",
+      "noParties": "No interested parties are recorded yet. Add customers, suppliers, employees, regulators and other stakeholders who have an interest in or influence on the ISMS.",
       "name": "Name",
       "type": "Category",
+      "contactPerson": "Contact person",
+      "contactPhone": "Contact phone",
       "contactEmail": "Contact email",
+      "requirements": "Requirements (JSON)",
+      "status": "Status",
       "partyTypes": {
         "customers": "Customers",
         "suppliers": "Suppliers",
@@ -191,16 +195,17 @@
     },
     "clause5": {
       "label": "Clause 5 – Leadership",
-      "description": "ISMS policy, leadership and organizational roles. Manage and approve your ISMS documents.",
+      "description": "ISMS policy, leadership and organizational roles (ISO/IEC 27001:2022 clauses 5.1–5.4). Manage your ISMS documents through the approval workflow (draft → review → approved).",
       "documentsHeading": "ISMS Documents",
       "addDocument": "Add ISMS document",
-      "noDocuments": "No ISMS documents are recorded yet.",
+      "noDocuments": "No ISMS documents are recorded yet. Create your ISMS policy and other core documents here.",
       "title": "Title",
       "documentType": "Document type",
       "version": "Version",
       "owner": "Owner",
       "content": "Content",
       "approve": "Approve",
+      "submitForReview": "Submit for review",
       "policyTypes": {
         "informationSecurityPolicy": "Information security policy",
         "riskAcceptancePolicy": "Risk tolerance and acceptance policy",
@@ -212,11 +217,45 @@
     },
     "clause7": {
       "label": "Clause 7 – Support",
-      "description": "Competence, awareness and communication. Evidence for training and awareness activities (e.g. NIS2 Art. 29).",
+      "description": "Competence, awareness and communication (ISO/IEC 27001:2022 clauses 7.1–7.4, NIS2 Art. 29). Manage training courses, assignments, completions and awareness acknowledgements.",
       "courses": "Training courses",
       "assignments": "Training assignments",
       "completions": "Training completions",
-      "acknowledgements": "Awareness acknowledgements"
+      "acknowledgements": "Awareness acknowledgements",
+      "noRecords": "No records yet.",
+      "dueDateDisplay": "Due {date}",
+      "addCourse": "Add course",
+      "assignCourse": "Assign course",
+      "recordCompletion": "Record completion",
+      "acknowledgeCourse": "Submit acknowledgement",
+      "title": "Title",
+      "category": "Category",
+      "description": "Description",
+      "mandatory": "Mandatory training",
+      "course": "Course",
+      "assignee": "Assigned to",
+      "dueDate": "Due date",
+      "notes": "Notes",
+      "score": "Score (0–100)",
+      "result": "Result",
+      "comment": "Comment",
+      "categories": {
+        "security_awareness": "Security awareness",
+        "role_specific": "Role-specific training",
+        "compliance": "Compliance",
+        "technical": "Technical training"
+      },
+      "results": {
+        "passed": "Passed",
+        "failed": "Failed",
+        "completed": "Completed"
+      },
+      "modal": {
+        "course": "Create training course",
+        "assignment": "Assign training",
+        "completion": "Record training completion",
+        "acknowledgement": "Submit awareness acknowledgement"
+      }
     }
   },
   "fiscalYear": {
@@ -975,7 +1014,15 @@
     "totalControls": "Total Controls",
     "openIncidents": "Open Incidents",
     "highRisks": "High Risks",
-    "recentActivity": "Recent Activity"
+    "recentActivity": "Recent Activity",
+    "openRisks": "Open Risks",
+    "activeIncidents": "Active Incidents",
+    "controls": "Controls",
+    "costReport": "Cost report",
+    "currentFiscalYear": "Current fiscal year {fiscalYear}",
+    "knownCostsNextFiscalYear": "Known costs next fiscal year",
+    "acquiredCurrentFiscalYear": "Acquired current fiscal year",
+    "historicalDevelopment": "Historical development"
   },
   "login": {
     "title": "Login",
@@ -1110,7 +1157,22 @@
     "newPasswordKeep": "New password (leave blank to keep current)",
     "nodeIdOptional": "Node ID (optional)",
     "passwordsDoNotMatch": "Passwords do not match",
-    "selectCredential": "Select a credential"
+    "selectCredential": "Select a credential",
+    "deleteCredentialConfirm": "Are you sure you want to delete this credential?",
+    "deleteServerConfirm": "Are you sure you want to delete this Proxmox server?",
+    "updateCredentialError": "Failed to update credential",
+    "createCredentialError": "Failed to create credential",
+    "deleteCredentialError": "Failed to delete credential",
+    "saveServerError": "Failed to save Proxmox server",
+    "deleteServerError": "Failed to delete Proxmox server",
+    "updateServerError": "Failed to update server",
+    "connectionTestFailed": "Connection test failed",
+    "importFailed": "Import failed"
+  },
+  "processes": {
+    "saveError": "Save failed",
+    "deleteConfirm": "Are you sure you want to delete this process?",
+    "deleteError": "Delete failed"
   },
   "contracts": {
     "title": "Contracts",

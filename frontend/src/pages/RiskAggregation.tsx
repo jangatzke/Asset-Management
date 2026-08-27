@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { riskAggregationApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 
@@ -20,15 +20,11 @@ type TabKey = 'location' | 'orgUnit' | 'process' | 'assetType' | 'scope';
 const RiskAggregation = () => {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabKey>('location');
-  const [data, setData] = useState<Record<TabKey, AggregationGroup[]>>({} as any);
+  const [data, setData] = useState<Record<TabKey, AggregationGroup[]>>({ location: [], orgUnit: [], process: [], assetType: [], scope: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -60,7 +56,12 @@ const RiskAggregation = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only initial load
+  }, []);
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'location', label: t('riskAggregation.tabs.location') },

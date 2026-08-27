@@ -17,7 +17,6 @@ import {
   createWebhookHttpsAgent,
 } from '../services/urlValidator';
 import {
-  generateHmacSignature,
   deliverWebhook,
   WebhookPayload,
   WebhookEvent,
@@ -41,7 +40,7 @@ jest.mock('dns', () => {
   const state6: { resolved?: any; rejected?: Error | null } = {};
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockResolve4: any = jest.fn((hostname: string) => {
+  const mockResolve4: any = jest.fn((_hostname: string) => {
     if (state4.rejected) {
       return Promise.reject(state4.rejected);
     }
@@ -49,7 +48,7 @@ jest.mock('dns', () => {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockResolve6: any = jest.fn((hostname: string) => {
+  const mockResolve6: any = jest.fn((_hostname: string) => {
     if (state6.rejected) {
       return Promise.reject(state6.rejected);
     }
@@ -535,6 +534,7 @@ describe('SSRF Protection', () => {
         data: {},
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentionally silences console output in this test
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       mockedAxios.mockResolvedValue({
@@ -652,6 +652,7 @@ describe('Secret Exposure Prevention', () => {
     it('should NOT log the secret value to console when creating a webhook', () => {
       const secret = 'test-secret-value-12345';
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentionally silences console output in this test
       const consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation(() => {});
 
       // Simulate the log message from webhook.routes.ts line 124
@@ -672,7 +673,9 @@ describe('Secret Exposure Prevention', () => {
     it('should log "secret generated" but not the actual secret value', () => {
       const secret = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentionally silences console output in this test
       const consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentionally silences console output in this test
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       // Simulate the actual log from the create webhook route
@@ -896,8 +899,6 @@ describe('Queue Retry Mechanism', () => {
         timestamp: new Date().toISOString(),
         data: { assetId: 'asset-1' },
       } as WebhookPayload, 1);
-
-      const nowAfter = Date.now();
 
       // Verify the scheduledAt includes backoff delay (first retry = RETRY_BACKOFF[0] = 60000ms)
       // The prisma.jobRun.create call structure is:

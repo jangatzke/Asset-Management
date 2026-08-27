@@ -5,6 +5,7 @@ import { phase6Api } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useI18n } from '../context/I18nContext';
 import { humanizeWorkflowAction, pickerEntityTypeForWorkflow, workflowEntityTypes, type WorkflowAction } from './workflowUx';
+import { optionalNumber } from './operationsHelpers';
 
 type RecordItem = Record<string, any>;
 type Workspace = 'training' | 'metrics' | 'reviews' | 'workflows' | 'reports';
@@ -18,10 +19,6 @@ const workspaces: Array<{ key: Workspace; resources: string[] }> = [
 
 const inputClass = 'w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800';
 const Button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className={`rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 ${props.className ?? ''}`}>{children}</button>;
-export const optionalNumber = (form: FormData, key: string): number | undefined => {
-  const value = form.get(key);
-  return value === null || value === '' ? undefined : Number(value);
-};
 
 export default function OperationsWorkspace() {
   const { t } = useI18n();
@@ -72,14 +69,14 @@ function OperationModal({ kind, courses, assignments, definitions, reviews, work
     const supportedType = workflowEntityTypes(selected)[0]?.value ?? '';
     setWorkflowEntityType(supportedType);
     setEntity(null);
-  }, [kind, selected?.id]);
+  }, [kind, selected]);
   useEffect(() => {
     if (kind !== 'transition' || !selected) { setWorkflowActions([]); return; }
     let cancelled = false;
     setActionsLoading(true);
     phase6Api.workflowActions(selected.id).then(response => { if (!cancelled) setWorkflowActions(response.data.data); }).catch(() => { if (!cancelled) setWorkflowActions([]); }).finally(() => { if (!cancelled) setActionsLoading(false); });
     return () => { cancelled = true; };
-  }, [kind, selected?.id]);
+  }, [kind, selected]);
   if (!kind) return null;
   const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const str = (key: string) => String(form.get(key) ?? ''); const num = (key: string) => Number(form.get(key));
     if (kind === 'course' && user) await phase6Api.create('trainingCourses', { title: str('title'), category: str('category') || undefined, description: str('description') || undefined, ownerId: user.id, status: 'active' });

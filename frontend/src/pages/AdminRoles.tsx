@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/useToast';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 
 const PERMISSION_GROUPS = {

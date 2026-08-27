@@ -35,8 +35,12 @@ export function validate(schema: ZodSchema<any>, source: 'body' | 'query' | 'par
 
       next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        const errorDetails = error.errors.map((err) => ({
+      // Detect Zod errors by shape, not `instanceof`: schemas imported from the
+      // pre-built `shared` package may originate from a separate zod instance,
+      // which makes `instanceof ZodError` fail and turn a 400 into a 500.
+      const zodError = error as ZodError;
+      if (zodError && zodError.name === 'ZodError' && Array.isArray(zodError.issues)) {
+        const errorDetails = zodError.issues.map((err) => ({
           field: err.path.join('.') || '_root',
           message: err.message,
           code: 'VALIDATION_ERROR',
@@ -50,9 +54,9 @@ export function validate(schema: ZodSchema<any>, source: 'body' | 'query' | 'par
             details: errorDetails,
           },
         });
-      } else {
-        next(error);
+        return;
       }
+      next(error);
     }
   };
 }

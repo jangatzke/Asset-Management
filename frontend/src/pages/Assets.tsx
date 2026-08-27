@@ -11,7 +11,7 @@ import EntitySearchSelect from '../components/EntitySearchSelect';
 import AssetGraph from '../components/AssetGraph';
 import AssetImpactAnalysis from '../components/AssetImpactAnalysis';
 import { useI18n } from '../context/I18nContext';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/useToast';
 
 interface Asset {
   id: string;

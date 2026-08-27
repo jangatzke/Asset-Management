@@ -205,7 +205,7 @@ export default function AdminProxmox() {
         setCredDialogOpen(false);
         loadCredentials();
       } catch (e: any) {
-        setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to update credential' });
+        setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.updateCredentialError') });
       }
     } else {
       // Create new credential
@@ -229,7 +229,7 @@ export default function AdminProxmox() {
         setCredDialogOpen(false);
         loadCredentials();
       } catch (e: any) {
-        setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to create credential' });
+        setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.createCredentialError') });
       }
     }
   };
@@ -250,13 +250,13 @@ export default function AdminProxmox() {
   }, [credentialForm]);
 
   const handleDeleteCredential = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this credential?')) return;
+    if (!window.confirm(t('proxmox.deleteCredentialConfirm'))) return;
     try {
       await proxmoxApi.deleteCredential(id);
       setAlert({ type: 'success', message: 'Credential deleted successfully' });
       loadCredentials();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to delete credential' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.deleteCredentialError') });
     }
   };
 
@@ -323,7 +323,7 @@ export default function AdminProxmox() {
       setServerDialogOpen(false);
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to save Proxmox server' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.saveServerError') });
     }
   };
 
@@ -343,13 +343,13 @@ export default function AdminProxmox() {
   }, [serverForm]);
 
   const handleDeleteServer = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this Proxmox server?')) return;
+    if (!window.confirm(t('proxmox.deleteServerConfirm'))) return;
     try {
       await proxmoxApi.deleteServer(id);
       setAlert({ type: 'success', message: 'Proxmox server deleted successfully' });
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to delete Proxmox server' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.deleteServerError') });
     }
   };
 
@@ -358,7 +358,7 @@ export default function AdminProxmox() {
       await proxmoxApi.updateServer(server.id, { enabled: !server.enabled });
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Failed to update server' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.updateServerError') });
     }
   };
 
@@ -372,7 +372,7 @@ export default function AdminProxmox() {
         setAlert({ type: 'error', message: `Connection failed: ${res.data.message}` });
       }
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Connection test failed' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.connectionTestFailed') });
     } finally {
       setTesting((prev) => ({ ...prev, [id]: false }));
     }
@@ -392,7 +392,7 @@ export default function AdminProxmox() {
       }
       loadServers();
     } catch (e: any) {
-      setAlert({ type: 'error', message: e.response?.data?.error?.message || 'Import failed' });
+      setAlert({ type: 'error', message: e.response?.data?.error?.message || t('proxmox.importFailed') });
     } finally {
       setImporting((prev) => ({ ...prev, [id]: false }));
     }

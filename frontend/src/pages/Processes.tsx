@@ -108,7 +108,7 @@ const Processes = () => {
       setEditingId(null);
       await loadProcesses();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Save failed');
+      setError(err.response?.data?.error?.message || t('processes.saveError'));
     } finally { setSaving(false); }
   };
 
@@ -126,12 +126,12 @@ const Processes = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this process?')) return;
+    if (!confirm(t('processes.deleteConfirm'))) return;
     try {
       await processApi.delete(id);
       await loadProcesses();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Delete failed');
+      setError(err.response?.data?.error?.message || t('processes.deleteError'));
     }
   };
 

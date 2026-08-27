@@ -4,6 +4,7 @@ import { phase6Api, documentApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useAuthStore } from '../store/auth';
 
 type Clause = 'clause4' | 'clause5' | 'clause7';
 
@@ -36,12 +37,26 @@ const INTERESTED_PARTY_TYPES = [
 ];
 
 const ISMS_POLICY_TYPES = ['informationSecurityPolicy', 'riskAcceptancePolicy', 'ismsScope', 'awarenessPolicy', 'backupPolicy', 'accessControlPolicy'];
-
 const CLAUSE_TABS: { key: Clause; labelKey: string; descriptionKey: string }[] = [
   { key: 'clause4', labelKey: 'ismsProcess.clause4.label', descriptionKey: 'ismsProcess.clause4.description' },
   { key: 'clause5', labelKey: 'ismsProcess.clause5.label', descriptionKey: 'ismsProcess.clause5.description' },
   { key: 'clause7', labelKey: 'ismsProcess.clause7.label', descriptionKey: 'ismsProcess.clause7.description' },
 ];
+
+const TRAINING_CATEGORIES = [
+  { value: 'security_awareness', labelKey: 'ismsProcess.clause7.categories.security_awareness' },
+  { value: 'role_specific', labelKey: 'ismsProcess.clause7.categories.role_specific' },
+  { value: 'compliance', labelKey: 'ismsProcess.clause7.categories.compliance' },
+  { value: 'technical', labelKey: 'ismsProcess.clause7.categories.technical' },
+];
+
+const TRAINING_RESULTS = [
+  { value: 'passed', labelKey: 'ismsProcess.clause7.results.passed' },
+  { value: 'failed', labelKey: 'ismsProcess.clause7.results.failed' },
+  { value: 'completed', labelKey: 'ismsProcess.clause7.results.completed' },
+];
+
+type TrainingModalKind = 'course' | 'assignment' | 'completion' | 'acknowledgement';
 
 const ISMSProcessWorkspace = () => {
   const { t } = useI18n();
@@ -70,12 +85,16 @@ const ISMSProcessWorkspace = () => {
   // Modals
   const [partyModal, setPartyModal] = useState<{ mode: 'create' | 'edit'; row?: InterestedParty } | null>(null);
   const [docModal, setDocModal] = useState<{ mode: 'create' | 'edit' | 'detail'; row?: any } | null>(null);
+  const [trainingModal, setTrainingModal] = useState<{ kind: TrainingModalKind; row?: any } | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
   const partyForm = useDirtyForm<any>({ formData: {}, entityPickerValues: {} });
   const docForm = useDirtyForm<any>({ formData: {}, entityPickerValues: {} });
+  const trainingForm = useDirtyForm<any>({ formData: {}, entityPickerValues: {} });
   const latestRequestId = useRef(0);
+
+  const currentUser = useAuthStore((state) => state.user);
 
   // ─── Clause 4: Interested Parties ────────────────────────────────────────
 
@@ -127,31 +146,53 @@ const ISMSProcessWorkspace = () => {
 
   const loadTraining = useCallback(async () => {
     setTrainingLoading(true);
-    try {
-      const responses = await Promise.all([
-        phase6Api.list('trainingCourses', { limit: 100 }),
-        phase6Api.list('trainingAssignments', { limit: 100 }),
-        phase6Api.list('trainingCompletions', { limit: 100 }),
-        phase6Api.list('trainingAcknowledgements', { limit: 100 }),
-      ]);
-      setTrainingData({
-        courses: responses[0].data.data ?? responses[0].data ?? [],
-        assignments: responses[1].data.data ?? responses[1].data ?? [],
-        completions: responses[2].data.data ?? responses[2].data ?? [],
-        acknowledgements: responses[3].data.data ?? responses[3].data ?? [],
-      });
-    } catch {
-      setError(t('ismsProcess.loadError'));
-    } finally {
-      setTrainingLoading(false);
-    }
-  }, [t]);
+    setError('');
+    const extract = (res: any) => res?.data?.data ?? res?.data ?? [];
+    const safeList = (resource: string): Promise<any[]> =>
+      phase6Api.list(resource, { limit: 100 })
+        .then((res) => extract(res))
+        .catch(() => []);
+    const [courses, assignments, completions, acknowledgements] = await Promise.all([
+      safeList('trainingCourses'),
+      safeList('trainingAssignments'),
+      safeList('trainingCompletions'),
+      safeList('trainingAcknowledgements'),
+    ]);
+    setTrainingData({
+      courses: Array.isArray(courses) ? courses : [],
+      assignments: Array.isArray(assignments) ? assignments : [],
+      completions: Array.isArray(completions) ? completions : [],
+      acknowledgements: Array.isArray(acknowledgements) ? acknowledgements : [],
+    });
+    setTrainingLoading(false);
+  }, []);
 
   useEffect(() => {
     if (clause === 'clause7') { void loadTraining(); }
   }, [clause, loadTraining]);
 
   // ─── Handlers: Interested Parties ────────────────────────────────────────
+
+  const handleOpenPartyModal = useCallback((mode: 'create' | 'edit', row?: InterestedParty) => {
+    if (mode === 'edit' && row) {
+      partyForm.setFormValues({
+        formData: {
+          id: row.id,
+          name: row.name ?? '',
+          type: row.type ?? '',
+          contactPerson: row.contactPerson ?? '',
+          contactEmail: row.contactEmail ?? '',
+          contactPhone: row.contactPhone ?? '',
+          status: row.status ?? 'active',
+          requirements: row.requirements ? JSON.stringify(row.requirements, null, 2) : '',
+        },
+        entityPickerValues: {},
+      });
+    } else {
+      partyForm.setFormValues({ formData: { name: '', type: '', contactPerson: '', contactEmail: '', contactPhone: '', status: 'active', requirements: '' }, entityPickerValues: {} });
+    }
+    setPartyModal({ mode, row });
+  }, [partyForm]);
 
   const handleCreateParty = useCallback(async (event: FormEvent) => {
     event.preventDefault();
@@ -226,6 +267,78 @@ const ISMSProcessWorkspace = () => {
     }
   }, [loadDocuments, t]);
 
+  // ─── Handlers: Training (Clause 7) ───────────────────────────────────────
+
+  const handleOpenTrainingModal = useCallback((kind: TrainingModalKind, row?: any) => {
+    const base = { formData: { courseId: '', userId: '', dueDate: '', score: '', result: 'passed', comment: '', title: '', category: 'security_awareness', description: '', mandatory: false }, entityPickerValues: {} };
+    if (row) {
+      trainingForm.setFormValues({
+        formData: {
+          ...base.formData,
+          id: row.id,
+          title: row.title ?? '',
+          category: row.category ?? 'security_awareness',
+          description: row.description ?? '',
+          courseId: row.courseId ?? '',
+          userId: row.userId ?? '',
+          dueDate: row.dueDate ? new Date(row.dueDate).toISOString().slice(0, 10) : '',
+          score: row.score != null ? String(row.score) : '',
+          result: row.result ?? 'passed',
+          comment: row.comment ?? '',
+        },
+        entityPickerValues: {},
+      });
+    } else {
+      trainingForm.setFormValues(base);
+    }
+    setTrainingModal({ kind, row });
+  }, [trainingForm]);
+
+  const handleCreateTraining = useCallback(async (event: FormEvent) => {
+    event.preventDefault();
+    if (!trainingModal) return;
+    setSubmitLoading(true);
+    setSubmitError('');
+    try {
+      const data = trainingForm.values.formData;
+      if (trainingModal.kind === 'course') {
+        await phase6Api.create('trainingCourses', {
+          title: data.title,
+          category: data.category || undefined,
+          description: data.description || undefined,
+          mandatory: data.mandatory === true,
+          ownerId: currentUser?.id ?? undefined,
+          status: 'active',
+        });
+      } else if (trainingModal.kind === 'assignment') {
+        await phase6Api.create('trainingAssignments', {
+          courseId: data.courseId,
+          userId: data.userId,
+          dueDate: data.dueDate,
+          notes: data.comment || undefined,
+        });
+      } else if (trainingModal.kind === 'completion') {
+        const assignmentId = trainingModal.row?.id ?? data.courseId;
+        await phase6Api.completeTraining(assignmentId, {
+          score: data.score !== '' ? Number(data.score) : undefined,
+          result: (data.result as 'passed' | 'failed' | 'completed') || 'passed',
+        });
+      } else if (trainingModal.kind === 'acknowledgement') {
+        await phase6Api.acknowledgeTraining({
+          courseId: data.courseId,
+          comment: data.comment || undefined,
+        });
+      }
+      setTrainingModal(null);
+      trainingForm.resetForm();
+      void loadTraining();
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : t('ismsProcess.saveError'));
+    } finally {
+      setSubmitLoading(false);
+    }
+  }, [trainingModal, trainingForm, currentUser, loadTraining, t]);
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   function parseJsonOrJson(value: string): JsonValue {
@@ -276,7 +389,7 @@ const ISMSProcessWorkspace = () => {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause4.partiesHeading')}</h2>
-            <Button onClick={() => setPartyModal({ mode: 'create' })}>{t('ismsProcess.clause4.addParty')}</Button>
+            <Button onClick={() => handleOpenPartyModal('create')}>{t('ismsProcess.clause4.addParty')}</Button>
           </div>
 
           {loading ? (
@@ -293,7 +406,7 @@ const ISMSProcessWorkspace = () => {
                   </div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{party.contactEmail || party.contactPerson || '—'}</p>
                   <div className="mt-3 flex gap-2">
-                    <SecondaryButton onClick={() => setPartyModal({ mode: 'edit', row: party })}>{t('common.edit')}</SecondaryButton>
+                    <SecondaryButton onClick={() => handleOpenPartyModal('edit', party)}>{t('common.edit')}</SecondaryButton>
                     <button onClick={() => { void phase6Api.delete('interestedParties', party.id); void loadParties(); }} className="rounded border border-red-300 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/30">{t('common.delete')}</button>
                   </div>
                 </section>
@@ -335,6 +448,9 @@ const ISMSProcessWorkspace = () => {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <SecondaryButton onClick={() => setDocModal({ mode: 'detail', row: doc })}>{t('common.view')}</SecondaryButton>
                     {doc.workflowStatus === 'draft' && (
+                      <Button onClick={() => void handleTransitionDocument(doc.id, 'review')}>{t('ismsProcess.clause5.submitForReview')}</Button>
+                    )}
+                    {doc.workflowStatus === 'review' && (
                       <Button onClick={() => void handleTransitionDocument(doc.id, 'approved')}>{t('ismsProcess.clause5.approve')}</Button>
                     )}
                   </div>
@@ -351,22 +467,108 @@ const ISMSProcessWorkspace = () => {
           {trainingLoading ? (
             <p className="text-sm text-gray-500">{t('common.loading')}</p>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.courses')}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{trainingData.courses.length}</p>
+            <div className="grid gap-5 lg:grid-cols-2">
+              {/* Courses */}
+              <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.courses')}</h3>
+                  <Button onClick={() => handleOpenTrainingModal('course')}>{t('ismsProcess.clause7.addCourse')}</Button>
+                </div>
+                {trainingData.courses.length ? (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {trainingData.courses.map((course) => (
+                      <div key={course.id} className="py-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <strong className="text-gray-900 dark:text-white">{course.title}</strong>
+                          <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{t(`ismsProcess.clause7.categories.${course.category}`) ?? course.category}</span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{course.status ?? ''}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ismsProcess.clause7.noRecords')}</p>
+                )}
               </div>
-              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.assignments')}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{trainingData.assignments.length}</p>
+
+              {/* Assignments */}
+              <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.assignments')}</h3>
+                  <Button onClick={() => handleOpenTrainingModal('assignment')}>{t('ismsProcess.clause7.assignCourse')}</Button>
+                </div>
+                {trainingData.assignments.length ? (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {trainingData.assignments.map((assignment) => {
+                      const course = trainingData.courses.find((c) => c.id === assignment.courseId);
+                      const canComplete = assignment.status === 'assigned' || assignment.status === 'in_progress';
+                      return (
+                        <div key={assignment.id} className="py-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-gray-900 dark:text-white">{course?.title ?? assignment.courseId}</strong>
+                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">{assignment.status ?? ''}</span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            {assignment.dueDate ? t('ismsProcess.clause7.dueDateDisplay').replace('{date}', new Date(assignment.dueDate).toLocaleDateString()) : ''}
+                          </p>
+                          {canComplete && (
+                            <button onClick={() => handleOpenTrainingModal('completion', assignment)} className="mt-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">{t('ismsProcess.clause7.recordCompletion')}</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ismsProcess.clause7.noRecords')}</p>
+                )}
               </div>
-              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.completions')}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{trainingData.completions.length}</p>
+
+              {/* Completions */}
+              <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                <h3 className="mb-3 font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.completions')}</h3>
+                {trainingData.completions.length ? (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {trainingData.completions.map((completion) => {
+                      const course = trainingData.courses.find((c) => c.id === completion.courseId);
+                      return (
+                        <div key={completion.id} className="py-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-gray-900 dark:text-white">{course?.title ?? completion.courseId}</strong>
+                            <span className="rounded bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-300">{t(`ismsProcess.clause7.results.${completion.result}`) ?? completion.result}</span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{completion.completedAt ? new Date(completion.completedAt).toLocaleDateString() : ''}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ismsProcess.clause7.noRecords')}</p>
+                )}
               </div>
-              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.acknowledgements')}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{trainingData.acknowledgements.length}</p>
+
+              {/* Acknowledgements */}
+              <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{t('ismsProcess.clause7.acknowledgements')}</h3>
+                  <Button onClick={() => handleOpenTrainingModal('acknowledgement')}>{t('ismsProcess.clause7.acknowledgeCourse')}</Button>
+                </div>
+                {trainingData.acknowledgements.length ? (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {trainingData.acknowledgements.map((ack) => {
+                      const course = trainingData.courses.find((c) => c.id === ack.courseId);
+                      return (
+                        <div key={ack.id} className="py-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-gray-900 dark:text-white">{course?.title ?? ack.courseId}</strong>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{ack.acknowledgedAt ? new Date(ack.acknowledgedAt).toLocaleDateString() : ''}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ismsProcess.clause7.noRecords')}</p>
+                )}
               </div>
             </div>
           )}
@@ -390,8 +592,27 @@ const ISMSProcessWorkspace = () => {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause4.contactPerson')}</label>
+              <input className={`${inputClass} mt-1`} value={String(partyForm.values.formData.contactPerson ?? '')} onChange={(e) => partyForm.handleChange({ ...partyForm.values, formData: { ...partyForm.values.formData, contactPerson: e.target.value } })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause4.contactPhone')}</label>
+              <input className={`${inputClass} mt-1`} value={String(partyForm.values.formData.contactPhone ?? '')} onChange={(e) => partyForm.handleChange({ ...partyForm.values, formData: { ...partyForm.values.formData, contactPhone: e.target.value } })} />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause4.contactEmail')}</label>
               <input className={`${inputClass} mt-1`} type="email" value={String(partyForm.values.formData.contactEmail ?? '')} onChange={(e) => partyForm.handleChange({ ...partyForm.values, formData: { ...partyForm.values.formData, contactEmail: e.target.value } })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause4.requirements')}</label>
+              <textarea className={`${inputClass} mt-1`} rows={3} placeholder='{"dataProtection": "DSGVO-konforme Datenverarbeitung"}' value={String(partyForm.values.formData.requirements ?? '')} onChange={(e) => partyForm.handleChange({ ...partyForm.values, formData: { ...partyForm.values.formData, requirements: e.target.value } })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause4.status')}</label>
+              <select className={`${inputClass} mt-1`} value={String(partyForm.values.formData.status ?? 'active')} onChange={(e) => partyForm.handleChange({ ...partyForm.values, formData: { ...partyForm.values.formData, status: e.target.value } })}>
+                <option value="active">active</option>
+                <option value="inactive">inactive</option>
+              </select>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <SecondaryButton type="button" onClick={() => { if (partyForm.isDirty) partyForm.resetForm(); setPartyModal(null); }}>{t('common.cancel')}</SecondaryButton>
@@ -446,6 +667,104 @@ const ISMSProcessWorkspace = () => {
               </div>
             </form>
           )
+        )}
+      </Modal>
+
+      {/* ─── Training Modal (Clause 7) ───────────────────────────────────── */}
+      <Modal isOpen={trainingModal !== null} onClose={() => setTrainingModal(null)} title={trainingModal ? t(`ismsProcess.clause7.modal.${trainingModal.kind}`) : ''} isDirty={trainingForm.isDirty && !submitLoading} onDiscardConfirm={() => { if (trainingForm.isDirty) trainingForm.resetForm(); }}>
+        {trainingModal && (
+          <form onSubmit={handleCreateTraining} className="space-y-4">
+            {submitError && <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">{submitError}</div>}
+
+            {trainingModal.kind === 'course' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.title')} *</label>
+                  <input className={`${inputClass} mt-1`} value={String(trainingForm.values.formData.title ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, title: e.target.value } })} required />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.category')}</label>
+                  <select className={`${inputClass} mt-1`} value={String(trainingForm.values.formData.category ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, category: e.target.value } })}>
+                    {TRAINING_CATEGORIES.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.description')}</label>
+                  <textarea className={`${inputClass} mt-1`} rows={3} value={String(trainingForm.values.formData.description ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, description: e.target.value } })} />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input type="checkbox" checked={trainingForm.values.formData.mandatory === true} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, mandatory: e.target.checked } })} />
+                  {t('ismsProcess.clause7.mandatory')}
+                </label>
+              </>
+            )}
+
+            {trainingModal.kind === 'assignment' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.course')} *</label>
+                  <select className={`${inputClass} mt-1`} value={String(trainingForm.values.formData.courseId ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, courseId: e.target.value } })} required>
+                    <option value="">-- Select --</option>
+                    {trainingData.courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.assignee')} *</label>
+                  <EntityPicker
+                    labelKey="ismsProcess.clause7.assignee"
+                    entityType="user"
+                    value={trainingForm.values.formData.userId ? { id: String(trainingForm.values.formData.userId), label: String(trainingForm.values.formData.userId) } : null}
+                    onChange={(v) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, userId: v.id } })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.dueDate')} *</label>
+                  <input className={`${inputClass} mt-1`} type="date" value={String(trainingForm.values.formData.dueDate ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, dueDate: e.target.value } })} required />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.notes')}</label>
+                  <textarea className={`${inputClass} mt-1`} rows={2} value={String(trainingForm.values.formData.comment ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, comment: e.target.value } })} />
+                </div>
+              </>
+            )}
+
+            {trainingModal.kind === 'completion' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.score')}</label>
+                  <input className={`${inputClass} mt-1`} type="number" min={0} max={100} value={String(trainingForm.values.formData.score ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, score: e.target.value } })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.result')}</label>
+                  <select className={`${inputClass} mt-1`} value={String(trainingForm.values.formData.result ?? 'passed')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, result: e.target.value } })}>
+                    {TRAINING_RESULTS.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {trainingModal.kind === 'acknowledgement' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.course')} *</label>
+                  <select className={`${inputClass} mt-1`} value={String(trainingForm.values.formData.courseId ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, courseId: e.target.value } })} required>
+                    <option value="">-- Select --</option>
+                    {trainingData.courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase">{t('ismsProcess.clause7.comment')}</label>
+                  <textarea className={`${inputClass} mt-1`} rows={2} value={String(trainingForm.values.formData.comment ?? '')} onChange={(e) => trainingForm.handleChange({ ...trainingForm.values, formData: { ...trainingForm.values.formData, comment: e.target.value } })} />
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <SecondaryButton type="button" onClick={() => { if (trainingForm.isDirty) trainingForm.resetForm(); setTrainingModal(null); }}>{t('common.cancel')}</SecondaryButton>
+              <Button type="submit" disabled={submitLoading}>{submitLoading ? t('common.saving') : t('common.save')}</Button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>
