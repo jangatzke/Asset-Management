@@ -19,6 +19,10 @@ jest.mock('../middleware/auth', () => ({
   AuthRequest: {},
 }));
 
+jest.mock('../middleware/entityAuth', () => ({
+  requireAdminAccess: jest.fn((_req: any, _res: any, next: any) => next()),
+}));
+
 import { userRouter } from '../routes/user.routes';
 import { auditLogRouter } from '../routes/auditLog.routes';
 import { orgRouter } from '../routes/organization.routes';

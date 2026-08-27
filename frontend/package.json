@@ -25,7 +25,7 @@
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.50.1",
     "react-i18next": "^17.0.10",
-    "react-router-dom": "6.30.4",
+    "react-router-dom": "^7.18.2",
     "recharts": "^2.10.4",
     "zustand": "^4.4.1"
   },
@@ -36,13 +36,13 @@
     "@testing-library/user-event": "^14.6.4",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.17",
     "jsdom": "^29.1.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
-    "vite": "^5.1.0",
-    "vitest": "^1.2.2"
+    "vite": "^6.4.3",
+    "vitest": "^3.2.6"
   }
 }

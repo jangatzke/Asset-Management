@@ -13,13 +13,23 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
-interface AuditVulnerability {
-  id: string;
-  severity: "low" | "moderate" | "high" | "critical";
-  title: string;
-  vulnerableVersions: string;
+type AuditSeverity = "info" | "low" | "moderate" | "high" | "critical";
+
+interface AuditViaAdvisory {
   url?: string;
-  patchVersions?: string;
+  severity?: AuditSeverity;
+}
+
+interface AuditPackageVulnerability {
+  name: string;
+  severity: AuditSeverity;
+  via: Array<string | AuditViaAdvisory>;
+}
+
+interface AuditReport {
+  auditReportVersion: 2;
+  metadata: { vulnerabilities: Record<string, number> };
+  vulnerabilities: Record<string, AuditPackageVulnerability>;
 }
 
 interface AllowlistEntry {
@@ -39,21 +49,28 @@ function loadAllowlist(): AllowlistEntry[] {
   return JSON.parse(content) as AllowlistEntry[];
 }
 
-function runAudit(): { metadata: { vulnerabilities: Record<string, number> }; errors?: any[]; warnings?: any[]; suggestions: AuditVulnerability[]; packages?: Record<string, any> } {
+function runAudit(): AuditReport {
   try {
     const output = execSync("npm audit --json", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-    return JSON.parse(output);
+    const report = JSON.parse(output) as Partial<AuditReport>;
+    if (report.auditReportVersion !== 2 || !report.metadata?.vulnerabilities || !report.vulnerabilities) {
+      throw new Error("npm audit did not return a valid audit report");
+    }
+    return report as AuditReport;
   } catch (err: any) {
     // npm audit exits non-zero when vulnerabilities found; parse what we can
     const output = err.stdout?.toString() ?? "";
     if (output) {
       try {
-        return JSON.parse(output);
+        const report = JSON.parse(output) as Partial<AuditReport>;
+        if (report.auditReportVersion === 2 && report.metadata?.vulnerabilities && report.vulnerabilities) {
+          return report as AuditReport;
+        }
       } catch {
-        // If we can't parse, return empty
+        // The error below fails closed if audit output cannot be parsed.
       }
     }
-    return { metadata: { vulnerabilities: {} }, suggestions: [], packages: {} };
+    throw new Error(`Unable to obtain a valid npm audit report: ${err.message}`);
   }
 }
 
@@ -90,7 +107,13 @@ function main(): number {
   const allowlist = loadAllowlist();
   console.log(`Allowlist entries loaded: ${allowlist.length}`);
 
-  const audit = runAudit();
+  let audit: AuditReport;
+  try {
+    audit = runAudit();
+  } catch (error) {
+    console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
+  }
   const vulns = audit.metadata?.vulnerabilities ?? {};
   const totalHigh = vulns.high ?? 0;
   const totalCritical = vulns.critical ?? 0;
@@ -103,24 +126,33 @@ function main(): number {
     return 0;
   }
 
-  // Check each suggestion for high/critical severity
-  const suggestions = audit.suggestions ?? [];
-  const packages = audit.packages ?? {};
+  // npm audit v2 reports advisories in `vulnerabilities`; the legacy
+  // `suggestions` field is absent. Derive the stable GHSA/CVE identifier from
+  // every direct advisory URL so an empty placeholder allowlist cannot turn a
+  // failing security gate into a false pass.
   let blocked = false;
 
-  for (const suggestion of suggestions) {
-    if (suggestion.severity !== "high" && suggestion.severity !== "critical") continue;
+  for (const vulnerability of Object.values(audit.vulnerabilities ?? {})) {
+    if (vulnerability.severity !== "high" && vulnerability.severity !== "critical") continue;
 
-    const vulnId = suggestion.id || suggestion.title || "unknown";
-    const result = isVulnerabilityAllowed(vulnId, suggestion.severity, allowlist);
-
-    if (!result.allowed) {
-      console.error(
-        `BLOCKED: ${suggestion.severity.toUpperCase()} — ${suggestion.title} (${vulnId}) — not in allowlist`
-      );
+    const advisories = vulnerability.via.filter((via): via is AuditViaAdvisory => typeof via !== "string");
+    if (advisories.length === 0) {
+      console.error(`BLOCKED: ${vulnerability.severity.toUpperCase()} — ${vulnerability.name} has no direct advisory identifier`);
       blocked = true;
-    } else {
-      console.log(`ALLOWED: ${suggestion.severity.toUpperCase()} — ${suggestion.title}: ${result.reason}`);
+      continue;
+    }
+
+    for (const advisory of advisories) {
+      if (advisory.severity !== "high" && advisory.severity !== "critical") continue;
+      const vulnId = advisory.url?.match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+)/i)?.[1] ?? vulnerability.name;
+      const result = isVulnerabilityAllowed(vulnId, advisory.severity, allowlist);
+
+      if (!result.allowed) {
+        console.error(`BLOCKED: ${advisory.severity.toUpperCase()} — ${vulnerability.name} (${vulnId}) — not in allowlist`);
+        blocked = true;
+      } else {
+        console.log(`ALLOWED: ${advisory.severity.toUpperCase()} — ${vulnerability.name}: ${result.reason}`);
+      }
     }
   }
 
