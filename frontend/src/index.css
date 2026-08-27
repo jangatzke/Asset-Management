@@ -46,17 +46,61 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+button,
+[role='button'],
+a,
+input,
+select,
+textarea,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+a[href],
+summary {
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 #root {
   min-height: 100vh;
 }
 
 @layer base {
+  :focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+  }
+
   /* Allow long (unbreakable) words – e.g. German compound words in table
      headers like "Eintrittswahrscheinlichkeit" – to wrap, so data tables
      shrink to fit the available width and only scroll when necessary. */
   th,
   td {
     overflow-wrap: anywhere;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    min-height: 2.75rem;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
   }
 
   input:not([type='checkbox']):not([type='radio']),

@@ -122,6 +122,14 @@ function resolveBackendPort(): number {
 
 const PORT = resolveBackendPort();
 
+function parsePositiveInteger(value: string | undefined, fallback: number, maximum: number): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
+}
+
+const REQUEST_BODY_LIMIT_BYTES = parsePositiveInteger(process.env.REQUEST_BODY_LIMIT_BYTES, 10 * 1024 * 1024, 50 * 1024 * 1024);
+const URL_ENCODED_PARAMETER_LIMIT = parsePositiveInteger(process.env.URL_ENCODED_PARAMETER_LIMIT, 100, 1_000);
+
 function isTestRuntime(): boolean {
   return process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
 }
@@ -133,20 +141,24 @@ app.use(correlationId);
 
 // 2. Security headers
 app.use(helmet());
+app.disable('x-powered-by');
 
 // 3. Compression
 app.use(compression());
 
 // 4. CORS configuration - explicit origins only, no wildcard default (SEC-003)
-const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').filter(Boolean);
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0 && origin !== '*');
 app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : ['http://localhost:3000'],
   credentials: true,
 }));
 
 // 5. Parse JSON and URL-encoded bodies
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: REQUEST_BODY_LIMIT_BYTES }));
+app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT_BYTES, parameterLimit: URL_ENCODED_PARAMETER_LIMIT }));
 
 // 6. Structured JSON logging (Phase 8)
 app.use(jsonLogger);

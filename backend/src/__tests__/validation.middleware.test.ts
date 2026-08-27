@@ -73,6 +73,21 @@ describe('Validation Middleware', () => {
       expect(response.body.error.details[0]).toHaveProperty('field');
       expect(response.body.error.details[0]).toHaveProperty('message');
     });
+
+    it('should reject unrecognized keys for strict schemas', async () => {
+      const strictApp = express();
+      strictApp.use(express.json());
+      strictApp.post('/strict', validateBody(testSchema.strict()), (req, res) => {
+        res.json({ received: req.body });
+      });
+
+      const response = await request(strictApp)
+        .post('/strict')
+        .send({ name: 'Test User', email: 'test@example.com', privileged: true });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
   });
 
   describe('validateQuery', () => {

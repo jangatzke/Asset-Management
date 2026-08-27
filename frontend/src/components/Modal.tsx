@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { DiscardConfirmationDialog } from './DiscardConfirmationDialog';
 
 interface ModalProps {
@@ -31,8 +31,12 @@ export const Modal: React.FC<ModalProps> = ({
   discardMessageKey = 'common.discardChangesMessage',
 }) => {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const backdropPointerDownRef = useRef(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const titleId = useId();
 
   // When isDirty changes and we were showing the confirm dialog, hide it
   useEffect(() => {
@@ -78,6 +82,41 @@ export const Modal: React.FC<ModalProps> = ({
     };
   }, [isOpen, handleDismissal]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+
+    const keepFocusInDialog = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      const elements = Array.from(focusable).filter((element) => !element.hasAttribute('hidden'));
+      if (!elements.length) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', keepFocusInDialog);
+    return () => {
+      document.removeEventListener('keydown', keepFocusInDialog);
+      triggerRef.current?.focus();
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -93,16 +132,19 @@ export const Modal: React.FC<ModalProps> = ({
           backdropPointerDownRef.current = false;
           if (startedOnBackdrop && e.target === overlayRef.current) handleDismissal();
         }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
       >
-        <div className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} ${maxHeightClassName} overflow-y-auto border border-transparent dark:border-gray-700`}
+        <div
+          ref={dialogRef}
+          className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} ${maxHeightClassName} overflow-y-auto border border-transparent dark:border-gray-700`}
           tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
         >
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
+            <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
             <button
+              ref={closeButtonRef}
               type="button"
               onClick={handleDismissal}
               aria-label="Close"

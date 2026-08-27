@@ -134,6 +134,13 @@ const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', r
 const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { RiskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
+const riskLevelBadgeClassName = 'inline-flex shrink-0 whitespace-nowrap rounded-full px-2 text-xs font-semibold leading-5';
+
+const RiskLevelBadge = ({ level, translate }: { level: string; translate: (key: string) => string }) => (
+  <span className={`${riskLevelBadgeClassName} ${getRiskColor(level)}`}>
+    {translate(`risks.riskLevel.${level}`)}
+  </span>
+);
 
 const Risks = () => {
   const { t } = useI18n();
@@ -548,13 +555,11 @@ const Risks = () => {
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.likelihood}</td>
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.impact}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRiskColor(risk.inherentRisk)}`}>
-                    {t(`risks.riskLevel.${currentAssessment(risk, 'inherent')?.inherentRisk ?? risk.inherentRisk}`)}
-                  </span>
+                <td className="min-w-[6.5rem] px-6 py-4 text-sm whitespace-nowrap">
+                  <RiskLevelBadge level={currentAssessment(risk, 'inherent')?.inherentRisk ?? risk.inherentRisk} translate={t} />
                 </td>
-                <td className="px-6 py-4 text-sm"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRiskColor(currentAssessment(risk, 'current')?.residualRisk ?? risk.residualRisk)}`}>{t(`risks.riskLevel.${currentAssessment(risk, 'current')?.residualRisk ?? risk.residualRisk}`)}</span></td>
-                <td className="px-6 py-4 text-sm"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRiskColor(currentAssessment(risk, 'target')?.targetRisk ?? risk.targetRisk ?? risk.residualRisk)}`}>{t(`risks.riskLevel.${currentAssessment(risk, 'target')?.targetRisk ?? risk.targetRisk ?? risk.residualRisk}`)}</span></td>
+                <td className="min-w-[6.5rem] px-6 py-4 text-sm whitespace-nowrap"><RiskLevelBadge level={currentAssessment(risk, 'current')?.residualRisk ?? risk.residualRisk} translate={t} /></td>
+                <td className="min-w-[6.5rem] px-6 py-4 text-sm whitespace-nowrap"><RiskLevelBadge level={currentAssessment(risk, 'target')?.targetRisk ?? risk.targetRisk ?? risk.residualRisk} translate={t} /></td>
                 <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
                   {riskControls(risk).length === 0 ? t('risks.controls.none') : riskControls(risk).slice(0, 2).map((link) => (
                     <div key={link.id}>{link.controlImplementation?.control?.title ?? link.controlImplementationId}: {controlVerificationLabel(link)}</div>

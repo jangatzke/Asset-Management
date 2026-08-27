@@ -279,6 +279,16 @@ describe('Auth Routes', () => {
       expect(response.status).toBe(500);
     });
 
+    it('rejects malformed or excess login input before reaching the authentication service', async () => {
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ email: 'user@example.com', password: 'password123', isAdmin: true });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(mockAuthService.login).not.toHaveBeenCalled();
+    });
+
     it('should rate-limit repeated login attempts when enabled', async () => {
       process.env.ENABLE_AUTH_RATE_LIMIT_IN_TESTS = 'true';
       process.env.AUTH_RATE_LIMIT_MAX = '2';
@@ -367,6 +377,17 @@ describe('Auth Routes', () => {
       expect(response.body).not.toHaveProperty('refreshToken');
       expect(mockAuthService.refreshToken).toHaveBeenCalledWith('old-token', expect.any(Object));
       expect(response.headers['set-cookie']?.[0]).toContain('HttpOnly');
+    });
+  });
+
+  describe('PATCH /auth/me/preferences', () => {
+    it('only accepts the supported language and dark-mode preference fields', async () => {
+      const response = await request(app)
+        .patch('/auth/me/preferences')
+        .send({ language: 'fr', isAdmin: true });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
     });
   });
 

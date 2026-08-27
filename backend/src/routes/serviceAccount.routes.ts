@@ -10,6 +10,9 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { secureCompare } from '../utils/secureCompare';
+import rateLimit from 'express-rate-limit';
+import { validateBody, validateParams } from '../middleware/validation';
+import { z } from 'zod';
 
 // ==================== Management Router ====================
 // Protected by authenticate + authorize('admin') middleware applied in index.ts
@@ -20,6 +23,38 @@ const managementRouter = Router();
 // POST /auth is the service account token verification endpoint — it must NOT
 // require admin authentication; it performs its own token lookup & verification.
 const authRouter = Router();
+
+const serviceAccountNameSchema = z.string().trim().min(1).max(100);
+const scopeSchema = z.string().trim().min(1).max(100).regex(/^[a-z][a-z0-9-]*:(?:[a-z][a-z0-9-]*|\*)$/i);
+const accountIdSchema = z.object({ id: z.string().uuid() }).strict();
+const createServiceAccountSchema = z.object({
+  name: serviceAccountNameSchema,
+  description: z.string().trim().max(1_000).optional(),
+  userId: z.string().uuid().optional(),
+  scopes: z.array(scopeSchema).max(50).default([]),
+  expiresAt: z.coerce.date().refine((date) => date > new Date(), 'expiresAt must be in the future').optional(),
+}).strict();
+const updateServiceAccountSchema = z.object({
+  name: serviceAccountNameSchema.optional(),
+  description: z.string().trim().max(1_000).nullable().optional(),
+  userId: z.string().uuid().nullable().optional(),
+  scopes: z.array(scopeSchema).max(50).optional(),
+  expiresAt: z.coerce.date().refine((date) => date > new Date(), 'expiresAt must be in the future').nullable().optional(),
+  isActive: z.boolean().optional(),
+}).strict().refine((data) => Object.keys(data).length > 0, 'At least one field is required');
+// Keep credential failures indistinguishable: a syntactically invalid token must
+// reach the authentication handler and receive the same 401 response class as a
+// revoked or incorrect credential. Only bound its size before hash processing.
+const authenticateServiceAccountSchema = z.object({ accessToken: z.string().max(512) }).strict();
+
+const serviceAccountAuthRateLimiter = rateLimit({
+  windowMs: Number(process.env.SERVICE_ACCOUNT_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  limit: () => Number(process.env.SERVICE_ACCOUNT_AUTH_RATE_LIMIT_MAX || 60),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Too many service account authentication attempts. Please try again later.', code: 'RATE_LIMITED' } },
+  skip: () => process.env.NODE_ENV === 'test' && process.env.ENABLE_SERVICE_ACCOUNT_RATE_LIMIT_IN_TESTS !== 'true',
+});
 
 // ==================== Shared helpers ====================
 
@@ -127,6 +162,7 @@ managementRouter.get(
  */
 managementRouter.post(
   '/',
+  validateBody(createServiceAccountSchema),
   async (_req: Request, res: Response, next: any) => {
     try {
       const { name, description, userId, scopes = [], expiresAt } = _req.body;
@@ -204,6 +240,7 @@ managementRouter.post(
  */
 managementRouter.get(
   '/:id',
+  validateParams(accountIdSchema),
   async (req: Request, res: Response, next: any) => {
     try {
       const account = await prisma.serviceAccount.findFirst({
@@ -252,6 +289,8 @@ managementRouter.get(
  */
 managementRouter.patch(
   '/:id',
+  validateParams(accountIdSchema),
+  validateBody(updateServiceAccountSchema),
   async (req: Request, res: Response, next: any) => {
     try {
       const existing = await prisma.serviceAccount.findFirst({
@@ -274,11 +313,11 @@ managementRouter.patch(
       const updated = await prisma.serviceAccount.update({
         where: { id: req.params.id },
         data: {
-          name: name || undefined,
+          name: name !== undefined ? name : undefined,
           description: description !== undefined ? description : undefined,
           userId: userId !== undefined ? userId : undefined,
           scopes: scopes !== undefined ? (scopes as string[]) : undefined, // Fix 6: Prisma JSON field expects array directly
-          expiresAt: expiresAt !== undefined ? new Date(expiresAt) : undefined,
+          expiresAt: expiresAt !== undefined ? expiresAt : undefined,
           isActive: isActive !== undefined ? isActive : undefined,
           updatedAt: new Date(),
         },
@@ -316,6 +355,7 @@ managementRouter.patch(
  */
 managementRouter.delete(
   '/:id',
+  validateParams(accountIdSchema),
   async (req: Request, res: Response, next: any) => {
     try {
       const existing = await prisma.serviceAccount.findFirst({
@@ -359,6 +399,7 @@ managementRouter.delete(
  */
 managementRouter.post(
   '/:id/regenerate-token',
+  validateParams(accountIdSchema),
   async (req: Request, res: Response, next: any) => {
     try {
       const existing = await prisma.serviceAccount.findFirst({
@@ -404,6 +445,7 @@ managementRouter.post(
  */
 managementRouter.get(
   '/:id/tokens',
+  validateParams(accountIdSchema),
   async (req: Request, res: Response, next: any) => {
     try {
       const account = await prisma.serviceAccount.findFirst({
@@ -454,6 +496,8 @@ managementRouter.get(
  */
 authRouter.post(
   '/',
+  serviceAccountAuthRateLimiter,
+  validateBody(authenticateServiceAccountSchema),
   async (req: Request, res: Response, next: any) => {
     try {
       const { accessToken } = req.body;

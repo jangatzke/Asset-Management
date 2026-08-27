@@ -15,6 +15,8 @@ const Dashboard = () => {
   const { t } = useI18n();
   const [costReport, setCostReport] = useState<any>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics>(emptyDashboardMetrics);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -22,7 +24,10 @@ const Dashboard = () => {
     costPlanningApi.dashboardReport().then((response) => {
       if (!ignore) setCostReport(response.data);
     }).catch(() => {
-      if (!ignore) setCostReport(null);
+      if (!ignore) {
+        setCostReport(null);
+        setLoadError(true);
+      }
     });
 
     Promise.all([
@@ -39,7 +44,12 @@ const Dashboard = () => {
         controls: paginatedTotal(controls.data),
       });
     }).catch(() => {
-      if (!ignore) setMetrics(emptyDashboardMetrics);
+      if (!ignore) {
+        setMetrics(emptyDashboardMetrics);
+        setLoadError(true);
+      }
+    }).finally(() => {
+      if (!ignore) setLoading(false);
     });
 
     return () => { ignore = true; };
@@ -48,6 +58,8 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('dashboard.title')}</h1>
+      {loadError && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">Some dashboard metrics could not be loaded. Displayed values may be incomplete.</p>}
+      {loading && <p role="status" className="text-sm text-gray-600 dark:text-gray-300">Loading dashboard metrics…</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Link to="/assets" className={metricCardClasses} aria-label={t('dashboard.totalAssets')}>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t('dashboard.totalAssets')}</h3>
@@ -74,8 +86,11 @@ const Dashboard = () => {
             <div><h3 className="text-sm text-gray-500">{t('dashboard.knownCostsNextFiscalYear')}</h3><p className="text-2xl font-bold text-purple-600">{money(costReport.nextFiscalYearKnownCosts.knownAmount)}</p></div>
             <div><h3 className="text-sm text-gray-500">{t('dashboard.acquiredCurrentFiscalYear')}</h3><p className="text-2xl font-bold text-green-600">{money(costReport.currentFiscalYear.acquiredAmount)}</p></div>
           </div>
-          <div className="mt-6 space-y-2">
-            {costReport.historicalDevelopment.map((year: any) => <div key={year.fiscalYearLabel} className="flex items-center gap-3"><span className="w-16 text-sm dark:text-gray-200">{year.fiscalYearLabel}</span><div className="h-3 bg-blue-200 rounded flex-1"><div className="h-3 bg-blue-600 rounded" style={{ width: `${Math.min(100, Number(year.plannedAmount) / Math.max(1, Number(costReport.currentFiscalYear.plannedAmount)) * 100)}%` }} /></div><span className="text-sm dark:text-gray-200">{money(year.plannedAmount)}</span></div>)}
+          <div className="mt-6 space-y-2" aria-label="Historical planned costs">
+            {costReport.historicalDevelopment.map((year: any) => {
+              const percentage = Math.min(100, Number(year.plannedAmount) / Math.max(1, Number(costReport.currentFiscalYear.plannedAmount)) * 100);
+              return <div key={year.fiscalYearLabel} className="flex items-center gap-3"><span className="w-16 text-sm dark:text-gray-200">{year.fiscalYearLabel}</span><div className="h-3 bg-blue-200 rounded flex-1" role="progressbar" aria-label={`${year.fiscalYearLabel}: ${money(year.plannedAmount)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}><div className="h-3 bg-blue-600 rounded" style={{ width: `${percentage}%` }} /></div><span className="text-sm dark:text-gray-200">{money(year.plannedAmount)}</span></div>;
+            })}
           </div>
         </section>
       )}

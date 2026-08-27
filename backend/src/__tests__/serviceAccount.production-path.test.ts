@@ -68,6 +68,17 @@ describe('service-account production route integration', () => {
     expect(response.body.message).toBe('Invalid token format');
   });
 
+  test('rejects invalid service account creation input before persistence', async () => {
+    const response = await request(app)
+      .post('/api/v1/service-accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: '', scopes: ['invalid scope'], isActive: true });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(mockPrisma.serviceAccount.create).not.toHaveBeenCalled();
+  });
+
   test('allows an admin JWT to create a service account without user API scopes', async () => {
     const response = await request(app)
       .post('/api/v1/service-accounts')

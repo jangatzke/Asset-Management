@@ -32,11 +32,27 @@ export interface ApiErrorResponse {
 }
 
 export const errorHandler = (
-  err: Error,
+  err: Error & { type?: string; status?: number; statusCode?: number },
   _req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
+  if (err.type === 'entity.parse.failed') {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Malformed JSON request body', code: 'INVALID_JSON' },
+    });
+    return;
+  }
+
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    res.status(413).json({
+      success: false,
+      error: { message: 'Request body exceeds the permitted size', code: 'PAYLOAD_TOO_LARGE' },
+    });
+    return;
+  }
+
   const appError = err as AppError;
   const isOperational = appError.name === 'AppError' && appError.isOperational !== false;
   const statusCode = appError.statusCode || 500;

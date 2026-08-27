@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { requireAdminAccess } from '../middleware/entityAuth';
 import { UserService } from '../services/user.service';
 
 export const userRouter = Router();
@@ -45,7 +46,7 @@ userRouter.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // Update user
-userRouter.put('/:id', authenticate, async (req, res, next) => {
+userRouter.put('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     res.json(await userService.updateUser(req.params.id, req.body));
   } catch (error) {
@@ -54,10 +55,10 @@ userRouter.put('/:id', authenticate, async (req, res, next) => {
 });
 
 // Delete user
-userRouter.delete('/:id', authenticate, async (req, res, next) => {
+userRouter.delete('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
-    res.json({ message: 'User deleted' });
     await userService.deleteUser(req.params.id);
+    res.json({ message: 'User deleted' });
   } catch (error) {
     next(error);
   }

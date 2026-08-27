@@ -27,6 +27,7 @@ const Login = () => {
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [needsFirstAdmin, setNeedsFirstAdmin] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
@@ -50,6 +51,7 @@ const Login = () => {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    setSubmitting(true);
     try {
       if (needsFirstAdmin) {
         // Create first admin
@@ -101,14 +103,16 @@ const Login = () => {
     } catch (err: unknown) {
       const maybeError = err as { response?: { data?: { error?: { message?: string }; message?: string } } };
       setError(maybeError.response?.data?.error?.message || maybeError.response?.data?.message || 'Request failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   if (loading) {
     return (
       <div className={loginShellClass}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <div className="text-center" role="status" aria-live="polite">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" aria-hidden="true"></div>
           <p className={`mt-4 ${loginTextClass}`}>Loading...</p>
         </div>
       </div>
@@ -122,7 +126,7 @@ const Login = () => {
           <div className="text-center mb-8">
             <h1 className={loginTitleClass}>ISMS Asset Manager</h1>
             <p className={`${loginTextClass} mt-2`}>Create the first administrator account</p>
-            <div className="mt-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-3 py-2 rounded text-sm">
+            <div className="mt-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-3 py-2 rounded text-sm" role="status">
               This will create the initial admin account. After this, all new users will be managed by administrators.
             </div>
           </div>
@@ -143,6 +147,7 @@ const Login = () => {
                 onChange={(e) => setFirstName(e.target.value)}
                 className={loginInputClass}
                 placeholder="First name"
+                autoComplete="given-name"
                 required
               />
             </div>
@@ -157,6 +162,7 @@ const Login = () => {
                 onChange={(e) => setLastName(e.target.value)}
                 className={loginInputClass}
                 placeholder="Last name"
+                autoComplete="family-name"
                 required
               />
             </div>
@@ -171,6 +177,7 @@ const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className={loginInputClass}
                 placeholder="you@example.com"
+                autoComplete="email"
                 required
               />
             </div>
@@ -185,14 +192,16 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className={loginInputClass}
                 placeholder="Password"
+                autoComplete="new-password"
                 required
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition"
+              disabled={submitting}
+              className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition disabled:opacity-60"
             >
-              Create Admin Account
+              {submitting ? 'Creating account…' : 'Create Admin Account'}
             </button>
           </form>
         </div>
@@ -211,7 +220,7 @@ const Login = () => {
         </div>
         <form onSubmit={handleSubmit}>
           {error && (
-            <div className={loginErrorClass}>
+            <div className={loginErrorClass} role="alert" aria-live="assertive">
               {error}
             </div>
           )}
@@ -228,6 +237,7 @@ const Login = () => {
                   onChange={(e) => setFirstName(e.target.value)}
                   className={loginInputClass}
                   placeholder="First name"
+                  autoComplete="given-name"
                   required
                 />
               </div>
@@ -242,6 +252,7 @@ const Login = () => {
                   onChange={(e) => setLastName(e.target.value)}
                   className={loginInputClass}
                   placeholder="Last name"
+                  autoComplete="family-name"
                   required
                 />
               </div>
@@ -265,6 +276,7 @@ const Login = () => {
               onChange={(e) => setEmail(e.target.value)}
               className={loginInputClass}
               placeholder="you@example.com"
+              autoComplete="email"
               required
             />
           </div>
@@ -279,6 +291,7 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               className={loginInputClass}
               placeholder="Password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               required
             />
           </div>}
@@ -292,6 +305,7 @@ const Login = () => {
                 onChange={(e) => setNewPassword(e.target.value)}
                 className={loginInputClass}
                 placeholder="New password"
+                autoComplete="new-password"
                 required
               />
             </div>
@@ -312,20 +326,25 @@ const Login = () => {
                 className={loginInputClass}
                 placeholder="123456"
                 inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
                 required
               />
             </div>
           )}
           <button
-            type="submit"
-            className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition"
-          >
-            {preAuthState === 'mfa_required' ? 'Verify code' : preAuthState === 'mfa_enrollment_required' ? 'Confirm MFA setup' : preAuthState === 'password_change_required' ? 'Change password' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition disabled:opacity-60"
+            >
+              {submitting ? 'Please wait…' : preAuthState === 'mfa_required' ? 'Verify code' : preAuthState === 'mfa_enrollment_required' ? 'Confirm MFA setup' : preAuthState === 'password_change_required' ? 'Change password' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
         <div className="mt-4 text-center">
           <button
             type="button"
+            disabled={submitting}
             className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
             onClick={() => {
               setMode(mode === 'login' ? 'register' : 'login');
