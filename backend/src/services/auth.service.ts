@@ -9,6 +9,13 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authSettingsService } from './authSettings.service';
 
+/**
+ * Expected GCM authentication tag length in bytes.
+ * Must match the tag length produced by `cipher.getAuthTag()` in
+ * encryptMfaSecret() (16 bytes, the NIST SP 800-38D recommended full length).
+ */
+const GCM_AUTH_TAG_LENGTH = 16;
+
 type RefreshTokenWithUser = {
   id: string;
   userId: string;
@@ -209,8 +216,17 @@ export class AuthService {
   private decryptMfaSecret(value: string): string {
     if (!value.startsWith('v1:')) return value;
     const [, iv, tag, encrypted] = value.split(':');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', this.getMfaEncryptionKey(), Buffer.from(iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    const authTag = Buffer.from(tag, 'base64');
+    if (authTag.length !== GCM_AUTH_TAG_LENGTH) {
+      throw new AppError('Invalid MFA secret format', 400);
+    }
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      this.getMfaEncryptionKey(),
+      Buffer.from(iv, 'base64'),
+      { authTagLength: GCM_AUTH_TAG_LENGTH }
+    );
+    decipher.setAuthTag(authTag);
     return Buffer.concat([decipher.update(Buffer.from(encrypted, 'base64')), decipher.final()]).toString('utf8');
   }
 

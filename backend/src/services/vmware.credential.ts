@@ -15,6 +15,12 @@ import { AppError } from '../middleware/errorHandler';
 
 const ENCRYPTION_KEY_ENV = 'VMWARE_ENCRYPTION_KEY';
 const LEGACY_ALGORITHM = 'aes-256-cbc';
+/**
+ * Expected GCM authentication tag length in bytes.
+ * Must match the tag length produced by `cipher.getAuthTag()` in encrypt()
+ * (16 bytes, the NIST SP 800-38D recommended full length).
+ */
+const GCM_AUTH_TAG_LENGTH = 16;
 
 function resolveEncryptionKey(): Buffer {
   const rawKey = process.env[ENCRYPTION_KEY_ENV];
@@ -66,7 +72,12 @@ function decrypt(encryptedText: string): string {
     }
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    if (authTag.length !== GCM_AUTH_TAG_LENGTH) {
+      throw new AppError('Invalid encrypted data format', 500);
+    }
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
+      authTagLength: GCM_AUTH_TAG_LENGTH,
+    });
     decipher.setAuthTag(authTag);
     let decrypted = decipher.update(ciphertextHex, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
