@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">IT Asset Management and ISMS</title>
+  <defs>
+    <linearGradient id="shield" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#shield)" d="M32 4 56 13v17c0 14.9-9.7 25.9-24 30C17.7 55.9 8 44.9 8 30V13z"/>
+  <path fill="#fff" d="M18 20h28v7H18zm0 10h13v14H18zm17 0h11v14H35z"/>
+  <path fill="#bfdbfe" d="M21 23h5v1h-5zm9 0h5v1h-5zm9 0h4v1h-4zm-18 10h7v8h-7zm17 0h5v8h-5z"/>
+</svg>
