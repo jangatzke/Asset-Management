@@ -71,7 +71,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     const keys = key.split('.');
     let value: any = translations[language];
     for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
+      // Own-property check only (no prototype-chain traversal) to avoid
+      // resolving inherited members like __proto__/constructor/hasOwnProperty.
+      if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, k)) {
         value = value[k];
       } else {
         return key;
@@ -84,7 +86,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     const keys = key.split('.');
     let value: any = translations[language];
     for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
+      // Own-property check only (no prototype-chain traversal) to avoid
+      // resolving inherited members like __proto__/constructor/hasOwnProperty.
+      if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, k)) {
         value = value[k];
       } else {
         return {};
