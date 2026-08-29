@@ -29,7 +29,7 @@ const mockPrisma = {
 jest.mock('../config/database', () => ({ prisma: mockPrisma }));
 
 import { readdirSync, readFileSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, sep } from 'path';
 import {
   acquireJobLease,
   getJobLeaseName,
@@ -102,8 +102,15 @@ function installAtomicLeaseMock(): void {
 }
 
 function collectTypescriptFiles(root: string): string[] {
+  // root is always derived from __dirname (a fixed, trusted location), never from user input.
+  // semgrepignore: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const resolvedRoot = resolve(root);
   return readdirSync(root).flatMap((entry) => {
-    const fullPath = join(root, entry);
+    const fullPath = resolve(resolvedRoot, entry);
+    // Defense in depth: only descend into paths that stay inside the root directory.
+    if (fullPath !== resolvedRoot && !fullPath.startsWith(resolvedRoot + sep)) {
+      return [];
+    }
     const stats = statSync(fullPath);
     if (stats.isDirectory()) {
       return collectTypescriptFiles(fullPath);
