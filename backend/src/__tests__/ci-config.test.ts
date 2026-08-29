@@ -34,7 +34,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
    * detect-non-literal-regexp audit rule.
    */
   function extractJob(name: string): string | undefined {
-    const sectionRe = /(?:^|\n)  ([a-z_-]+):([\s\S]*?)(?=\n  [a-z_-]+:|$)/g;
+    const sectionRe = /(?:^|\n) {2}([a-z_-]+):([\s\S]*?)(?=\n {2}[a-z_-]+:|$)/g;
     let match: RegExpExecArray | null;
     while ((match = sectionRe.exec(content)) !== null) {
       if (match[1] === name) {
