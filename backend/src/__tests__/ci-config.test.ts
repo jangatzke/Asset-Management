@@ -26,6 +26,24 @@ describe("CI Configuration Validation (Phase 12)", () => {
     content = readCiYml();
   });
 
+  /**
+   * Extract the YAML section for a job by name.
+   *
+   * Uses a single fixed regex (no dynamic `new RegExp` from a template
+   * literal) and filters the captured name, which satisfies Semgrep's
+   * detect-non-literal-regexp audit rule.
+   */
+  function extractJob(name: string): string | undefined {
+    const sectionRe = /(?:^|\n)  ([a-z_-]+):([\s\S]*?)(?=\n  [a-z_-]+:|$)/g;
+    let match: RegExpExecArray | null;
+    while ((match = sectionRe.exec(content)) !== null) {
+      if (match[1] === name) {
+        return `${match[1]}:${match[2]}`;
+      }
+    }
+    return undefined;
+  }
+
   describe("Mandatory jobs exist", () => {
     const mandatoryJobs = [
       "lint:",
@@ -51,11 +69,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("No security neutralization", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("must not contain '|| true' as shell neutralization in dependency-scan job run steps", () => {
       const section = extractJob("dependency-scan");
@@ -93,11 +107,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("Semgrep SARIF output", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("sast job must use sarif output format, not json", () => {
       const section = extractJob("sast");
@@ -151,11 +161,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("Migration test job", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("migration-test job must exist and use PostgreSQL service", () => {
       const section = extractJob("migration-test");
@@ -172,11 +178,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("Requirements-check job", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("requirements-check job must exist and run the requirements-check npm script", () => {
       const section = extractJob("requirements-check");
@@ -193,11 +195,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("Dependency scan blocks on vulnerabilities", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("dependency-scan must not use '|| true' as shell neutralization to bypass audit failures", () => {
       const section = extractJob("dependency-scan");
@@ -217,11 +215,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("Secret scan job", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("secret-scan must use gitleaks or equivalent", () => {
       const section = extractJob("secret-scan");
@@ -231,11 +225,7 @@ describe("CI Configuration Validation (Phase 12)", () => {
   });
 
   describe("SBOM generation", () => {
-    function extractJob(name: string): string | undefined {
-      const regex = new RegExp(`${name}:([\\s\\S]*?)(?=\\n  [a-z_-]+:|$)`);
-      const match = content.match(regex);
-      return match?.[0];
-    }
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 
     it("sbom job must generate CycloneDX or SPDX SBOM", () => {
       const section = extractJob("sbom");

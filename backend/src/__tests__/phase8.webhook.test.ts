@@ -104,6 +104,8 @@ describe('Webhook Service', () => {
         timestamp: payload.timestamp,
         type: payload.type,
       });
+      // nosemgrep: javascript.lang.security.audit.hardcoded-hmac-key.hardcoded-hmac-key
+      // Deterministic test-only HMAC key; never used in production code paths.
       const digest = crypto.createHmac('sha256', secret)
         .update(`${futureTimestamp}.${canonicalPayload}`)
         .digest('hex');
@@ -129,6 +131,8 @@ describe('Webhook Service', () => {
         timestamp: payload.timestamp,
         type: payload.type,
       });
+      // nosemgrep: javascript.lang.security.audit.hardcoded-hmac-key.hardcoded-hmac-key
+      // Deterministic test-only HMAC key; never used in production code paths.
       const digest = crypto.createHmac('sha256', secret)
         .update(`${oldTimestamp}.${canonicalPayload}`)
         .digest('hex');
@@ -197,6 +201,8 @@ describe('Webhook Service', () => {
         timestamp: payload.timestamp,
         type: payload.type,
       });
+      // nosemgrep: javascript.lang.security.audit.hardcoded-hmac-key.hardcoded-hmac-key
+      // Deterministic test-only HMAC key; never used in production code paths.
       const expectedDigest = crypto.createHmac('sha256', 'test-secret')
         .update(`${timestamp}.${canonicalBody}`)
         .digest('hex');

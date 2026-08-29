@@ -5,7 +5,14 @@ import { parseComplianceMatrix, validateRequirement } from '../../../scripts/che
 const repoRoot = path.resolve(__dirname, '../../..');
 
 function read(relativePath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  // relativePath is always a hardcoded, trusted literal (see call sites); the
+  // containment check is defense-in-depth against path traversal.
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const resolved = path.resolve(repoRoot, relativePath);
+  if (resolved !== repoRoot && !resolved.startsWith(repoRoot + path.sep)) {
+    throw new Error(`Refusing to read path outside repository root: ${relativePath}`);
+  }
+  return fs.readFileSync(resolved, 'utf8');
 }
 
 /**

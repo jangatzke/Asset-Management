@@ -185,11 +185,13 @@ export class IntuneSyncScheduler {
         const status = syncType === 'full'
           ? await syncService.runFullSync()
           : await syncService.runIncrementalSync();
-        console.log(`[IntuneScheduler] ${jobId} completed:`, status.status);
+        // Argument-style logging (no template interpolation) to avoid format-string injection.
+        console.log('[IntuneScheduler] completed:', jobId, status.status);
       },
     }).then(() => undefined).catch((error: unknown) => {
       // executeTrackedJob rethrows; log but do not crash the timer.
-      console.error(`[IntuneScheduler] ${jobId} tracked job failed:`, error);
+      // Argument-style logging (no template interpolation) to avoid format-string injection.
+      console.error('[IntuneScheduler] tracked job failed:', jobId, error);
     });
   }
 

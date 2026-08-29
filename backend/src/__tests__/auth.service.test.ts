@@ -513,6 +513,9 @@ describe('AuthService', () => {
     });
 
     it('denies pre-auth challenge replay', async () => {
+      // nosemgrep: javascript.jsonwebtoken.security.jwt-hardcode.hardcoded-jwt-secret
+      // Test-only JWT secret set deterministically in beforeEach (process.env.JWT_SECRET);
+      // never used in production code paths.
       const token = jwt.sign({ userId: testUser.id, purpose: 'mfa_required', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256' });
       mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 0 });
       mockPrismaClient.preAuthChallenge.findUnique.mockResolvedValue({ jtiHash: 'hash', purpose: 'mfa_required', expiresAt: new Date(Date.now() + 60_000), usedAt: new Date(), revokedAt: null });
@@ -521,6 +524,9 @@ describe('AuthService', () => {
     });
 
     it('denies expired and wrong-purpose pre-auth challenges', async () => {
+      // nosemgrep: javascript.jsonwebtoken.security.jwt-hardcode.hardcoded-jwt-secret
+      // Test-only JWT secret set deterministically in beforeEach (process.env.JWT_SECRET);
+      // never used in production code paths.
       const token = jwt.sign({ userId: testUser.id, purpose: 'password_change', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256', expiresIn: '5m' });
       mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 0 });
       mockPrismaClient.preAuthChallenge.findUnique.mockResolvedValueOnce({ purpose: 'password_change', expiresAt: new Date(Date.now() - 1), usedAt: null, revokedAt: null });
@@ -551,6 +557,9 @@ describe('AuthService', () => {
 
   describe('password change audit coupling', () => {
     it('updates password and writes PASSWORD_CHANGE audit in the same transaction', async () => {
+      // nosemgrep: javascript.jsonwebtoken.security.jwt-hardcode.hardcoded-jwt-secret
+      // Test-only JWT secret set deterministically in beforeEach (process.env.JWT_SECRET);
+      // never used in production code paths.
       const token = jwt.sign({ userId: testUser.id, purpose: 'password_change', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256', expiresIn: '5m' });
       mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 1 });
       mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, isActive: true, oidcId: null });
@@ -604,6 +613,9 @@ describe('AuthService', () => {
 
       // Verify token can be decoded
       if (result.state !== 'authenticated') throw new Error('Authenticated result was expected');
+      // nosemgrep: javascript.jsonwebtoken.security.jwt-hardcode.hardcoded-jwt-secret
+      // Test-only JWT secret set deterministically in beforeEach (process.env.JWT_SECRET);
+      // never used in production code paths.
       const decoded = jwt.verify(result.token, process.env.JWT_SECRET!);
       expect(decoded).toHaveProperty('userId', testUser.id);
       expect(decoded).toHaveProperty('email', testUser.email);

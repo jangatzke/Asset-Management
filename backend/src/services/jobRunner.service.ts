@@ -115,7 +115,8 @@ export async function executeTrackedJob(config: JobRunConfig): Promise<JobRunRes
         await releaseJobLease(leaseName, workerId);
       } catch (releaseError) {
         // Log but do not rethrow — the job already finished
-        console.warn(`[JobRunner] Failed to release job lease for ${config.jobId}:`, releaseError);
+        // Argument-style logging (no template interpolation) to avoid format-string injection.
+        console.warn('[JobRunner] Failed to release job lease for:', config.jobId, releaseError);
       }
     }
   }

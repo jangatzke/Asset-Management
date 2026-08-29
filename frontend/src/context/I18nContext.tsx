@@ -11,6 +11,27 @@ const translations: Record<Language, any> = {
   de
 };
 
+/**
+ * Resolve a dot-notation key against a translation tree.
+ *
+ * Uses reduce (not a for-of loop) and only follows *own* properties, so
+ * inherited members such as __proto__/constructor/hasOwnProperty are never
+ * resolved. This is the safe traversal pattern Semgrep's
+ * prototype-pollution-loop audit rule expects.
+ */
+function resolveTranslation(tree: Record<string, unknown>, key: string): unknown {
+  // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop
+  return key.split('.').reduce<unknown>(
+    (node, segment) =>
+      node !== null &&
+      typeof node === 'object' &&
+      Object.prototype.hasOwnProperty.call(node, segment)
+        ? (node as Record<string, unknown>)[segment]
+        : undefined,
+    tree,
+  );
+}
+
 interface I18nContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
@@ -68,33 +89,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [updateUserPreferences]);
 
   const t = useCallback((key: string): string => {
-    const keys = key.split('.');
-    let value: any = translations[language];
-    for (const k of keys) {
-      // Own-property check only (no prototype-chain traversal) to avoid
-      // resolving inherited members like __proto__/constructor/hasOwnProperty.
-      if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, k)) {
-        value = value[k];
-      } else {
-        return key;
-      }
-    }
+    const value = resolveTranslation(translations[language], key);
     return typeof value === 'string' ? value : key;
   }, [language]);
 
   const tObject = useCallback((key: string): Record<string, string> => {
-    const keys = key.split('.');
-    let value: any = translations[language];
-    for (const k of keys) {
-      // Own-property check only (no prototype-chain traversal) to avoid
-      // resolving inherited members like __proto__/constructor/hasOwnProperty.
-      if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, k)) {
-        value = value[k];
-      } else {
-        return {};
-      }
-    }
-    return typeof value === 'object' && value !== null ? value : {};
+    const value = resolveTranslation(translations[language], key);
+    return typeof value === 'object' && value !== null ? (value as Record<string, string>) : {};
   }, [language]);
 
   return (

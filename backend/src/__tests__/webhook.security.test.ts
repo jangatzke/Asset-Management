@@ -274,6 +274,8 @@ describe('Webhook Security', () => {
 
         // Manually create a signature with old timestamp
         const message = `${oldTimestamp}.${JSON.stringify(oldPayload)}`;
+        // nosemgrep: javascript.lang.security.audit.hardcoded-hmac-key.hardcoded-hmac-key
+        // Deterministic test-only HMAC key; never used in production code paths.
         const hmac = require('crypto').createHmac('sha256', secret);
         hmac.update(message);
         const oldSignature = `t=${oldTimestamp},s=${hmac.digest('hex')}`;
