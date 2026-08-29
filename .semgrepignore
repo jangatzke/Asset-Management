@@ -1,0 +1,29 @@
+# Semgrep ignore file
+# ---------------------------------------------------------------------------
+# Semgrep SAST runs in CI as:  semgrep scan --config=auto ... backend/src/ frontend/src/ shared/src/
+# (see .github/workflows/ci.yml, job "sast"). This file is auto-loaded from the
+# repo root and lists paths that are intentionally excluded from the SAST scan.
+#
+# Why these files are excluded:
+#   The following files are Jest unit tests. They intentionally contain:
+#     * deterministic, test-only secrets (HMAC keys / JWT signing secrets) that
+#       are used ONLY to exercise the production crypto/verification code paths
+#       and are NEVER loaded into production, and
+#     * path.resolve / path.join calls over __dirname-derived, hardcoded, trusted
+#       locations (never user input) to read fixture files.
+#   These are well-understood test fixtures, not production vulnerabilities.
+#   Excluding them keeps the SAST signal focused on real application code.
+#   If a new test file introduces a genuine issue, add it here only after review.
+# ---------------------------------------------------------------------------
+
+# Path-traversal (trusted __dirname-derived fixture paths)
+backend/src/__tests__/phase13.compliance-docs.test.ts
+backend/src/__tests__/phase0.docs-consistency.test.ts
+backend/src/__tests__/phase10.job-cluster-safety.test.ts
+
+# Hardcoded test-only HMAC signing keys (deterministic, never used in production)
+backend/src/__tests__/phase8.webhook.test.ts
+backend/src/__tests__/webhook.security.test.ts
+
+# Hardcoded test-only JWT signing secret (set from process.env.JWT_SECRET in beforeEach)
+backend/src/__tests__/auth.service.test.ts

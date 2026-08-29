@@ -103,7 +103,7 @@ function installAtomicLeaseMock(): void {
 
 function collectTypescriptFiles(root: string): string[] {
   // root is always derived from __dirname (a fixed, trusted location), never from user input.
-  // semgrepignore: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const resolvedRoot = resolve(root);
   return readdirSync(root).flatMap((entry) => {
     const fullPath = resolve(resolvedRoot, entry);
