@@ -77,7 +77,7 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | Database | PostgreSQL default; Microsoft SQL Server via generated provider-specific Prisma schema and portable JSON export/import for DBMS switching |
 | Frontend | React 18, TypeScript, Vite |
 | UI | Material UI v9 (@mui/material), Tailwind CSS, Headless UI v2 (@headlessui/react), Heroicons |
-| Routing/State | React Router DOM v6.30.4 (pinned), Zustand |
+| Routing/State | React Router DOM v7 (^7.18.2), Zustand |
 | Forms/i18n/Charts | React Hook Form, react-i18next v17, Recharts |
 | HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect, cors, helmet |
 | Tests | Jest, ts-jest, Supertest, Vitest, Playwright |
@@ -91,23 +91,29 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 
 ```text
 asset-management-isms/
-├── backend/                 # Express API, Prisma, routes, middleware, tests
-│   ├── prisma/              # Prisma schema, seed, and migration-related SQL files
-│   ├── scripts/             # Provider-aware Prisma wrapper, env loader
-│   ├── test/                # Test fixtures, setup, globals
-│   └── src/                 # API entry point, config, middleware, routes, services, utils, tests
-├── frontend/                # React/Vite SPA
-│   ├── e2e/                 # Playwright end-to-end tests
-│   └── src/                 # App, components, pages, contexts, locales, services, hooks, utils, tests
-├── shared/                  # Shared types and DTOs
-│   └── src/                 # index, dtos, types
-├── docs/                    # Requirements, architecture, operations, security, compliance, OpenAPI, plans, artifacts
-│   ├── api/                 # OpenAPI specification
-│   └── baseline-artifacts/  # Build, test, lint, Prisma validation baselines
-├── plans/                   # Implementation plans for individual work packages
-├── scripts/                 # Check scripts, e.g. requirements and vulnerability checks
-├── package.json             # Root workspace and project-wide scripts
-└── README.md                # Project overview
+|-- backend/                 # Express API, Prisma, routes, middleware, tests
+|   |-- prisma/              # Prisma schema, seed, and migration-related SQL files
+|   |-- scripts/             # Provider-aware Prisma wrapper, env loader
+|   |-- test/                # Test fixtures, setup, globals
+|   `-- src/                 # API entry point, config, middleware, routes, services, utils, __tests__
+|-- frontend/                # React/Vite SPA
+|   |-- e2e/                 # Playwright end-to-end tests
+|   `-- src/                 # App, components, pages, contexts, locales, services, hooks, utils, tests
+|-- shared/                  # Shared types and DTOs
+|   `-- src/                 # index, dtos, types
+|-- docs/                    # Requirements, architecture, operations, security, compliance, OpenAPI, plans, artifacts
+|   |-- api/                 # OpenAPI specification
+|   `-- baseline-artifacts/  # Build, test, lint, Prisma validation baselines
+|-- analysis/                # ISO 27001 / NIS 2 improvement analysis
+|-- plans/                   # Implementation plans for individual work packages
+|-- scripts/                 # Check scripts, e.g. requirements and vulnerability checks
+|-- package.json             # Root workspace and project-wide scripts
+|-- plan.md                  # ISO 27001 gap analysis plan
+|-- fix-locales.js           # Locale file generation helper
+|-- iso27001-annex-a.tsv     # ISO 27001 Annex A control catalog (TSV)
+|-- .gitleaks.toml           # Secret-scanning configuration
+|-- .semgrepignore           # Semgrep ignore rules
+`-- README.md                # Project overview
 ```
 
 ---
