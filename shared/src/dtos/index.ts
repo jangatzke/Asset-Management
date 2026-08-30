@@ -1476,3 +1476,200 @@ export const Phase7DomainResourceSchema = z.enum([
 ]);
 
 export type Phase7DomainResourceDTO = z.infer<typeof Phase7DomainResourceSchema>;
+
+// ==========================================
+// Ticket DTOs (ITIL 4 ticket system)
+// ==========================================
+
+export const TicketTypeSchema = z.enum(['incident', 'service_request', 'problem', 'change']);
+export type TicketTypeDTO = z.infer<typeof TicketTypeSchema>;
+
+export const TicketLevelSchema = z.enum(['low', 'medium', 'high', 'critical']);
+export type TicketLevelDTO = z.infer<typeof TicketLevelSchema>;
+
+// ---- Type-specific extension payloads (validated per ticket type) ----
+
+export const IncidentExtensionSchema = z.object({
+  // The full NIS2/ISO27001 incident payload is identical to CreateIncidentSchema
+  // minus the fields that live on the generic ticket (title, description).
+  detectionTime: z.coerce.date(),
+  knowledgeTime: z.coerce.date(),
+  reporterId: z.string().optional(),
+  reporterSource: z.string().optional(),
+  confidentialityImpact: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  integrityImpact: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  availabilityImpact: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  operationalImpact: z.string().optional(),
+  financialImpact: z.number().optional(),
+  legalImpact: z.string().optional(),
+  personalDataImpact: z.boolean().default(false),
+  affectedCustomers: z.array(z.string()).default([]),
+  affectedThirdParties: z.array(z.string()).default([]),
+  suspectedCause: z.string().optional(),
+  isIntentional: z.boolean().optional(),
+  hasCrossBorderImpact: z.boolean().optional(),
+  indicatorsOfCompromise: z.array(z.string()).default([]),
+  immediateActions: z.array(z.string()).default([]),
+  incidentManagerId: z.string().min(1),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+});
+export type IncidentExtensionDTO = z.infer<typeof IncidentExtensionSchema>;
+
+export const ProblemExtensionSchema = z.object({
+  rootCause: z.string().optional(),
+  workaround: z.string().optional(),
+  permanentFix: z.string().optional(),
+  relatedIncidentIds: z.array(EntityIdSchema).default([]),
+});
+export type ProblemExtensionDTO = z.infer<typeof ProblemExtensionSchema>;
+
+export const ChangeExtensionSchema = z.object({
+  changeType: z.enum(['standard', 'normal', 'emergency']).default('standard'),
+  riskLevel: TicketLevelSchema.default('low'),
+  cabApproved: z.boolean().default(false),
+  cabApprovedBy: EntityIdSchema.optional(),
+  cabApprovedAt: z.coerce.date().optional(),
+  implementationPlan: z.string().optional(),
+  rollbackPlan: z.string().optional(),
+  backoutDate: z.coerce.date().optional(),
+});
+export type ChangeExtensionDTO = z.infer<typeof ChangeExtensionSchema>;
+
+export const ServiceRequestExtensionSchema = z.object({
+  catalogItemId: EntityIdSchema.optional(),
+  fulfillmentStatus: z.enum(['pending', 'in_fulfillment', 'delivered', 'rejected']).default('pending'),
+});
+export type ServiceRequestExtensionDTO = z.infer<typeof ServiceRequestExtensionSchema>;
+
+// ---- Create / update ----
+
+export const CreateTicketSchema = z
+  .object({
+    type: TicketTypeSchema,
+    title: z.string().min(1, 'Title is required'),
+    description: z.string().optional(),
+    urgency: TicketLevelSchema.default('medium'),
+    impact: TicketLevelSchema.default('medium'),
+    // priority is derived from urgency+impact (ITIL matrix) when omitted
+    priority: TicketLevelSchema.optional(),
+    requesterId: EntityIdSchema.optional(),
+    assigneeId: EntityIdSchema.optional(),
+    managerId: EntityIdSchema.optional(),
+    assetIds: z.array(EntityIdSchema).default([]),
+    // type-specific payloads (validated per type):
+    incident: IncidentExtensionSchema.optional(),
+    problem: ProblemExtensionSchema.optional(),
+    change: ChangeExtensionSchema.optional(),
+    serviceRequest: ServiceRequestExtensionSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    switch (data.type) {
+      case 'incident':
+        if (!data.incident) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['incident'], message: "type 'incident' requires an incident extension payload" });
+        break;
+      case 'service_request':
+        if (data.serviceRequest && !data.serviceRequest.catalogItemId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['serviceRequest', 'catalogItemId'], message: "type 'service_request' requires a catalogItemId" });
+        break;
+      case 'problem':
+        if (!data.problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['problem'], message: "type 'problem' requires a problem extension payload" });
+        break;
+      case 'change':
+        if (!data.change) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['change'], message: "type 'change' requires a change extension payload" });
+        break;
+    }
+  });
+
+export type CreateTicketDTO = z.infer<typeof CreateTicketSchema>;
+
+// Workflow state is intentionally omitted: status changes run exclusively
+// through the dedicated /status endpoint (gated by the transition matrix).
+export const UpdateTicketSchema = CreateTicketSchema.partial().strict();
+export type UpdateTicketDTO = z.input<typeof UpdateTicketSchema>;
+
+// ---- Status transition ----
+
+export const ChangeTicketStatusSchema = z.object({
+  status: z.string().min(1, 'Target status is required'),
+  justification: z.string().max(500).optional(),
+});
+export type ChangeTicketStatusDTO = z.infer<typeof ChangeTicketStatusSchema>;
+
+// ---- Assignment / comments / close / escalate / links ----
+
+export const AssignTicketSchema = z.object({
+  assigneeId: EntityIdSchema,
+});
+export type AssignTicketDTO = z.infer<typeof AssignTicketSchema>;
+
+export const CreateTicketCommentSchema = z.object({
+  body: z.string().min(1, 'Comment body is required'),
+  isInternal: z.boolean().default(false),
+});
+export type CreateTicketCommentDTO = z.infer<typeof CreateTicketCommentSchema>;
+
+export const CloseTicketSchema = z.object({
+  summary: z.string().min(1, 'Closing a ticket requires a closure summary'),
+});
+export type CloseTicketDTO = z.infer<typeof CloseTicketSchema>;
+
+export const EscalateTicketSchema = z.object({
+  reason: z.string().min(1, 'Escalation requires a reason'),
+  level: z.number().int().positive().default(1),
+  dueAt: z.coerce.date().optional(),
+  escalatedTo: EntityIdSchema.optional(),
+});
+export type EscalateTicketDTO = z.infer<typeof EscalateTicketSchema>;
+
+export const TicketLinkTypeSchema = z.enum(['caused_by_problem', 'resolved_by_change', 'related_incident', 'duplicate_of']);
+export type TicketLinkTypeDTO = z.infer<typeof TicketLinkTypeSchema>;
+
+export const CreateTicketLinkSchema = z.object({
+  toTicketId: EntityIdSchema,
+  linkType: TicketLinkTypeSchema,
+});
+export type CreateTicketLinkDTO = z.infer<typeof CreateTicketLinkSchema>;
+
+// ---- Ticket type configuration ----
+
+export const TicketSlaTargetSchema = z.object({
+  resolutionHours: z.number().int().positive(),
+  firstResponseHours: z.number().int().positive(),
+});
+export type TicketSlaTargetDTO = z.infer<typeof TicketSlaTargetSchema>;
+
+export const TicketSlaPolicySchema = z.object({
+  byPriority: z.record(TicketLevelSchema, TicketSlaTargetSchema).partial(),
+});
+export type TicketSlaPolicyDTO = z.infer<typeof TicketSlaPolicySchema>;
+
+export const CreateTicketTypeConfigSchema = z.object({
+  type: TicketTypeSchema,
+  label: z.string().min(1, 'Label is required'),
+  description: z.string().optional(),
+  enabled: z.boolean().default(true),
+  slaPolicy: TicketSlaPolicySchema.optional(),
+  defaultPriority: TicketLevelSchema.default('medium'),
+});
+export type CreateTicketTypeConfigDTO = z.infer<typeof CreateTicketTypeConfigSchema>;
+
+export const UpdateTicketTypeConfigSchema = CreateTicketTypeConfigSchema.partial().omit({ type: true }).strict();
+export type UpdateTicketTypeConfigDTO = z.input<typeof UpdateTicketTypeConfigSchema>;
+
+// ---- Service catalog ----
+
+export const CreateServiceCatalogItemSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional(),
+  ticketType: TicketTypeSchema.default('service_request'),
+  fulfillment: z.object({
+    requestedBy: z.enum(['employee', 'it']).optional(),
+    approverRole: z.string().optional(),
+    slaHours: z.number().int().positive().optional(),
+  }).optional(),
+  enabled: z.boolean().default(true),
+});
+export type CreateServiceCatalogItemDTO = z.infer<typeof CreateServiceCatalogItemSchema>;
+
+export const UpdateServiceCatalogItemSchema = CreateServiceCatalogItemSchema.partial().omit({ code: true }).strict();
+export type UpdateServiceCatalogItemDTO = z.input<typeof UpdateServiceCatalogItemSchema>;

@@ -81,7 +81,8 @@ export async function nextDisplayIdStandalone(prisma: PrismaClient, entityType: 
    Document: 'DOC',
    CostPlan: 'CPLAN',
    CostPlanItem: 'CPI',
-  };
+   Ticket: 'TCKT',
+ };
 
  const PAD_LENGTH = 4;
 

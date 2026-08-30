@@ -12,3 +12,5 @@ export * from './types/user';
 export * from './types/graph';
 export * from './dtos/index';
 export * from './incidentTransitions';
+export * from './types/ticket';
+export * from './ticketTransitions';

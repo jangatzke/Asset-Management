@@ -565,6 +565,7 @@ model Asset {
   // Vulnerability/Incident relations (AST-002 gap)
   vulnerabilities VulnerabilityAsset[]
   incidents       IncidentAsset[]
+  ticketLinks     TicketAsset[]
   riskAssets      RiskAsset[]
 
   // Network addresses (normalized from comma-separated string)
@@ -1648,6 +1649,7 @@ model Incident {
   closureSummary            String?
   closedAt                  DateTime?
   closedBy                  String?
+  ticketId                  String?   @unique
   version                   String    @default("1.0.0")
   isArchived                Boolean   @default(false)
   createdAt                 DateTime  @default(now())
@@ -1668,6 +1670,7 @@ model Incident {
   communications          IncidentCommunication[]
   escalations             IncidentEscalation[]
   historyEntries          IncidentHistoryEntry[]
+  ticket                  Ticket?       @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   @@index([significanceRuleVersionId])
   @@map("incidents")
@@ -3730,4 +3733,232 @@ model JobLease {
   @@index([leaseUntil])
   @@index([ownerId])
   @@map("job_leases")
+}
+
+// ==========================================
+// ITIL 4 Ticket System (generic ticket container + type extensions)
+// ==========================================
+
+// ---- Generic ITIL ticket container ----------------------------------------
+model Ticket {
+  id            String    @id @default(uuid())
+  displayId     String    @unique          // e.g. TCKT-0001 (per-type prefix via DisplayIdCounter)
+  type          String                       // 'incident' | 'service_request' | 'problem' | 'change'
+  title         String
+  description   String?
+  status        String    @default("new")    // per-type state machine (shared ticketTransitions)
+  priority      String    @default("medium") // low | medium | high | critical
+  urgency       String    @default("medium") // low | medium | high | critical
+  impact        String    @default("medium") // low | medium | high | critical
+
+  // Requester / ownership (ITIL: requester, assigned engineer, manager)
+  requesterId   String?
+  assigneeId    String?
+  managerId     String?
+
+  // SLA (ITIL: target from priority+type; breach detection)
+  slaTargetAt        DateTime?
+  firstResponseAt    DateTime?
+  firstResponseDueAt DateTime?
+  resolutionDueAt    DateTime?
+  slaBreachedAt      DateTime?
+
+  // Lifecycle
+  openedAt    DateTime  @default(now())
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  closedBy    String?
+  version     Int       @default(1)
+  isArchived  Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  // Relations
+  assets         TicketAsset[]
+  comments       TicketComment[]
+  linksFrom      TicketLink[]      @relation("TicketLinkFrom")
+  linksTo        TicketLink[]      @relation("TicketLinkTo")
+  incident       Incident?          // 1:1 extension for type='incident'
+  problem        Problem?           // 1:1 extension for type='problem'
+  change         Change?            // 1:1 extension for type='change'
+  serviceRequest ServiceRequest?    // 1:1 extension for type='service_request'
+  history        TicketHistoryEntry[]
+  escalations    TicketEscalation[]
+
+  @@index([type, status])
+  @@index([assigneeId, status])
+  @@index([slaTargetAt])
+  @@map("tickets")
+}
+
+// ---- Generic asset link (all ticket types) --------------------------------
+model TicketAsset {
+  id         String   @id @default(uuid())
+  ticketId   String
+  assetId    String
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, assetId])
+  @@map("ticket_assets")
+}
+
+// ---- Comments / updates (internal notes vs. user-visible) ------------------
+model TicketComment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  authorId   String?
+  body       String
+  isInternal Boolean  @default(false)  // true = agent note, hidden from requester
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_comments")
+}
+
+// ---- Cross-ticket links (ITIL incident<->problem<->change, duplicates) -----
+model TicketLink {
+  id           String   @id @default(uuid())
+  fromTicketId String
+  toTicketId   String
+  linkType     String   // 'caused_by_problem' | 'resolved_by_change' | 'related_incident' | 'duplicate_of'
+  createdAt    DateTime @default(now())
+
+  fromTicket Ticket @relation("TicketLinkFrom", fields: [fromTicketId], references: [id], onDelete: Cascade)
+  toTicket   Ticket @relation("TicketLinkTo",   fields: [toTicketId],   references: [id], onDelete: Cascade)
+
+  @@unique([fromTicketId, toTicketId, linkType])
+  @@map("ticket_links")
+}
+
+// ---- Per-ticket tamper-evident history (AUD-001 pattern) --------------------
+model TicketHistoryEntry {
+  id           String   @id @default(uuid())
+  ticketId     String
+  action       String   // CREATE|UPDATE|DELETE|STATUS_CHANGE|ASSIGN|COMMENT|CLOSE|ESCALATE|LINK
+  fieldChanges Json?
+  summary      String?
+  actorId      String?
+  actorName    String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([action])
+  @@map("ticket_history_entries")
+}
+
+// ---- Ticket escalation (generalized IncidentEscalation pattern) -------------
+model TicketEscalation {
+  id             String    @id @default(uuid())
+  ticketId       String
+  escalationType String
+  level          Int       @default(1)
+  reason         String
+  dueAt          DateTime?
+  escalatedTo    String?
+  status         String    @default("open")
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  createdBy      String?
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, status])
+  @@map("ticket_escalations")
+}
+
+// ---- Ticket type configuration (extensible types + SLA policy) --------------
+model TicketTypeConfig {
+  id              String   @id @default(uuid())
+  type            String   @unique   // 'incident' | 'service_request' | 'problem' | 'change'
+  label           String
+  description     String?
+  enabled         Boolean  @default(true)
+  slaPolicy       Json?    // { byPriority: { low: { resolutionHours, firstResponseHours }, ... } }
+  defaultPriority String   @default("medium")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("ticket_type_configs")
+}
+
+// ---- Service catalog (request fulfillment: catalog items / request types) ---
+model ServiceCatalogItem {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  ticketType  String   @default("service_request")
+  fulfillment Json?    // { requestedBy: 'employee'|'it', approverRole: 'it_manager', slaHours: 48 }
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  serviceRequests ServiceRequest[]
+
+  @@map("service_catalog_items")
+}
+
+// ---- Problem extension (ITIL problem management) ----------------------------
+model Problem {
+  id                 String   @id @default(uuid())
+  ticketId           String   @unique
+  rootCause          String?
+  workaround         String?
+  permanentFix       String?
+  relatedIncidentIds String[] @default([])  // denormalized convenience; canonical links via TicketLink
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("problems")
+}
+
+// ---- Change extension (ITIL change enablement) ------------------------------
+model Change {
+  id                 String    @id @default(uuid())
+  ticketId           String    @unique
+  changeType         String    @default("standard")  // standard | normal | emergency
+  riskLevel          String    @default("low")
+  cabApproved        Boolean   @default(false)
+  cabApprovedBy      String?
+  cabApprovedAt      DateTime?
+  implementationPlan String?
+  rollbackPlan       String?
+  backoutDate        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("changes")
+}
+
+// ---- Service request extension (ITIL request fulfillment) -------------------
+model ServiceRequest {
+  id                String    @id @default(uuid())
+  ticketId          String    @unique
+  catalogItemId     String?
+  fulfillmentStatus String    @default("pending") // pending | in_fulfillment | delivered | rejected
+  deliveredAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  ticket      Ticket              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  catalogItem ServiceCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([catalogItemId])
+  @@map("service_requests")
 }
