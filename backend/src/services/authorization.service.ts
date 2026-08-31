@@ -7,6 +7,8 @@ export const GRANULAR_PERMISSIONS = [
   'risks.read', 'risks.write', 'risks.assess', 'risks.approve', 'risks.accept',
   'controls.read', 'controls.write', 'controls.test', 'controls.approve',
   'incidents.read', 'incidents.write', 'incidents.assess', 'incidents.report', 'incidents.close',
+  'tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve',
+  'serviceCatalog.read', 'serviceCatalog.manage',
   'suppliers.read', 'suppliers.write', 'suppliers.approve',
   'bcm.read', 'bcm.write', 'bcm.approve',
   'audits.read', 'audits.write', 'audits.close',
@@ -26,6 +28,7 @@ export type EntityType =
   | 'risks'
   | 'controls'
   | 'incidents'
+  | 'tickets'
   | 'suppliers'
   | 'bcm'
   | 'audits'
@@ -84,6 +87,7 @@ export const WRITE_PERMISSION_BY_RESOURCE: Record<string, PermissionName> = {
   risks: 'risks.write',
   assets: 'assets.write',
   incidents: 'incidents.write',
+  tickets: 'tickets.write',
 };
 
 export const READ_PERMISSION_BY_RESOURCE: Record<string, PermissionName> = {
@@ -101,6 +105,7 @@ export const READ_PERMISSION_BY_RESOURCE: Record<string, PermissionName> = {
   risks: 'risks.read',
   assets: 'assets.read',
   incidents: 'incidents.read',
+  tickets: 'tickets.read',
 };
 
 export class AuthorizationService {
@@ -282,6 +287,11 @@ export class AuthorizationService {
       if (!control) throw new AppError('Control not found', 404);
       return this.emptyResolvedScope();
     }
+    if (entityType === 'tickets') {
+      const ticketAsset = await db.ticketAsset.findFirst({ where: { ticketId: entityId }, include: { asset: { include: { organizationUnit: true, location: { include: { organizationUnit: true } } } } } });
+      const legalEntityId = ticketAsset?.asset?.organizationUnit?.legalEntityId ?? ticketAsset?.asset?.location?.organizationUnit?.legalEntityId ?? null;
+      return this.resolveScopeSet({ legalEntityId, organizationUnitId: ticketAsset?.asset?.organizationUnitId ?? ticketAsset?.asset?.location?.organizationUnitId ?? null, siteId: ticketAsset?.asset?.locationId ?? null, scopeId: null });
+    }
     if (entityType === 'incidents') {
       const incidentAsset = await db.incidentAsset.findFirst({ where: { incidentId: entityId }, include: { asset: { include: { organizationUnit: true, location: { include: { organizationUnit: true } } } } } });
       const legalEntityId = incidentAsset?.asset?.organizationUnit?.legalEntityId ?? incidentAsset?.asset?.location?.organizationUnit?.legalEntityId ?? null;
@@ -306,6 +316,9 @@ export class AuthorizationService {
     if (entityType === 'risks') return this.andFilter([orgUnitClause, legalEntityOrgClause, scopeOrgClause]);
     if (entityType === 'controls') {
       return { implementations: { some: this.buildControlImplementationFilter(role) } };
+    }
+    if (entityType === 'tickets') {
+      return { assets: { some: { asset: this.andFilter([orgUnitClause, legalEntityOrgClause, assetSiteClause, scopeOrgClause]) } } };
     }
     if (entityType === 'incidents') {
       return { incidentAssets: { some: { asset: this.andFilter([orgUnitClause, legalEntityOrgClause, assetSiteClause, scopeOrgClause]) } } };

@@ -89,9 +89,10 @@ export function getKnownTicketStatuses(type: TicketType): string[] {
 // ==========================================
 
 const PRIORITY_MATRIX: Readonly<Record<TicketImpact, Readonly<Record<TicketUrgency, TicketPriority>>>> = {
-  high: { high: 'critical', medium: 'high', low: 'medium' },
-  medium: { high: 'high', medium: 'medium', low: 'low' },
-  low: { high: 'medium', medium: 'low', low: 'low' },
+  critical: { critical: 'critical', high: 'critical', medium: 'critical', low: 'high' },
+  high: { critical: 'critical', high: 'critical', medium: 'high', low: 'medium' },
+  medium: { critical: 'critical', high: 'high', medium: 'medium', low: 'low' },
+  low: { critical: 'high', high: 'medium', medium: 'low', low: 'low' },
 };
 
 /**

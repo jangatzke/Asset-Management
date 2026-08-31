@@ -8,6 +8,8 @@ const Assets = lazy(() => import('./pages/Assets'));
 const Risks = lazy(() => import('./pages/Risks'));
 const Controls = lazy(() => import('./pages/Controls'));
 const Incidents = lazy(() => import('./pages/Incidents'));
+const Tickets = lazy(() => import('./pages/Tickets'));
+const TicketDetail = lazy(() => import('./pages/TicketDetail'));
 const IncidentDetail = lazy(() => import('./pages/IncidentDetail'));
 const Login = lazy(() => import('./pages/Login'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -21,6 +23,7 @@ const AdminIntune = lazy(() => import('./pages/AdminIntune'));
 const AdminVMware = lazy(() => import('./pages/AdminVMware'));
 const AdminProxmox = lazy(() => import('./pages/AdminProxmox'));
 const AdminReminders = lazy(() => import('./pages/AdminReminders'));
+const AdminEmailGateway = lazy(() => import('./pages/AdminEmailGateway'));
 const AdminFiscalYear = lazy(() => import('./pages/AdminFiscalYear'));
 const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
 const AdminDatabase = lazy(() => import('./pages/AdminDatabase'));
@@ -61,6 +64,8 @@ function App() {
             <Route path="risks/:riskId" element={<RiskDetail />} />
             <Route path="controls" element={<Controls />} />
             <Route path="incidents" element={<Incidents />} />
+            <Route path="tickets" element={<Tickets />} />
+            <Route path="tickets/:ticketId" element={<TicketDetail />} />
             <Route path="incidents/:incidentId" element={<IncidentDetail />} />
             <Route path="contracts" element={<Contracts />} />
             <Route path="licenses" element={<Licenses />} />
@@ -87,6 +92,7 @@ function App() {
             <Route path="admin/vmware" element={<AdminVMware />} />
             <Route path="admin/proxmox" element={<AdminProxmox />} />
             <Route path="admin/reminders" element={<AdminReminders />} />
+            <Route path="admin/email-gateway" element={<AdminEmailGateway />} />
             <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
             <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
             <Route path="admin/database" element={<AdminDatabase />} />

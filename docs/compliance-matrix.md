@@ -8,6 +8,17 @@
 >
 > **Forbidden wording:** "ISO 27001 compliant", "compliant with ISO 27001", "fully compliant" when claiming organizational compliance.
 
+## Ticket Service Management — Application Coverage
+
+| ID | Anwendungskontrolle | Status | Technische Evidenz | Organisatorische Nachweise |
+|----|---------------------|--------|--------------------|----------------------------|
+| TCK-601 | Tickets referenzieren nur valide Assets sowie bestehende aktive Requester, Assignees und Manager. | tested | `TicketAsset`, User-Foreign-Keys und Validierung in `ticket.service.ts`; Test `ticket.reference-validation.test.ts`. | Regelmäßige Berechtigungs- und Benutzer-Reviews. |
+| TCK-602 | Administrativ geschütztes IMAP-/Exchange-OAuth2-Mail-to-Ticket-Gateway mit Sender-Mapping, Deduplizierung und Audit-Trail. | implemented | `EmailGatewayConfig`, `EmailMessage`, MSAL/IMAP-Service, cluster-sicherer Scheduler, Admin-UI und Audit-Ereignisse. | Freigabe der Exchange-App, Betrieb des Mailkontos, Aufbewahrung/Löschung und Secret-Management. |
+| TCK-603 | E-Mail-Antworten werden anhand der Ticket-Display-ID als interne Ticket-Kommentare nachvollziehbar gespeichert. | implemented | Eingehende Nachrichten und Ticket-Kommentare referenzieren die Ticket-ID; Verarbeitungsstatus wird persistent gespeichert. | Prozess für die fachliche Bearbeitung der Kommentare. |
+
+**Scope-Hinweis:** Diese Kontrollen beschreiben Anwendungsschutz und erzeugbare technische Evidenz. Sie ersetzen keine organisationsweiten Nachweise für ISO 27001 oder NIS-2.
+
+
 <!-- NOTE: This file should be saved as docs/compliance-matrix.yml in code mode -->
 <!-- YAML content below for reference during implementation -->
 

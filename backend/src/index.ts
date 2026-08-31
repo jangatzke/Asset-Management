@@ -33,11 +33,13 @@ import { riskRouter } from './routes/risk.routes';
 import { controlRouter } from './routes/control.routes';
 import { orgRouter } from './routes/organization.routes';
 import { incidentRouter } from './routes/incident.routes';
+import { ticketRouter } from './routes/ticket.routes';
 import { auditLogRouter } from './routes/auditLog.routes';
 import { adminRouter } from './routes/admin.routes';
 import { intuneRouter } from './routes/intune.routes';
 import { initializeScheduler } from './services/intune.scheduler';
 import { initializeReminderScheduler } from './services/reminder.scheduler';
+import { initializeEmailGatewayScheduler } from './services/emailGateway.scheduler';
 import { startWebhookQueueWorker } from './services/webhookQueue.service';
 import { vmwareRouter } from './routes/vmware.routes';
 import { proxmoxRouter } from './routes/proxmox.routes';
@@ -198,6 +200,7 @@ app.use('/api/v1/assets', etag(), assetRouter);
 app.use('/api/v1/risks', etag(), riskRouter);
 app.use('/api/v1/controls', etag(), controlRouter);
 app.use('/api/v1/incidents', etag(), incidentRouter);
+app.use('/api/v1/tickets', etag(), ticketRouter);
 
 // Organization & Admin
 app.use('/api/v1/organization', orgRouter);
@@ -294,6 +297,8 @@ async function startServer(): Promise<void> {
       await scheduler.start();
       const reminderScheduler = initializeReminderScheduler();
       await reminderScheduler.start();
+      const emailGatewayScheduler = initializeEmailGatewayScheduler();
+      await emailGatewayScheduler.start();
       startWebhookQueueWorker();
       console.log('Background services initialized');
     } catch (error) {

@@ -3,6 +3,8 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
+import { nextDisplayId } from './displayId.service';
+import { computePriority, type TicketLevel } from 'shared';
 import { validateTransition } from './statusTransition';
 
 // ==========================================
@@ -372,10 +374,32 @@ export class IncidentService {
           processLinks: affectedProcessIds?.length ? { create: affectedProcessIds.map((processId) => ({ processId })) } : undefined,
         } as any,
       });
+      const incidentLevel: TicketLevel = ['low', 'medium', 'high', 'critical'].includes(data.severity ?? '')
+        ? data.severity as TicketLevel
+        : 'medium';
+      const ticket = await (tx as any).ticket.create({
+        data: {
+          displayId: await nextDisplayId(tx, 'Ticket'),
+          type: 'incident',
+          title: data.title,
+          description: data.description,
+          status: created.status,
+          priority: computePriority(incidentLevel, incidentLevel),
+          urgency: incidentLevel,
+          impact: incidentLevel,
+          requesterId: data.reporterId,
+          managerId: data.incidentManagerId,
+          createdBy,
+          updatedBy: createdBy,
+          assets: affectedAssetIds?.length ? { create: affectedAssetIds.map((assetId) => ({ assetId })) } : undefined,
+        },
+      });
+      await (tx as any).incident.update({ where: { id: created.id }, data: { ticketId: ticket.id } });
+      await (tx as any).ticketHistoryEntry.create({ data: { ticketId: ticket.id, action: 'CREATE', summary: `Created from incident ${created.displayId}`, actorId: createdBy } });
       if (significance.isSignificant) {
         await this.createDeadlinesForIncident(tx, created.id, data.knowledgeTime);
       }
-      return created;
+      return { ...created, ticketId: ticket.id };
     });
 
     // Audit log for incident creation

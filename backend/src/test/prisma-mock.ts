@@ -78,6 +78,17 @@ export const createMockPrismaClient = (): MockPrismaClient => {
     assetSubtype: createMockModel(),
     assetRelation: createMockModel(),
 
+
+    // ITIL ticket / e-mail gateway models
+    ticket: createMockModel(),
+    ticketAsset: createMockModel(),
+    ticketComment: createMockModel(),
+    ticketHistoryEntry: createMockModel(),
+    ticketEscalation: createMockModel(),
+    ticketLink: createMockModel(),
+    ticketTypeConfig: createMockModel(),
+    emailGatewayConfig: createMockModel(),
+    emailMessage: createMockModel(),
     // Risk models
     riskMethod: createMockModel(),
     risk: createMockModel(),

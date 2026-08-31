@@ -1,521 +1,194 @@
 # Requirements — Asset Management System
 
-> **Documentation Model Note:** This document lists application requirements and their implementation status. It does NOT represent organizational compliance certification. Application coverage for ISO 27001:2022 controls is documented in [`docs/compliance-matrix.yml`](docs/compliance-matrix.yml) using the two-dimension model (Application Coverage vs Organization Compliance Assessment).
+> **Documentation Model Note:** This document lists application requirements and their implementation status. It does **not** constitute organizational compliance certification. Application coverage for ISO 27001:2022 controls is documented in [`docs/compliance-matrix.yml`](compliance-matrix.yml) using the two-dimension model (Application Coverage vs. Organization Compliance Assessment).
 
 **Version:** 1.0
-**Datum:** 2026-07-17
-**Status:** Entwurf – Phase 0 Prüfbasis
+**Date:** 2026-07-17
+**Status:** Draft — Phase 0 verification baseline
 
-## Phase 6 – Weitere ISMS-Module
+## Phase 6 — Additional ISMS Modules
 
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| SUP-601 | P1 | CTL | Lieferantenmanagement muss Supplier, Assessments sowie Contract-/Risk-Relationen abbilden. | Kritikalität, Datenschutz-/NIS2-Relevanz, Bewertung, Reviewdatum, Maßnahmen und JSON/CSV-Export sind verfügbar. |
-| BCP-601 | P1 | OPS | BIA und Business Continuity müssen Prozesse, Services und Assets mit MTPD/RTO/RPO verbinden. | BIA speichert Impact-Kategorien; BCP speichert Version, Recovery Strategies, Übungen, Findings und Due-Date-Reminder. |
-| AUD-601 | P1 | AUD | Auditmanagement benötigt Programme, Pläne, Findings und Evidence-Relationen. | Auditstatus, Scope, Auditor/Auditee, Findings, Maßnahmen und Exporte sind persistiert. |
-| AUD-602 | P0 | AUD | AuditLog benötigt Hash-Kette mit sequence, previousHash, entryHash für fälschungssichere Protokollierung. Ein IntegrityService.verify() durchläuft die Kette und meldet { valid: true/false, brokenAtSequence } bei Hash-Mismatch oder fehlender Sequence. Admin-Route GET /admin/audit-integrity gibt Status zurück ohne Secrets. |
-| CAPA-601 | P1 | AUD | Corrective Actions müssen aus Audit, Incident, Risk, Control und Supplier entstehen können. | CAPA speichert Quelle, Owner, DueDate, Statusworkflow, Root Cause und Wirksamkeitsprüfung. |
-| TRN-601 | P1 | CTL | Schulungsmanagement benötigt Kurse, Zuweisungen, Abschlüsse, Kenntnisnahmen und Eskalationen. | Trainingszuweisungen sind fälligkeitsbasiert erinnerbar; Completion und Acknowledgement sind nachvollziehbar. |
-| MREV-601 | P1 | CTL | Management Reviews müssen Agenda, Inputs, Decisions, Actions, Approval und Minutes speichern. | Review-Actions haben Owner/DueDate; Reviews sind freigabefähig und exportierbar. |
-| MET-601 | P1 | CTL | Sicherheitsziele, KPI und KRI benötigen Metrikdefinitionen, Werte, Schwellen und Breach-Erkennung. | MetricValue erkennt warning/critical Breaches und Trend gegen vorherigen Wert. |
-| WFL-601 | P1 | OPS | Eine generische Workflowengine muss Definitionen, Instanzen, Tasks, Transitions und Approvals unterstützen. | Workflow kann definiert, instanziiert und über validierte Transitionen fortgeschrieben werden. |
-| RPT-601 | P1 | AUD | Reporting und Exporte müssen persistiert, filterbar und auditierbar sein. | ReportRuns und ExportJobs speichern Filter, Format, Payload, RowCount und Auditlog. |
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| SUP-601 | P1 | CTL | Supplier management must represent suppliers, assessments, and contract/risk relationships. | Criticality, data-protection/NIS2 relevance, assessment, review date, actions, and JSON/CSV export are available. |
+| BCP-601 | P1 | OPS | Business impact analysis and business continuity must connect processes, services, and assets with MTPD/RTO/RPO. | BIA stores impact categories; BCP stores version, recovery strategies, exercises, findings, and due-date reminders. |
+| AUD-601 | P1 | AUD | Audit management requires programmes, plans, findings, and evidence relationships. | Audit status, scope, auditor/audittee, findings, actions, and exports are persisted. |
+| AUD-602 | P0 | AUD | AuditLog requires a hash chain with sequence, previousHash, and entryHash for tamper-evident logging. Integrity verification reports validity and the failing sequence. | Administrators can retrieve integrity status from `GET /admin/audit-integrity` without secret data. |
+| CAPA-601 | P1 | AUD | Corrective actions must be creatable from audits, incidents, risks, controls, and suppliers. | CAPA stores source, owner, due date, status workflow, root cause, and effectiveness review. |
+| TRN-601 | P1 | CTL | Training management requires courses, assignments, completions, acknowledgements, and escalations. | Due-date-based reminders support assignments; completion and acknowledgement are traceable. |
+| MREV-601 | P1 | CTL | Management reviews must store agenda, inputs, decisions, actions, approval, and minutes. | Review actions have owner/due date; reviews can be approved and exported. |
+| MET-601 | P1 | CTL | Security objectives, KPIs, and KRIs require metric definitions, values, thresholds, and breach detection. | MetricValue detects warning/critical breaches and the trend compared with the previous value. |
+| TCK-601 | P0 | ITSM | Tickets must link one or more existing assets and reference existing active users as requester, assignee, and manager. | `TicketAsset` prevents duplicates; user foreign keys and service validation prevent unknown or inactive user references. |
+| TCK-602 | P0 | ITSM | Incoming email must be convertible into tickets through IMAP and Exchange Online OAuth2. The sender is matched through `User.email`. | The gateway polls cluster-safely, deduplicates by RFC 822 `Message-ID`, records inbound/outbound messages, and creates an auditable ticket. |
+| TCK-603 | P1 | ITSM | Replies to ticket confirmations must be stored traceably as internal ticket comments. | Ticket display ID maps replies; `EmailMessage` and `TicketComment` store content, mapping, and processing status. |
+| TCK-604 | P1 | SEC | Only authorized administrators may manage mailbox, SMTP, and Exchange configuration; secrets must never be returned to clients. | `/admin/email-gateway` enforces authentication and admin access, audits changes, and returns only secret-configuration flags. |
+| WFL-601 | P1 | OPS | A generic workflow engine must support definitions, instances, tasks, transitions, and approvals. | Workflows can be defined, instantiated, and advanced through validated transitions. |
+| RPT-601 | P1 | AUD | Reporting and exports must be persisted, filterable, and auditable. | ReportRuns and ExportJobs store filters, format, payload, row count, and audit-log data. |
 
-## Phase 10 – Background Jobs Cluster-Safety
+## Phase 10 — Background Job Cluster Safety
 
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| JOB-1001 | P0 | OPS | Hintergrund-Jobs (Intune Sync, Reminder Scheduler) müssen über PostgreSQL advisory locks cluster-sicher sein. Nur ein Worker pro Job-Typ führt die Logik aus; konkurrierende Instanzen werden als `skipped` getrackt. | `pg_try_advisory_lock` wird vor Job-Start erworben; Lock wird in `finally` freigegeben; `JobRun` Tabelle protokolliert status/workerId/error/attempt für jeden Durchlauf. |
-| JOB-1002 | P1 | OPS | Jeder Job-Durchlauf muss in einer `JobRun` Tabelle mit jobId, jobType, scheduledAt, startedAt, finishedAt, status (pending/running/completed/failed/skipped), workerId, error und attempt protokolliert werden. | Migration erstellt `job_runs` Table mit Indizes auf jobType+status und scheduledAt; Prisma model verfügbar. |
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| JOB-1001 | P0 | OPS | Background jobs such as Intune sync and reminders must use PostgreSQL advisory locks for cluster safety. Only one worker per job type executes; concurrent instances are recorded as `skipped`. | `pg_try_advisory_lock` is acquired before execution and released in `finally`; each run is recorded in JobRun. |
+| JOB-1002 | P1 | OPS | Every job run must record jobId, jobType, scheduled/start/finish times, status, workerId, error, and attempt. | The migration creates indexed `job_runs`; a Prisma model is available. |
 
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| OPS-1101 | P0 | OPS | `/health/ready` muss echte Readiness-Checks durchführen: Datenbank-Erreichbarkeit, Schema/Migration-Status (falls sicher prüfbar), Required-Secrets-Konfiguration. Optionale Integrationen (Intune, SMTP, VMware, Proxmox) führen zu `degraded`, nicht `not_ready`. | GET `/health/ready` gibt strukturierte Antwort `{ status: healthy|degraded|not_ready, checks: { database, schema, secrets, intune, smtp, ... } }` zurück. |
-| OPS-1102 | P0 | SEC | Health-Status darf keine Secrets/Credentials enthalten. Environment variable names dürfen aufgelistet werden, aber Werte müssen rotiert bleiben. | Response enthält `checks.secrets.details` mit Secret-Namen (z.B. `JWT_SECRET`, `DATABASE_URL`) aber ohne Werte. |
-| OPS-1103 | P0 | OPS | `/metrics` muss über `METRICS_TOKEN` Umgebungsvariable geschützt sein. Ohne Token wird HTTP 401 zurückgegeben. Prometheus-kompatible Metriken für HTTP request count, latency histogram, error count, DB errors, background job duration/failures, integration sync status. | GET `/metrics?token=...` mit gültigem `METRICS_TOKEN` gibt HTTP 200 + Prometheus text format zurück. Ohne Token: HTTP 401. |
-| OPS-1104 | P1 | OPS | Health-Check Middleware muss `registerHealthCheck()` und `registerRuntimeHealthCheck()` für benutzerdefinierte Checks bereitstellen. | Entwickler können zusätzliche Checks zur Readiness-Prüfung registrieren; fehlende Checks markieren den Server als `degraded`. |
+## Phase 8 — API Maturity, Operations, and CI/CD Gates
 
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| OPS-1101 | P0 | OPS | `/health/ready` must check database reachability, safe schema/migration status, and required-secret configuration. Optional integrations result in `degraded`, not `not_ready`. | Response contains structured healthy/degraded/not_ready status and checks. |
+| OPS-1102 | P0 | SEC | Health status must not expose secrets or credentials. | It may list variable names such as `JWT_SECRET` but never their values. |
+| OPS-1103 | P0 | OPS | `/metrics` must be protected through `METRICS_TOKEN` and expose Prometheus-compatible request, error, database, job, and integration metrics. | Valid token returns HTTP 200; no token returns HTTP 401. |
+| OPS-1104 | P1 | OPS | Health middleware must expose registration APIs for custom and runtime health checks. | Failed registered checks mark the service as degraded. |
+| INT-701 | P0 | SEC | Intune authentication must use MSAL Node and SecretStore-provided certificates; tokens and secrets must not be logged. | `.default` application permissions and `env:`/`file:` secret references work without default secrets. |
+| INT-702 | P0 | SEC | Graph access must validate least-privilege application permissions. | Health checks clearly report a missing `DeviceManagementManagedDevices.Read.All` permission. |
+| INT-703 | P1 | AST | Managed-device sync must select supported Graph fields, handle pagination, and respect HTTP 429 `Retry-After`. | All pages are processed and retry follows the response header. |
+| INT-704 | P1 | AST | Sync must idempotently match/create assets, honor FieldLock, and write FieldProvenance. | Repeat sync creates no duplicate and locked fields remain unchanged. |
+| INT-705 | P1 | AST | Removed Intune devices must not be automatically archived. | A full sync marks affected assets stale/requiring review after a grace period. |
+| INT-706 | P1 | AUD | Sync, resync, health checks, and configuration changes must be audited and historized. | ImportRun and AuditLog include status, error counts, and partial-success results. |
 
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| INT-701 | P0 | SEC | Intune-Authentifizierung muss MSAL Node mit Zertifikat aus SecretStore-Abstraktion verwenden; Tokens/Secrets dürfen nicht geloggt werden. | `@azure/msal-node` nutzt `.default` Application Permissions; SecretStore unterstützt `env:` und `file:` ohne Default-Secrets. |
-| INT-702 | P0 | SEC | Graph-Zugriff muss Least-Privilege Application Permissions prüfen. | Health Check meldet fehlendes `DeviceManagementManagedDevices.Read.All` verständlich. |
-| INT-703 | P1 | AST | Managed-Device-Sync muss nur unterstützte Graph-Felder selektieren, Pagination und HTTP 429 `Retry-After` respektieren. | Mehrseitige Antworten werden vollständig verarbeitet und 429 verzögert den Retry nach Header. |
-| INT-704 | P1 | AST | Sync muss Assets idempotent matchen/anlegen, FieldLock beachten und FieldProvenance schreiben. | Neues Gerät erzeugt genau ein Asset; Wiederholung erzeugt keine Dublette; gesperrte Felder bleiben unverändert. |
-| INT-705 | P1 | AST | Entfernte Intune-Geräte dürfen nicht automatisch archivieren. | Vollständiger Sync markiert betroffene Assets `stale`/prüfbedürftig nach Grace Period. |
-| INT-706 | P1 | AUD | Sync, Resync, Health Check und Konfigurationsänderungen müssen auditiert und historisiert werden. | `ImportRun` plus AuditLog enthalten Status, Fehlerzähler und `partial_success` bei Teilfehlern. |
+## Phase 4 — Controls, SoA, Evidence, and Documents
 
-## Phase 4 – Controls, SoA, Evidence und Dokumente
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| CTL-401 | P1 | CTL | Framework versions, requirements, and control mappings must be importable with versioning; license notices are mandatory. | Import creates immutable FrameworkVersion records; comparison shows added/removed/changed entries; controls can map to multiple requirements. |
+| CTL-402 | P1 | CTL | Control implementations must represent implementation per scope, organization, or site. | Responsible party, maturity, test method/frequency, next review, findings, and actions are stored; one implementation may fulfil multiple requirements. |
+| CTL-403 | P1 | CTL | A Statement of Applicability must use individual SoAItems instead of a single JSON object. | Items store applicability, rationale, status, controls, risks, and evidence and become immutable on approval. |
+| EVD-401 | P1 | AUD | Evidence needs secure metadata with hash, classification, retention, and relationships. | SHA-256 hash, classification, retention/expiry, relationships, deletion protection, and audit-package export are enforced. |
+| DOC-401 | P1 | AUD | Document control needs workflow, versioning, acknowledgement, and reviews. | Documents support draft, review, approval, publication, and withdrawal; approved versions are immutable and reviews may be escalated. |
 
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| CTL-401 | P1 | CTL | Frameworkversionen, Requirements und Control-Mappings müssen versioniert importierbar sein. Lizenzhinweise sind Pflicht. | Import erzeugt unveränderliche FrameworkVersion mit Requirements; Versionsvergleich liefert added/removed/changed; Control kann mehreren Requirements zugeordnet werden. |
-| CTL-402 | P1 | CTL | Control Implementations bilden Umsetzung pro Scope, Organisation oder Standort ab. | Implementation speichert Responsible, Maturity, Testmethode/-frequenz, nächste Prüfung, Findings und Maßnahmen und kann mehrere Requirements erfüllen. |
-| CTL-403 | P1 | CTL | Statement of Applicability besteht aus einzelnen SoAItems statt JSON-Gesamtobjekt. | SoAItems enthalten Anwendbarkeit, Begründung, Status, Controls, Risiken, Evidence und werden bei Freigabe unveränderlich. |
-| EVD-401 | P1 | AUD | Evidence benötigt sicheres Metadatenmodell mit Hash, Klassifizierung, Retention und Relationen. | Evidence erzwingt SHA-256-Hash, Classification, Retention/Expiry, Relations zu Control/Risk/Asset/SoAItem/Document, Löschschutz und Auditpaketexport. |
-| DOC-401 | P1 | AUD | Dokumentenlenkung benötigt Workflow, Versionierung, Kenntnisnahme und Reviews. | Dokumente durchlaufen Entwurf/Prüfung/Freigabe/Veröffentlichung/Rücknahme; freigegebene Versionen sind unveränderlich; Reviews können eskaliert werden. |
+## Phase 5 — NIS-2 and Incident Management
 
-## Phase 5 – NIS-2 und Incident-Management
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| NIS2-501 | P1 | CTL | NIS-2 applicability must be represented through a versioned questionnaire, preliminary assessment, and expert approval. | The assessment stores questionnaire version, answers, preliminary result, approval status, approver, and audit log. |
+| NIS2-502 | P1 | CTL | NIS-2 registration requires deadline, contact/submission data, evidence, and change notifications. | Registration requires approved applicability; submission evidence and changes are persisted and audited. |
+| NIS2-503 | P1 | CTL | The ten NIS-2 thematic areas must be integrated as requirements and controls in Phase 4. | An endpoint creates the NIS2 framework version, ten requirements, ten controls, mappings, and adequacy rationale. |
+| INC-501 | P1 | INC | Materiality rules for NIS-2 incidents must be versioned and automatically create deadlines. | Reportable incidents create 24-hour, 72-hour, interim, and monthly-close deadlines from the time of awareness. |
+| INC-502 | P1 | INC | The time of awareness is protected and may only change with a rationale. | Direct updates are rejected; a dedicated endpoint stores rationale, history, audit data, and recalculates open deadlines. |
+| INC-503 | P1 | INC | A decision not to report requires rationale and approval. | A non-reportable decision without rationale or approver is rejected. |
+| INC-504 | P1 | INC | Notification packages must be persisted and exportable. | 24-hour, 72-hour, interim, and monthly-close reports are stored and exported as a structured package. |
+| INC-505 | P1 | INC | Incident closure requires root cause, lessons learned or action evaluation, and closure conditions. | Closure is rejected without root cause/action evaluation; material incidents require a submitted monthly close report. |
 
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| NIS2-501 | P1 | CTL | NIS-2-Betroffenheit muss über versionierten Fragebogen, Vorbewertung und fachliche Freigabe abbildbar sein. | Assessment speichert Questionnaire-Version, Antworten, Preliminary Result, Freigabestatus, Freigeber und Auditlog. |
-| NIS2-502 | P1 | CTL | NIS-2-Registrierung benötigt Frist, Kontakt-/Übermittlungsdaten, Nachweis und Änderungsmeldungen. | Registrierung setzt freigegebene Betroffenheit voraus; Übermittlungsnachweis und Änderungsmeldungen werden persistiert und auditiert. |
-| NIS2-503 | P1 | CTL | Die zehn NIS-2-Themenbereiche müssen als Requirements und Controls in die Phase-4-Struktur integriert werden. | Endpoint erzeugt FrameworkVersion `NIS2/2024-phase5`, zehn Requirements, zehn Controls und Mappings inklusive Angemessenheitsbegründung. |
-| INC-501 | P1 | INC | Signifikanzregeln für NIS-2-Incidents müssen versioniert sein und Fristen automatisch erzeugen. | Meldepflichtige Incidents erzeugen 24h-, 72h-, Zwischen- und Monatsabschluss-Fristen auf Basis des Kenntniszeitpunkts. |
-| INC-502 | P1 | INC | Kenntniszeitpunkt ist geschützt und nur mit Begründung änderbar. | Direkte Updates werden abgewiesen; dedizierter Endpoint speichert Änderungsgrund, Historie, Auditlog und berechnet offene Fristen neu. |
-| INC-503 | P1 | INC | Nichtmeldung benötigt Begründung und Freigabe. | Assessment lehnt nicht-meldepflichtige Entscheidung ohne Begründung oder Freigeber ab. |
-| INC-504 | P1 | INC | Meldepakete müssen persistiert und exportierbar sein. | Reports für 24h, 72h, Zwischenbericht und Monatsabschluss werden gespeichert; Export liefert strukturiertes Paket. |
-| INC-505 | P1 | INC | Incident-Abschluss benötigt Root Cause, Lessons Learned beziehungsweise Maßnahmenbewertung und Abschlussbedingungen. | Abschluss wird ohne Root Cause und Maßnahmenbewertung abgewiesen; signifikante Incidents benötigen eingereichten Monatsabschlussbericht. |
+## Risk Aggregation RSK-AGG-3.4
 
-## RSK-AGG-3.4: Reproduzierbare Risiko-Aggregationen
-
-| Feld | Wert |
-|------|------|
+| Field | Value |
+|---|---|
 | **ID** | RSK-AGG-3.4 |
-| **Priorität** | P1 |
-| **Kategorie** | RSK |
-| **Beschreibung** | Risiko-Aggregationen müssen ausschließlich normalisierte Relationen verwenden. Asset-, Prozess- und Service-Bezüge laufen über `RiskAsset`, `RiskProcess` und `RiskService`; entfernte ID-Arrays dürfen nicht mehr verwendet werden. |
-| **Zählregeln** | Ein Risiko wird innerhalb einer Gruppe genau einmal gezählt (`DISTINCT risk.id`). Hat ein Risiko mehrere Assets/Prozesse/Services, erscheint es in jeder betroffenen Gruppe, wird aber in derselben Gruppe dedupliziert. Ein Risiko mit zwei Assets desselben Asset-Typs zählt in dieser Asset-Typ-Gruppe genau einmal; ein Risiko mit Assets in zwei Standorten zählt einmal pro Standort. |
-| **Filterregeln** | `from` und `to` beziehen sich auf `RiskAssessment.assessedAt`. Aktuelle Kennzahlen verwenden standardmäßig `isCurrent=true`; historische Kennzahlen sind über `methodVersionId`, `assessmentType` und Zeitraum reproduzierbar. Weitere Filter: `scope`, `organizationUnitId`, `status`, `riskClass`. |
-| **Akzeptanzkriterium** | 1. Aggregationen nach Asset/AssetType, Prozess, Service, Organisation, Scope, Risikoklasse, Status und AssessmentType sind verfügbar. 2. Junction Tables werden verwendet. 3. Pro Gruppe wird dedupliziert. 4. SQL/Prisma-Aggregationen und Batch-Lookups vermeiden N+1. 5. Tests decken Mehrfachzuordnungen und Filter ab. |
+| **Priority** | P1 |
+| **Category** | RSK |
+| **Description** | Risk aggregations must use normalized relationships only. Asset, process, and service references use `RiskAsset`, `RiskProcess`, and `RiskService`; removed ID arrays must not be used. |
+| **Counting rules** | A risk is counted once in each group (`DISTINCT risk.id`). A risk with multiple assets/processes/services appears in every relevant group but is deduplicated within that group. |
+| **Filtering rules** | `from` and `to` refer to `RiskAssessment.assessedAt`. Current metrics default to `isCurrent=true`; historical metrics are reproducible through method version, assessment type, and period. |
+| **Acceptance criterion** | Aggregations are available by asset/type, process, service, organization, scope, risk class, status, and assessment type; junction tables and deduplication are used; aggregation avoids N+1; tests cover multiple assignments and filters. |
 
----
+## Priority Requirements
 
-## Legende
+### P0 — Security Critical
 
-| Feld | Beschreibung |
-|------|-------------|
-| **ID** | Eindeutige Anforderungs-ID (Kategorie-Nummer) |
-| **Titel** | Kurze Bezeichnung |
-| **Priorität** | P0 = sicherheitskritisch, P1 = hoch, P2 = mittel, P3 = niedrig |
-| **Kategorie** | IAM = Identität/Zugriff, SEC = Sicherheit, AST = Asset, RSK = Risiko, CTL = Control, INC = Incident, AUD = Audit, UX = Benutzererfahrung, OPS = Betrieb |
-| **Akzeptanzkriterium** | Überprüfbare Bedingung für Erfüllung |
+| ID | Category | Status | Description | Acceptance criterion |
+|---|---|---|---|---|
+| AUTHZ-001 | IAM | Implemented in Phase 1 | Administrative access must use granular permissions rather than implicit role names. | `administration.access` is modelled as a permission; direct/group roles and expiry are considered; tests cover administrative and group-role behavior. |
+| AUTHZ-002 | IAM | Implemented in Phase 1 | Assets, risks, controls, incidents, and ISMS modules require granular permissions with optional legal-entity, organizational-unit, ISMS-scope, and site limits. | Shared AuthorizationService decisions filter lists/counts; out-of-scope access receives 403; tests cover all required scenarios. |
+| IAM-001 | IAM | — | All `/api/v1/admin/*` routes must require a role with `canAccessAdmin = true`. | Middleware checks roles dynamically; unauthorized users receive 403; non-admin route tests pass. |
+| IAM-002 | IAM | — | CRUD on assets, risks, controls, and incidents must check `entityPermissions`. | Readonly users receive 403 for writes; none users receive 403 for every operation. |
+| IAM-003 | IAM | — | Specific Express routes must precede generic parameterized routes. | Static routes are registered first; no route shadowing exists; integration tests cover routes. |
+| SEC-001 | SEC | — | JWT secrets must use environment configuration with no hard-coded fallback and explicit HS256 algorithm. | Startup fails without `JWT_SECRET`; HS256 is enforced; lifetime is no more than one hour. |
+| SEC-002 | SEC | — | OIDC must use PKCE, state validation, and nonce validation against the ID token. | S256 challenge/verifier and server-side state/nonce generation, storage, and validation are implemented. |
+| SEC-003 | SEC | — | Production CORS origins must not be wildcard. | `CORS_ORIGIN` is mandatory in production and incoming origins are validated. |
+| SEC-004 | SEC | — | Registration and password changes require at least 12 characters, complexity, and bcrypt rounds of at least 10. | Weak passwords are rejected; rounds are configurable; plaintext is never logged or returned. |
+| SEC-005 | AUD | — | Significant authentication, administration, CRUD, and configuration actions must be audit logged. | Logs include actor, action, object, timestamp, and applicable before/after values and cannot be deleted. |
+| SEC-006 | SEC | — | Public registration is disabled by default; only explicit configuration enables it; first-admin setup is limited; auth routes are rate-limited. | Register is blocked without `ALLOW_SELF_REGISTRATION=true`; setup works only before an administrator exists; relevant auth/OIDC endpoints have per-IP limits. |
 
----
+### P1 — High
 
-## P0 – Sicherheitskritisch
+| ID | Category | Description | Acceptance criterion |
+|---|---|---|---|
+| IAM-004 | IAM | Entity models need sequential predictable display IDs such as `USR-0001`, `AST-0001`, and `RSK-0001`. | IDs follow `{prefix}-{four-digit sequence}` and are unique per entity type. |
+| AST-001 | AST | Technical operators, business owners, and information-security owners must be able to confirm their assignments. | Confirmation endpoint and audit log exist; unconfirmed assignments appear in the dashboard. |
+| AST-002 | AST | Assets must cover contract/license references, vulnerability/incident relations, and document links. | Relations to Contract, License, Vulnerability, Incident, and Document are available. |
+| RSK-001 | RSK | Risks must support both asset-based and process/scenario-based creation. | BusinessProcess has required relations and a risk may be created without an asset. |
+| RSK-002 | RSK | APIs must aggregate risk by location, organizational unit, process, asset type, and ISMS scope. | Aggregation endpoint supports orgUnit, site, process, assetType, and ismsScope dimensions. |
+| RSK-003 | RSK | Risk acceptance must use formal treatment/acceptance workflow tied to assessment versions; mitigation needs effectiveness review. | No direct bypass exists; acceptance requires rationale, expiry, and independent approval where required; all actions are authorized and audited. |
+| RSK-004 | RSK | Risk methods and assessments must be immutably versioned. | RiskAssessment references RiskMethodVersion; safe calculation types avoid eval; previews persist nothing and historical assessments remain unchanged. |
+| RSK-005 | RSK | Assessments must use relational, versioned scenario/threat/vulnerability/cause/impact data. | Relations and junction tables are used; historical assessments are never overwritten; rationale and review tasks are supported. |
+| CTL-001 | CTL | Statement of Applicability must be created per framework version and ISMS scope with applicability assessment. | CRUD is available and all framework controls with applicability status are listed. |
+| INC-001 | INC | Incident assessment must calculate and track notification deadlines. | Assessments create deadlines automatically and notify about upcoming due dates. |
 
-### AUTHZ-001: Granulare administrative Autorisierung
-| Feld | Wert |
-|------|------|
-| **ID** | AUTHZ-001 |
-| **Priorität** | P0 |
-| **Kategorie** | IAM |
-| **Status** | Implementiert in Phase 1 |
-| **Beschreibung** | Administrative Zugriffe müssen über granulare Berechtigungen statt impliziter Rollennamen geschützt werden. |
-| **Akzeptanzkriterium** | 1. `administration.access` ist als Permission modelliert. 2. Direkte und gruppenbasierte Rollen werden berücksichtigt. 3. Abgelaufene Rollen sind unwirksam. 4. Tests decken Admin- und Group-Role-Verhalten ab. |
+### P2 — Medium
 
-### AUTHZ-002: Granulare scoped Entity-Autorisierung
-| Feld | Wert |
-|------|------|
-| **ID** | AUTHZ-002 |
-| **Priorität** | P0 |
-| **Kategorie** | IAM |
-| **Status** | Implementiert in Phase 1 |
-| **Beschreibung** | Assets, Risiken, Controls, Incidents und bestehende ISMS-Module müssen explizite granulare Permissions und optionale Scope-Grenzen über Legal Entity, Organization Unit, ISMS Scope und Site verwenden. |
-| **Akzeptanzkriterium** | 1. Permission-Katalog enthält die Phase-1-Mindestpermissions. 2. `AuthorizationService` bietet `can`, `canForEntity`, `buildReadFilter`, `require` und `requireForEntity`. 3. Listen/Suchen filtern Zeilen und Counts mit demselben Authz-Filter. 4. Create/Detail/Write außerhalb Scope ergibt konsistent 403. 5. Tests decken die 12 geforderten Szenarien ab. |
+| ID | Category | Description | Acceptance criterion |
+|---|---|---|---|
+| AST-003 | AST | Asset lifecycle changes must be recorded; disposal needs destruction evidence. | Lifecycle logs are automatic and disposal requires evidence. |
+| AST-004 | AST | Assets need personnel-safety, regulatory, financial-damage, and production-downtime dimensions. | Required fields exist in the Asset model. |
+| AST-005 | AST | Frontend must visualize asset dependency graphs. | Graph APIs return node/edge data and the frontend renders an interactive graph. |
+| AST-006 | AST | Impact analysis must calculate cascading effects of asset failure through graph traversal. | Impact API returns affected assets, processes, and services with configurable depth. |
+| RSK-003 | RSK | RiskTreatment must support avoid, reduce, transfer, and accept. | Acceptance needs justification/expiry and expired acceptances appear in the dashboard. |
+| UX-001 | UX | Frontend supports German and English with persistent user preference. | Both locale files, a language selector, and preference persistence exist. |
+| UX-002 | UX | Frontend supports persistent dark and light modes. | A UI toggle, CSS variables, and preference persistence exist. |
 
-### IAM-001: Administrationsschutz
-| Feld | Wert |
-|------|------|
-| **ID** | IAM-001 |
-| **Priorität** | P0 |
-| **Kategorie** | IAM |
-| **Beschreibung** | Alle Admin-Routen (`/api/v1/admin/*`) müssen prüfen, dass der Benutzer eine Rolle mit `canAccessAdmin = true` besitzt. Die aktuelle Implementierung prüft nur den Legacy-Rollennamen `system_admin`. |
-| **Akzeptanzkriterium** | 1. Middleware lädt Rollen aus DB und prüft `canAccessAdmin`-Flag dynamisch. 2. Kein Benutzer ohne entsprechende Rolle kann Admin-API aufrufen (403). 3. Test: Nicht-Admin erhält 403 auf `/admin/users`. |
+### P3 — Low
 
-### IAM-002: Entity-Level Authorization
-| Feld | Wert |
-|------|------|
-| **ID** | IAM-002 |
-| **Priorität** | P0 |
-| **Kategorie** | IAM |
-| **Beschreibung** | CRUD-Operationen auf Assets, Risiken, Controls und Incidents müssen die `entityPermissions` der Benutzerrolle prüfen (none/readonly/readwrite). Aktuell gibt es keine entity-level Prüfung. |
-| **Akzeptanzkriterium** | 1. Middleware prüft `entityPermissions` aus UserRole vor jedem CRUD. 2. Readonly-Benutzer erhalten 403 bei POST/PUT/DELETE. 3. None-Benutzer erhalten 403 auf alle Operationen. |
+| ID | Category | Description | Acceptance criterion |
+|---|---|---|---|
+| OPS-001 | OPS | Synchronize Intune devices and apps with local assets. | Configurable intervals, retry handling, and dashboard status are available. |
+| OPS-002 | OPS | Import vCenter VMs into the asset database with credential management. | Servers are configurable; import supports dry-run and duplicate matching. |
+| OPS-003 | OPS | Import Proxmox VE VMs/containers through API-token authentication. | Servers, VM/container import, and encrypted credentials are available. |
+| OPS-004 | OPS | Detailed health checks cover database connectivity, background jobs, and sync health. | `/health` checks DB connectivity and `/health/detailed` returns service status. |
 
-### IAM-003: Routenreihenfolge und Konfliktfreiheit
-| Feld | Wert |
-|------|------|
-| **ID** | IAM-003 |
-| **Priorität** | P0 |
-| **Kategorie** | IAM |
-| **Beschreibung** | Express-Routen müssen in korrekter Reihenfolge registriert sein, sodass spezifische Routen vor generischen gematcht werden. Aktuell besteht Risiko von Route-Shadowing (z.B. `/admin/vmware` vs. `/admin/users/:id`). |
-| **Akzeptanzkriterium** | 1. Alle statischen Routen werden vor parametrisierten registriert. 2. Kein Route-Shadowing zwischen Admin-Sub-Routern. 3. Integrationstest deckt alle Routen ab. |
+## Phase 0–5 Technical Consolidation and Hardening Work Packages
 
-### SEC-001: JWT-Härtung
-| Feld | Wert |
-|------|------|
-| **ID** | SEC-001 |
-| **Priorität** | P0 |
-| **Kategorie** | SEC |
-| **Beschreibung** | JWT-Secret muss aus Umgebungsvariable kommen – kein Fallback auf Hardcoded-Standard. Aktuell: `'secret'` in [`auth.ts`](backend/src/middleware/auth.ts:23) und `'your-super-secret-jwt-key-change-in-production'` in [`auth.service.ts`](backend/src/services/auth.service.ts:282). Algorithmus muss explizit `HS256` sein. |
-| **Akzeptanzkriterium** | 1. Anwendung startet mit Fehler, wenn `JWT_SECRET` nicht gesetzt ist. 2. Algorithmus explizit auf `['HS256']` beschränkt. 3. Token-Lifetime ≤ 1 Stunde. |
-
-### SEC-002: OIDC – State, Nonce und PKCE
-| Feld | Wert |
-|------|------|
-| **ID** | SEC-002 |
-| **Priorität** | P0 |
-| **Kategorie** | SEC |
-| **Beschreibung** | OIDC-Flow muss PKCE (Proof Key for Code Exchange) verwenden. State-Parameter muss beim Callback validiert werden. Nonce muss gegen ID-Token geprüft werden. Aktuell: Kein PKCE, State wird nicht validiert (`_state` in [`oidc.service.ts`](backend/src/services/oidc.service.ts:104)). |
-| **Akzeptanzkriterium** | 1. Authorization-Request enthält `code_challenge` und `code_challenge_methods=S256`. 2. Token-Exchange enthält `code_verifier`. 3. State wird serverseitig gespeichert und beim Callback validiert. 4. Nonce wird generiert, gespeichert und gegen ID-Token geprüft. |
-
-### SEC-003: CORS-Härtung
-| Feld | Wert |
-|------|------|
-| **ID** | SEC-003 |
-| **Priorität** | P0 |
-| **Kategorie** | SEC |
-| **Beschreibung** | CORS-Origin darf im Produktivbetrieb nicht `*` sein. Aktuell: `origin: process.env.CORS_ORIGIN || '*'` in [`index.ts`](backend/src/index.ts:38). |
-| **Akzeptanzkriterium** | 1. `CORS_ORIGIN` muss gesetzt sein – kein Wildcard-Fallback in Production. 2. Origin-Validierung im Request-Handler. |
-
-### SEC-004: Passwort-Policy
-| Feld | Wert |
-|------|------|
-| **ID** | SEC-004 |
-| **Priorität** | P0 |
-| **Kategorie** | SEC |
-| **Beschreibung** | Registrierung und Passwortänderung müssen Mindestanforderungen durchsetzen: Länge ≥ 12, Komplexität (Groß-, Kleinbuchstaben, Ziffern, Sonderzeichen). bcrypt-Round muss ≥ 10 sein. |
-| **Akzeptanzkriterium** | 1. Schwache Passwörter werden abgewiesen mit klarem Fehler. 2. bcrypt-Rounds konfigurierbar, Default ≥ 10. 3. Passwort wird nie im Klartext geloggt oder zurückgegeben. |
-
-### SEC-005: Zentrales Auditlog
-| Feld | Wert |
-|------|------|
-| **ID** | SEC-005 |
-| **Priorität** | P0 |
-| **Kategorie** | AUD |
-| **Beschreibung** | Alle signifikanten Aktionen (Auth, CRUD auf Admin-Ressourcen, Konfigurationsänderungen) müssen in der `AuditLog`-Tabelle protokolliert werden. Aktuell: Auditlog-Routen sind Stubs ([`auditLog.routes.ts`](backend/src/routes/auditLog.routes.ts:6)). |
-| **Akzeptanzkriterium** | 1. Middleware oder Service-Hook schreibt automatisch Audit-Einträge für alle Admin-Operationen. 2. Einträge enthalten actorId, action, objectId, objectType, timestamp, oldValue, newValue. 3. Auditlog ist schreibgeschützt (kein DELETE). |
-
-### SEC-006: Registrierungsschutz
-| Feld | Wert |
-|------|------|
-| **Priorität** | P0 |
-| **Kategorie** | SEC |
-| **ID** | SEC-006 |
-| **Beschreibung** | Öffentliche Registrierung muss standardmäßig deaktiviert sein. Selbstregistrierung darf nur explizit per Konfiguration zugelassen werden; der Setup-Flow darf ausschließlich den ersten Admin erstellen. Rate-Limiting muss relevante Auth-Endpunkte schützen. |
-| **Akzeptanzkriterium** | 1. `POST /auth/register` ist ohne `ALLOW_SELF_REGISTRATION=true` blockiert. 2. `POST /auth/create-first-admin` bleibt nur zulässig, solange noch kein Admin existiert. 3. Rate-Limiter schützt `/auth/login`, `/auth/register`, `/auth/create-first-admin`, `/auth/oidc/authorize` und `/auth/oidc/callback` mit konfigurierbaren Limits pro IP. |
-
----
-
-## P1 – Hoch
-
-### IAM-004: Display-ID Generierung
-| Feld | Wert |
-|------|------|
-| **ID** | IAM-004 |
-| **Priorität** | P1 |
-| **Kategorie** | IAM |
-| **Beschreibung** | Alle entitätsbasierten Modelle müssen sequenzielle, vorhersagbare Display-IDs erhalten (z.B. `USR-0001`, `AST-0001`, `RSK-0001`). Aktuell: `Date.now()`-basierte IDs in [`auth.service.ts`](backend/src/services/auth.service.ts:217). |
-| **Akzeptanzkriterium** | 1. Display-IDs folgen Muster `{Prefix}-{4-stellige Sequenz}`. 2. Sequenz ist pro Entitätstyp eindeutig und lückenlos. |
-
-### AST-001: Asset-Verantwortliche Bestätigung
-| Feld | Wert |
-|------|------|
-| **ID** | AST-001 |
-| **Priorität** | P1 |
-| **Kategorie** | AST |
-| **Beschreibung** | Technische Betreiber, Business Owner und IS-Sicherheitsverantwortliche müssen ihre Zuordnung bestätigen können. Statusfeld `responsibilityConfirmed` pro Rolle. |
-| **Akzeptanzkriterium** | 1. API-Endpoint `/assets/:id/confirm-responsibility` existiert. 2. Bestätigung wird auditgeloggt. 3. Unbestätigte Zuordnungen werden im Dashboard angezeigt. |
-
-### AST-002: Vollständige Asset-Felder
-| Feld | Wert |
-|------|------|
-| **ID** | AST-002 |
-| **Priorität** | P1 |
-| **Kategorie** | AST |
-| **Beschreibung** | Asset-Modell muss alle ISO 27001-fordernden Felder abdecken: Vertrags-/Lizenzbezug, Vulnerability/Incident-Relationen, Dokumentenlinks. |
-| **Akzeptanzkriterium** | 1. Asset hat Relationen zu Contract, License, Vulnerability, Incident, Document. 2. Alle Felder aus AST-002 in plan.md sind implementiert. |
-
-### RSK-001: Prozessbasierte Risikobewertung
-| Feld | Wert |
-|------|------|
-| **ID** | RSK-001 |
-| **Priorität** | P1 |
-| **Kategorie** | RSK |
-| **Beschreibung** | Risiken müssen sowohl asset-basiert als auch prozess-/szenario-basiert erstellt werden können. BusinessProcess-Modell mit korrekten Relationen. |
-| **Akzeptanzkriterium** | 1. BusinessProcess-Modell existiert mit FK-Relation zu Risk. 2. Risiko kann ohne Asset-Zuordnung erstellt werden (prozessbasiert). |
-
-### RSK-002: Aggregierte Risikoverteilungen
-| Feld | Wert |
-|------|------|
-| **ID** | RSK-002 |
-| **Priorität** | P1 |
-| **Kategorie** | RSK |
-| **Beschreibung** | API-Endpunkte für aggregierte Risikoansichten nach Location, Organisationseinheit, Prozess, Asset-Typ und ISMS-Umfang. |
-| **Akzeptanzkriterium** | 1. `GET /risks/aggregation?by=orgUnit` returns gruppierte Statistiken. 2. Supported dimensions: orgUnit, site, process, assetType, ismsScope. |
-
-### RSK-003: Risiko-Behandlung und Risiko-Akzeptanz
-| Feld | Wert |
-|------|------|
-| **ID** | RSK-003 |
-| **Priorität** | P1 |
-| **Kategorie** | RSK |
-| **Beschreibung** | Risikoakzeptanz darf nicht als direkter Statuswechsel erfolgen, sondern muss über einen formalen RiskTreatment/RiskAcceptance-Workflow mit Referenz auf eine konkrete RiskAssessment-Version, Pflichtfeldern, rollenabhängiger Genehmigung und Auditierung laufen. Mitigation-Behandlungen benötigen vor Abschluss eine Wirksamkeitsprüfung und ein neues oder bestätigtes Ziel-/Restrisiko-Assessment. |
-| **Akzeptanzkriterium** | 1. Kein direkter `/risks/:id/accept`-Bypass existiert. 2. Acceptance verlangt Assessment-Version, Begründung, Ablaufdatum und Genehmiger. 3. Low/medium kann Risk Owner genehmigen; high/critical benötigt unabhängige Management-Freigabe. 4. Approver darf bei high/critical nicht identisch mit Assessor sein. 5. Mitigation kann ohne Effectiveness Review nicht abgeschlossen werden. 6. Abschluss erzeugt oder referenziert ein neues Ziel-/Restrisiko-Assessment ohne historische Assessments zu überschreiben. 7. Alle Aktionen werden auditiert und durch Entity-/Admin-Berechtigungen geschützt. |
-
-### RSK-005: Relationale Risikobewertung und Bewertungshistorie
-| Feld | Wert |
-|------|------|
-| **ID** | RSK-005 |
-| **Priorität** | P1 |
-| **Kategorie** | RSK |
-| **Beschreibung** | Risikobewertungen müssen relational und versioniert abgebildet werden. Szenario, Bedrohung, Schwachstelle, Ursache und Auswirkung dürfen nicht als fachliche JSON-/Stringlisten modelliert werden, wenn Relationen möglich sind. |
-| **Akzeptanzkriterium** | 1. Risiko kann mit Scenario, Threat, Vulnerability, Cause und Impact relational erstellt werden. 2. Asset-/Process-/Service-Bezüge werden über Junction Tables gespeichert. 3. Inhärentes, aktuelles und Zielrisiko werden über `RiskAssessment.assessmentType` unterstützt und historisiert. 4. Jede Bewertung erfordert eine Begründung. 5. Neue Bewertung überschreibt historische Bewertungen nicht. 6. Außerplanmäßiges Ereignis erzeugt konkrete ReviewTask. |
-
-### CTL-001: Statement of Applicability
-| Feld | Wert |
-|------|------|
-| **ID** | CTL-001 |
-| **Priorität** | P1 |
-| **Kategorie** | CTL |
-| **Beschreibung** | SoA muss pro Framework-Version und ISMS-Umfang erstellbar sein mit Kontroll-Applicability-Bewertung. |
-| **Akzeptanzkriterium** | 1. StatementOfApplicability-Modell existiert (ist vorhanden). 2. API-CRUD für SoA. 3. SoA listet alle Controls des Frameworks mit Applicability-Status. |
-
-### INC-001: Incident-Bewertung und Meldefristen
-| Feld | Wert |
-|------|------|
-| **ID** | INC-001 |
-| **Priorität** | P1 |
-| **Kategorie** | INC |
-| **Beschreibung** | Incident-Assessment-Workflow mit automatischer Berechnung von Meldefristen (72h für DSGB, etc.). NotificationDeadline-Tracking. |
-| **Akzeptanzkriterium** | 1. IncidentAssessment kann pro Incident erstellt werden. 2. NotificationDeadlines werden automatisch berechnet. 3. Benachrichtigung bei anstehenden Fristen. |
-
----
-
-## P2 – Mittel
-
-### AST-003: Asset-Lebenszyklus-Protokollierung
-| Feld | Wert |
-|------|------|
-| **ID** | AST-003 |
-| **Priorität** | P2 |
-| **Kategorie** | AST |
-| **Beschreibung** | Alle Statuswechsel im Asset-Lebenszyklus müssen in `AssetLifecycleLog` protokolliert werden. Bei Disposal: Datenvernichtungs-Nachweis (`disposalEvidence`). |
-| **Akzeptanzkriterium** | 1. Lifecycle-Logs werden automatisch bei Statusänderung erstellt. 2. Disposal-Status erfordert `disposalEvidence`. |
-
-### AST-004: Erweiterte Bewertungsdimensionen
-| Feld | Wert |
-|------|------|
-| **ID** | AST-004 |
-| **Priorität** | P2 |
-| **Kategorie** | AST |
-| **Beschreibung** | Asset muss erweiterte Bewertungsdimensionen unterstützen: Personensicherheit, regulatorische Relevanz, finanzieller Schaden, Produktionsausfall. |
-| **Akzeptanzkriterium** | 1. Felder `personnelSafetyRelevance`, `regulatoryRelevance`, `financialDamagePotential`, `productionDowntimeImpact` existieren in Asset-Modell. |
-
-### AST-005: Graphvisualisierung (AST-011)
-| Feld | Wert |
-|------|------|
-| **ID** | AST-005 |
-| **Priorität** | P2 |
-| **Kategorie** | AST |
-| **Beschreibung** | Frontend-Komponente zur Visualisierung des Asset-Abhängigkeitsgraphen. Backend-API liefert Knoten/Kanten-Datenstruktur. |
-| **Akzeptanzkriterium** | 1. `GET /assets/graph` und `GET /assets/:id/graph` liefern Graph-Daten. 2. Frontend-Komponente rendert interaktiven Graphen. |
-
-### AST-006: Impact Analysis (AST-012)
-| Feld | Wert |
-|------|------|
-| **ID** | AST-006 |
-| **Priorität** | P2 |
-| **Kategorie** | AST |
-| **Beschreibung** | Berechnung der Auswirkungskaskade bei Asset-Ausfall. BFS/DFS-Traversierung des Abhängigkeitsgraphen. |
-| **Akzeptanzkriterium** | 1. `GET /assets/:id/impact-analysis` liefert betroffene Assets, Prozesse und Services. 2. Konfigurierbare Traversiertiefe. |
-
-### RSK-003: Risikobehandlungspläne
-| Feld | Wert |
-|------|------|
-| **ID** | RSK-003 |
-| **Priorität** | P2 |
-| **Kategorie** | RSK |
-| **Beschreibung** | RiskTreatment-Model mit Optionen (vermeiden, reduzieren, übertragen, akzeptieren). Akzeptanz erfordert Begründung und Ablaufdatum. |
-| **Akzeptanzkriterium** | 1. Treatment mit Option `accept` erfordert `justification` und `expiryDate`. 2. Abgelaufene Acceptances werden im Dashboard angezeigt. |
-
-### UX-001: Internationalisierung (i18n)
-| Feld | Wert |
-|------|------|
-| **ID** | UX-001 |
-| **Priorität** | P2 |
-| **Kategorie** | UX |
-| **Beschreibung** | Frontend unterstützt Mehrsprachigkeit (DE/EN). Benutzerpräferenz wird gespeichert und angewendet. |
-| **Akzeptanzkriterium** | 1. Locale-Dateien für DE und EN existieren. 2. Sprachumschaltung im UI. 3. Präferenz persistiert in User-Profil. |
-
-### UX-002: Dark Mode
-| Feld | Wert |
-|------|------|
-| **ID** | UX-002 |
-| **Priorität** | P2 |
-| **Kategorie** | UX |
-| **Beschreibung** | Frontend unterstützt Dark/Light-Mode. Präferenz wird gespeichert und angewendet. |
-| **Akzeptanzkriterium** | 1. Toggle im UI. 2. CSS-Variablen für beide Modi. 3. Präferenz persistiert. |
-
----
-
-## P3 – Niedrig
-
-### OPS-001: Intune-Integration
-| Feld | Wert |
-|------|------|
-| **ID** | OPS-001 |
-| **Priorität** | P3 |
-| **Kategorie** | OPS |
-| **Beschreibung** | Automatische Synchronisation von Intune-Geräten und -Apps mit lokalen Asset-Datensätzen. |
-| **Akzeptanzkriterium** | 1. Konfigurierbare Sync-Intervalle. 2. Fehlerbehandlung mit Retry-Logik. 3. Sync-Status im Admin-Dashboard. |
-
-### OPS-002: VMware vCenter-Integration
-| Feld | Wert |
-|------|------|
-| **ID** | OPS-002 |
-| **Priorität** | P3 |
-| **Kategorie** | OPS |
-| **Beschreibung** | Import von VMs aus vCenter in Asset-Datenbank. Credential-Management für vCenter-Server. |
-| **Akzeptanzkriterium** | 1. vCenter-Server können konfiguriert werden. 2. VM-Import mit Dry-Run-Option. 3. Doppelte Erkennung und Matching. |
-
-### OPS-003: Proxmox-Integration
-| Feld | Wert |
-|------|------|
-| **ID** | OPS-003 |
-| **Priorität** | P3 |
-| **Kategorie** | OPS |
-| **Beschreibung** | Import von VMs/Containern aus Proxmox VE. API-Token-basierte Authentifizierung. |
-| **Akzeptanzkriterium** | 1. Proxmox-Server können konfiguriert werden. 2. VM und Container Import. 3. Credential-Speicherung verschlüsselt. |
-
-### OPS-004: Health Check und Monitoring
-| Feld | Wert |
-|------|------|
-| **ID** | OPS-004 |
-| **Priorität** | P3 |
-| **Kategorie** | OPS |
-| **Beschreibung** | Erweiterte Health-Check-Endpunkte mit DB-Konnektivität, Background-Job-Status und Sync-Gesundheit. |
-| **Akzeptanzkriterium** | 1. `/health` prüft DB-Konnektivität. 2. `/health/detailed` liefert Service-Status. |
-
----
-
-### RSK-004: Versionierte Risikomethoden und Assessment-Historisierung (Paket 3.1)
-| Feld | Wert |
-|------|------|
-| **ID** | RSK-004 |
-| **Priorität** | P1 |
-| **Kategorie** | RSK |
-| **Beschreibung** | Risikomethoden müssen unveränderlich versioniert werden. Jede Risikobewertung (RiskAssessment) muss an eine konkrete Methodenversion (RiskMethodVersion) gebunden sein. Änderungen an einer Methode erzeugen eine neue Version, bestehende Bewertungen bleiben unverändert. Neuberechnungen erzeugen neue Assessment-Versionen statt historische Daten zu überschreiben. |
-| **Akzeptanzkriterium** | 1. RiskMethodVersion-Modell mit immutablen Snapshots. 2. RiskAssessment referenziert riskMethodVersionId. 3. Berechnungstypen (product, sum, max, matrix) ohne eval/Function. 4. RecalculatePreview persistiert keine Daten. 5. ConfirmedRecalculation erzeugt neue Assessment-Version. 6. Historische Assessments bleiben nach Methodenversion-Wechsel unverändert. |
-
-## Zusammenfassung
-
-| Priorität | Anzahl | IDs |
-|-----------|--------|-----|
-| P0 | 6 | IAM-001, IAM-002, IAM-003, SEC-001, SEC-002, SEC-003, SEC-004, SEC-005, SEC-006 |
-| P1 | 8 | IAM-004, AST-001, AST-002, RSK-001, RSK-002, RSK-004, CTL-001, INC-001 |
-| P2 | 6 | AST-003, AST-004, AST-005, AST-006, RSK-003, UX-001, UX-002 |
-| P3 | 4 | OPS-001, OPS-002, OPS-003, OPS-004 |
-
-**Gesamt:** 24 Anforderungen
-
----
-
-## Phase 8 – API Reife, Betrieb und CI/CD-Gates
-
-| ID | Priorität | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| API-004 | P0 | API | OpenAPI-Spezifikation muss alle Endpunkte dokumentieren mit request/response schemas, error codes und auth requirements. | `docs/api/openapi.yaml` enthält alle Phase 8 Endpoints; `openapi-cli` generiert client/server stubs ohne Fehler. |
-| API-005 | P0 | API | Pagination muss configurable pageLimit haben (default 100, max 1000) mit cursor/basiertem Offset. | Alle list-endpoints unterstützen `?limit=&offset=`; `res.paginateResponse()` setzt korrekte Link-Headers für pagination. |
-| API-006 | P0 | API | Sortierung muss über `?sort=field:direction` unterstützt werden mit Whitelist-Validierung gegen Schema-Felder. | `parseSort()` validiert Feldnamen; nur whiteliste Felder sind erlaubt; direction default 'asc'. |
-| API-007 | P1 | API | Bulk-Endpunkte müssen atomare Operationen für mehrere Ressourcen mit detaillierten Fehlermeldungen pro Item unterstützen. | `POST /assets/bulk` akzeptiert Array von Operationen; Ergebnis enthält success/error pro Item; max 100 Items/Batch. |
-| API-008 | P1 | API | Idempotency Keys müssen POST/PUT/PATCH Requests durch key-basierte Caching vor Duplikaten schützen (TTL 24h). | `X-Idempotency-Key` Header wird validiert; gleiche Key + Body = gespeicherte Antwort; unterschiedliche Body = 409 Conflict. |
-| API-009 | P1 | SEC | ETags und optimistisches Locking müssen Resource-Versionierung mit `If-Match`/`If-None-Match` Headern unterstützen. | GET setzt `ETag` Header; PUT mit `If-Match` prüft version; mismatch = 412 Precondition Failed. |
-| API-010 | P1 | SEC | Webhooks müssen CRUD-endpoints mit HMAC-SHA256 signature, retry logic und delivery audit haben. | Webhook endpoints erstellen/leschen/testen; `X-Webhook-Signature` Header für payload verification; 5 fehlgeschlagene retries = disabled. |
-| API-011 | P1 | SEC | Service Accounts müssen token-basierten API-Zugriff mit scope-based access control und rotation support ermöglichen. | POST `/service-accounts` erzeugt accessToken; scopes begrenzen endpoint access; `POST /:id/regenerate-token` invalidiert alten token. |
-| API-012 | P0 | SEC | API-Scopes müssen feingranulare Berechtigungen pro endpoint group mit audit trail implementieren. | `requireScopes('assets:read', 'assets:write')` validiert scope; scope violations werden in `ScopeAuditLog` protokolliert. |
-| OPS-005 | P0 | OPS | Strukturierte JSON-Logs müssen alle sensiblen Daten redigieren (passwords, tokens, secrets) vor dem Schreiben. | `redactSensitiveData()` entfernt/maskiert password, token, secret, key, authorization Felder; jsonLogger schreibt strukturiertes JSON. |
-| OPS-006 | P0 | OPS | Correlation IDs müssen jeden Request über den gesamten Stack begleiten für request-tracing. | `correlationId()` generiert UUID pro Request; `X-Correlation-ID` Header wird gesetzt/gelesen; jeder Log-Eintrag enthält correlationId. |
-| OPS-007 | P0 | OPS | Health Checks müssen liveness (/health/live) und readiness (/health/ready) Probes für Kubernetes unterstützen. | `/health/live` prüft Prozess-alive; `/health/ready` prüft DB-Konnektivität + alle registered checks; Prometheus-metriken unter `/metrics`. |
-| OPS-008 | P1 | OPS | Graceful Shutdown muss aktive Requests abschließen, DB-Pool schließen und Signale (SIGTERM/SIGINT) korrekt handhaben. | `gracefulShutdown()` stoppt express server nach idleTimeout; schließt prisma `$disconnect`; SIGTERM/SIGINT triggern shutdown automatisch. |
-| OPS-009 | P1 | OPS | Datenbank-Backup und Restore müssen pg_dump/pg_restore basierte Procedures dokumentiert und getestet sein. | Backup enthält schema + data; restore validiert foreign keys; RTO ≤ 4h, RPO ≤ 24h; Disaster Recovery Runbook existiert. |
-| OPS-010 | P1 | SEC | Secret Rotation muss JWT_SECRET, database credentials und service account tokens ohne downtime rotieren. | Dual-auth phase supported during rotation; `POST /admin/secrets/rotate` triggert rotation; alte tokens bleiben bis expiry gültig. |
-| OPS-011 | P1 | SEC | Container Hardening muss non-root user, read-only filesystem und minimal base image enforce. | Dockerfile nutzt `node:<version>-alpine` + `USER node`; filesystem readonly mit tmpfs für uploads; no sudo/root in container. |
-| OPS-012 | P1 | OPS | Environment Separation muss dev/staging/prod Konfiguration über Umgebungsvariablen mit validation enforce. | `.env.example` dokumentiert alle required vars; `zod`-validation beim startup; missing required var = exit with error. |
-| UI-801 | P1 | UX | EntityPicker-Komponente muss such-/paginierbare Multi-Auswahl für User, Assets, Organisationen, Lieferanten, Risiken, Controls und Business Processes bieten. | Komponente unterstützt Debounce-Suche, virtuelle Paginierung, Mehrfachauswahl mit Labels; verwendet `/users/search`, `/assets`, `/organization/units`, `/isms-operations/suppliers`, `/risks`, `/controls`, `/processes` Endpunkte. |
-| UI-802 | P1 | UX | Raw UUID-Eingabefelder in ISMSPhase6 müssen durch EntityPicker-Komponente ersetzt werden (Owner ID, Auditor IDs, Business Process IDs, Resource IDs, Dependencies). | ownerId, chairId, auditorIds, businessProcesses, resources, dependencies verwenden EntityPicker statt manueller Texteingabe; Werte werden als ID-Arrays an API serialisiert. |
-| UI-803 | P1 | UX | Security Requirements müssen strukturierte UI mit Kategorie-/Beschreibungs-/Status-Feldern statt JSON-Textarea ersetzen. | Formular rendert pro Requirement Kategorie-Select, Beschreibung und Status; Daten werden als Array von Objekten an API gesendet. |
-| UI-804 | P1 | UX | Risk-Detail-Seite muss 7 Tabs haben: Overview, Assessment, Controls, Treatment, Evidence, History, Audit. | Route `/risks/:riskId` rendert RiskDetail mit Tab-Navigation; default Tab ist 'overview'; alle 7 Tabs sind klickbar und rendern Inhalt. |
-| UI-805 | P2 | UX | Alle neuen UI-Texte müssen i18n-Einträge in en.json und de.json haben (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs). | `t('entityPicker.search')`, `t('riskDetail.tabs.overview')` etc. funktionieren in beiden Sprachen; neue Einträge werden beim Übersetzen nicht überschrieben. |
-| CI-001 | P0 | CI/CD | CI-Pipeline muss folgende gates haben: build, lint, prisma validation, unit tests, integration tests, frontend tests, SAST, dependency scan, secret scan, SBOM, container scan. | `.github/workflows/ci.yml` enthält alle 12 jobs; path filtering für relevante changes; failure = PR blocked. |
-| CI-002 | P0 | CI/CD | Release-Gates müssen checklist-driven sein mit mandatory code review, test coverage ≥ 80%, security scan pass und changelog entry. | Release workflow prüft: 15+ checks bestanden; 2x approver required; semver tag自动生成; artifacts uploaded zu GitHub Releases. |
-
-### Legende Phase 8 Prioritäten
-
-| Feld | Beschreibung |
-|------|-------------|
-| **ID** | Eindeutige Anforderungs-ID (Kategorie-Nummer) |
-| **Priorität** | P0 = sicherheitskritisch, P1 = hoch |
-| **Kategorie** | API = API-Funktionalität, SEC = Sicherheit, OPS = Betrieb, CI/CD = Continuous Integration/Delivery |
-
----
-
-## Phase 0-5 Technical Consolidation and Hardening Work Packages
-
-These requirements define the ordered consolidation work. They are planning and traceability requirements only; Phase 0 does not claim functional implementation for later phases.
+These requirements define ordered consolidation work. They are planning and traceability requirements only; Phase 0 does not claim functional implementation for later phases.
 
 | ID | Phase | Priority | Category | Description | Acceptance criterion |
-|----|-------|----------|----------|-------------|----------------------|
-| AUTHZ-001 | 1 | P0 | Authorization | Consolidate route-level authorization so administrative APIs depend on role capability flags and not legacy role-name checks. | Admin-only requests are denied with 403 unless an active role grants the required administrative capability; automated tests cover allow and deny paths. |
-| AUTHZ-002 | 1 | P0 | Authorization | Consolidate entity-level permissions for assets, risks, controls and incidents. | Read, write and delete actions use one shared permission decision path with tests for none, readonly and readwrite roles. |
-| AUTHN-001 | 2 | P0 | Authentication | Harden local authentication bootstrap, self-registration and auth endpoint rate limiting. | Self-registration is disabled by default, first-admin creation is single-use, and login/register/bootstrap endpoints are rate limited. |
-| AUTHN-002 | 3 | P0 | Authentication | Add MFA and password pre-authentication hardening for local authentication before privileged access. | Local login returns explicit auth states, uses five-minute purpose-bound pre-auth tokens for MFA/password gates, rejects pre-auth tokens from normal APIs, supports MFA enrollment/verification and expired-password change before session issuance, and audits admin MFA reset/re-enrollment. |
-| OIDC-001 | 2 | P0 | OIDC | Harden OIDC state, nonce, PKCE, ID-token validation and account linking. | Authorization requests use PKCE S256 with random backend-generated state and nonce; state is stored only as a hash with TTL and single use; `openid-client` validates ID tokens and callback state/nonce/verifier; tenant mismatch is rejected; existing local accounts are not linked by email alone; client secrets resolve from environment/secret references. |
-| AUD-001 | 4 | P0 | Audit | Consolidate audit logging for security-relevant authentication, authorization, admin and configuration events. | Audit entries include actor, action, object type/id, timestamp and before/after values where applicable; audit records are append-only through the API. |
-| DTO-001 | 4 | P1 | DTO/API | Consolidate shared DTO and validation contracts across backend and frontend boundaries. | Request and response schemas are defined in the shared package or documented exceptions; backend validation rejects invalid payloads consistently. |
-| UI-001 | 5 | P1 | UI | Align frontend security-sensitive flows with consolidated auth/authz/DTO behavior without adding new product modules. | UI handles 401/403/429/validation errors consistently and does not expose controls for operations the current user cannot perform. |
-| OPS-013 | 0 | P0 | Operations | Establish reproducible technical baseline documentation before functional refactoring. | Baseline document records commit, date, build/test/lint/Prisma/CI status, counts, warnings and known errors from repository commands. |
-| OPS-014 | 5 | P1 | Operations | Stop after Phase 5 for explicit verification and decision gate before later ISMS module work. | Implementation log and refactoring plan include a mandatory stop after Phase 5 with no Phase 6+ implementation in this consolidation track. |
-| | API-501 | 5 | P1 | API consistency | Preserve Risk `description` and `possibleImpact` as distinct fields from frontend form through backend validation/service/database and read response. | POSTing a Risk with `description = Ransomware auf ERP` and `possibleImpact = Produktionsstillstand für drei Tage`, then reading it back, returns both values unchanged. |
-| | API-502 | 5 | P1 | API consistency | Static API routes must be registered before overlapping `/:id` routes so literal segments cannot be shadowed by parameter handlers. | Focused route collision tests cover audit export and comparable static routes found during Phase 5 inspection. |
-| | UI-501 | 5 | P1 | UI/API integration | The Risk organization-unit picker must call a real organization-unit endpoint instead of user search. | Risk form organization-unit selection uses `/api/v1/organization/units` and does not reuse `/users` or `/admin/users` search behavior. |
-| CI-003 | 0 | P0 | CI/CD | Document CI/CD workflow baseline and verification gaps before changing gates. | Existing workflow jobs and known configuration issues are recorded; missing or failing scripts are documented rather than replaced in Phase 0. |
-### AUTHN-003: Refresh-token session management
-| Feld | Wert |
-|---|---|
-| **ID** | AUTHN-003 |
-| **Phase** | 2 |
-| **Priorität** | P0 |
-| **Kategorie** | Authentication |
-| **Beschreibung** | Browser sessions must use short-lived access JWTs and rotating, database-backed refresh tokens in HttpOnly cookies. Refresh-token plaintext must never be stored server-side. |
-| **Akzeptanzkriterium** | Login creates a session, refresh works with expired access tokens via cookie only, refresh tokens rotate, reuse revokes the family and is audited, logout revokes current refresh token, disabled users cannot refresh, frontend retries once with single-flight refresh. |
-| **Status** | Implemented in Phase 2. |
+|---|---|---|---|---|---|
+| AUTHZ-001 | 1 | P0 | Authorization | Consolidate route-level authorization so administrative APIs depend on role capability flags rather than legacy role-name checks. | Admin-only requests are denied with 403 unless an active role grants the required capability; tests cover allow and deny paths. |
+| AUTHZ-002 | 1 | P0 | Authorization | Consolidate entity-level permissions for assets, risks, controls, and incidents. | Read, write, and delete use a shared decision path with tests for none, readonly, and readwrite roles. |
+| AUTHN-001 | 2 | P0 | Authentication | Harden local-authentication bootstrap, self-registration, and authentication-endpoint rate limiting. | Self-registration is disabled by default, first-admin creation is single-use, and relevant endpoints are rate-limited. |
+| AUTHN-002 | 3 | P0 | Authentication | Add MFA and password pre-authentication hardening before privileged local access. | Login uses explicit states and five-minute purpose-bound pre-auth tokens; MFA enrollment/verification and password-expiry change are supported; reset/re-enrollment is audited. |
+| AUTHN-003 | 2 | P0 | Authentication | Browser sessions must use short-lived access JWTs and rotating database-backed refresh tokens in HttpOnly cookies. Refresh-token plaintext must never be stored server-side. | Cookie-only refresh works after access-token expiry; tokens rotate; reuse revokes/audits the family; logout revokes; disabled users cannot refresh; frontend uses single-flight retry. |
+| OIDC-001 | 2 | P0 | OIDC | Harden OIDC state, nonce, PKCE, ID-token validation, and account linking. | PKCE S256, random backend state/nonce, hashed one-time state with TTL, strict validation, tenant mismatch rejection, and safe account linking are implemented. |
+| AUD-001 | 4 | P0 | Audit | Consolidate audit logging for security-relevant authentication, authorization, administrative, and configuration events. | Entries include actor, action, object type/ID, timestamp, and applicable before/after values; records are append-only through the API. |
+| DTO-001 | 4 | P1 | DTO/API | Consolidate shared DTO and validation contracts across backend/frontend boundaries. | Request/response schemas are shared or documented exceptions; backend validation consistently rejects invalid payloads. |
+| UI-001 | 5 | P1 | UI | Align security-sensitive frontend flows with consolidated authentication, authorization, and DTO behavior without adding modules. | The UI consistently handles 401/403/429/validation errors and hides unauthorized operations. |
+| OPS-013 | 0 | P0 | Operations | Establish reproducible technical-baseline documentation before functional refactoring. | Baseline records commit/date and build/test/lint/Prisma/CI status, counts, warnings, and known errors. |
+| OPS-014 | 5 | P1 | Operations | Stop after Phase 5 for explicit verification and decision before later ISMS-module work. | Plans include a mandatory Phase 5 stop and no Phase 6+ implementation in this consolidation track. |
+| API-501 | 5 | P1 | API consistency | Preserve Risk `description` and `possibleImpact` as separate fields through UI, validation, service, database, and read response. | Creating and reading a Risk returns both values unchanged. |
+| API-502 | 5 | P1 | API consistency | Static API routes must precede overlapping `/:id` routes. | Focused collision tests cover audit export and comparable static routes. |
+| UI-501 | 5 | P1 | UI/API integration | The Risk organization-unit picker must call an organization-unit endpoint rather than user search. | It uses `/api/v1/organization/units`, not `/users` or `/admin/users` search. |
+| CI-003 | 0 | P0 | CI/CD | Document CI/CD workflow baseline and verification gaps before changing gates. | Existing jobs and known issues are recorded; missing/failing scripts are documented rather than replaced in Phase 0. |
 
 ## Phase 6 DTO/API Contract Requirements
 
-- Target API resources MUST use shared DTO schemas as the primary request contract source for create/update operations where practical.
-- Asset, Risk, Control, ControlImplementation, RiskControl, RiskAssessment, and Incident POST/PATCH/PUT endpoints MUST have bounded Zod validation and MUST NOT use generic record-any schemas for fachliche CRUD payloads.
-- Frontend API client methods for touched target resources MUST use concrete shared DTO request types where practical.
-- Deprecated parallel risk-control/control mirror fields MUST be rejected in favor of RiskControl and EvidenceLink relationships.
-""  
-"## Phase 12 - CI/CD Release Gates"  
-""  
-<<<<<<< HEAD
-"| ID | Priorit�t | Kategorie | Beschreibung | Akzeptanzkriterium |"  
-"|----|-----------|-----------|--------------|--------------------|"  
-"| CI-001 | P0 | CI/CD | Die CI-Pipeline muss alle 13 obligatorischen Jobs enthalten: build, lint, prisma-validate, unit-tests, integration-tests, frontend-tests, sast (Semgrep SARIF), dependency-scan (npm audit blockiert bei High/Critical), secret-scan (gitleaks), sbom (CycloneDX), container-scan (Trivy), requirements-check, migration-test. | Alle Jobs sind in .github/workflows/ci.yml definiert; keiner wird mit || true neutralisiert. |"  
-"| CI-002 | P0 | CI/CD | Release Gates m�ssen checklistengesteuert sein: mandatory code review, test coverage >= 80%, security scan pass, changelog entry. Der release-gates Job muss von allen 13 Jobs abh�ngen und explizit pr�fen. | needs: Liste enth�lt alle 13 Jobs; Shell-Skript pr�ft jeden Job-Status. |"  
-"| CI-003 | P0 | SEC | Abh�ngigkeits-Scan (npm audit) darf nicht mit || true neutralisiert werden. High/Critical-Vulnerabilities m�ssen die Pipeline blockieren. Eine explizite Allowlist (docs/vulnerability-allowlist.json) ist erforderlich mit CVE, Begr�ndung, Owner und Ablaufdatum. | npm audit --production --audit-level=high ohne || true; scripts/check-vulnerabilities.ts pr�ft Allowlist. |"  
-"| CI-004 | P1 | SEC | Semgrep SAST muss SARIF-Ausgabe (--output-format=sarif) verwenden und via upload-sarif@v3 in GitHub Security Tab hochladen. JSON-Ausgabe ist nicht konform. | --output-format=sarif --output=semgrep-results.sarif; sarif_file: semgrep-results.sarif. |"  
-"| CI-005 | P1 | OPS | Migration Test Job: Leere PostgreSQL-Datenbank -> prisma migrate deploy -> Seed -> Integration Tests. Validiert Migrations-Pipeline in CI. | Job enth�lt prisma migrate deploy, db seed und Integrationstests gegen frisch migrierte DB. |"  
-"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgef�hrt. |"
+- Target API resources **must** use shared DTO schemas as the primary request-contract source for create/update operations where practical.
+- Asset, Risk, Control, ControlImplementation, RiskControl, RiskAssessment, and Incident POST/PATCH/PUT endpoints **must** use bounded Zod validation and must not use generic record-any schemas for domain CRUD payloads.
+- Frontend API-client methods for affected resources **must** use concrete shared DTO request types where practical.
+- Deprecated parallel risk-control/control mirror fields **must** be rejected in favour of RiskControl and EvidenceLink relationships.
 
-## Phase 14 – Code Quality and Architecture
+## Phase 12 — CI/CD Release Gates
 
-| ID | Priorit�t | Kategorie | Beschreibung | Akzeptanzkriterium |
-|----|-----------|-----------|--------------|--------------------|
-| CQ-1401 | P1 | OPS | Wiederholte Status-Farben und Fehlerextraktion m�ssen in Shared Helpers zentralisiert sein. | `frontend/src/utils/statusHelpers.ts` enth�lt `getRiskColor`, `getControlStatusColor`, `getStatusColor`, `getErrorMessage`. Alle verbrauchenden Komponenten importieren aus diesem Modul. |
-| CQ-1402 | P1 | OPS | TypeScript catch-Bl�cke d�rfen keinen impliziten `any` Typ verwenden. | Alle `catch (err: any)` durch `catch (err: unknown)` + typsichere Extraktion ersetzt. Keine neuen `any` in refactored Code. |
-| CQ-1403 | P1 | OPS | Große Komponenten m�ssen durch Extraktion von Hilfsfunktionen wartbarer sein. | Inline `getStatusColor`/`getRiskColor` Funktionen aus Risks.tsx und Controls.tsx entfernt. Duplikation reduziert. |
-=======
-"| ID | Priorit�t | Kategorie | Beschreibung | Akzeptanzkriterium |"  
-"|----|-----------|-----------|--------------|--------------------|"  
-"| CI-001 | P0 | CI/CD | Die CI-Pipeline muss alle 13 obligatorischen Jobs enthalten: build, lint, prisma-validate, unit-tests, integration-tests, frontend-tests, sast (Semgrep SARIF), dependency-scan (npm audit blockiert bei High/Critical), secret-scan (gitleaks), sbom (CycloneDX), container-scan (Trivy), requirements-check, migration-test. | Alle Jobs sind in .github/workflows/ci.yml definiert; keiner wird mit || true neutralisiert. |"  
-"| CI-002 | P0 | CI/CD | Release Gates m�ssen checklistengesteuert sein: mandatory code review, test coverage >= 80%, security scan pass, changelog entry. Der release-gates Job muss von allen 13 Jobs abh�ngen und explizit pr�fen. | needs: Liste enth�lt alle 13 Jobs; Shell-Skript pr�ft jeden Job-Status. |"  
-"| CI-003 | P0 | SEC | Abh�ngigkeits-Scan (npm audit) darf nicht mit || true neutralisiert werden. High/Critical-Vulnerabilities m�ssen die Pipeline blockieren. Eine explizite Allowlist (docs/vulnerability-allowlist.json) ist erforderlich mit CVE, Begr�ndung, Owner und Ablaufdatum. | npm audit --production --audit-level=high ohne || true; scripts/check-vulnerabilities.ts pr�ft Allowlist. |"  
-"| CI-004 | P1 | SEC | Semgrep SAST muss SARIF-Ausgabe (--output-format=sarif) verwenden und via upload-sarif@v3 in GitHub Security Tab hochladen. JSON-Ausgabe ist nicht konform. | --output-format=sarif --output=semgrep-results.sarif; sarif_file: semgrep-results.sarif. |"  
-"| CI-005 | P1 | OPS | Migration Test Job: Leere PostgreSQL-Datenbank -> prisma migrate deploy -> Seed -> Integration Tests. Validiert Migrations-Pipeline in CI. | Job enth�lt prisma migrate deploy, db seed und Integrationstests gegen frisch migrierte DB. |"  
-"| CI-006 | P1 | OPS | requirements-check Script (scripts/check-requirements.ts) muss validieren: keine P0/P1 missing/non_compliant; partial nur mit dokumentierter Ausnahme; Test-/Manual-Evidenzreferenzen vorhanden. | Exit 0 bei Bestanden, Exit 1 bei Fehlern; in CI als separater Job ausgef�hrt. |" 
->>>>>>> 7cef80f9eb1cfe39603ee21f89d90e481bf31373
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| CI-001 | P0 | CI/CD | The CI pipeline must include 13 mandatory jobs: build, lint, Prisma validation, unit tests, integration tests, frontend tests, Semgrep SARIF SAST, dependency scan, secret scan, SBOM, container scan, requirements check, and migration test. | All jobs are defined in `.github/workflows/ci.yml`; none is neutralized with `|| true`. |
+| CI-002 | P0 | CI/CD | Release gates must be checklist-driven with mandatory review, test coverage of at least 80%, passed security scan, and changelog entry. The release-gates job depends on all mandatory jobs. | The `needs` list contains all jobs and a script checks each job status. |
+| CI-003 | P0 | SEC | `npm audit` must not be neutralized. High/critical vulnerabilities block the pipeline; an explicit allowlist needs CVE, rationale, owner, and expiry date. | `npm audit --production --audit-level=high` runs without `|| true`; the allowlist validation script runs. |
+| CI-004 | P1 | SEC | Semgrep SAST must create SARIF and upload it with `upload-sarif@v3`; JSON-only output is insufficient. | It uses `--output-format=sarif --output=semgrep-results.sarif` and uploads that file. |
+| CI-005 | P1 | OPS | Migration test runs against an empty PostgreSQL database with deploy, seed, and integration tests. | CI runs `prisma migrate deploy`, database seed, and tests against a fresh migration. |
+| CI-006 | P1 | OPS | Requirements check rejects P0/P1 missing/non-compliant items; partial status requires a documented exception and evidence references. | It exits 0 on success and 1 on failure and runs as a dedicated CI job. |
+
+## Phase 14 — Code Quality and Architecture
+
+| ID | Priority | Category | Description | Acceptance criterion |
+|---|---|---|---|---|
+| CQ-1401 | P1 | OPS | Repeated status colors and error extraction must be centralized in shared helpers. | `frontend/src/utils/statusHelpers.ts` provides `getRiskColor`, `getControlStatusColor`, `getStatusColor`, and `getErrorMessage`; consumers import them. |
+| CQ-1402 | P1 | OPS | TypeScript catch blocks must not use implicit `any`. | `catch (err: any)` is replaced by `catch (err: unknown)` with type-safe extraction; no new `any` is introduced in refactored code. |
+| CQ-1403 | P1 | OPS | Large components must become more maintainable through helper-function extraction. | Inline `getStatusColor`/`getRiskColor` functions are removed from Risks.tsx and Controls.tsx, reducing duplication. |
+
+## Glossary
+
+| Field | Description |
+|---|---|
+| **ID** | Unique requirement identifier (category-number) |
+| **Priority** | P0 = security critical; P1 = high; P2 = medium; P3 = low |
+| **Category** | IAM = identity/access; SEC = security; AST = asset; RSK = risk; CTL = control; INC = incident; AUD = audit; UX = user experience; OPS = operations |
+| **Acceptance criterion** | Verifiable condition for fulfillment |

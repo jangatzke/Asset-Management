@@ -1,3 +1,45 @@
+# Ticket Service Management — Application Coverage
+- id: TCK-601
+  title: Ticket references to managed assets and active users
+  priority: P0
+  dimension: application_coverage
+  status: tested
+  implementation:
+    - backend/prisma/schema.prisma
+    - backend/prisma/migrations/20260830130000_ticket_email_gateway/migration.sql
+    - backend/src/services/ticket.service.ts
+  tests:
+    - backend/src/__tests__/ticket.reference-validation.test.ts
+  gaps: []
+  evidence:
+    - TicketAsset enforces a unique ticketId/assetId pair and cascades deleted ticket links.
+    - requesterId, assigneeId and managerId are foreign keys to users with onDelete SetNull.
+    - Ticket service rejects missing or inactive user references and non-existent asset identifiers.
+
+- id: TCK-602
+  title: Controlled e-mail-to-ticket ingestion and audit trail
+  priority: P0
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - backend/src/services/emailGateway.service.ts
+    - backend/src/services/emailGateway.scheduler.ts
+    - backend/src/routes/admin.routes.ts
+    - backend/prisma/schema.prisma
+    - frontend/src/pages/AdminEmailGateway.tsx
+  tests:
+    - backend/src/__tests__/ticket.reference-validation.test.ts
+  gaps:
+    - Operational mailbox availability, Exchange application consent and retention periods require organizational evidence.
+    - Production deployment must provide Exchange client secret through an approved env: or file: secret reference.
+  evidence:
+    - IMAP and Exchange Online OAuth2 (MSAL client-credentials) inbound access is configurable by administrators only.
+    - Sender e-mail is resolved case-insensitively against User.email; unknown senders are retained as external requesters.
+    - RFC 822 Message-ID deduplication, persisted EmailMessage status and Ticket audit events support traceability.
+    - Polling is executed through the cluster-safe tracked job runner.
+    - Configuration changes are audit logged and secret values are redacted from responses.
+
+
 # Compliance Matrix — Asset Management System
 #
 # This matrix distinguishes two dimensions:

@@ -88,6 +88,7 @@
     "ismsProcessWorkspace": "ISMS-Prozess",
     "riskAggregation": "Risikoaggregation",
     "reminderSettings": "Erinnerungsautomatisierung",
+    "emailGateway": "Ticket-E-Mail-Gateway",
     "fiscalYearSettings": "Geschäftsjahr",
     "authSettings": "Authentifizierung",
     "databaseBackup": "Datenbank-Backup"

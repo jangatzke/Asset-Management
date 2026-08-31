@@ -23,7 +23,11 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   system_admin: [...GRANULAR_PERMISSIONS],
   ism_manager: [...GRANULAR_PERMISSIONS],
   auditor: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'suppliers.read', 'bcm.read', 'audits.read', 'correctiveActions.read', 'training.read', 'documents.read', 'interestedParties.read', 'evidence.read', 'nis2.read'],
-  employee: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'training.read', 'documents.read', 'interestedParties.read'],
+  employee: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'tickets.read', 'training.read', 'documents.read', 'interestedParties.read'],
+  ticket_viewer: ['tickets.read', 'serviceCatalog.read'],
+  service_desk_agent: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'serviceCatalog.read'],
+  it_manager: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve', 'serviceCatalog.read'],
+  service_catalog_manager: ['tickets.read', 'serviceCatalog.read', 'serviceCatalog.manage'],
 };
 
 // ---------------------------------------------------------------------------
@@ -125,6 +129,15 @@ async function seedRoles(): Promise<void> {
     {},
     'Role: employee',
   );
+
+  for (const role of [
+    ['ticket_viewer', 'Ticket Viewer – read-only IT service management access'],
+    ['service_desk_agent', 'Service Desk Agent – manages tickets and escalations'],
+    ['it_manager', 'IT Manager – approves changes and oversees ticket operations'],
+    ['service_catalog_manager', 'Service Catalog Manager – maintains the request catalog'],
+  ] as const) {
+    await seed(prisma.role, { name: role[0] }, { name: role[0], description: role[1], isBuiltIn: true, permissions: [], canAccessAdmin: false, entityPermissions: { tickets: role[0] === 'ticket_viewer' ? 'readonly' : 'readwrite' } }, {}, `Role: ${role[0]}`);
+  }
 
   for (const permission of GRANULAR_PERMISSIONS) {
     await (prisma as any).permission.upsert({

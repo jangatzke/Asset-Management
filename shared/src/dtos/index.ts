@@ -1581,9 +1581,19 @@ export const CreateTicketSchema = z
 
 export type CreateTicketDTO = z.infer<typeof CreateTicketSchema>;
 
-// Workflow state is intentionally omitted: status changes run exclusively
-// through the dedicated /status endpoint (gated by the transition matrix).
-export const UpdateTicketSchema = CreateTicketSchema.partial().strict();
+// Workflow state and type-specific extensions are deliberately omitted: status
+// changes use the dedicated transition endpoint and extensions are immutable here.
+export const UpdateTicketSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  urgency: TicketLevelSchema.optional(),
+  impact: TicketLevelSchema.optional(),
+  priority: TicketLevelSchema.optional(),
+  requesterId: EntityIdSchema.optional(),
+  assigneeId: EntityIdSchema.optional(),
+  managerId: EntityIdSchema.optional(),
+  assetIds: z.array(EntityIdSchema).optional(),
+}).strict();
 export type UpdateTicketDTO = z.input<typeof UpdateTicketSchema>;
 
 // ---- Status transition ----
@@ -1638,7 +1648,12 @@ export const TicketSlaTargetSchema = z.object({
 export type TicketSlaTargetDTO = z.infer<typeof TicketSlaTargetSchema>;
 
 export const TicketSlaPolicySchema = z.object({
-  byPriority: z.record(TicketLevelSchema, TicketSlaTargetSchema).partial(),
+  byPriority: z.object({
+    low: TicketSlaTargetSchema.optional(),
+    medium: TicketSlaTargetSchema.optional(),
+    high: TicketSlaTargetSchema.optional(),
+    critical: TicketSlaTargetSchema.optional(),
+  }),
 });
 export type TicketSlaPolicyDTO = z.infer<typeof TicketSlaPolicySchema>;
 

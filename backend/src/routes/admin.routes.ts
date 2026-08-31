@@ -7,6 +7,8 @@ import { requireAdminAccess } from '../middleware/entityAuth';
 import { adminService } from '../services/admin.service';
 import { reminderService } from '../services/reminder.service';
 import { getReminderScheduler } from '../services/reminder.scheduler';
+import { emailGatewayService } from '../services/emailGateway.service';
+import { getEmailGatewayScheduler } from '../services/emailGateway.scheduler';
 import { fiscalYearService } from '../services/fiscalYear.service';
 import { prisma } from '../config/database';
 import { getSafeDatabaseConfig } from '../config/database';
@@ -167,6 +169,67 @@ adminRouter.get('/reminders/logs', authenticate, requireAdminAccess, async (req,
     next(error);
   }
 });
+
+// ---- Ticket E-mail Gateway (IMAP / Exchange OAuth2 / SMTP) ----
+
+adminRouter.get('/email-gateway/config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await emailGatewayService.getConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/email-gateway/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const config = await emailGatewayService.updateConfig(req.body, req.userId ?? 'system');
+    await getEmailGatewayScheduler()?.restart();
+    res.json(config);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/email-gateway/test-inbound', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await emailGatewayService.testInbound());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/email-gateway/test-smtp', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await emailGatewayService.testSmtp());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/email-gateway/poll-now', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await emailGatewayService.pollInbound(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/email-gateway/status', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await emailGatewayService.lastPollStatus());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/email-gateway/messages', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    res.json(await emailGatewayService.listMessages(Number(req.query.limit ?? 50)));
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 // ---- User Management ----
 

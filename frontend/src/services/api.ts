@@ -465,6 +465,33 @@ export const documentApi = {
   escalateOverdueReviews: () => api.post('/documents/reviews/escalate-overdue'),
 };
 
+export interface TicketResponse {
+  id: string;
+  displayId: string;
+  type: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  urgency: string;
+  impact: string;
+  resolutionDueAt?: string | null;
+  updatedAt: string;
+  comments?: Array<{ id: string; body: string; isInternal: boolean; createdAt: string }>;
+  change?: { cabApproved?: boolean } | null;
+}
+
+export const ticketApi = {
+  list: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string }) => api.get<PaginatedApiResponse<TicketResponse>>('/tickets', { params }),
+  getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
+  create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
+  update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
+  changeStatus: (id: string, data: { status: string; justification?: string }) => api.post<TicketResponse>(`/tickets/${id}/status`, data),
+  comment: (id: string, data: { body: string; isInternal?: boolean }) => api.post<TicketResponse>(`/tickets/${id}/comments`, data),
+  close: (id: string, data: { summary: string }) => api.post<TicketResponse>(`/tickets/${id}/close`, data),
+  history: (id: string) => api.get(`/tickets/${id}/history`),
+};
+
 export const incidentApi = {
   list: (params?: { page?: number; limit?: number; search?: string; status?: string; severity?: string }) => api.get('/incidents', { params }),
   getById: (id: string) => api.get<IncidentDetailResponse>(`/incidents/${id}`),
@@ -772,6 +799,16 @@ export const reminderAdminApi = {
   testSmtp: () => api.post('/admin/reminders/test-smtp'),
   runNow: () => api.post('/admin/reminders/run-now'),
   logs: (limit = 50) => api.get('/admin/reminders/logs', { params: { limit } }),
+};
+
+export const emailGatewayAdminApi = {
+  getConfig: () => api.get('/admin/email-gateway/config'),
+  updateConfig: (data: any) => api.put('/admin/email-gateway/config', data),
+  testInbound: () => api.post('/admin/email-gateway/test-inbound'),
+  testSmtp: () => api.post('/admin/email-gateway/test-smtp'),
+  pollNow: () => api.post('/admin/email-gateway/poll-now'),
+  status: () => api.get('/admin/email-gateway/status'),
+  messages: (limit = 50) => api.get('/admin/email-gateway/messages', { params: { limit } }),
 };
 
 // Proxmox API

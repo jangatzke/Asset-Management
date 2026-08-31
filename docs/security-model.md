@@ -323,7 +323,21 @@ Expired or administrator-required password changes use a password-change pre-aut
 
 ## 9. Incident Response
 
-### 9.1 Sicherheitsrelevante Ereignisse
+### 9.1 Ticket E-mail Gateway
+
+Das Ticket-E-Mail-Gateway ist eine administrativ geschützte Service-Management-Integration. Konfiguration und operative Endpunkte liegen unter `/api/v1/admin/email-gateway` und erfordern `authenticate` sowie `requireAdminAccess`.
+
+- **Inbound:** IMAP wird mit TLS verwendet. Exchange Online verwendet MSAL Client-Credentials und OAuth2; der Client-Secret-Wert wird ausschließlich über eine `env:`- oder `file:`-Referenz aufgelöst und nicht protokolliert.
+- **Identity mapping:** Die Absenderadresse wird case-insensitiv gegen `User.email` aufgelöst. Nur aktive Benutzer werden als Requester verknüpft. Unbekannte Absender bleiben bewusst als externe Requester gespeichert, ohne ein Benutzerkonto zu erzeugen.
+- **Integrity and auditability:** `EmailMessage` speichert Message-ID, Verarbeitungsstatus, Fehler und Ticketreferenz. RFC-822 `Message-ID` verhindert wiederholte Ticket-Erstellung. Das Ticket erhält außerdem Audit- und Historieneinträge.
+- **Authorization:** Requester, Assignee und Manager eines Tickets sind referenzielle Beziehungen zu `User`; der Ticket-Service weist fehlende oder inaktive Referenzen zurück. Asset-Verknüpfungen werden vor dem Persistieren validiert.
+- **Operational resilience:** Mailbox-Polling läuft über `executeTrackedJob`; damit verarbeitet in einer Cluster-Installation nur ein Worker je Lauf die Mailbox.
+- **Secrets:** Passwort-, Token- und Secret-Reference-Felder werden bei API-Antworten entfernt; die Oberfläche erhält ausschließlich Konfigurationsflags. SMTP- und IMAP-Verbindungstests erfolgen nur durch Administratoren.
+
+Organisatorische Nachweise wie die Freigabe der Exchange-App, Berechtigungsreviews, Mail-Retention, Incident-Response-Verfahren und die sichere Bereitstellung produktiver Secrets bleiben außerhalb der Anwendung und müssen separat geführt werden.
+
+
+### 9.2 Sicherheitsrelevante Ereignisse
 
 | Ereignis | Reaktion |
 |----------|---------|
@@ -332,7 +346,7 @@ Expired or administrator-required password changes use a password-change pre-aut
 | OIDC State Mismatch | 400 Antwort, Audit-Eintrag (möglicher CSRF-Angriff) |
 | Admin-Zugriff ohne Berechtigung | 403 Antwort, Audit-Eintrag mit Detail |
 
-### 9.2 Eskalationspfad
+### 9.3 Eskalationspfad
 
 ```mermaid
 flowchart LR
