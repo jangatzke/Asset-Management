@@ -5,6 +5,7 @@
   "description": "Backend für IT-Asset-Management und ISMS-System",
   "main": "dist/index.js",
   "scripts": {
+    "predev": "npm --workspace=shared run build",
     "dev": "node scripts/with-backend-env.cjs tsx watch src/index.ts",
     "build": "tsc",
     "start": "node scripts/with-backend-env.cjs node dist/index.js",

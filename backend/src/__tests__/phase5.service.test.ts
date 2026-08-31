@@ -1,5 +1,8 @@
 const mockPrismaClient: any = {
   incident: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+  ticket: { create: jest.fn() },
+  ticketHistoryEntry: { create: jest.fn() },
+  displayIdCounter: { upsert: jest.fn() },
   user: { findFirst: jest.fn() },
   notificationDeadline: { createMany: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
   incidentAssessment: { upsert: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
@@ -33,6 +36,9 @@ describe('Phase 5 NIS-2 and incident workflow services', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrismaClient.auditLog.create.mockResolvedValue({});
+    mockPrismaClient.displayIdCounter.upsert.mockResolvedValue({ entityType: 'Ticket', sequence: 1 });
+    mockPrismaClient.ticket.create.mockResolvedValue({ id: 'ticket-1' });
+    mockPrismaClient.ticketHistoryEntry.create.mockResolvedValue({ id: 'ticket-history-1' });
     mockPrismaClient.nis2IncidentSignificanceRuleVersion.upsert.mockResolvedValue({ id: 'rules-1', version: '1.0', rules: [
       { key: 'critical_severity', field: 'severity', operator: 'in', value: ['critical', 'high'], reason: 'High or critical incident severity' },
     ] });

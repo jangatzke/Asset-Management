@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": false,
+    "isolatedModules": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {

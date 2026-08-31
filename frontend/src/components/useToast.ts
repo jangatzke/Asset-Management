@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { ToastContext, type ToastContextType } from './ToastProvider';
+import { ToastContext, type ToastContextType } from './ToastContext';
 
 /**
  * Hook to consume the toast context.

@@ -93,6 +93,11 @@ describe('Incident History (AUDIT-001)', () => {
     // Setup incident history entry findMany
     mockPrisma.incidentHistoryEntry.findMany.mockResolvedValue([]);
 
+    // Setup the ticket created atomically with every incident.
+    mockPrisma.displayIdCounter.upsert.mockResolvedValue({ entityType: 'Ticket', sequence: 1 });
+    mockPrisma.ticket.create.mockResolvedValue({ id: 'ticket-1' });
+    mockPrisma.ticketHistoryEntry.create.mockResolvedValue({ id: 'ticket-history-1' });
+
     // Setup significance rules upsert
     mockPrisma.nis2IncidentSignificanceRuleVersion.upsert.mockResolvedValue({
       id: 'rules-1',

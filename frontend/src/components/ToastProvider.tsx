@@ -1,21 +1,5 @@
-import { createContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
-
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
-
-export interface Toast {
-  id: string;
-  type: ToastType;
-  message: string;
-  duration?: number;
-}
-
-export interface ToastContextType {
-  toasts: Toast[];
-  addToast: (type: ToastType, message: string, duration?: number) => string;
-  removeToast: (id: string) => void;
-}
-
-export const ToastContext = createContext<ToastContextType | undefined>(undefined);
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { ToastContext, type Toast, type ToastType } from './ToastContext';
 
 const ICONS: Record<ToastType, string> = {
   success: '✓',
