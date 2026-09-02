@@ -17,7 +17,7 @@ const handle = (fn: (req: AuthRequest, res: any) => Promise<void>) => async (req
 
 ticketRouter.get('/types', authenticate, requirePermission('tickets.read'), handle(async (_req, res) => { res.json(await ticketService.listTypes()); }));
 ticketRouter.get('/service-catalog', authenticate, requirePermission('serviceCatalog.read'), handle(async (_req, res) => { res.json(await ticketService.listCatalog()); }));
-ticketRouter.get('/', authenticate, requirePermission('tickets.read'), handle(async (req, res) => { res.json(await ticketService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'tickets') as any)); }));
+ticketRouter.get('/', authenticate, requirePermission('tickets.read'), handle(async (req, res) => { res.json(await ticketService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'tickets') as any, req.userId!)); }));
 ticketRouter.post('/', authenticate, authorizeEntityWrite('tickets'), validateBody(CreateTicketSchema), handle(async (req, res) => { res.status(201).json(await ticketService.create(req.body, req.userId!)); }));
 ticketRouter.get('/:id', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.getById(req.params.id)); }));
 ticketRouter.put('/:id', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(UpdateTicketSchema), handle(async (req, res) => { res.json(await ticketService.update(req.params.id, req.body, req.userId!)); }));

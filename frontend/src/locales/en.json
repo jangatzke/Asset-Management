@@ -91,7 +91,9 @@
     "emailGateway": "Ticket E-mail Gateway",
     "fiscalYearSettings": "Fiscal Year",
     "authSettings": "Authentication",
-    "databaseBackup": "Database Backup"
+    "databaseBackup": "Database Backup",
+    "tickets": "Tickets",
+    "ticketSlaSettings": "Ticket SLAs"
   },
   "databaseAdmin": {
     "title": "Database backup and restore",
@@ -1595,5 +1597,43 @@
     "loadDefaultQuestionnaire": "Load default questionnaire",
     "defaultQuestionnaireLoaded": "Default questionnaire loaded. You can now fill in the answers below.",
     "answersFillableOncePresent": "Answers are fillable once a questionnaire version is selected or loaded."
+  },
+  "tickets": {
+    "title": "IT Service Management",
+    "description": "ITIL-aligned tickets with SLA, traceability and auditable lifecycle controls.",
+    "newTicket": "New ticket",
+    "searchPlaceholder": "Search ticket number or title",
+    "searchLabel": "Search tickets",
+    "typeLabel": "Ticket type",
+    "statusLabel": "Ticket status",
+    "scopeLabel": "Ticket scope",
+    "filter": "Filter",
+    "allTypes": "All types",
+    "allStatuses": "All statuses",
+    "allTickets": "All tickets",
+    "open": "Open",
+    "assigned": "Assigned",
+    "closed": "Closed",
+    "createdByMe": "Created by me",
+    "assignedToMe": "Assigned to me",
+    "loading": "Loading tickets…",
+    "empty": "No tickets found.",
+    "loadError": "Tickets could not be loaded.",
+    "createError": "Ticket could not be created.",
+    "incidentCreateError": "Security incidents must be created through the Incident workflow to preserve NIS2 reporting obligations.",
+    "headings": { "ticket": "Ticket", "type": "Type", "priority": "Priority", "status": "Status", "slaTarget": "SLA target", "updated": "Updated" },
+    "types": { "incident": "Incident", "service_request": "Service Request", "problem": "Problem", "change": "Change" },
+    "priorities": { "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical" },
+    "detail": { "allTickets": "All tickets", "loading": "Loading ticket…", "loadError": "Ticket could not be loaded.", "status": "Status", "priority": "Priority", "slaTarget": "SLA target", "notConfigured": "Not configured", "noDescription": "No description provided.", "moveTo": "Move to {status}", "closeTicket": "Close ticket", "closurePrompt": "Closure summary (required for the audit trail):", "closeError": "Ticket could not be closed.", "statusError": "Status change failed.", "commentError": "Comment could not be added.", "commentsTitle": "Comments and work notes", "internalWorkNote": "Internal work note", "requesterComment": "Requester-visible comment", "noComments": "No comments yet.", "updatePlaceholder": "Record an update.", "addUpdate": "Add update", "historyTitle": "Auditable ticket history", "noHistory": "No history entries." }
+  },
+  "ticketSla": {
+    "title": "Ticket SLA configuration",
+    "description": "Set first-response and resolution targets in hours for every ticket type and priority. Changes apply to newly created tickets.",
+    "priority": "Priority",
+    "firstResponseHours": "First response (hours)",
+    "resolutionHours": "Resolution (hours)",
+    "loadError": "Ticket SLA configuration could not be loaded.",
+    "saveError": "Ticket SLA configuration could not be saved.",
+    "saved": "Ticket SLA configuration saved."
   }
 }

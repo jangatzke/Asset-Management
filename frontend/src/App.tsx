@@ -27,6 +27,7 @@ const AdminEmailGateway = lazy(() => import('./pages/AdminEmailGateway'));
 const AdminFiscalYear = lazy(() => import('./pages/AdminFiscalYear'));
 const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
 const AdminDatabase = lazy(() => import('./pages/AdminDatabase'));
+const AdminTicketSla = lazy(() => import('./pages/AdminTicketSla'));
 const Contracts = lazy(() => import('./pages/Contracts'));
 const Licenses = lazy(() => import('./pages/Licenses'));
 const Processes = lazy(() => import('./pages/Processes'));
@@ -96,6 +97,7 @@ function App() {
             <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
             <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
             <Route path="admin/database" element={<AdminDatabase />} />
+            <Route path="admin/ticket-slas" element={<AdminTicketSla />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

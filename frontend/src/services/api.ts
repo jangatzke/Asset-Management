@@ -481,8 +481,25 @@ export interface TicketResponse {
   change?: { cabApproved?: boolean } | null;
 }
 
+export interface TicketSlaTarget {
+  firstResponseHours: number;
+  resolutionHours: number;
+}
+
+export interface TicketTypeConfig {
+  id?: string;
+  type: string;
+  label: string;
+  description?: string | null;
+  enabled: boolean;
+  defaultPriority: string;
+  slaPolicy: { byPriority: Record<string, TicketSlaTarget> };
+}
+
+export type TicketTypeConfigUpdate = Pick<TicketTypeConfig, 'label' | 'description' | 'enabled' | 'defaultPriority' | 'slaPolicy'>;
+
 export const ticketApi = {
-  list: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string }) => api.get<PaginatedApiResponse<TicketResponse>>('/tickets', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string; statusGroup?: string; scope?: string }) => api.get<PaginatedApiResponse<TicketResponse>>('/tickets', { params }),
   getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
@@ -597,6 +614,8 @@ export const adminApi = {
     api.put('/admin/fiscal-year-config', data),
   getAuthSettings: () => api.get('/admin/auth-settings'),
   updateAuthSettings: (data: any) => api.put('/admin/auth-settings', data),
+  getTicketTypes: () => api.get<TicketTypeConfig[]>('/admin/ticket-types'),
+  updateTicketType: (type: string, data: TicketTypeConfigUpdate) => api.put<TicketTypeConfig>(`/admin/ticket-types/${type}`, data),
   getDatabaseConfig: () => api.get<SafeDatabaseConfig>('/admin/database/config'),
   exportDatabase: () => api.get('/admin/database/export', { responseType: 'blob' }),
   importDatabase: (backup: File, mode: DatabaseImportMode) => {

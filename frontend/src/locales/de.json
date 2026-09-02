@@ -91,7 +91,9 @@
     "emailGateway": "Ticket-E-Mail-Gateway",
     "fiscalYearSettings": "Geschäftsjahr",
     "authSettings": "Authentifizierung",
-    "databaseBackup": "Datenbank-Backup"
+    "databaseBackup": "Datenbank-Backup",
+    "tickets": "Tickets",
+    "ticketSlaSettings": "Ticket-SLAs"
   },
   "databaseAdmin": {
     "title": "Datenbank-Backup und Wiederherstellung",
@@ -1587,5 +1589,43 @@
     "loadDefaultQuestionnaire": "Standardfragebogen laden",
     "defaultQuestionnaireLoaded": "Standardfragebogen geladen. Sie können nun die Antworten unten ausfüllen.",
     "answersFillableOncePresent": "Antworten sind ausfüllbar, sobald eine Fragebogenversion ausgewählt oder geladen wurde."
+  },
+  "tickets": {
+    "title": "IT-Service-Management",
+    "description": "ITIL-konforme Tickets mit SLA, Nachvollziehbarkeit und revisionssicheren Lebenszyklus-Kontrollen.",
+    "newTicket": "Neues Ticket",
+    "searchPlaceholder": "Ticketnummer oder Titel suchen",
+    "searchLabel": "Tickets suchen",
+    "typeLabel": "Tickettyp",
+    "statusLabel": "Ticketstatus",
+    "scopeLabel": "Ticketbereich",
+    "filter": "Filtern",
+    "allTypes": "Alle Typen",
+    "allStatuses": "Alle Status",
+    "allTickets": "Alle Tickets",
+    "open": "Offen",
+    "assigned": "Zugewiesen",
+    "closed": "Geschlossen",
+    "createdByMe": "Von mir erstellt",
+    "assignedToMe": "Mir zugewiesen",
+    "loading": "Tickets werden geladen…",
+    "empty": "Keine Tickets gefunden.",
+    "loadError": "Tickets konnten nicht geladen werden.",
+    "createError": "Ticket konnte nicht erstellt werden.",
+    "incidentCreateError": "Sicherheitsvorfälle müssen über den Incident-Workflow erstellt werden, um NIS2-Meldepflichten zu wahren.",
+    "headings": { "ticket": "Ticket", "type": "Typ", "priority": "Priorität", "status": "Status", "slaTarget": "SLA-Ziel", "updated": "Aktualisiert" },
+    "types": { "incident": "Vorfall", "service_request": "Serviceanfrage", "problem": "Problem", "change": "Änderung" },
+    "priorities": { "low": "Niedrig", "medium": "Mittel", "high": "Hoch", "critical": "Kritisch" },
+    "detail": { "allTickets": "Alle Tickets", "loading": "Ticket wird geladen…", "loadError": "Ticket konnte nicht geladen werden.", "status": "Status", "priority": "Priorität", "slaTarget": "SLA-Ziel", "notConfigured": "Nicht konfiguriert", "noDescription": "Keine Beschreibung vorhanden.", "moveTo": "Verschieben nach {status}", "closeTicket": "Ticket schließen", "closurePrompt": "Abschlusszusammenfassung (für den Audit-Trail erforderlich):", "closeError": "Ticket konnte nicht geschlossen werden.", "statusError": "Statusänderung fehlgeschlagen.", "commentError": "Kommentar konnte nicht hinzugefügt werden.", "commentsTitle": "Kommentare und Arbeitsnotizen", "internalWorkNote": "Interne Arbeitsnotiz", "requesterComment": "Für Anfragende sichtbarer Kommentar", "noComments": "Noch keine Kommentare.", "updatePlaceholder": "Aktualisierung dokumentieren.", "addUpdate": "Aktualisierung hinzufügen", "historyTitle": "Revisionssichere Tickethistorie", "noHistory": "Keine Historieneinträge." }
+  },
+  "ticketSla": {
+    "title": "Ticket-SLA-Konfiguration",
+    "description": "Legen Sie die Ziele für Erstreaktion und Lösung in Stunden je Tickettyp und Priorität fest. Änderungen gelten für neu erstellte Tickets.",
+    "priority": "Priorität",
+    "firstResponseHours": "Erstreaktion (Stunden)",
+    "resolutionHours": "Lösung (Stunden)",
+    "loadError": "Die Ticket-SLA-Konfiguration konnte nicht geladen werden.",
+    "saveError": "Die Ticket-SLA-Konfiguration konnte nicht gespeichert werden.",
+    "saved": "Ticket-SLA-Konfiguration gespeichert."
   }
 }

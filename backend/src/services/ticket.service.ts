@@ -6,6 +6,23 @@ import { nextDisplayId } from './displayId.service';
 import { computePriority, getAllowedTicketTransitions, INITIAL_TICKET_STATUS, type TicketType } from 'shared';
 
 type Data = Record<string, any>;
+/** Terminal statuses that count as "closed" for list filtering. */
+const CLOSED_TICKET_STATUSES = ['closed', 'cancelled', 'fulfilled', 'resolved', 'implemented', 'rejected'];
+const SLA_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
+const DEFAULT_SLA_POLICY = {
+  byPriority: {
+    low: { resolutionHours: 120, firstResponseHours: 24 },
+    medium: { resolutionHours: 48, firstResponseHours: 8 },
+    high: { resolutionHours: 24, firstResponseHours: 4 },
+    critical: { resolutionHours: 4, firstResponseHours: 1 },
+  },
+};
+const DEFAULT_TICKET_TYPE_CONFIGS: Record<string, { label: string; description: string; defaultPriority: string }> = {
+  incident: { label: 'Incident', description: 'Unplanned interruption to a service or reduction in service quality.', defaultPriority: 'medium' },
+  service_request: { label: 'Service Request', description: 'Standardized request for a service.', defaultPriority: 'medium' },
+  problem: { label: 'Problem', description: 'Root-cause investigation of one or more incidents.', defaultPriority: 'low' },
+  change: { label: 'Change', description: 'Controlled modification to an asset or service.', defaultPriority: 'medium' },
+};
 const userSelect = { id: true, displayId: true, email: true, firstName: true, lastName: true, isActive: true } as const;
 const include = {
   assets: { include: { asset: { select: { id: true, displayId: true, name: true } } } },
@@ -49,21 +66,38 @@ async function validateAssetReferences(tx: any, assetIds?: string[]) {
 }
 
 export class TicketService {
-  async list(query: Data, authzWhere: Prisma.TicketWhereInput = {}) {
+  async list(query: Data, authzWhere: Prisma.TicketWhereInput = {}, actorId?: string) {
     const page = Math.max(Number(query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 100);
-    const where: any = {
-      ...authzWhere,
-      isArchived: false,
+    const conditions: Prisma.TicketWhereInput[] = [authzWhere, { isArchived: false }];
+    if (query.search) {
+      conditions.push({ OR: [
+        { title: { contains: query.search, mode: 'insensitive' } },
+        { displayId: { contains: query.search, mode: 'insensitive' } },
+      ] });
+    }
+    // Scope filter: 'created' = created by or requested by the acting user, 'assigned' = assigned to the acting user
+    if (actorId && query.scope === 'created') {
+      conditions.push({ OR: [{ createdBy: actorId }, { requesterId: actorId }] });
+    } else if (actorId && query.scope === 'assigned') {
+      conditions.push({ assigneeId: actorId });
+    }
+    // Status group filter: 'open' / 'assigned' / 'closed'
+    let statusWhere: any;
+    if (query.statusGroup === 'closed') {
+      statusWhere = { in: CLOSED_TICKET_STATUSES };
+    } else if (query.statusGroup === 'open') {
+      statusWhere = { notIn: CLOSED_TICKET_STATUSES };
+    } else if (query.statusGroup === 'assigned') {
+      statusWhere = { notIn: CLOSED_TICKET_STATUSES };
+    }
+    conditions.push({
       ...(query.type && { type: query.type }),
       ...(query.status && { status: query.status }),
-      ...(query.search && {
-        OR: [
-          { title: { contains: query.search, mode: 'insensitive' } },
-          { displayId: { contains: query.search, mode: 'insensitive' } },
-        ],
-      }),
-    };
+      ...(statusWhere && { status: statusWhere }),
+      ...(query.statusGroup === 'assigned' && { assigneeId: { not: null } }),
+    });
+    const where: Prisma.TicketWhereInput = { AND: conditions };
     const [data, total] = await Promise.all([
       (prisma as any).ticket.findMany({ where, include, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       (prisma as any).ticket.count({ where }),
@@ -81,10 +115,10 @@ export class TicketService {
     const type = data.type as TicketType;
     const status = INITIAL_TICKET_STATUS[type];
     if (!status) throw new AppError('Unsupported ticket type', 400);
-    const priority = data.priority ?? computePriority(data.urgency ?? 'medium', data.impact ?? 'medium');
     const config = await (prisma as any).ticketTypeConfig.findUnique({ where: { type } });
     if (config && !config.enabled) throw new AppError('This ticket type is disabled', 409);
-    const sla = (config?.slaPolicy as any)?.byPriority?.[priority];
+    const priority = data.priority ?? config?.defaultPriority ?? computePriority(data.urgency ?? 'medium', data.impact ?? 'medium');
+    const sla = (config?.slaPolicy as any)?.byPriority?.[priority] ?? DEFAULT_SLA_POLICY.byPriority[priority as keyof typeof DEFAULT_SLA_POLICY.byPriority];
     const now = new Date();
     const ticket = await prisma.$transaction(async (tx: any) => {
       // Enforce that requester / assignee / manager are existing (active) users
@@ -171,7 +205,7 @@ export class TicketService {
 
   async close(id: string, summary: string, actorId: string) {
     const ticket = await this.getById(id);
-    if (!['resolved', 'fulfilled', 'implemented'].includes(ticket.status)) throw new AppError('Ticket must be resolved or fulfilled before closing', 409);
+    if (['closed', 'cancelled', 'rejected'].includes(ticket.status)) throw new AppError('Ticket is already closed or cancelled', 409);
     return this.mutate(id, actorId, 'CLOSE', 'TICKET_CLOSE', summary, (tx) => tx.ticket.update({ where: { id }, data: { status: 'closed', closedAt: new Date(), closedBy: actorId, updatedBy: actorId } }));
   }
 
@@ -198,6 +232,40 @@ export class TicketService {
 
   async listCatalog() { return (prisma as any).serviceCatalogItem.findMany({ where: { enabled: true }, orderBy: { name: 'asc' } }); }
   async listTypes() { return (prisma as any).ticketTypeConfig.findMany({ where: { enabled: true }, orderBy: { type: 'asc' } }); }
+
+  async listTypeConfigs() {
+    const existing = await (prisma as any).ticketTypeConfig.findMany({ orderBy: { type: 'asc' } });
+    const byType = new Map(existing.map((config: any) => [config.type, config]));
+    return Object.entries(DEFAULT_TICKET_TYPE_CONFIGS).map(([type, defaults]) => byType.get(type) ?? ({
+      type,
+      enabled: true,
+      slaPolicy: DEFAULT_SLA_POLICY,
+      ...defaults,
+    }));
+  }
+
+  async updateTypeConfig(type: string, data: Data, actorId: string) {
+    const defaults = DEFAULT_TICKET_TYPE_CONFIGS[type];
+    if (!defaults) throw new AppError('Unsupported ticket type', 400);
+    const defaultPriority = data.defaultPriority ?? defaults.defaultPriority;
+    if (!SLA_PRIORITIES.includes(defaultPriority)) throw new AppError('Invalid default priority', 400);
+    const slaPolicy = data.slaPolicy ?? DEFAULT_SLA_POLICY;
+    const byPriority = slaPolicy?.byPriority;
+    if (!byPriority || typeof byPriority !== 'object') throw new AppError('SLA policy must contain priority targets', 400);
+    for (const priority of SLA_PRIORITIES) {
+      const target = byPriority[priority];
+      if (!target || !Number.isFinite(Number(target.firstResponseHours)) || Number(target.firstResponseHours) < 0 || !Number.isFinite(Number(target.resolutionHours)) || Number(target.resolutionHours) < 0) {
+        throw new AppError(`SLA policy requires non-negative response and resolution hours for ${priority}`, 400);
+      }
+    }
+    const config = await (prisma as any).ticketTypeConfig.upsert({
+      where: { type },
+      create: { type, label: data.label?.trim() || defaults.label, description: data.description?.trim() || defaults.description, enabled: data.enabled ?? true, defaultPriority, slaPolicy },
+      update: { label: data.label?.trim() || defaults.label, description: data.description?.trim() || defaults.description, enabled: data.enabled ?? true, defaultPriority, slaPolicy },
+    });
+    await this.audit(prisma as any, actorId, 'CONFIG_CHANGE', config.id, `Updated SLA policy for ${type}`);
+    return config;
+  }
 
   private async mutate(id: string, actorId: string, action: string, auditAction: any, summary: string, operation: (tx: any) => Promise<any>) {
     await prisma.$transaction(async (tx: any) => {

@@ -90,6 +90,26 @@ test('database admin locale keys resolve in both locales', () => {
   }
 });
 
+test('ticket workflow and SLA locale keys resolve in both locales', () => {
+  const keys = [
+    'navigation.tickets', 'navigation.ticketSlaSettings',
+    'tickets.title', 'tickets.newTicket', 'tickets.searchPlaceholder',
+    'tickets.statusLabel', 'tickets.createdByMe', 'tickets.assignedToMe',
+    'tickets.types.service_request', 'tickets.priorities.critical',
+    'tickets.detail.closeTicket', 'tickets.detail.closurePrompt',
+    'ticketSla.title', 'ticketSla.firstResponseHours', 'ticketSla.resolutionHours',
+  ];
+
+  for (const locale of [en, de]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
 test('operations and administration locale catalogs remain complete in both locales', () => {
   const keys = [
     'operationsWorkspace.title', 'operationsWorkspace.workspaces.training', 'operationsWorkspace.actions.runReport',

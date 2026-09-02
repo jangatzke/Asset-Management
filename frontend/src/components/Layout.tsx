@@ -88,7 +88,7 @@ const Layout = () => {
     { name: t('navigation.risks'), href: '/risks', icon: ExclamationTriangleIcon },
     { name: t('navigation.controls'), href: '/controls', icon: ShieldCheckIcon },
     { name: t('navigation.incidents'), href: '/incidents', icon: FireIcon },
-    { name: 'Tickets', href: '/tickets', icon: ClipboardDocumentListIcon },
+    { name: t('navigation.tickets'), href: '/tickets', icon: ClipboardDocumentListIcon },
     { name: 'NIS2', href: '/nis2', icon: ShieldCheckIcon },
     { name: t('navigation.contracts'), href: '/contracts', icon: DocumentTextIcon },
     { name: t('navigation.licenses'), href: '/licenses', icon: ClipboardDocumentListIcon },
@@ -128,6 +128,7 @@ const Layout = () => {
     { name: t('navigation.emailGateway'), href: '/admin/email-gateway' },
     { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
     { name: t('navigation.databaseBackup'), href: '/admin/database' },
+    { name: t('navigation.ticketSlaSettings'), href: '/admin/ticket-slas' },
   ];
 
   return (

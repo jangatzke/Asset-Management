@@ -15,6 +15,7 @@ import { getSafeDatabaseConfig } from '../config/database';
 import { auditService, AuditService } from '../services/audit.service';
 import { auditIntegrityService } from '../services/auditIntegrity.service';
 import { databaseBackupService, PortableBackupPayload } from '../services/databaseBackup.service';
+import { ticketService } from '../services/ticket.service';
 
 export const adminRouter = Router();
 
@@ -91,6 +92,22 @@ adminRouter.get('/auth-settings', authenticate, requireAdminAccess, async (_req,
 adminRouter.put('/auth-settings', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     res.json(await adminService.updateAuthSettings(req.body, req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/ticket-types', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await ticketService.listTypeConfigs());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/ticket-types/:type', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await ticketService.updateTypeConfig(req.params.type, req.body, req.userId ?? 'system'));
   } catch (error) {
     next(error);
   }
