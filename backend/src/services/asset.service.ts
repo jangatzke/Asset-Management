@@ -687,6 +687,23 @@ export class AssetService {
           },
         });
       }
+
+      // SECURITY FIX (Problem 10): Explicitly clean up M:N relations and lifecycle logs
+      // when an asset is archived. This prevents orphaned records in case foreign key
+      // constraints lack ON DELETE CASCADE, ensuring referential integrity.
+      await tx.assetProcess.deleteMany({ where: { assetId: id } });
+      await tx.assetService.deleteMany({ where: { assetId: id } });
+      await tx.assetContract.deleteMany({ where: { assetId: id } });
+      await tx.assetLicense.deleteMany({ where: { assetId: id } });
+      await tx.assetLifecycleLog.create({
+        data: {
+          assetId: id,
+          previousStatus: 'decommissioned',
+          newStatus: 'archived',
+          changedByUserId: archivedBy,
+          reason: `Archived — M:N relations cleaned up`,
+        },
+      });
     });
 
     // Audit log for archiving

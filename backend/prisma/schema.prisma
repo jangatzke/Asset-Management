@@ -94,7 +94,7 @@ model EmailGatewayConfig {
   imapPort          Int      @default(993)
   imapSecure        Boolean  @default(true)
   imapUser          String?
-  imapPassword      String?
+  imapPassword      String? // SECURITY: Encrypted at application layer (AES-256-GCM) before storage
   imapMailbox       String?   @default("INBOX")
   imapAuthType      String?   @default("password") // 'password' | 'oauth2'
   exchangeTenantId  String?
@@ -107,7 +107,7 @@ model EmailGatewayConfig {
   smtpPort               Int      @default(587)
   smtpSecure             Boolean  @default(false)
   smtpUser               String?
-  smtpPassword           String?
+  smtpPassword           String? // SECURITY: Encrypted at application layer (AES-256-GCM) before storage
   smtpAuthType           String?  @default("none") // 'none' | 'basic' | 'oauth2'
   smtpFromEmail          String?
   smtpRejectUnauthorized Boolean  @default(true)

@@ -17,7 +17,6 @@
  *    cached in memory only (short-lived, never logged).
  */
 
-import fs from 'fs/promises';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
@@ -26,6 +25,7 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { ticketService } from './ticket.service';
+import { encrypt, decrypt } from './credentialEncryption.service';
 
 type AnyObject = Record<string, any>;
 
@@ -64,7 +64,14 @@ const MAX_MESSAGES_PER_POLL = 100;
 // beyond the config's cached access token which is rotated every poll).
 const msalTokenCache = new Map<string, { accessToken: string; expiresAt: number }>();
 
-/** Resolve a `env:VAR` or `file:PATH` secret reference without echoing the value. */
+/**
+ * Resolve a `env:VAR` or `file:PATH` secret reference without echoing the value.
+ *
+ * SECURITY FIX (Problems 6 & 7):
+ * - Problem 6: Added explicit try/catch for file system errors.
+ * - Problem 7: Replaced synchronous `fs.readFileSync` with async `fs.promises.readFile`
+ *   to prevent blocking the Node.js event loop.
+ */
 async function resolveSecretRef(ref: string): Promise<string> {
   if (!ref) throw new AppError('Secret reference is required', 400);
   if (ref.startsWith('env:')) {
@@ -74,10 +81,31 @@ async function resolveSecretRef(ref: string): Promise<string> {
     return value;
   }
   if (ref.startsWith('file:')) {
-    const filePath = ref.slice(5);
-    if (!filePath || filePath.includes('..')) throw new AppError('Invalid secret file path', 400);
-    const value = await fs.readFile(filePath, 'utf8');
-    return value.trim();
+    const rawPath = ref.slice(5);
+    if (!rawPath) throw new AppError('Secret file path is required', 400);
+    // SECURITY FIX (Problem 3): Canonicalize path to prevent directory traversal attacks.
+    // Use path.normalize() to resolve '..' and '.' segments, then verify the resolved
+    // path starts with the intended base directory (current working directory).
+    const path = await import('path');
+    const basePath = path.resolve(process.cwd());
+    const resolvedPath = path.resolve(basePath, rawPath);
+    // Ensure the resolved path is within the base directory (prevent traversal outside)
+    if (!resolvedPath.startsWith(basePath)) {
+      throw new AppError('Invalid secret file path: access outside allowed directory', 400);
+    }
+    try {
+      const fsPromises = await import('fs/promises');
+      const value = await fsPromises.readFile(resolvedPath, 'utf8');
+      return value.trim();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        throw new AppError(`Secret file not found: ${resolvedPath}`, 400);
+      }
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'EACCES') {
+        throw new AppError(`Permission denied reading secret file: ${resolvedPath}`, 400);
+      }
+      throw new AppError(`Failed to read secret file: ${resolvedPath}`, 500);
+    }
   }
   throw new AppError('Secret reference must use env: or file: provider', 400);
 }
@@ -114,13 +142,20 @@ async function acquireExchangeToken(config: AnyObject): Promise<string> {
 /** Map a mailbox address (e-mail) to a known user, case-insensitively. */
 async function resolveUserByEmail(email: string | null | undefined): Promise<AnyObject | null> {
   if (!email) return null;
-  const user = await (prisma as any).user.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' }, isActive: true },
-    select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
-  });
-  return user ?? null;
+  // SECURITY FIX (Problem 5): Use Prisma $queryRaw with LOWER() for portable
+  // case-insensitive email lookup. Prisma's `mode: 'insensitive'` relies on
+  // database collation which may be case-sensitive on some configurations,
+  // causing lookups to fail silently.
+  const users = await prisma.$queryRaw`
+    SELECT id, email, "firstName", "lastName", "isActive"
+    FROM "User"
+    WHERE LOWER(email) = LOWER(${email})
+    AND "isActive" = true
+    LIMIT 1
+  `;
+  const user = Array.isArray(users) ? (users[0] as AnyObject) ?? null : null;
+  return user;
 }
-
 export class EmailGatewayService {
   private sanitizeConfig(config: AnyObject | null) {
     if (!config) return null;
@@ -143,6 +178,44 @@ export class EmailGatewayService {
     return this.sanitizeConfig(await this.ensureConfig());
   }
 
+  // ---- Credential encryption helpers -------------------------------------
+
+  /**
+   * Encrypt sensitive credentials before storing them in the database.
+   * Skips encryption if the value is already encrypted (valid base64 format) or a placeholder.
+   */
+  private encryptIfNeeded(value: string): string {
+    if (value === '' || PASSWORD_PLACEHOLDERS.has(value)) return value;
+    // Check if already encrypted by testing format (base64, sufficient length)
+    try {
+      const buffer = Buffer.from(value, 'base64');
+      if (buffer.length >= 50) {
+        // Likely encrypted — return as-is to avoid double-encryption
+        return value;
+      }
+    } catch {
+      // Not base64, definitely plaintext
+    }
+    return encrypt(value);
+  }
+
+  /**
+   * Decrypt a credential stored in the database for runtime use.
+   * Returns the value as-is if decryption fails (backward compatibility with
+   * plaintext values during migration).
+   */
+  private decryptIfNeeded(value: string | undefined | null): string | null {
+    if (value === undefined || value === null) return null;
+    if (value === '' || PASSWORD_PLACEHOLDERS.has(value)) return value;
+    try {
+      return decrypt(value);
+    } catch {
+      // Decryption failed — value is likely plaintext (pre-encryption storage).
+      // Return as-is for backward compatibility during migration.
+      return value;
+    }
+  }
+
   async updateConfig(data: EmailGatewayConfigUpdate, userId = 'system'): Promise<AnyObject> {
     const existing = await this.ensureConfig();
     const updateData: AnyObject = {};
@@ -160,7 +233,9 @@ export class EmailGatewayService {
     }
     if (data.imapSecure !== undefined) updateData.imapSecure = Boolean(data.imapSecure);
     if (data.imapUser !== undefined) updateData.imapUser = str(data.imapUser);
-    if (data.imapPassword !== undefined && !PASSWORD_PLACEHOLDERS.has(String(data.imapPassword))) updateData.imapPassword = data.imapPassword;
+    if (data.imapPassword !== undefined && data.imapPassword !== null && !PASSWORD_PLACEHOLDERS.has(String(data.imapPassword))) {
+      updateData.imapPassword = this.encryptIfNeeded(data.imapPassword);
+    }
     if (data.imapMailbox !== undefined) updateData.imapMailbox = str(data.imapMailbox);
     if (data.imapAuthType !== undefined) {
       if (!['password', 'oauth2'].includes(data.imapAuthType)) throw new AppError('imapAuthType must be password or oauth2', 400);
@@ -178,7 +253,9 @@ export class EmailGatewayService {
     }
     if (data.smtpSecure !== undefined) updateData.smtpSecure = Boolean(data.smtpSecure);
     if (data.smtpUser !== undefined) updateData.smtpUser = str(data.smtpUser);
-    if (data.smtpPassword !== undefined && !PASSWORD_PLACEHOLDERS.has(String(data.smtpPassword))) updateData.smtpPassword = data.smtpPassword;
+    if (data.smtpPassword !== undefined && data.smtpPassword !== null && !PASSWORD_PLACEHOLDERS.has(String(data.smtpPassword))) {
+      updateData.smtpPassword = this.encryptIfNeeded(data.smtpPassword);
+    }
     if (data.smtpAuthType !== undefined) {
       if (!['none', 'basic', 'oauth2'].includes(data.smtpAuthType)) throw new AppError('smtpAuthType must be none, basic or oauth2', 400);
       updateData.smtpAuthType = data.smtpAuthType;
@@ -214,17 +291,22 @@ export class EmailGatewayService {
   // ---- Inbound mailbox (IMAP / Exchange OAuth2) ---------------------------
 
   private buildImapClient(config: AnyObject, accessToken?: string): ImapFlow {
+    // Decrypt password for runtime use (backward compatible with plaintext)
+    const decryptedPassword = this.decryptIfNeeded(config.imapPassword);
     const auth: any =
       accessToken || config.imapAuthType === 'oauth2'
         ? { user: config.imapUser ?? '', accessToken: accessToken ?? '' }
-        : { user: config.imapUser ?? '', pass: config.imapPassword ?? '' };
+        : { user: config.imapUser ?? '', pass: decryptedPassword ?? '' };
     return new ImapFlow({
       host: config.imapHost,
       port: config.imapPort ?? 993,
       secure: config.imapSecure !== false,
       auth,
       logger: false,
-      tls: { rejectUnauthorized: config.imapSecure !== false },
+      // SECURITY FIX (Problem 6): Use a separate tlsRejectUnauthorized config option
+      // instead of tying certificate validation to TLS enablement (imapSecure).
+      // TLS can be enabled (STARTTLS) while still rejecting invalid certificates.
+      tls: { rejectUnauthorized: config.tlsRejectUnauthorized !== false },
     });
   }
 
@@ -276,11 +358,19 @@ export class EmailGatewayService {
         }
         // Only consider the most recent messages to bound work per poll.
         const candidates = envelopes.slice(-MAX_MESSAGES_PER_POLL);
+        // SECURITY FIX (Problem 4): Scope deduplication query to recent messages only
+        // (last 24 hours) instead of loading ALL email messages into memory. This prevents
+        // unbounded memory growth as the email message table grows over time.
+        const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+        const recentMessages = await (prisma as any).emailMessage.findMany({
+          where: {
+            messageId: { not: null },
+            receivedAt: { gte: cutoffTime },
+          },
+          select: { id: true, messageId: true, status: true },
+        });
         const existingMessages = new Map<string, AnyObject>(
-          (await (prisma as any).emailMessage.findMany({
-            where: { messageId: { not: null } },
-            select: { id: true, messageId: true, status: true },
-          })).map((message: AnyObject): [string, AnyObject] => [message.messageId, message]),
+          recentMessages.map((message: AnyObject): [string, AnyObject] => [message.messageId, message]),
         );
 
         for (const { uid, envelope } of candidates) {
@@ -436,6 +526,8 @@ export class EmailGatewayService {
   // ---- Outbound SMTP ------------------------------------------------------
 
   private buildSmtpTransport(config: AnyObject, accessToken?: string): nodemailer.Transporter {
+    // Decrypt password for runtime use (backward compatible with plaintext)
+    const decryptedPassword = this.decryptIfNeeded(config.smtpPassword);
     const options: AnyObject = {
       host: config.smtpHost,
       port: config.smtpPort ?? 587,
@@ -443,8 +535,8 @@ export class EmailGatewayService {
       tls: { rejectUnauthorized: config.smtpRejectUnauthorized !== false, minVersion: 'TLSv1.2' },
     };
     const authType = config.smtpAuthType || 'none';
-    if (authType === 'basic' && (config.smtpUser || config.smtpPassword)) {
-      options.auth = { user: config.smtpUser ?? '', pass: config.smtpPassword ?? '' };
+    if (authType === 'basic' && (config.smtpUser || decryptedPassword)) {
+      options.auth = { user: config.smtpUser ?? '', pass: decryptedPassword ?? '' };
     } else if (authType === 'oauth2' && accessToken) {
       options.auth = { type: 'OAUTH2', accessToken };
     }

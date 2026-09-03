@@ -3,6 +3,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 
@@ -138,6 +139,26 @@ function isTestRuntime(): boolean {
 
 // ==================== Global Middleware (Phase 8) ====================
 
+// SECURITY FIX (Problem 9): Rate limiting must be applied BEFORE other middleware
+// to prevent abuse of auth endpoints and protect against brute-force attacks.
+// Strict rate limiter for authentication endpoints (login, token refresh).
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Too many authentication attempts, please try again later.', code: 'RATE_LIMIT_EXCEEDED' } },
+});
+
+// General API rate limiter for all other endpoints.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // 500 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Too many requests, please try again later.', code: 'RATE_LIMIT_EXCEEDED' } },
+});
+
 // 1. Correlation-ID (must be first for tracing)
 app.use(correlationId);
 
@@ -165,10 +186,15 @@ app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT_BYTES, pa
 // 6. Structured JSON logging (Phase 8)
 app.use(jsonLogger);
 
-// 7. Metrics collection (Phase 8)
+// 7. Rate limiting — strict for auth routes, generous for general API
+app.use('/api/v1/auth', authLimiter);
+app.use('/api/v1/users', authLimiter); // User creation/reset also needs protection
+app.use(apiLimiter);
+
+// 8. Metrics collection (Phase 8)
 app.use(metricsMiddleware);
 
-// 8. Scope audit for all authenticated requests
+// 9. Scope audit for all authenticated requests
 app.use(scopeAudit);
 
 // ==================== Health & System Endpoints (Phase 8) ====================

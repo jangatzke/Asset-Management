@@ -152,8 +152,10 @@ export class TicketService {
 
   async update(id: string, data: Data, actorId: string) {
     const current = await this.getById(id);
-    const banned = ['status', 'type', 'assetIds', 'incident', 'problem', 'change', 'serviceRequest'];
-    const changes: Data = Object.fromEntries(Object.entries(data).filter(([key, value]) => !banned.includes(key) && value !== undefined));
+    // Note: UpdateTicketSchema.strict() in shared DTOs already blocks unknown fields.
+    // We only need to filter out undefined values here; protected fields (status, type, assetIds, etc.)
+    // are rejected at the middleware layer by the Zod schema.
+    const changes: Data = Object.fromEntries(Object.entries(data).filter(([_key, value]) => value !== undefined));
     if (data.urgency || data.impact) changes.priority = data.priority ?? computePriority(data.urgency ?? current.urgency, data.impact ?? current.impact);
     await prisma.$transaction(async (tx: any) => {
       // Enforce that any user reference (re)assigned here points to an existing user

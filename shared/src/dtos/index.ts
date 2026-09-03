@@ -64,7 +64,27 @@ export const LifecycleStatusSchema = z.enum(['planned', 'ordered', 'in_stock', '
 export const AssessmentTypeSchema = z.enum(['inherent', 'current', 'target']);
 export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export type JsonValue = z.infer<typeof JsonPrimitiveSchema> | JsonValue[] | { [key: string]: JsonValue };
-export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() => z.union([JsonPrimitiveSchema, z.array(JsonValueSchema), z.record(JsonValueSchema)]));
+
+/**
+ * FIXED (Problem 9): Recursive JSON value schema with depth-limited recursion.
+ * Instead of unbounded z.lazy() recursion (which can cause stack overflow with
+ * deeply nested structures), we cap the recursion depth at 10 levels. Beyond that,
+ * only primitive values are accepted. This prevents both infinite recursion and
+ * Denial-of-Service via schema validation.
+ */
+const JSON_VALUE_MAX_DEPTH = 10;
+
+// Build the schema iteratively from the inside out to avoid z.lazy() stack issues.
+// Depth 0 = primitives only. Each outer layer adds array/record support.
+function buildJsonValueSchema(depth: number): z.ZodType<JsonValue> {
+  if (depth <= 0) {
+    return JsonPrimitiveSchema as z.ZodType<JsonValue>;
+  }
+  const inner = buildJsonValueSchema(depth - 1);
+  return z.union([inner, z.array(inner), z.record(inner)]) as z.ZodType<JsonValue>;
+}
+
+export const JsonValueSchema: z.ZodType<JsonValue> = buildJsonValueSchema(JSON_VALUE_MAX_DEPTH);
 
 export const NetworkAddressTypeSchema = z.enum(['ipv4', 'ipv6', 'cidr', 'hostname']);
 
@@ -327,7 +347,7 @@ export const CreateRiskSchema = z.object({
 
 export type CreateRiskDTO = z.infer<typeof CreateRiskSchema>;
 
-export const UpdateRiskSchema = CreateRiskSchema.partial();
+export const UpdateRiskSchema = CreateRiskSchema.partial().strict();
 
 export type UpdateRiskDTO = z.infer<typeof UpdateRiskSchema>;
 

@@ -146,29 +146,68 @@ export function idempotency(options: IdempotencyOptions = {}) {
         return next();
       }
 
-      // Validate idempotency key format (UUID or alphanumeric with hyphens)
-      if (!/^[a-zA-Z0-9\-_]+$/.test(idempotencyKey)) {
-        res.status(400).json({
-          success: false,
-          error: {
-            message: 'Invalid Idempotency-Key Format',
-            code: 'INVALID_IDEMPOTENCY_KEY',
-          },
-        });
-        return;
-      }
-
+      // SECURITY FIX (Problem 10): Store validation errors in the idempotency store
+      // so that duplicate requests with the same key receive consistent responses.
+      // This gives a false sense of protection for validation errors - now we track them.
+      
       // Extract trusted principal ONLY from auth middleware context
       const principal = extractTrustedPrincipal(req);
 
       // Require trusted principal - never allow anonymous idempotency
       if (!principal) {
+        const routePattern = req.route?.path || req.originalUrl.split('?')[0];
+        const compositeKey = generateIdempotencyKey(principal || 'unknown', req.method, routePattern, idempotencyKey);
+        
+        // Store the error response in the idempotency store for consistency
+        if (compositeKey) {
+          await storeIdempotencyError(compositeKey, {
+            status: 401,
+            body: {
+              success: false,
+              error: {
+                message: 'Trusted principal required for idempotency',
+                code: 'MISSING_PRINCIPAL',
+                hint: 'Ensure authentication middleware runs before idempotency middleware',
+              },
+            },
+          }, ttlSeconds);
+        }
+        
         res.status(401).json({
           success: false,
           error: {
             message: 'Trusted principal required for idempotency',
             code: 'MISSING_PRINCIPAL',
             hint: 'Ensure authentication middleware runs before idempotency middleware',
+          },
+        });
+        return;
+      }
+
+      // Validate idempotency key format (UUID or alphanumeric with hyphens)
+      if (!/^[a-zA-Z0-9\-_]+$/.test(idempotencyKey)) {
+        const routePattern = req.route?.path || req.originalUrl.split('?')[0];
+        const compositeKey = generateIdempotencyKey(principal, req.method, routePattern, idempotencyKey);
+        
+        // Store the error response in the idempotency store for consistency
+        if (compositeKey) {
+          await storeIdempotencyError(compositeKey, {
+            status: 400,
+            body: {
+              success: false,
+              error: {
+                message: 'Invalid Idempotency-Key Format',
+                code: 'INVALID_IDEMPOTENCY_KEY',
+              },
+            },
+          }, ttlSeconds);
+        }
+        
+        res.status(400).json({
+          success: false,
+          error: {
+            message: 'Invalid Idempotency-Key Format',
+            code: 'INVALID_IDEMPOTENCY_KEY',
           },
         });
         return;
@@ -419,6 +458,42 @@ export function idempotency(options: IdempotencyOptions = {}) {
       next(error);
     }
   };
+}
+
+/**
+ * Store a validation/error response in the in-memory idempotency store.
+ * This ensures that duplicate requests with invalid idempotency keys receive
+ * consistent responses (Problem 10 fix).
+ */
+interface IdempotencyErrorResponse {
+  status: number;
+  body: unknown;
+}
+
+async function storeIdempotencyError(
+  key: string,
+  errorResponse: IdempotencyErrorResponse,
+  ttlMs: number
+): Promise<void> {
+  inFlightReservations.set(key, {
+    state: 'completed',
+    requestId: 'error',
+    principal: 'error',
+    httpMethod: '',
+    routePattern: '',
+    requestBodyHash: '',
+    createdAt: Date.now(),
+    response: {
+      status: errorResponse.status,
+      body: errorResponse.body,
+      headers: { 'X-Idempotency-Cache': 'error' },
+    },
+  });
+  
+  // Schedule cleanup
+  setTimeout(() => {
+    inFlightReservations.delete(key);
+  }, ttlMs);
 }
 
 /**

@@ -35,7 +35,7 @@ The project is structured as an npm workspace with `backend`, `frontend`, and `s
 - OpenAPI specification at [`docs/api/openapi.yaml`](docs/api/openapi.yaml).
 - Project documentation for requirements, architecture, operations, security, and compliance under [`docs`](docs).
 
-The main functional areas visible in the repository are asset management, risk and control management, business processes, incidents, contracts, licenses, evidence, document control, framework/NIS 2 features, ISMS operations modules, cost planning, and integrations for Microsoft Intune, VMware vCenter, and Proxmox.
+The main functional areas visible in the repository are asset management, risk and control management, business processes, incidents, ticket management, contracts, licenses, evidence, document control, framework/NIS 2 features, ISMS operations modules, cost planning, fiscal year configuration, action center, supplier management, business continuity management, email-to-ticket processing, reminders, and integrations for Microsoft Intune, VMware vCenter, and Proxmox.
 
 ---
 
@@ -52,7 +52,7 @@ The main functional areas visible in the repository are asset management, risk a
 
 ### Backend Routes and Cross-Cutting Features
 
-The API registers resources under `/api/v1/*` as well as health/monitoring endpoints. Visibly registered areas include auth, users, assets, risks, controls, incidents, organization, admin, audit logs, Intune, VMware, Proxmox, contracts, licenses, processes, treatments, methods, imports, frameworks, evidence, documents, NIS 2, Phase 6/ISMS operations, catalog, cost planning, webhooks, and service accounts.
+The API registers resources under `/api/v1/*` as well as health/monitoring endpoints. Visibly registered areas include auth, users, assets, risks, controls, incidents, tickets, action center, organization, admin, audit logs, Intune, VMware, Proxmox, contracts, licenses, processes, treatments, methods, imports, frameworks, evidence, documents, NIS 2, Phase 6/ISMS operations, catalog, cost planning, webhooks, service accounts, and email gateway.
 
 Cross-cutting features according to the current repository state:
 
@@ -61,7 +61,7 @@ Cross-cutting features according to the current repository state:
 - ETag support for central resource routes.
 - Idempotency middleware for webhooks and service accounts.
 - Scope audit, central error handling, and graceful shutdown setup.
-- Background services for Intune synchronization and reminder scheduling.
+- Background services for Intune synchronization, reminder scheduling, and email gateway polling.
 
 ### Data Model
 
@@ -82,7 +82,7 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect, cors, helmet |
 | Tests | Jest, ts-jest, Supertest, Vitest, Playwright |
 | Tooling | npm Workspaces, ESLint, Prettier, TypeScript (~5.9.0 backend, ^5.3.3 frontend/shared) |
-| Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, otplib, prom-client, qrcode, redis, @azure/msal-node, multer |
+| Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, otplib, prom-client, qrcode, redis, @azure/msal-node, multer, imapflow, mailparser, openid-client, express-rate-limit |
 | Icon Library (Frontend) | @emotion/react, @emotion/styled, @headlessui/react, @heroicons/react, @mui/icons-material |
 
 ---
@@ -94,8 +94,8 @@ asset-management-isms/
 |-- backend/                 # Express API, Prisma, routes, middleware, tests
 |   |-- prisma/              # Prisma schema, seed, and migration-related SQL files
 |   |-- scripts/             # Provider-aware Prisma wrapper, env loader
-|   |-- test/                # Test fixtures, setup, globals
-|   `-- src/                 # API entry point, config, middleware, routes, services, utils, __tests__
+|   `-- src/                 # API entry point, config, middleware, routes, services, utils, __tests__, test
+|      |-- test/             # Test fixtures, setup, globals
 |-- frontend/                # React/Vite SPA
 |   |-- e2e/                 # Playwright end-to-end tests
 |   `-- src/                 # App, components, pages, contexts, locales, services, hooks, utils, tests
@@ -394,6 +394,7 @@ SQL Server runtime is implemented through the generated provider-specific schema
 | `npm run db:deploy:sqlserver --workspace=backend` | Deploy SQL Server migrations with the generated SQL Server schema |
 | `npm run db:seed --workspace=backend` | Run seed script |
 | `npm run db:seed:demo --workspace=backend` | Run demo seed data script |
+| `npm run db:seed:tickets --workspace=backend` | Run ticket backfill seed script |
 | `npm run db:setup:cost-planning --workspace=backend` | Run `prisma migrate deploy` and `prisma generate` (provider-aware) |
 
 ### Frontend and Shared Scripts
