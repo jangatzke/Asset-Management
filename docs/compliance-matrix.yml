@@ -28,10 +28,7 @@
     - backend/prisma/schema.prisma
     - frontend/src/pages/AdminEmailGateway.tsx
   tests:
-    - backend/src/__tests__/ticket.reference-validation.test.ts
-  gaps:
-    - Operational mailbox availability, Exchange application consent and retention periods require organizational evidence.
-    - Production deployment must provide Exchange client secret through an approved env: or file: secret reference.
+    - backend/src/__tests__/email.gateway.inbound.test.ts
   evidence:
     - IMAP and Exchange Online OAuth2 (MSAL client-credentials) inbound access is configurable by administrators only.
     - Sender e-mail is resolved case-insensitively against User.email; unknown senders are retained as external requesters.

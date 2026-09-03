@@ -11,7 +11,7 @@ permissions:
   security-events: write
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   PRISMA_TELEMETRY_INFORMATION_DISABLED: '1'
   # Safe CI default required by Prisma schema validation/generation when no
   # repository .env files are present. Jobs that connect to PostgreSQL override
