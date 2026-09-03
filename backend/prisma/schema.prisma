@@ -85,72 +85,72 @@ model User {
 
 // ---- Email gateway configuration (IMAP/Exchange inbound, SMTP outbound) ----
 model EmailGatewayConfig {
-  id          String   @id @default(uuid())
-  enabled     Boolean  @default(false)
+  id      String  @id @default(uuid())
+  enabled Boolean @default(false)
 
   // Inbound mailbox (IMAP or Exchange Online via OAuth2)
-  inboundProvider String @default("imap") // 'imap' | 'exchange'
-  imapHost          String?
-  imapPort          Int      @default(993)
-  imapSecure        Boolean  @default(true)
-  imapUser          String?
-  imapPassword      String? // SECURITY: Encrypted at application layer (AES-256-GCM) before storage
-  imapMailbox       String?   @default("INBOX")
-  imapAuthType      String?   @default("password") // 'password' | 'oauth2'
-  exchangeTenantId  String?
-  exchangeClientId  String?
+  inboundProvider         String  @default("imap") // 'imap' | 'exchange'
+  imapHost                String?
+  imapPort                Int     @default(993)
+  imapSecure              Boolean @default(true)
+  imapUser                String?
+  imapPassword            String? // SECURITY: Encrypted at application layer (AES-256-GCM) before storage
+  imapMailbox             String? @default("INBOX")
+  imapAuthType            String? @default("password") // 'password' | 'oauth2'
+  exchangeTenantId        String?
+  exchangeClientId        String?
   exchangeClientSecretRef String? // env:VAR or file:PATH (MSAL client-credentials)
-  exchangeScopes    String?   @default("https://outlook.office365.com/.default")
+  exchangeScopes          String? @default("https://outlook.office365.com/.default")
 
   // Outbound SMTP (confirmation / notification)
   smtpHost               String?
-  smtpPort               Int      @default(587)
-  smtpSecure             Boolean  @default(false)
+  smtpPort               Int     @default(587)
+  smtpSecure             Boolean @default(false)
   smtpUser               String?
   smtpPassword           String? // SECURITY: Encrypted at application layer (AES-256-GCM) before storage
-  smtpAuthType           String?  @default("none") // 'none' | 'basic' | 'oauth2'
+  smtpAuthType           String? @default("none") // 'none' | 'basic' | 'oauth2'
   smtpFromEmail          String?
-  smtpRejectUnauthorized Boolean  @default(true)
+  smtpRejectUnauthorized Boolean @default(true)
 
   // Behaviour
-  pollIntervalMinutes  Int     @default(5)
-  subjectPrefix        String? @default("[ITSM]")
-  defaultTicketType    String? @default("incident")
-  autoAssignToEmail    String? // map inbound sender to a known user by email
+  pollIntervalMinutes Int     @default(5)
+  subjectPrefix       String? @default("[ITSM]")
+  defaultTicketType   String? @default("incident")
+  autoAssignToEmail   String? // map inbound sender to a known user by email
 
   // Exchange OAuth2 token cache (client-credentials, short-lived)
-  exchangeAccessToken     String?
+  exchangeAccessToken       String?
   exchangeAccessTokenExpiry DateTime?
 
-  lastPollAt         DateTime?
-  lastPollStatus     String?
-  lastPollMessage    String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  updatedBy          String?
+  lastPollAt      DateTime?
+  lastPollStatus  String?
+  lastPollMessage String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  updatedBy       String?
 
   @@map("email_gateway_config")
 }
 
 // ---- Persisted inbound message (dedup + audit trail) -----------------------
 model EmailMessage {
-  id            String   @id @default(uuid())
-  messageId     String?  // RFC 822 Message-ID (dedup key)
-  inReplyTo     String?
-  fromEmail     String
-  fromName      String?
-  toEmail       String?
-  subject       String
-  bodyText      String?
-  bodyHtml      String?
-  receivedAt    DateTime?
-  direction     String   @default("inbound") // 'inbound' | 'outbound'
-  status        String   @default("received") // received | processed | skipped | failed
-  ticketId      String?  // linked ticket after conversion
-  userId        String?  // resolved user (requester) by email
-  error         String?
-  rawHeaders    String?
-  createdAt     DateTime @default(now())
+  id         String    @id @default(uuid())
+  messageId  String? // RFC 822 Message-ID (dedup key)
+  inReplyTo  String?
+  fromEmail  String
+  fromName   String?
+  toEmail    String?
+  subject    String
+  bodyText   String?
+  bodyHtml   String?
+  receivedAt DateTime?
+  direction  String    @default("inbound") // 'inbound' | 'outbound'
+  status     String    @default("received") // received | processed | skipped | failed
+  ticketId   String? // linked ticket after conversion
+  userId     String? // resolved user (requester) by email
+  error      String?
+  rawHeaders String?
+  createdAt  DateTime  @default(now())
 
   ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
@@ -1756,7 +1756,7 @@ model Incident {
   communications          IncidentCommunication[]
   escalations             IncidentEscalation[]
   historyEntries          IncidentHistoryEntry[]
-  ticket                  Ticket?       @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  ticket                  Ticket?                              @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   @@index([significanceRuleVersionId])
   @@map("incidents")
@@ -3827,20 +3827,20 @@ model JobLease {
 
 // ---- Generic ITIL ticket container ----------------------------------------
 model Ticket {
-  id            String    @id @default(uuid())
-  displayId     String    @unique          // e.g. TCKT-0001 (per-type prefix via DisplayIdCounter)
-  type          String                       // 'incident' | 'service_request' | 'problem' | 'change'
-  title         String
-  description   String?
-  status        String    @default("new")    // per-type state machine (shared ticketTransitions)
-  priority      String    @default("medium") // low | medium | high | critical
-  urgency       String    @default("medium") // low | medium | high | critical
-  impact        String    @default("medium") // low | medium | high | critical
+  id          String  @id @default(uuid())
+  displayId   String  @unique // e.g. TCKT-0001 (per-type prefix via DisplayIdCounter)
+  type        String // 'incident' | 'service_request' | 'problem' | 'change'
+  title       String
+  description String?
+  status      String  @default("new") // per-type state machine (shared ticketTransitions)
+  priority    String  @default("medium") // low | medium | high | critical
+  urgency     String  @default("medium") // low | medium | high | critical
+  impact      String  @default("medium") // low | medium | high | critical
 
   // Requester / ownership (ITIL: requester, assigned engineer, manager)
-  requesterId   String?
-  assigneeId    String?
-  managerId     String?
+  requesterId String?
+  assigneeId  String?
+  managerId   String?
 
   // SLA (ITIL: target from priority+type; breach detection)
   slaTargetAt        DateTime?
@@ -3850,12 +3850,12 @@ model Ticket {
   slaBreachedAt      DateTime?
 
   // Lifecycle
-  openedAt    DateTime  @default(now())
-  resolvedAt  DateTime?
-  closedAt    DateTime?
-  closedBy    String?
-  version     Int       @default(1)
-  isArchived  Boolean   @default(false)
+  openedAt   DateTime  @default(now())
+  resolvedAt DateTime?
+  closedAt   DateTime?
+  closedBy   String?
+  version    Int       @default(1)
+  isArchived Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3865,12 +3865,12 @@ model Ticket {
   // Relations
   assets         TicketAsset[]
   comments       TicketComment[]
-  linksFrom      TicketLink[]      @relation("TicketLinkFrom")
-  linksTo        TicketLink[]      @relation("TicketLinkTo")
-  incident       Incident?          // 1:1 extension for type='incident'
-  problem        Problem?           // 1:1 extension for type='problem'
-  change         Change?            // 1:1 extension for type='change'
-  serviceRequest ServiceRequest?    // 1:1 extension for type='service_request'
+  linksFrom      TicketLink[]         @relation("TicketLinkFrom")
+  linksTo        TicketLink[]         @relation("TicketLinkTo")
+  incident       Incident? // 1:1 extension for type='incident'
+  problem        Problem? // 1:1 extension for type='problem'
+  change         Change? // 1:1 extension for type='change'
+  serviceRequest ServiceRequest? // 1:1 extension for type='service_request'
   history        TicketHistoryEntry[]
   escalations    TicketEscalation[]
 
@@ -3890,10 +3890,10 @@ model Ticket {
 
 // ---- Generic asset link (all ticket types) --------------------------------
 model TicketAsset {
-  id         String   @id @default(uuid())
-  ticketId   String
-  assetId    String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  ticketId  String
+  assetId   String
+  createdAt DateTime @default(now())
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   asset  Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
@@ -3908,7 +3908,7 @@ model TicketComment {
   ticketId   String
   authorId   String?
   body       String
-  isInternal Boolean  @default(false)  // true = agent note, hidden from requester
+  isInternal Boolean  @default(false) // true = agent note, hidden from requester
   createdAt  DateTime @default(now())
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
@@ -3922,11 +3922,11 @@ model TicketLink {
   id           String   @id @default(uuid())
   fromTicketId String
   toTicketId   String
-  linkType     String   // 'caused_by_problem' | 'resolved_by_change' | 'related_incident' | 'duplicate_of'
+  linkType     String // 'caused_by_problem' | 'resolved_by_change' | 'related_incident' | 'duplicate_of'
   createdAt    DateTime @default(now())
 
   fromTicket Ticket @relation("TicketLinkFrom", fields: [fromTicketId], references: [id], onDelete: Cascade)
-  toTicket   Ticket @relation("TicketLinkTo",   fields: [toTicketId],   references: [id], onDelete: Cascade)
+  toTicket   Ticket @relation("TicketLinkTo", fields: [toTicketId], references: [id], onDelete: Cascade)
 
   @@unique([fromTicketId, toTicketId, linkType])
   @@map("ticket_links")
@@ -3936,7 +3936,7 @@ model TicketLink {
 model TicketHistoryEntry {
   id           String   @id @default(uuid())
   ticketId     String
-  action       String   // CREATE|UPDATE|DELETE|STATUS_CHANGE|ASSIGN|COMMENT|CLOSE|ESCALATE|LINK
+  action       String // CREATE|UPDATE|DELETE|STATUS_CHANGE|ASSIGN|COMMENT|CLOSE|ESCALATE|LINK
   fieldChanges Json?
   summary      String?
   actorId      String?
@@ -3975,11 +3975,11 @@ model TicketEscalation {
 // ---- Ticket type configuration (extensible types + SLA policy) --------------
 model TicketTypeConfig {
   id              String   @id @default(uuid())
-  type            String   @unique   // 'incident' | 'service_request' | 'problem' | 'change'
+  type            String   @unique // 'incident' | 'service_request' | 'problem' | 'change'
   label           String
   description     String?
   enabled         Boolean  @default(true)
-  slaPolicy       Json?    // { byPriority: { low: { resolutionHours, firstResponseHours }, ... } }
+  slaPolicy       Json? // { byPriority: { low: { resolutionHours, firstResponseHours }, ... } }
   defaultPriority String   @default("medium")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -3994,7 +3994,7 @@ model ServiceCatalogItem {
   name        String
   description String?
   ticketType  String   @default("service_request")
-  fulfillment Json?    // { requestedBy: 'employee'|'it', approverRole: 'it_manager', slaHours: 48 }
+  fulfillment Json? // { requestedBy: 'employee'|'it', approverRole: 'it_manager', slaHours: 48 }
   enabled     Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -4011,7 +4011,7 @@ model Problem {
   rootCause          String?
   workaround         String?
   permanentFix       String?
-  relatedIncidentIds String[] @default([])  // denormalized convenience; canonical links via TicketLink
+  relatedIncidentIds String[] @default([]) // denormalized convenience; canonical links via TicketLink
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -4024,7 +4024,7 @@ model Problem {
 model Change {
   id                 String    @id @default(uuid())
   ticketId           String    @unique
-  changeType         String    @default("standard")  // standard | normal | emergency
+  changeType         String    @default("standard") // standard | normal | emergency
   riskLevel          String    @default("low")
   cabApproved        Boolean   @default(false)
   cabApprovedBy      String?
