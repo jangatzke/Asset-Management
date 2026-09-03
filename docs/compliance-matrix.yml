@@ -28,7 +28,7 @@
     - backend/prisma/schema.prisma
     - frontend/src/pages/AdminEmailGateway.tsx
   tests:
-    - backend/src/__tests__/email.gateway.inbound.test.ts
+    - backend/src/__tests__/emailGateway.service.test.ts
   evidence:
     - IMAP and Exchange Online OAuth2 (MSAL client-credentials) inbound access is configurable by administrators only.
     - Sender e-mail is resolved case-insensitively against User.email; unknown senders are retained as external requesters.
