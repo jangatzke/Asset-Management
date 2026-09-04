@@ -63,8 +63,12 @@ assetRouter.get('/inventory/preview', authenticate, async (req, res, next) => {
 });
 
 // TODO: Implement bulk import - placeholder returns 501
-assetRouter.post('/import', authenticate, authorizeEntityWrite('assets'), (_req, res, _next) => {
-  res.status(501).json({ error: 'Not Implemented', message: 'Asset bulk import endpoint is not yet implemented' });
+assetRouter.post('/import', authenticate, async (_req, res, next) => {
+  try {
+    res.status(501).json({ error: 'Not Implemented', message: 'Asset bulk import endpoint is not yet implemented' });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // AST-011: Graph visualization data - full graph

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import jwt, { Algorithm } from 'jsonwebtoken';
 import { AppError } from './errorHandler';
@@ -13,7 +14,7 @@ const JWT_ALGORITHMS: Algorithm[] = ['HS256'];
  * Generate a random hex string of the specified byte length.
  */
 function generateRandomHex(byteLength: number): string {
-  return require('crypto').randomBytes(byteLength).toString('hex');
+  return crypto.randomBytes(byteLength).toString('hex');
 }
 
 /**
@@ -53,7 +54,7 @@ export function getJwtSecretStatus(): JwtSecretStatus {
         'Set JWT_SECRET to a string of at least 32 characters. ' +
         'Generate with: node -e "console.log(JSON.stringify(require(\'crypto\').randomBytes(32).toString(\'hex\')))"';
       console.error(message);
-      _jwtSecretStatus = { strong: false, secret: '', warning: message };
+      // Do NOT set _jwtSecretStatus before throwing — the cache must not persist a failed state.
       throw new Error(message);
     }
 

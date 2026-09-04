@@ -246,7 +246,10 @@ export class AuthorizationService {
   }
 
   private addLegacyPermissions(_permissions: Set<string>, _entityPermissions: unknown): void {
-    return;
+    // Legacy entity permissions have been fully migrated to RolePermission-based
+    // authorization. This method is intentionally kept as a no-op to avoid
+    // breaking the mapAssignment interface while serving as a reminder that
+    // legacy permissions are no longer supported.
   }
 
   private hasScopeConstraint(role: ScopedAssignment): boolean {
@@ -285,18 +288,28 @@ export class AuthorizationService {
       }
       const control = await db.control.findUnique({ where: { id: entityId }, select: { id: true } });
       if (!control) throw new AppError('Control not found', 404);
+      // Controls without a ControlImplementation are global (no scope constraints).
       return this.emptyResolvedScope();
     }
     if (entityType === 'tickets') {
       const ticketAsset = await db.ticketAsset.findFirst({ where: { ticketId: entityId }, include: { asset: { include: { organizationUnit: true, location: { include: { organizationUnit: true } } } } } });
-      const legalEntityId = ticketAsset?.asset?.organizationUnit?.legalEntityId ?? ticketAsset?.asset?.location?.organizationUnit?.legalEntityId ?? null;
-      return this.resolveScopeSet({ legalEntityId, organizationUnitId: ticketAsset?.asset?.organizationUnitId ?? ticketAsset?.asset?.location?.organizationUnitId ?? null, siteId: ticketAsset?.asset?.locationId ?? null, scopeId: null });
+      if (ticketAsset?.asset) {
+        const legalEntityId = ticketAsset.asset.organizationUnit?.legalEntityId ?? ticketAsset.asset.location?.organizationUnit?.legalEntityId ?? null;
+        return this.resolveScopeSet({ legalEntityId, organizationUnitId: ticketAsset.asset.organizationUnitId ?? ticketAsset.asset.location?.organizationUnitId ?? null, siteId: ticketAsset.asset.locationId ?? null, scopeId: null });
+      }
+      // Ticket without associated asset: cannot scope by asset hierarchy.
+      return this.emptyResolvedScope();
     }
     if (entityType === 'incidents') {
       const incidentAsset = await db.incidentAsset.findFirst({ where: { incidentId: entityId }, include: { asset: { include: { organizationUnit: true, location: { include: { organizationUnit: true } } } } } });
-      const legalEntityId = incidentAsset?.asset?.organizationUnit?.legalEntityId ?? incidentAsset?.asset?.location?.organizationUnit?.legalEntityId ?? null;
-      return this.resolveScopeSet({ legalEntityId, organizationUnitId: incidentAsset?.asset?.organizationUnitId ?? incidentAsset?.asset?.location?.organizationUnitId ?? null, siteId: incidentAsset?.asset?.locationId ?? null, scopeId: null });
+      if (incidentAsset?.asset) {
+        const legalEntityId = incidentAsset.asset.organizationUnit?.legalEntityId ?? incidentAsset.asset.location?.organizationUnit?.legalEntityId ?? null;
+        return this.resolveScopeSet({ legalEntityId, organizationUnitId: incidentAsset.asset.organizationUnitId ?? incidentAsset.asset.location?.organizationUnitId ?? null, siteId: incidentAsset.asset.locationId ?? null, scopeId: null });
+      }
+      // Incident without associated asset: cannot scope by asset hierarchy.
+      return this.emptyResolvedScope();
     }
+    // Unknown entity types: fall through to empty scope (no scope constraints applied).
     return this.emptyResolvedScope();
   }
 

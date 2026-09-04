@@ -164,14 +164,14 @@ function createPrismaClient(config: DatabaseRuntimeConfig): PrismaClient {
 }
 
 const runtimeDatabaseConfig = getDatabaseRuntimeConfig();
-
 process.env.DATABASE_URL = runtimeDatabaseConfig.databaseUrl;
+const prismaClient = createPrismaClient(runtimeDatabaseConfig);
 
-export const prisma = createPrismaClient(runtimeDatabaseConfig);
+export { prismaClient as prisma };
 
 export async function testDatabaseConnection(): Promise<void> {
   try {
-    await prisma.$connect();
+    await prismaClient.$connect();
     console.log('Database connection established successfully');
   } catch (error) {
     console.error('Database connection failed:', error);
@@ -179,4 +179,4 @@ export async function testDatabaseConnection(): Promise<void> {
   }
 }
 
-export default prisma;
+export default prismaClient;

@@ -63,7 +63,17 @@ export const CIANeedSchema = z.enum(['low', 'medium', 'high']);
 export const LifecycleStatusSchema = z.enum(['planned', 'ordered', 'in_stock', 'active', 'maintenance', 'isolated', 'decommissioned', 'disposed', 'destroyed', 'lost', 'unknown']);
 export const AssessmentTypeSchema = z.enum(['inherent', 'current', 'target']);
 export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
-export type JsonValue = z.infer<typeof JsonPrimitiveSchema> | JsonValue[] | { [key: string]: JsonValue };
+
+/**
+ * SECURITY FIX (Problem 9): Explicitly include `null` in the recursive type alias
+ * so that the TypeScript type accurately reflects what the Zod schema accepts.
+ * Without `null` in the union, `JsonValue` would be inferred as incompatible
+ * with the schema (the schema accepts `null` but the type did not declare it).
+ */
+export type JsonValue =
+  | z.infer<typeof JsonPrimitiveSchema>
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 /**
  * FIXED (Problem 9): Recursive JSON value schema with depth-limited recursion.

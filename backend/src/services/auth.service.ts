@@ -147,7 +147,15 @@ export class AuthService {
   }
 
   private getMfaEncryptionKey(): Buffer {
-    return crypto.createHash('sha256').update(process.env.MFA_ENCRYPTION_KEY || this.getJwtSecret()).digest();
+    const key = process.env.MFA_ENCRYPTION_KEY;
+    if (!key) {
+      throw new Error(
+        'MFA_ENCRYPTION_KEY is not configured. ' +
+        'Falling back to JWT_SECRET would reuse the same key for MFA and JWT signing, ' +
+        'which violates defense-in-depth principles. Generate with: openssl rand -hex 32',
+      );
+    }
+    return crypto.createHash('sha256').update(key).digest();
   }
 
   private getAccessTokenLifetime(): string {

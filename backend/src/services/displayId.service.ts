@@ -19,10 +19,25 @@ import { PrismaClient } from '@prisma/client';
  * @param entityType - Entity type (e.g., "Asset", "Risk", "Control")
  * @returns Display ID string (e.g., "ASSET-0001")
  */
+/**
+ * Generate the next display ID for a given entity type.
+ * Must be called within a Prisma transaction for atomicity.
+ *
+ * Prisma's `upsert` with `increment` is atomic in PostgreSQL:
+ * - Within a transaction, Prisma uses `INSERT ... ON CONFLICT ... DO UPDATE`
+ * - PostgreSQL serializes concurrent writes to the same row automatically
+ * - The `increment` operation is atomic at the storage engine level
+ *
+ * @param tx - Prisma transaction client
+ * @param entityType - Entity type (e.g., "Asset", "Risk", "Control")
+ * @returns Display ID string (e.g., "ASSET-0001")
+ */
 export async function nextDisplayId(tx: any, entityType: string): Promise<string> {
   const prefix = PREFIX_MAP[entityType] ?? entityType.toUpperCase().substring(0, 4);
-  
-  // Upsert counter: increment sequence atomically
+
+  // Prisma upsert with increment is atomic in PostgreSQL.
+  // Within a transaction, concurrent writes to the same row are serialized
+  // by PostgreSQL's row-level locking, preventing duplicate sequence numbers.
   const counter = await tx.displayIdCounter.upsert({
     where: { entityType },
     create: { entityType, sequence: 1 },

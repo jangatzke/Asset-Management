@@ -65,6 +65,12 @@ async function validateAssetReferences(tx: any, assetIds?: string[]) {
   if (missing.length) throw new AppError(`Unknown asset id(s): ${missing.join(', ')}`, 400);
 }
 
+// Statuses that count as the ticket being actively worked on.
+const ACTIVE_TICKET_STATUSES = new Set([
+  'under_investigation', 'contained', 'in_progress', 'pending',
+  'on_hold', 'investigating', 'identified', 'workaround', 'reviewing',
+]);
+
 export class TicketService {
   async list(query: Data, authzWhere: Prisma.TicketWhereInput = {}, actorId?: string) {
     const page = Math.max(Number(query.page) || 1, 1);
@@ -155,11 +161,23 @@ export class TicketService {
     // Note: UpdateTicketSchema.strict() in shared DTOs already blocks unknown fields.
     // We only need to filter out undefined values here; protected fields (status, type, assetIds, etc.)
     // are rejected at the middleware layer by the Zod schema.
-    const changes: Data = Object.fromEntries(Object.entries(data).filter(([_key, value]) => value !== undefined));
+    // SECURITY: Explicitly exclude protected/system fields that must never be
+    // set from user input.  The middleware already blocks status/type/assetIds,
+    // but we also guard version to prevent accidental or malicious overwrites.
+    const changes: Data = Object.fromEntries(
+      Object.entries(data).filter(([k, value]) => value !== undefined && k !== 'version' && k !== 'isArchived'),
+    );
     if (data.urgency || data.impact) changes.priority = data.priority ?? computePriority(data.urgency ?? current.urgency, data.impact ?? current.impact);
     await prisma.$transaction(async (tx: any) => {
-      // Enforce that any user reference (re)assigned here points to an existing user
-      await validateUserReferences(tx, { requesterId: data.requesterId ?? current.requesterId, assigneeId: data.assigneeId ?? current.assigneeId, managerId: data.managerId ?? current.managerId });
+      // Only validate user references that are actually being changed by this update.
+      // Using ?? current.xxx would validate unchanged fields unnecessarily and could
+      // cause confusing errors when, e.g., the requester user was deactivated but the
+      // update is only changing the title — it has nothing to do with the requester.
+      const pendingUserRefs: { requesterId?: string | null; assigneeId?: string | null; managerId?: string | null } = {};
+      if ('requesterId' in data) pendingUserRefs.requesterId = data.requesterId;
+      if ('assigneeId' in data) pendingUserRefs.assigneeId = data.assigneeId;
+      if ('managerId' in data) pendingUserRefs.managerId = data.managerId;
+      await validateUserReferences(tx, pendingUserRefs);
       await validateAssetReferences(tx, data.assetIds);
       await tx.ticket.update({ where: { id }, data: { ...changes, updatedBy: actorId, version: { increment: 1 } } });
       if (data.assetIds) {
@@ -179,7 +197,9 @@ export class TicketService {
     await prisma.$transaction(async (tx: any) => {
       await tx.ticket.update({ where: { id }, data: {
         status, resolvedAt: ['resolved', 'fulfilled', 'implemented'].includes(status) ? new Date() : undefined,
-        firstResponseAt: ticket.firstResponseAt ?? new Date(),
+        // Only set firstResponseAt on the FIRST transition into an active status.
+        // If it's already set (non-null), the ticket was already acknowledged — leave it untouched.
+        firstResponseAt: ticket.firstResponseAt ?? (ACTIVE_TICKET_STATUSES.has(status) ? new Date() : undefined),
         slaBreachedAt: ticket.resolutionDueAt && new Date() > ticket.resolutionDueAt ? new Date() : undefined,
         updatedBy: actorId, version: { increment: 1 },
       } });

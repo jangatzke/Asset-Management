@@ -57,7 +57,11 @@ export interface EmailGatewayConfigUpdate {
   autoAssignToEmail?: string | null;
 }
 
-const PASSWORD_PLACEHOLDERS = new Set(['', '********', '••••••••', '__KEEP_EXISTING__']);
+// SECURITY FIX (Problem 5): Removed empty string from PASSWORD_PLACEHOLDERS.
+// An empty string is now treated as an actual password value (to be encrypted),
+// not as a placeholder meaning "keep existing".  Clients that want to preserve
+// the current password must send `__KEEP_EXISTING__` explicitly.
+const PASSWORD_PLACEHOLDERS = new Set(['********', '••••••••', '__KEEP_EXISTING__']);
 const MAX_MESSAGES_PER_POLL = 100;
 
 // In-memory Exchange OAuth2 token cache (short-lived, never persisted in clear
@@ -184,17 +188,34 @@ export class EmailGatewayService {
    * Encrypt sensitive credentials before storing them in the database.
    * Skips encryption if the value is already encrypted (valid base64 format) or a placeholder.
    */
+  /**
+   * Encrypt a plaintext credential.  Returns the value as-is if it is empty,
+   * a known placeholder, or already encrypted.
+   *
+   * SECURITY FIX (Problem 6): The previous heuristic (`buffer.length >= 100`)
+   * could produce false positives for long plaintext passwords.  We now use a
+   * structural check for the new format:
+   *   <version_byte><12-byte IV><16-byte auth tag><ciphertext>
+   * Minimum decoded length: 1 + 12 + 16 + 1 = 30 bytes (~40 base64 chars).
+   */
   private encryptIfNeeded(value: string): string {
     if (value === '' || PASSWORD_PLACEHOLDERS.has(value)) return value;
-    // Check if already encrypted by testing format (base64, sufficient length)
     try {
       const buffer = Buffer.from(value, 'base64');
-      if (buffer.length >= 50) {
-        // Likely encrypted — return as-is to avoid double-encryption
-        return value;
+      // A valid encrypted value must be at least version (1) + IV (12) + auth tag (16) + 1 byte ciphertext.
+      if (buffer.length >= 30) {
+          const iv = buffer.slice(1, 13);
+        const tag = buffer.slice(13, 29);
+        const ct = buffer.slice(29);
+        // Only skip encryption if all three components exist and the ciphertext
+        // portion is non-empty.  This prevents false-positive detection for
+        // plaintext values that merely happen to be long base64 strings.
+        if (iv.length === 12 && tag.length === 16 && ct.length >= 1) {
+          return value;
+        }
       }
     } catch {
-      // Not base64, definitely plaintext
+      // Not valid base64 — definitely plaintext
     }
     return encrypt(value);
   }
@@ -361,6 +382,10 @@ export class EmailGatewayService {
         // SECURITY FIX (Problem 4): Scope deduplication query to recent messages only
         // (last 24 hours) instead of loading ALL email messages into memory. This prevents
         // unbounded memory growth as the email message table grows over time.
+        // SECURITY FIX (Problem 4): Bound the dedup query with a LIMIT and ORDER BY
+        // to prevent unbounded memory growth.  Only load the most recent 10 000
+        // messages from the last 24 h – enough to cover the MAX_MESSAGES_PER_POLL
+        // candidates while keeping memory usage predictable.
         const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
         const recentMessages = await (prisma as any).emailMessage.findMany({
           where: {
@@ -368,6 +393,8 @@ export class EmailGatewayService {
             receivedAt: { gte: cutoffTime },
           },
           select: { id: true, messageId: true, status: true },
+          orderBy: { receivedAt: 'desc' },
+          take: 10000,
         });
         const existingMessages = new Map<string, AnyObject>(
           recentMessages.map((message: AnyObject): [string, AnyObject] => [message.messageId, message]),

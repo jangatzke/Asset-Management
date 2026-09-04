@@ -124,19 +124,32 @@ export function shouldCacheResponse(status: number): boolean {
 }
 
 /**
+ * Maximum number of entries in the in-memory idempotency store.
+ * When the limit is reached, the oldest entry is evicted to prevent
+ * unbounded memory growth (DoS protection).
+ */
+const MAX_STORE_SIZE = 10000;
+
+/**
  * In-memory idempotency store (for production, use Redis).
  */
 class IdempotencyStore {
   private store = new Map<string, IdempotencyEntry>();
 
   /**
-   * Store a response for an idempotency key.
-   * Returns true if the key was newly set, false if it already existed.
-   * This enables atomic reservation semantics.
-   */
+    * Store a response for an idempotency key.
+    * Returns true if the key was newly set, false if it already existed.
+    * This enables atomic reservation semantics.
+    * Evicts the oldest entry if the store exceeds MAX_STORE_SIZE.
+    */
   set(key: string, entry: IdempotencyEntry): boolean {
     if (this.store.has(key)) {
       return false; // Already exists
+    }
+    // Evict oldest entry if store is full (prevents unbounded memory growth)
+    if (this.store.size >= MAX_STORE_SIZE) {
+      const oldestKey = this.store.keys().next().value;
+      if (oldestKey) this.store.delete(oldestKey);
     }
     this.store.set(key, entry);
     return true; // Newly set

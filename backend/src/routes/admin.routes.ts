@@ -74,9 +74,15 @@ adminRouter.post('/database/import', authenticate, requireAdminAccess, uploadBac
   } catch (error) {
     next(error);
   } finally {
-    // Best-effort cleanup of the uploaded temp file, regardless of outcome.
+    // Ensure cleanup of the uploaded temp file, regardless of outcome.
+    // Using async/await instead of fire-and-forget to ensure the file is
+    // cleaned up even if an error occurred, and to avoid unhandled rejection warnings.
     if (uploadedPath) {
-      fs.unlink(uploadedPath).catch(() => { /* ignore */ });
+      try {
+        await fs.unlink(uploadedPath);
+      } catch {
+        // Ignore cleanup errors — the OS will eventually reclaim the temp file.
+      }
     }
   }
 });
