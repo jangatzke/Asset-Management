@@ -188,7 +188,10 @@ export async function processWebhookDeliveryJob(
     // open so consumers that have not yet picked up the new secret can still
     // verify the signature. The previous secret is never persisted beyond the
     // window and is never returned to clients.
-    const secret = resolveWebhookSecretAtDelivery(webhook);
+    // resolveWebhookSecretAtDelivery returns null when there is no usable
+    // signing secret; convert it to undefined so the delivery layer can treat
+    // it as "no secret configured" and fail closed instead of sending unsign.
+    const secret = resolveWebhookSecretAtDelivery(webhook) ?? undefined;
     const result = await deliverWebhook(payload, {
       url: webhook.url,
       secret,

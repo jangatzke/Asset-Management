@@ -95,15 +95,15 @@ export function rotateWebhookSecret(): {
  * webhook has no usable secret.
  */
 export function resolveWebhookSecretAtDelivery(webhook: {
-  secret: string;
-  previousWebhookSecret: string | null | undefined;
-  webhookSecretId: string | null | undefined;
-  previousWebhookSecretId: string | null | undefined;
-  webhookSecretValidUntil: Date | null | undefined;
+ secret: string;
+ previousWebhookSecret: string | null | undefined;
+ webhookSecretId: string | null | undefined;
+ previousWebhookSecretId: string | null | undefined;
+ webhookSecretValidUntil: Date | null | undefined;
 }): string | null {
-  if (!webhook.secret) {
-    return null;
-  }
+ if (!webhook.secret) {
+   return null;
+ }
 
   const currentEpoch = parseWebhookSecretEpoch(webhook.webhookSecretId);
   const previousEpoch = parseWebhookSecretEpoch(webhook.previousWebhookSecretId);

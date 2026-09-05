@@ -39,7 +39,7 @@ export interface WebhookDeliveryResult {
 
 export interface WebhookConfig {
   url: string;
-  secret: string;
+  secret?: string;
   maxRetries?: number;
   timeoutMs?: number;
   maxSignatureAgeMs?: number;
@@ -207,6 +207,17 @@ export async function deliverWebhook(
       return {
         success: false,
         errorMessage: `URL validation failed: ${urlValidation.reason}`,
+        durationMs: Date.now() - startTime,
+        attemptNumber: 1,
+      };
+    }
+
+    // Fail closed when no signing secret is available. A webhook without a
+    // secret cannot be signed, so delivery must never proceed unsignatured.
+    if (!config.secret) {
+      return {
+        success: false,
+        errorMessage: 'Webhook signing secret is missing',
         durationMs: Date.now() - startTime,
         attemptNumber: 1,
       };

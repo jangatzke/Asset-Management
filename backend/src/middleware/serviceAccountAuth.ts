@@ -12,7 +12,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { secureCompare } from '../utils/secureCompare';
-import { parseServiceAccountToken, isServiceAccountRotationValid } from '../services/serviceAccountTokenRotation';
+import { parseServiceAccountToken, isServiceAccountTokenValid } from '../services/serviceAccountTokenRotation';
 
 export interface ServiceAccountRequest extends Request {
   serviceAccount?: {
@@ -171,13 +171,16 @@ await prisma.serviceAccount.update({
 {
   const parsed = parseServiceAccountToken(token);
   const rotationValid = parsed
-    ? isServiceAccountRotationValid(
-        parsed.rotationId,
-        account.previousTokenRotationId,
-        account.tokenRotationValidUntil,
-        new Date()
-      )
-    : false;
+    ? isServiceAccountTokenValid(
+         parsed.rotationId,
+         {
+           tokenRotationId: account.tokenRotationId,
+           previousTokenRotationId: account.previousTokenRotationId,
+           tokenRotationValidUntil: account.tokenRotationValidUntil,
+         },
+         new Date()
+       )
+     : false;
 
   if (!rotationValid) {
     res.status(401).json({

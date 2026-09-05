@@ -22,9 +22,6 @@
 
 import crypto from 'crypto';
 
-/** Number of random bytes appended to every token. */
-const RANDOM_BYTES = 32;
-
 /** Rotation ids are 4 random bytes rendered as 8 hex characters. */
 const ROTATION_ID_BYTES = 4;
 

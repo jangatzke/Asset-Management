@@ -14,10 +14,6 @@ import rateLimit from 'express-rate-limit';
 import { validateBody, validateParams } from '../middleware/validation';
 import { z } from 'zod';
 import { rotateServiceAccountToken } from '../services/serviceAccountTokenRotation';
-import {
-  rotateWebhookSecret,
-  isWebhookSecretRotationValid,
-} from '../services/webhookSecretRotation';
 
 // ==================== Management Router ====================
 // Protected by authenticate + authorize('admin') middleware applied in index.ts
