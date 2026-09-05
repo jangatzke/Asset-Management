@@ -65,13 +65,13 @@ export async function authenticateWebhook(
         select: { id: true, name: true, accessTokenSalt: true, accessTokenHash: true },
       });
        if (account) {
-         // Verify using stored salt (constant-time comparison to avoid timing side channels)
-         const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
-         if (!secureCompare(computedHash, account.accessTokenHash)) {
-           account = null;
-         }
-       }
-     }
+          // Verify using stored salt (constant-time comparison to avoid timing side channels)
+          const computedHash = crypto.createHash('sha256').update(`${token}${account.accessTokenSalt}`).digest('hex');
+          if (!secureCompare(computedHash, account.accessTokenHash)) {
+            account = null;
+          }
+        }
+      }
 
     if (account) {
       await prisma.serviceAccount.update({
@@ -88,6 +88,19 @@ export async function authenticateWebhook(
       next();
       return;
     }
+
+    // SECURITY FIX (Problem 4 / Issue #4): When a Bearer token is present but
+    // invalid, we must NOT fall through to Mode 2 (X-Webhook-Secret).  The client
+    // explicitly attempted Bearer auth and failed — reject the request.
+    res.status(401).json({
+      success: false,
+      error: {
+        message: 'Invalid Bearer token',
+        code: 'INVALID_BEARER_TOKEN',
+        hint: 'Send a valid Bearer token in the Authorization header',
+      },
+    });
+    return;
   }
 
   // Mode 2: X-Webhook-Secret header (for simple integrations)

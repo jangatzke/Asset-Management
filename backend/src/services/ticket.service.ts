@@ -158,14 +158,12 @@ export class TicketService {
 
   async update(id: string, data: Data, actorId: string) {
     const current = await this.getById(id);
-    // Note: UpdateTicketSchema.strict() in shared DTOs already blocks unknown fields.
-    // We only need to filter out undefined values here; protected fields (status, type, assetIds, etc.)
-    // are rejected at the middleware layer by the Zod schema.
-    // SECURITY: Explicitly exclude protected/system fields that must never be
-    // set from user input.  The middleware already blocks status/type/assetIds,
-    // but we also guard version to prevent accidental or malicious overwrites.
+    // SECURITY FIX (Problem 2 / Issue #2): Explicitly exclude `assetIds` from `changes`
+    // to prevent Prisma throwing "Unknown arg `assetIds`".  Asset links are handled
+    // separately below (lines 183-186) — if the Zod schema strips `assetIds` the block
+    // becomes dead code, but we keep it for safety in case a caller passes it directly.
     const changes: Data = Object.fromEntries(
-      Object.entries(data).filter(([k, value]) => value !== undefined && k !== 'version' && k !== 'isArchived'),
+      Object.entries(data).filter(([k, value]) => value !== undefined && k !== 'version' && k !== 'isArchived' && k !== 'assetIds'),
     );
     if (data.urgency || data.impact) changes.priority = data.priority ?? computePriority(data.urgency ?? current.urgency, data.impact ?? current.impact);
     await prisma.$transaction(async (tx: any) => {
@@ -228,7 +226,13 @@ export class TicketService {
   async close(id: string, summary: string, actorId: string) {
     const ticket = await this.getById(id);
     if (['closed', 'cancelled', 'rejected'].includes(ticket.status)) throw new AppError('Ticket is already closed or cancelled', 409);
-    return this.mutate(id, actorId, 'CLOSE', 'TICKET_CLOSE', summary, (tx) => tx.ticket.update({ where: { id }, data: { status: 'closed', closedAt: new Date(), closedBy: actorId, updatedBy: actorId } }));
+    // SECURITY FIX (Problem 3 / Issue #3): Use `changeStatus()` instead of directly
+    // setting `status: 'closed'` so that the transition is validated by the
+    // state-machine (getAllowedTicketTransitions) and SLA fields (resolvedAt,
+    // firstResponseAt) are set consistently.
+    await this.changeStatus(id, 'closed', summary, actorId);
+    await prisma.ticket.update({ where: { id }, data: { closedAt: new Date(), closedBy: actorId, updatedBy: actorId } });
+    return this.getById(id);
   }
 
   async escalate(id: string, data: Data, actorId: string) {

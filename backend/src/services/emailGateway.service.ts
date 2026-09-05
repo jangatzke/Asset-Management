@@ -87,14 +87,15 @@ async function resolveSecretRef(ref: string): Promise<string> {
   if (ref.startsWith('file:')) {
     const rawPath = ref.slice(5);
     if (!rawPath) throw new AppError('Secret file path is required', 400);
-    // SECURITY FIX (Problem 3): Canonicalize path to prevent directory traversal attacks.
-    // Use path.normalize() to resolve '..' and '.' segments, then verify the resolved
-    // path starts with the intended base directory (current working directory).
+    // SECURITY FIX (Problem 1 / Issue #1): Use path-aware prefix check instead of
+    // raw string-prefix.  `basePath + path.sep` guarantees that `/app2/file` does NOT
+    // pass for base `/app`, because the resolved path would start with
+    // `/app2/…` which does not equal `/app/…`.
     const path = await import('path');
     const basePath = path.resolve(process.cwd());
     const resolvedPath = path.resolve(basePath, rawPath);
-    // Ensure the resolved path is within the base directory (prevent traversal outside)
-    if (!resolvedPath.startsWith(basePath)) {
+    const safeBase = basePath.endsWith(path.sep) ? basePath : basePath + path.sep;
+    if (resolvedPath !== basePath && !resolvedPath.startsWith(safeBase)) {
       throw new AppError('Invalid secret file path: access outside allowed directory', 400);
     }
     try {
@@ -189,36 +190,39 @@ export class EmailGatewayService {
    * Skips encryption if the value is already encrypted (valid base64 format) or a placeholder.
    */
   /**
-   * Encrypt a plaintext credential.  Returns the value as-is if it is empty,
-   * a known placeholder, or already encrypted.
-   *
-   * SECURITY FIX (Problem 6): The previous heuristic (`buffer.length >= 100`)
-   * could produce false positives for long plaintext passwords.  We now use a
-   * structural check for the new format:
-   *   <version_byte><12-byte IV><16-byte auth tag><ciphertext>
-   * Minimum decoded length: 1 + 12 + 16 + 1 = 30 bytes (~40 base64 chars).
-   */
-  private encryptIfNeeded(value: string): string {
-    if (value === '' || PASSWORD_PLACEHOLDERS.has(value)) return value;
-    try {
-      const buffer = Buffer.from(value, 'base64');
-      // A valid encrypted value must be at least version (1) + IV (12) + auth tag (16) + 1 byte ciphertext.
-      if (buffer.length >= 30) {
-          const iv = buffer.slice(1, 13);
-        const tag = buffer.slice(13, 29);
-        const ct = buffer.slice(29);
-        // Only skip encryption if all three components exist and the ciphertext
-        // portion is non-empty.  This prevents false-positive detection for
-        // plaintext values that merely happen to be long base64 strings.
-        if (iv.length === 12 && tag.length === 16 && ct.length >= 1) {
-          return value;
-        }
-      }
-    } catch {
-      // Not valid base64 — definitely plaintext
-    }
-    return encrypt(value);
-  }
+    * Encrypt a plaintext credential.  Returns the value as-is if it is empty,
+    * a known placeholder, or already encrypted.
+    *
+    * SECURITY FIX (Problem 10 / Issue #10): The previous structural check only
+    * verified slice lengths which are *always* correct for buffers ≥ 30 bytes —
+    * any long base64 plaintext would be misclassified as "already encrypted" and
+    * stored in cleartext.  We now verify the **version byte** (0x01) which is
+    * written by `encrypt()` and never appears in plaintext passwords.
+    *
+    * Format: <version_byte(1)><IV(12)><auth_tag(16)><ciphertext(≥1)>
+    * Minimum decoded length: 30 bytes.
+    */
+   private encryptIfNeeded(value: string): string {
+     if (value === '' || PASSWORD_PLACEHOLDERS.has(value)) return value;
+     try {
+       const buffer = Buffer.from(value, 'base64');
+       // A valid encrypted value must be at least version (1) + IV (12) + auth tag (16) + 1 byte ciphertext.
+       if (buffer.length >= 30 && buffer[0] === 0x01) {
+         const iv = buffer.slice(1, 13);
+         const tag = buffer.slice(13, 29);
+         const ct = buffer.slice(29);
+         // Only skip encryption if all three components exist and the ciphertext
+         // portion is non-empty.  The version byte check above prevents false
+         // positives for plaintext values that happen to be long base64 strings.
+         if (iv.length === 12 && tag.length === 16 && ct.length >= 1) {
+           return value;
+         }
+       }
+     } catch {
+       // Not valid base64 — definitely plaintext
+     }
+     return encrypt(value);
+   }
 
   /**
    * Decrypt a credential stored in the database for runtime use.

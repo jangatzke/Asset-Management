@@ -7,10 +7,11 @@
  * webhook shared secrets).
  *
  * Usage notes:
- * - Both values are UTF-8 encoded before comparison; inputs of different
- *   lengths are still compared in constant time relative to the shorter
- *   buffer and then rejected (length is intentionally not secret in most
- *   of our use cases — hashes are fixed-length anyway).
+ * - Both values are UTF-8 encoded before comparison.
+ * - Inputs of different lengths are **rejected immediately** — the length
+ *   check itself is not secret (hashes are fixed-length anyway).
+ * - When lengths match, `timingSafeEqual` compares both buffers in constant
+ *   time.  No spurious operations are performed.
  * - Always use `secureCompare` for any comparison of secret material.
  */
 
@@ -24,10 +25,9 @@ export function secureCompare(a: string, b: string): boolean {
   const bufferA = Buffer.from(a, 'utf8');
   const bufferB = Buffer.from(b, 'utf8');
 
+  // Length mismatch → reject immediately.  Constant-time comparison is only
+  // meaningful when both buffers are the same length.
   if (bufferA.length !== bufferB.length) {
-    // Still perform a constant-time comparison against bufferA so that the
-    // branch does not short-circuit on the length check alone.
-    crypto.timingSafeEqual(bufferA, bufferA);
     return false;
   }
 

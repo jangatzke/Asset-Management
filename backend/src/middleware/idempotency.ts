@@ -170,7 +170,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
                 hint: 'Ensure authentication middleware runs before idempotency middleware',
               },
             },
-          }, ttlSeconds);
+          }, ttlMs);
         }
         
         res.status(401).json({
@@ -200,7 +200,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
                 code: 'INVALID_IDEMPOTENCY_KEY',
               },
             },
-          }, ttlSeconds);
+          }, ttlMs);
         }
         
         res.status(400).json({
@@ -475,25 +475,66 @@ async function storeIdempotencyError(
   errorResponse: IdempotencyErrorResponse,
   ttlMs: number
 ): Promise<void> {
+  const now = Date.now();
+
+  // Store in in-memory reservation for fast local access
   inFlightReservations.set(key, {
     state: 'completed',
     requestId: 'error',
     principal: 'error',
     httpMethod: '',
     routePattern: '',
-    requestBodyHash: '',
-    createdAt: Date.now(),
+    requestBodyHash: undefined,
+    createdAt: now,
     response: {
       status: errorResponse.status,
-      body: errorResponse.body,
       headers: { 'X-Idempotency-Cache': 'error' },
+      body: errorResponse.body,
     },
   });
-  
-  // Schedule cleanup
+
+  // Schedule in-memory cleanup
   setTimeout(() => {
     inFlightReservations.delete(key);
   }, ttlMs);
+
+  // Persist error response to Redis so other instances also replay the cached error.
+  // Error responses have no pre-existing reservation, so atomically reserve this
+  // key first and only write the response when this process owns that reservation.
+  if (redisClient && redisClient.isConnected()) {
+    try {
+      const requestId = crypto.randomUUID();
+      const reservation = await redisClient.reserve(
+        key,
+        'error',
+        '',
+        '',
+        requestId,
+        Math.ceil(ttlMs / 1000),
+      );
+
+      if (!reservation.reserved) {
+        return;
+      }
+
+      const entry: IdempotencyEntry = {
+        data: {
+          response: {
+            status: errorResponse.status,
+            headers: { 'X-Idempotency-Cache': 'error' },
+            body: errorResponse.body,
+          },
+          keyOptions: { ttlMs, httpMethod: '', routePattern: '', principal: 'error' },
+          createdAt: now,
+        },
+        expiresAt: now + ttlMs,
+      };
+      await redisClient.storeResponse(key, entry, requestId);
+    } catch (redisError) {
+      console.debug('[Idempotency] Redis storeResponse failed for error:', redisError);
+      // In-memory entry is still valid; Redis failure is non-blocking
+    }
+  }
 }
 
 /**

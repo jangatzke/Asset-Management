@@ -83,25 +83,48 @@ if (!accountUuid) {
 }
 
 // Look up the account by id (the UUID embedded in the token is the DB id)
-const account = await prisma.serviceAccount.findFirst({
-  where: {
-    id: accountUuid,
-    isActive: true,
-    isArchived: false,
-    OR: [
-      { expiresAt: null },
-      { expiresAt: { gt: new Date() } },
-    ],
-  },
-  select: {
-      id: true,
-      displayId: true,
-      name: true,
-      scopes: true,
-      accessTokenSalt: true,
-      accessTokenHash: true,
+// SECURITY FIX (Problem 9 / Issue #9): Wrap Prisma lookup in try/catch so that
+// a database failure returns a clean 500 instead of an unhandled rejection.
+let account: {
+  id: string;
+  displayId: string;
+  name: string;
+  scopes: unknown;
+  accessTokenSalt: string;
+  accessTokenHash: string;
+} | null = null;
+
+try {
+  account = await prisma.serviceAccount.findFirst({
+    where: {
+      id: accountUuid,
+      isActive: true,
+      isArchived: false,
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } },
+      ],
+    },
+    select: {
+        id: true,
+        displayId: true,
+        name: true,
+        scopes: true,
+        accessTokenSalt: true,
+        accessTokenHash: true,
+      },
+    });
+} catch (dbError) {
+  console.error('[serviceAccountAuth] Database error during token lookup:', dbError);
+  res.status(500).json({
+    success: false,
+    error: {
+      message: 'Authentication service unavailable',
+      code: 'AUTH_SERVICE_ERROR',
     },
   });
+  return;
+}
 
   if (!account) {
     res.status(401).json({

@@ -118,12 +118,16 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
 
 export const authorize = (...roles: string[]) => {
   return (req: AuthRequest, _res: Response, next: NextFunction): void => {
+    // SECURITY FIX (Problem 7 / Issue #7): Use `next(error)` instead of `throw`
+    // to be consistent with `authenticate()` and other Express middleware.  This
+    // ensures proper error propagation through the middleware chain and makes
+    // behaviour predictable for wrappers and test harnesses.
     if (!req.userId) {
-      throw new AppError('Authentication required', 401);
+      return next(new AppError('Authentication required', 401));
     }
 
     if (roles.length && !roles.some(role => req.userRoles?.includes(role))) {
-      throw new AppError('Insufficient permissions', 403);
+      return next(new AppError('Insufficient permissions', 403));
     }
 
     next();
