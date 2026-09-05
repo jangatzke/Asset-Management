@@ -13,6 +13,11 @@ import { secureCompare } from '../utils/secureCompare';
 import rateLimit from 'express-rate-limit';
 import { validateBody, validateParams } from '../middleware/validation';
 import { z } from 'zod';
+import { rotateServiceAccountToken } from '../services/serviceAccountTokenRotation';
+import {
+  rotateWebhookSecret,
+  isWebhookSecretRotationValid,
+} from '../services/webhookSecretRotation';
 
 // ==================== Management Router ====================
 // Protected by authenticate + authorize('admin') middleware applied in index.ts
@@ -75,9 +80,12 @@ function parseScopes(scopes: unknown): string[] {
  * The UUID in the token is the database id (not displayId), enabling ID-based lookup.
  * Returns token, hash, and salt.
  */
-function generateAccessToken(id: string = crypto.randomUUID()): { token: string; hash: string; salt: string; id: string } {
+function generateAccessToken(
+  id: string = crypto.randomUUID(),
+  rotationId: string = crypto.randomBytes(4).toString('hex')
+): { token: string; hash: string; salt: string; id: string } {
   const salt = crypto.randomBytes(32).toString('hex');
-  const token = `svc_${id}_${crypto.randomBytes(32).toString('base64url')}`;
+  const token = `svc_${id}_${rotationId}_${crypto.randomBytes(32).toString('base64url')}`;
   const combined = `${token}${salt}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
   return { token, hash, salt, id };
@@ -85,12 +93,12 @@ function generateAccessToken(id: string = crypto.randomUUID()): { token: string;
 
 /**
  * Extract the account UUID from a service account token.
- * Token format: svc_<uuid>_<timestamp>
+ * Token format: svc_<uuid>_<rotationId>_<random>
+ *        legacy: svc_<uuid>_<random>
  * Returns the UUID part or null if token format is invalid.
  */
 function extractAccountUuidFromToken(token: string): string | null {
   const parts = token.split('_');
-  // Expected format: ['svc', '<uuid>', '<timestamp>']
   // UUIDs contain hyphens (not underscores), so splitting by '_' gives clean parts
   if (parts.length >= 3) {
     // Validate it looks like a proper UUID (8-4-4-4-12 pattern)
@@ -417,20 +425,24 @@ managementRouter.post(
         return;
       }
 
-      // Generate new token with NEW salt (better security)
-      const { token, hash, salt } = generateAccessToken(existing.id);
+      // Generate new token with NEW salt + NEW rotation epoch (better security)
+      const rotation = rotateServiceAccountToken();
+      const { token, hash, salt, id } = generateAccessToken(existing.id, rotation.rotationId);
 
       await prisma.serviceAccount.update({
         where: { id: req.params.id },
         data: {
           accessTokenHash: hash,
           accessTokenSalt: salt,
+          tokenRotationId: rotation.rotationId,
+          previousTokenRotationId: rotation.previousRotationId,
+          tokenRotationValidUntil: rotation.validUntil,
           updatedAt: new Date(),
         },
       });
 
       res.json({
-        data: { id: req.params.id },
+        data: { id },
         accessToken: token, // WARNING: Only returned once!
       });
     } catch (error) {

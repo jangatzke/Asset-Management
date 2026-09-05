@@ -102,8 +102,13 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
       roles?: string[];
       typ?: string;
     };
+    // A `typ: 'pre_auth'` token is intentionally not yet authorized (e.g. pending
+    // approval or an incomplete login step). Returning the same message as a
+    // missing token would let an attacker probe which tokens are provisioned but
+    // not yet active. Use a distinct message so provisioned-but-unauthorized
+    // tokens are distinguishable from a missing/unknown token.
     if (decoded.typ === 'pre_auth') {
-      return next(new AppError('Authentication required', 401));
+      return next(new AppError('Authentication pending approval', 401));
     }
     req.userId = decoded.userId;
     req.userRoles = decoded.roles ?? [];

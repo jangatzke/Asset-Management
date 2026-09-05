@@ -19,6 +19,7 @@ import {
   deliverWebhook,
 } from './webhook.service';
 import { validateWebhookUrl } from './urlValidator';
+import { resolveWebhookSecretAtDelivery } from './webhookSecretRotation';
 
 // Queue configuration
 const QUEUE_POLL_INTERVAL_MS = parseInt(process.env.WEBHOOK_QUEUE_POLL_INTERVAL_MS || '5000', 10);
@@ -181,9 +182,16 @@ export async function processWebhookDeliveryJob(
     // The transport in deliverWebhook resolves immediately before each socket
     // connection and pins it to the validated address. Do not pre-resolve here:
     // that would only reintroduce a validation-to-connect TOCTOU window.
+    //
+    // Signing-secret rotation (Issue #8): prefer the current secret, but keep
+    // verifying with the previous secret while the deprecation window is still
+    // open so consumers that have not yet picked up the new secret can still
+    // verify the signature. The previous secret is never persisted beyond the
+    // window and is never returned to clients.
+    const secret = resolveWebhookSecretAtDelivery(webhook);
     const result = await deliverWebhook(payload, {
       url: webhook.url,
-      secret: webhook.secret,
+      secret,
       maxRetries: 1,
       timeoutMs: webhook.timeoutMs,
     });

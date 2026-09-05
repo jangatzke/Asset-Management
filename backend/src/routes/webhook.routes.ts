@@ -16,6 +16,7 @@ import { validateWebhookUrl, checkWebhookUrlSSRF } from '../services/urlValidato
 import { queueWebhookDelivery } from '../services/webhookQueue.service';
 import { prisma } from '../config/database';
 import { createWebhookSchema, updateWebhookSchema, broadcastSchema } from '../dtos/webhook.dto';
+import { rotateWebhookSecret } from '../services/webhookSecretRotation';
 
 const router = Router();
 
@@ -436,6 +437,10 @@ router.post('/:id/test', async (req: Request, res: Response) => {
 
 /**
  * POST /api/v1/webhooks/:id/regenerate-secret - Regenerate HMAC secret
+ *
+ * Rotates the signing secret using a deprecation window (Issue #8): the old
+ * secret keeps verifying for a short period so consumers can migrate. The
+ * previous secret is stored server-side only and never returned to clients.
  */
 router.post('/:id/regenerate-secret', async (req: Request, res: Response) => {
   try {
@@ -448,17 +453,25 @@ router.post('/:id/regenerate-secret', async (req: Request, res: Response) => {
       return;
     }
 
+    const rotation = rotateWebhookSecret();
     const newSecret = crypto.randomUUID();
-    
+
     await prisma.webhook.update({
       where: { id: req.params.id },
-      data: { secret: newSecret, updatedAt: new Date() },
+      data: {
+        secret: newSecret,
+        previousWebhookSecret: webhook.secret,
+        webhookSecretId: rotation.epochId,
+        previousWebhookSecretId: rotation.previousEpochId,
+        webhookSecretValidUntil: rotation.validUntil,
+        updatedAt: new Date(),
+      },
     });
 
     console.info(`[Webhook] Secret regenerated for webhook ${webhook.displayId}`);
 
-    res.status(200).json({ 
-      data: { 
+    res.status(200).json({
+      data: {
         message: 'Secret regenerated',
         _newSecret: newSecret,
       },

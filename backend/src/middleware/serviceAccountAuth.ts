@@ -12,6 +12,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { secureCompare } from '../utils/secureCompare';
+import { parseServiceAccountToken, isServiceAccountRotationValid } from '../services/serviceAccountTokenRotation';
 
 export interface ServiceAccountRequest extends Request {
   serviceAccount?: {
@@ -92,6 +93,9 @@ let account: {
   scopes: unknown;
   accessTokenSalt: string;
   accessTokenHash: string;
+  tokenRotationId: string | null;
+  previousTokenRotationId: string | null;
+  tokenRotationValidUntil: Date | null;
 } | null = null;
 
 try {
@@ -112,8 +116,11 @@ try {
         scopes: true,
         accessTokenSalt: true,
         accessTokenHash: true,
+        tokenRotationId: true,
+        previousTokenRotationId: true,
+        tokenRotationValidUntil: true,
       },
-    });
+      });
 } catch (dbError) {
   console.error('[serviceAccountAuth] Database error during token lookup:', dbError);
   res.status(500).json({
@@ -149,15 +156,43 @@ try {
     });
     return;
   }
+// Update last used timestamp
+await prisma.serviceAccount.update({
+  where: { id: account.id },
+  data: { lastUsedAt: new Date() },
+}).catch(() => {
+  // Best-effort: don't fail the request if update fails
+});
 
-  // Update last used timestamp
-  await prisma.serviceAccount.update({
-    where: { id: account.id },
-    data: { lastUsedAt: new Date() },
-  }).catch(() => {
-    // Best-effort: don't fail the request if update fails
-  });
-  // Parse scopes from JSON (Prisma stores as Json) — already included in the
+// Token rotation enforcement (Issue #9): the token's embedded rotation epoch
+// must match the account's current rotation epoch, or be inside the short
+// deprecation window granted after a rotation. This lets a stale token be
+// rejected without ever deactivating the account row.
+{
+  const parsed = parseServiceAccountToken(token);
+  const rotationValid = parsed
+    ? isServiceAccountRotationValid(
+        parsed.rotationId,
+        account.previousTokenRotationId,
+        account.tokenRotationValidUntil,
+        new Date()
+      )
+    : false;
+
+  if (!rotationValid) {
+    res.status(401).json({
+      success: false,
+      error: {
+        message: 'Service account token has been rotated',
+        code: 'TOKEN_ROTATED',
+        hint: 'Request a fresh token from the service-account administrator',
+      },
+    });
+    return;
+  }
+}
+
+ // Parse scopes from JSON (Prisma stores as Json) — already included in the
   // lookup above, so no second round-trip to the database is needed.
   let scopes: string[] = account.scopes as unknown as string[];
   if (typeof account.scopes === 'string') {

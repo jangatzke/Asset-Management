@@ -25,7 +25,7 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { ticketService } from './ticket.service';
-import { encrypt, decrypt } from './credentialEncryption.service';
+import { encrypt, decrypt, isEncrypted } from './credentialEncryption.service';
 
 type AnyObject = Record<string, any>;
 
@@ -51,6 +51,7 @@ export interface EmailGatewayConfigUpdate {
   smtpAuthType?: 'none' | 'basic' | 'oauth2';
   smtpFromEmail?: string | null;
   smtpRejectUnauthorized?: boolean;
+  tlsRejectUnauthorized?: boolean;
   pollIntervalMinutes?: number;
   subjectPrefix?: string | null;
   defaultTicketType?: string | null;
@@ -87,15 +88,22 @@ async function resolveSecretRef(ref: string): Promise<string> {
   if (ref.startsWith('file:')) {
     const rawPath = ref.slice(5);
     if (!rawPath) throw new AppError('Secret file path is required', 400);
-    // SECURITY FIX (Problem 1 / Issue #1): Use path-aware prefix check instead of
-    // raw string-prefix.  `basePath + path.sep` guarantees that `/app2/file` does NOT
-    // pass for base `/app`, because the resolved path would start with
-    // `/app2/…` which does not equal `/app/…`.
+    // Restrict file-based secret references to a dedicated secrets directory so
+    // that references such as `file:/etc/passwd` or `file:../../.env` cannot read
+    // arbitrary files under the working directory. The directory is configurable
+    // via SECRET_FILES_DIR and otherwise defaults to ./secrets next to the backend.
     const path = await import('path');
-    const basePath = path.resolve(process.cwd());
-    const resolvedPath = path.resolve(basePath, rawPath);
-    const safeBase = basePath.endsWith(path.sep) ? basePath : basePath + path.sep;
-    if (resolvedPath !== basePath && !resolvedPath.startsWith(safeBase)) {
+    const secretsDir = process.env.SECRET_FILES_DIR
+      ? path.resolve(process.env.SECRET_FILES_DIR)
+      : path.resolve(process.cwd(), 'secrets');
+    // Absolute paths bypass the secrets directory entirely — reject them so only
+    // relative references are resolved against the allowed directory.
+    if (path.isAbsolute(rawPath)) {
+      throw new AppError('Secret file path must be relative to the secrets directory', 400);
+    }
+    const resolvedPath = path.resolve(secretsDir, rawPath);
+    const safeBase = secretsDir.endsWith(path.sep) ? secretsDir : secretsDir + path.sep;
+    if (resolvedPath !== secretsDir && !resolvedPath.startsWith(safeBase)) {
       throw new AppError('Invalid secret file path: access outside allowed directory', 400);
     }
     try {
@@ -232,13 +240,24 @@ export class EmailGatewayService {
   private decryptIfNeeded(value: string | undefined | null): string | null {
     if (value === undefined || value === null) return null;
     if (value === '' || PASSWORD_PLACEHOLDERS.has(value)) return value;
-    try {
-      return decrypt(value);
-    } catch {
-      // Decryption failed — value is likely plaintext (pre-encryption storage).
-      // Return as-is for backward compatibility during migration.
-      return value;
+    if (isEncrypted(value)) {
+      // The stored value is an encrypted credential. decrypt() returns the input
+      // unchanged when no configured key can decrypt it (the legacy fallback path),
+      // so a returned value equal to the input means decryption failed. In that
+      // case we must fail closed rather than hand an undecryptable blob — or a
+      // plaintext value produced by the fallback — to the application.
+      const decrypted = decrypt(value);
+      if (decrypted === value) {
+        throw new AppError(
+          'Unable to decrypt stored credential: encryption key mismatch or corrupted data',
+          500,
+        );
+      }
+      return decrypted;
     }
+    // Legacy cleartext value (pre-encryption storage). Return as-is for backward
+    // compatibility during migration.
+    return value;
   }
 
   async updateConfig(data: EmailGatewayConfigUpdate, userId = 'system'): Promise<AnyObject> {
@@ -287,6 +306,7 @@ export class EmailGatewayService {
     }
     if (data.smtpFromEmail !== undefined) updateData.smtpFromEmail = str(data.smtpFromEmail);
     if (data.smtpRejectUnauthorized !== undefined) updateData.smtpRejectUnauthorized = Boolean(data.smtpRejectUnauthorized);
+    if (data.tlsRejectUnauthorized !== undefined) updateData.tlsRejectUnauthorized = Boolean(data.tlsRejectUnauthorized);
     if (data.pollIntervalMinutes !== undefined) {
       const interval = Number(data.pollIntervalMinutes);
       if (!Number.isInteger(interval) || interval < 1 || interval > 1440) throw new AppError('pollIntervalMinutes must be between 1 and 1440', 400);

@@ -3,6 +3,7 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { AuthSessionResult, SessionContext, authService } from './auth.service';
+import { encrypt, decrypt, isEncrypted } from './credentialEncryption.service';
 
 type OpenIdClientModule = typeof import('openid-client', { with: { 'resolution-mode': 'import' } });
 
@@ -103,16 +104,25 @@ export class OidcService {
 
   resolveClientSecret(config: Pick<OidcRuntimeConfig, 'clientSecretRef' | 'clientSecret'>): string | undefined {
     if (config.clientSecretRef) {
-      if (!config.clientSecretRef.startsWith('env:')) throw new AppError('Unsupported OIDC client secret reference', 500);
+      if (!config.clientSecretRef.startsWith('env:')) throw new AppError('Unsupported OIDC client secret reference', 400);
       const envName = config.clientSecretRef.slice('env:'.length);
       const value = process.env[envName];
-      if (!value) throw new AppError('OIDC client secret reference could not be resolved', 500);
+      if (!value) throw new AppError('OIDC client secret reference could not be resolved', 400);
       return value;
     }
-    if (process.env.NODE_ENV === 'production' && config.clientSecret) {
-      throw new AppError('OIDC client secret must be provided by environment reference in production', 500);
+    const storedSecret = config.clientSecret;
+    if (!storedSecret) return undefined;
+    // Secrets persisted in the database are encrypted at rest. Decrypt them here
+    // for runtime use. A value that is not encrypted is treated as cleartext: in
+    // production that is rejected, in other environments it is returned as-is so
+    // legacy cleartext rows remain usable during migration.
+    if (isEncrypted(storedSecret)) {
+      return decrypt(storedSecret);
     }
-    return config.clientSecret || undefined;
+    if (process.env.NODE_ENV === 'production') {
+      throw new AppError('OIDC client secret must be provided by environment reference in production', 400);
+    }
+    return storedSecret;
   }
 
   private async clientConfiguration(config: OidcRuntimeConfig) {
@@ -157,8 +167,11 @@ export class OidcService {
     if (data.clientId !== undefined) updateData.clientId = data.clientId;
     if (data.clientSecretRef !== undefined) updateData.clientSecretRef = data.clientSecretRef;
     if (data.clientSecret !== undefined) {
-      if (process.env.NODE_ENV === 'production' && data.clientSecret) throw new AppError('OIDC client secret must be provided by environment reference in production', 400);
-      updateData.clientSecret = data.clientSecret;
+      if (process.env.NODE_ENV === 'production' && data.clientSecret && !isEncrypted(data.clientSecret)) {
+        throw new AppError('OIDC client secret must be provided by environment reference in production', 400);
+      }
+      // Encrypt at rest: never persist the OIDC client secret in cleartext.
+      updateData.clientSecret = isEncrypted(data.clientSecret) ? data.clientSecret : encrypt(data.clientSecret);
     }
     if (data.redirectUri !== undefined) updateData.redirectUri = data.redirectUri;
     if (data.allowedEmailDomains !== undefined) updateData.allowedEmailDomains = data.allowedEmailDomains;
@@ -186,7 +199,21 @@ export class OidcService {
   async getAuthorizationUrl(_legacyState?: string): Promise<AuthorizationResult> {
     const config = await this.getConfig() as OidcRuntimeConfig;
     if (!config.enabled || !config.tenantId || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
-    if (!config.redirectUri.includes('/auth/oidc/callback') && !config.redirectUri.includes('/api/v1/auth/oidc/callback')) throw new AppError('OIDC redirect URI must target the backend callback endpoint', 400);
+    // Validate the redirect URI by exact path, not by substring, so that a
+    // different origin or path cannot be accepted merely because it contains a
+    // fragment of the expected callback path.
+    let parsedRedirect: URL;
+    try {
+      parsedRedirect = new URL(config.redirectUri);
+    } catch {
+      throw new AppError('OIDC redirect URI must target the backend callback endpoint', 400);
+    }
+    const isBackendCallback =
+      parsedRedirect.pathname === '/api/v1/auth/oidc/callback' ||
+      parsedRedirect.pathname === '/auth/oidc/callback';
+    if (!isBackendCallback) {
+      throw new AppError('OIDC redirect URI must target the backend callback endpoint', 400);
+    }
 
     const client = await this.openidClient();
     const oidcConfig = await this.clientConfiguration(config);
