@@ -424,6 +424,7 @@
     "loadError": "Failed to load history",
     "changes": "Changes",
     "field": "Field",
+    "ticket": "Ticket {ticket}",
     "oldValue": "Old Value",
     "newValue": "New Value",
     "system": "System",
@@ -438,7 +439,13 @@
       "RELATION_CHANGE": "Relation changed",
       "LIFECYCLE_CHANGE": "Lifecycle changed",
       "CLOSE": "Closed",
-      "REOPEN": "Reopened"
+      "REOPEN": "Reopened",
+      "COMMENT": "Comment",
+      "ASSIGN": "Assigned",
+      "ASSET_LINK": "Asset attached",
+      "ASSET_UNLINK": "Asset detached",
+      "LINK": "Linked",
+      "ESCALATE": "Escalated"
     },
     "fields": {
       "name": "Name",
@@ -1025,7 +1032,12 @@
     "currentFiscalYear": "Current fiscal year {fiscalYear}",
     "knownCostsNextFiscalYear": "Known costs next fiscal year",
     "acquiredCurrentFiscalYear": "Acquired current fiscal year",
-    "historicalDevelopment": "Historical development"
+    "historicalDevelopment": "Historical development",
+    "tickets": "Tickets",
+    "openTickets": "Open tickets",
+    "assignedToMe": "Assigned to me",
+    "recentTickets": "Recent tickets",
+    "noTickets": "No tickets found."
   },
   "login": {
     "title": "Login",
@@ -1621,10 +1633,11 @@
     "loadError": "Tickets could not be loaded.",
     "createError": "Ticket could not be created.",
     "incidentCreateError": "Security incidents must be created through the Incident workflow to preserve NIS2 reporting obligations.",
-    "headings": { "ticket": "Ticket", "type": "Type", "priority": "Priority", "status": "Status", "slaTarget": "SLA target", "updated": "Updated" },
+    "headings": { "ticket": "Ticket", "type": "Type", "priority": "Priority", "status": "Status", "slaTarget": "SLA target", "reportedBy": "Reported by", "created": "Created", "updated": "Updated" },
     "types": { "incident": "Incident", "service_request": "Service Request", "problem": "Problem", "change": "Change" },
     "priorities": { "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical" },
-    "detail": { "allTickets": "All tickets", "loading": "Loading ticket…", "loadError": "Ticket could not be loaded.", "status": "Status", "priority": "Priority", "slaTarget": "SLA target", "notConfigured": "Not configured", "noDescription": "No description provided.", "moveTo": "Move to {status}", "closeTicket": "Close ticket", "closurePrompt": "Closure summary (required for the audit trail):", "closeError": "Ticket could not be closed.", "statusError": "Status change failed.", "commentError": "Comment could not be added.", "commentsTitle": "Comments and work notes", "internalWorkNote": "Internal work note", "requesterComment": "Requester-visible comment", "noComments": "No comments yet.", "updatePlaceholder": "Record an update.", "addUpdate": "Add update", "historyTitle": "Auditable ticket history", "noHistory": "No history entries." }
+    "status": { "new": "New", "in_progress": "In progress", "under_investigation": "Under investigation", "resolved": "Resolved", "fulfilled": "Fulfilled", "closed": "Closed" },
+    "detail": { "allTickets": "All tickets", "loading": "Loading ticket…", "loadError": "Ticket could not be loaded.", "status": "Status", "priority": "Priority", "slaTarget": "SLA target", "notConfigured": "Not configured", "noDescription": "No description provided.", "moveTo": "Move to {status}", "transitionLabel": "Change status", "reopenTicket": "Reopen ticket", "closeTicket": "Close ticket", "closurePrompt": "Closure summary (required for the audit trail):", "closeError": "Ticket could not be closed.", "statusError": "Status change failed.", "commentError": "Comment could not be added.", "commentsTitle": "Comments and work notes", "internalWorkNote": "Internal work note", "requesterComment": "Requester-visible comment", "by": "by", "anonymous": "Anonymous", "noComments": "No comments yet.", "updatePlaceholder": "Record an update.", "addUpdate": "Add update", "requesterCommentPlaceholder": "Add a comment as the requester…", "submitComment": "Submit comment", "historyTitle": "Auditable ticket history", "noHistory": "No history entries.", "assignmentTitle": "Assignment", "assignee": "Assignee", "unassigned": "Unassigned", "assign": "Assign", "unassign": "Unassign", "assignError": "Assignment could not be saved.", "assetContextTitle": "Asset context", "attachAsset": "Attach asset", "attachAssets": "Attach asset(s)", "attachError": "Asset could not be attached.", "detach": "Detach", "detachError": "Asset could not be detached.", "noAssets": "No assets attached yet.", "noManufacturer": "No manufacturer" }
   },
   "ticketSla": {
     "title": "Ticket SLA configuration",

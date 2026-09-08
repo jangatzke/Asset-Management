@@ -467,7 +467,18 @@ export class EmailGatewayService {
             if (replyTicketId) {
               const existing = await (prisma as any).ticket.findUnique({ where: { displayId: replyTicketId } });
               if (existing) {
-                await ticketService.comment(existing.id, { body: this.formatIncomingReply(from, subject, bodyText), isInternal: true }, actorId);
+                // ITIL 4 requester feedback channel: when the sender is the
+                // ticket requester, the reply is a PUBLIC comment attributed
+                // to the requester (not an internal gateway note). Unknown or
+                // non-requester senders stay internal notes, attributed to the
+                // resolved user when possible.
+                const replySender = fromEmail ? await resolveUserByEmail(fromEmail) : null;
+                const isRequester = Boolean(replySender?.id && replySender.id === existing.requesterId);
+                await ticketService.comment(
+                  existing.id,
+                  { body: this.formatIncomingReply(from, subject, bodyText), isInternal: !isRequester },
+                  replySender?.id ?? actorId,
+                );
                 await (prisma as any).emailMessage.update({ where: { id: message.id }, data: { status: 'processed', ticketId: existing.id, error: null } });
                 summary.processed += 1;
                 continue;

@@ -184,12 +184,21 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
               const hasVisibleChanges = Object.keys(visibleChanges).length > 0;
               const actorDisplay = entry.actorName || entry.actorId || t('history.system');
               const expanded = expandedEntryIds.has(entry.id);
+              const ticketId = entry.ticketId as string | undefined;
+              const ticketDisplayId = ticketId
+                ? (entry.ticketDisplayId ?? entry.summary?.match(/Ticket (\S+)/)?.[1] ?? ticketId)
+                : undefined;
 
               return (
                 <div key={entry.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+                        {ticketDisplayId && (
+                          <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                            {t('history.ticket').replace('{ticket}', ticketDisplayId)}
+                          </span>
+                        )}
                         <span className="text-sm font-semibold text-gray-900 dark:text-white">{actionLabel(entry.action)}</span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">{new Date(entry.createdAt).toLocaleString()}</span>
                         <span className="text-xs text-gray-400 dark:text-gray-500" title={actorDisplay}>{t('history.byActor').replace('{actor}', actorDisplay)}</span>

@@ -25,8 +25,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   auditor: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'suppliers.read', 'bcm.read', 'audits.read', 'correctiveActions.read', 'training.read', 'documents.read', 'interestedParties.read', 'evidence.read', 'nis2.read'],
   employee: ['assets.read', 'risks.read', 'controls.read', 'incidents.read', 'tickets.read', 'training.read', 'documents.read', 'interestedParties.read'],
   ticket_viewer: ['tickets.read', 'serviceCatalog.read'],
-  service_desk_agent: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'serviceCatalog.read'],
-  it_manager: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve', 'serviceCatalog.read'],
+  service_desk_agent: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.context', 'serviceCatalog.read'],
+  it_manager: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve', 'tickets.context', 'serviceCatalog.read'],
+  ticket_coordinator: ['tickets.read', 'tickets.write', 'tickets.assign', 'tickets.context'],
   service_catalog_manager: ['tickets.read', 'serviceCatalog.read', 'serviceCatalog.manage'],
 };
 
@@ -133,6 +134,7 @@ async function seedRoles(): Promise<void> {
   for (const role of [
     ['ticket_viewer', 'Ticket Viewer – read-only IT service management access'],
     ['service_desk_agent', 'Service Desk Agent – manages tickets and escalations'],
+    ['ticket_coordinator', 'Ticket Coordinator (Disponent) – assigns handlers and attaches asset context'],
     ['it_manager', 'IT Manager – approves changes and oversees ticket operations'],
     ['service_catalog_manager', 'Service Catalog Manager – maintains the request catalog'],
   ] as const) {

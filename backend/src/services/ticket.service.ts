@@ -3,7 +3,8 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { nextDisplayId } from './displayId.service';
-import { computePriority, getAllowedTicketTransitions, INITIAL_TICKET_STATUS, type TicketType } from 'shared';
+import { resolveActorName, resolveActorNames } from './entityHistory.service';
+import { CLOSE_TARGET_STATUS, computePriority, getAllowedTicketTransitions, INITIAL_TICKET_STATUS, type TicketType } from 'shared';
 
 type Data = Record<string, any>;
 /** Terminal statuses that count as "closed" for list filtering. */
@@ -114,6 +115,11 @@ export class TicketService {
   async getById(id: string) {
     const ticket = await (prisma as any).ticket.findUnique({ where: { id }, include });
     if (!ticket || ticket.isArchived) throw new AppError('Ticket not found', 404);
+    // TicketComment has no author relation in the Prisma model, so the author
+    // name is resolved at read time (ITIL: requester comments must be readable
+    // by name, not by a raw user id).
+    const authors = await resolveActorNames((ticket.comments as any[])?.map((c: any) => c?.authorId).filter(Boolean));
+    (ticket.comments as any[])?.forEach((c: any) => { if (c?.authorId) c.authorName = authors.get(c.authorId); });
     return ticket;
   }
 
@@ -149,7 +155,7 @@ export class TicketService {
           ...(type === 'service_request' && { serviceRequest: { create: data.serviceRequest ?? {} } }),
         },
       });
-      await this.history(tx, created.id, 'CREATE', `Created ${created.displayId}`, {}, actorId);
+      await this.history(tx, created.id, 'CREATE', `Created ${created.displayId}`, { assetIds: data.assetIds ?? [] }, actorId);
       await this.audit(tx, actorId, 'TICKET_CREATE', created.id, `Created ${created.displayId}`);
       return created;
     });
@@ -182,7 +188,9 @@ export class TicketService {
         await tx.ticketAsset.deleteMany({ where: { ticketId: id } });
         if (data.assetIds.length) await tx.ticketAsset.createMany({ data: data.assetIds.map((assetId: string) => ({ ticketId: id, assetId })), skipDuplicates: true });
       }
-      await this.history(tx, id, 'UPDATE', `Updated ${current.displayId}`, changes, actorId);
+      // Record which assets this update affected so per-asset history views
+      // (asset.service.getAssetTicketHistory) can scope the event to the asset.
+      await this.history(tx, id, 'UPDATE', `Updated ${current.displayId}`, { ...changes, assetIds: data.assetIds }, actorId);
       await this.audit(tx, actorId, 'TICKET_UPDATE', id, `Updated ${current.displayId}`);
     });
     return this.getById(id);
@@ -195,6 +203,10 @@ export class TicketService {
     await prisma.$transaction(async (tx: any) => {
       await tx.ticket.update({ where: { id }, data: {
         status, resolvedAt: ['resolved', 'fulfilled', 'implemented'].includes(status) ? new Date() : undefined,
+        // ITIL 4 reopen: leaving a closed/fulfilled/resolved state clears the
+        // closure metadata so the ticket is treated as active again.
+        closedAt: ticket.closedAt && !CLOSED_TICKET_STATUSES.includes(status) ? null : undefined,
+        closedBy: ticket.closedAt && !CLOSED_TICKET_STATUSES.includes(status) ? null : undefined,
         // Only set firstResponseAt on the FIRST transition into an active status.
         // If it's already set (non-null), the ticket was already acknowledged — leave it untouched.
         firstResponseAt: ticket.firstResponseAt ?? (ACTIVE_TICKET_STATUSES.has(status) ? new Date() : undefined),
@@ -223,14 +235,32 @@ export class TicketService {
     return this.mutate(id, actorId, 'COMMENT', 'TICKET_COMMENT', data.isInternal ? 'Added internal work note' : 'Added comment', (tx) => tx.ticketComment.create({ data: { ticketId: id, authorId: actorId, body: data.body, isInternal: data.isInternal ?? false } }));
   }
 
+  /**
+   * Comment submitted by the ticket requester (end user) in the app.
+   * The acting user MUST be the ticket requester (dual-role safe: the route
+   * grants tickets.read only, and isInternal is forced to false so a
+   * requester who also holds agent roles cannot inject internal work notes).
+   */
+  async requesterComment(id: string, body: string, actorId: string) {
+    const ticket = await this.getById(id);
+    if (!ticket.requesterId || ticket.requesterId !== actorId) throw new AppError('Only the ticket requester can post a requester comment', 403);
+    return this.mutate(id, actorId, 'REQUESTER_COMMENT', 'TICKET_REQUESTER_COMMENT', 'Requester added a comment', (tx) => tx.ticketComment.create({ data: { ticketId: id, authorId: actorId, body, isInternal: false } }));
+  }
+
   async close(id: string, summary: string, actorId: string) {
     const ticket = await this.getById(id);
-    if (['closed', 'cancelled', 'rejected'].includes(ticket.status)) throw new AppError('Ticket is already closed or cancelled', 409);
-    // SECURITY FIX (Problem 3 / Issue #3): Use `changeStatus()` instead of directly
-    // setting `status: 'closed'` so that the transition is validated by the
-    // state-machine (getAllowedTicketTransitions) and SLA fields (resolvedAt,
+    if (CLOSED_TICKET_STATUSES.includes(ticket.status)) throw new AppError('Ticket is already closed or cancelled', 409);
+    // SECURITY FIX (Problem 3 / Issue #3): Use `changeStatus()` instead of
+    // directly setting the status so that the transition is validated by the
+    // state machine (getAllowedTicketTransitions) and SLA fields (resolvedAt,
     // firstResponseAt) are set consistently.
-    await this.changeStatus(id, 'closed', summary, actorId);
+    //
+    // ITIL 4: each ticket type closes into its own terminal state —
+    // incident/problem → resolved, service_request → fulfilled,
+    // change → closed (see CLOSE_TARGET_STATUS). The previous hardcoded
+    // 'closed' target was not a valid transition for the other three types.
+    const targetStatus = CLOSE_TARGET_STATUS[ticket.type as TicketType] ?? 'closed';
+    await this.changeStatus(id, targetStatus, summary, actorId);
     await prisma.ticket.update({ where: { id }, data: { closedAt: new Date(), closedBy: actorId, updatedBy: actorId } });
     return this.getById(id);
   }
@@ -246,6 +276,72 @@ export class TicketService {
     return this.mutate(id, actorId, 'LINK', 'TICKET_LINK', `Linked ticket (${data.linkType})`, (tx) => tx.ticketLink.create({ data: { fromTicketId: id, toTicketId: data.toTicketId, linkType: data.linkType } }));
   }
 
+  /**
+   * Attach one or more assets to a ticket's context (ITIL handler scope).
+   * Validates that each asset id exists before persisting the link.
+   */
+  async addAssets(id: string, assetIds: string[], actorId: string) {
+    const current = await this.getById(id);
+    if (!assetIds?.length) throw new AppError('At least one asset id is required', 400);
+    await prisma.$transaction(async (tx: any) => {
+      await validateAssetReferences(tx, assetIds);
+      await tx.ticketAsset.createMany({
+        data: assetIds.map((assetId: string) => ({ ticketId: id, assetId })),
+        skipDuplicates: true,
+      });
+      // Record the affected assets so per-asset history views can scope this
+      // event and phrase it from the asset's perspective (e.g. "Attached to TCKT-0002").
+      await this.history(tx, id, 'ASSET_LINK', `Attached ${assetIds.length} asset(s) to ${current.displayId}`, { assetIds }, actorId);
+      await this.audit(tx, actorId, 'TICKET_ASSET_LINK', id, `Attached ${assetIds.length} asset(s)`);
+    });
+    return this.getById(id);
+  }
+
+  /** Detach one or more assets from a ticket's context. */
+  async removeAssets(id: string, assetIds: string[], actorId: string) {
+    const current = await this.getById(id);
+    if (!assetIds?.length) throw new AppError('At least one asset id is required', 400);
+    await prisma.$transaction(async (tx: any) => {
+      await tx.ticketAsset.deleteMany({ where: { ticketId: id, assetId: { in: assetIds } } });
+      await this.history(tx, id, 'ASSET_UNLINK', `Detached ${assetIds.length} asset(s) from ${current.displayId}`, { assetIds }, actorId);
+      await this.audit(tx, actorId, 'TICKET_ASSET_UNLINK', id, `Detached ${assetIds.length} asset(s)`);
+    });
+    return this.getById(id);
+  }
+
+  /**
+   * Return the full asset context for a ticket (ITIL handler scope),
+   * including rich asset metadata (type, manufacturer, status, owner).
+   */
+  async getAssetContext(id: string) {
+    const ticket = await this.getById(id);
+    const links = await prisma.ticketAsset.findMany({
+      where: { ticketId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+    const assetIds = links.map((link) => link.assetId);
+    if (!assetIds.length) {
+      return { ticketId: ticket.id, assets: [] };
+    }
+    const assets = await prisma.asset.findMany({
+      where: { id: { in: assetIds } },
+      select: {
+        id: true, displayId: true, name: true, status: true,
+        assetTypeId: true,
+        assetType: { select: { id: true, name: true } },
+        manufacturer: true,
+        businessOwnerId: true,
+      },
+    });
+    const assetById = new Map(assets.map((a) => [a.id, a]));
+    return {
+      ticketId: ticket.id,
+      assets: links
+        .map((link) => ({ id: link.id, assetId: link.assetId, asset: assetById.get(link.assetId) }))
+        .filter((entry) => Boolean(entry.asset)),
+    };
+  }
+
   async historyList(id: string, query: Data) {
     await this.getById(id);
     const where = { ticketId: id, ...(query.action && { action: query.action }) };
@@ -253,6 +349,11 @@ export class TicketService {
       (prisma as any).ticketHistoryEntry.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(Number(query.limit) || 100, 200), skip: Number(query.offset) || 0 }),
       (prisma as any).ticketHistoryEntry.count({ where }),
     ]);
+    // ISO 27001 A.5.15 logging: history entries must be attributable to a
+    // human-readable actor. Entries written before actorName existed are
+    // backfilled at read time (guarded: test mocks may lack the user model).
+    const names = await resolveActorNames((data as any[]).filter((e: any) => e?.actorId && !e?.actorName).map((e: any) => e.actorId));
+    (data as any[]).forEach((e: any) => { if (e?.actorId && !e?.actorName) e.actorName = names.get(e.actorId); });
     return { data, total };
   }
 
@@ -294,15 +395,16 @@ export class TicketService {
   }
 
   private async mutate(id: string, actorId: string, action: string, auditAction: any, summary: string, operation: (tx: any) => Promise<any>) {
+    const actorName = await resolveActorName(actorId);
     await prisma.$transaction(async (tx: any) => {
       await operation(tx);
-      await this.history(tx, id, action, summary, {}, actorId);
+      await this.history(tx, id, action, summary, {}, actorId, actorName);
       await this.audit(tx, actorId, auditAction, id, summary);
     });
     return this.getById(id);
   }
 
-  private history(tx: any, ticketId: string, action: string, summary: string, fieldChanges: any, actorId: string) { return tx.ticketHistoryEntry.create({ data: { ticketId, action, summary, fieldChanges, actorId } }); }
+  private history(tx: any, ticketId: string, action: string, summary: string, fieldChanges: any, actorId: string, actorName?: string | null) { return tx.ticketHistoryEntry.create({ data: { ticketId, action, summary, fieldChanges, actorId, actorName: actorName ?? null } }); }
   private audit(tx: any, userId: string, action: any, entityId: string, details: string) { return auditService.logEvent(tx, { userId, action, entityType: 'Ticket', entityId, details }); }
 }
 

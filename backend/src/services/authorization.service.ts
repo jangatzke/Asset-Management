@@ -7,7 +7,7 @@ export const GRANULAR_PERMISSIONS = [
   'risks.read', 'risks.write', 'risks.assess', 'risks.approve', 'risks.accept',
   'controls.read', 'controls.write', 'controls.test', 'controls.approve',
   'incidents.read', 'incidents.write', 'incidents.assess', 'incidents.report', 'incidents.close',
-  'tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve',
+  'tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve', 'tickets.context',
   'serviceCatalog.read', 'serviceCatalog.manage',
   'suppliers.read', 'suppliers.write', 'suppliers.approve',
   'bcm.read', 'bcm.write', 'bcm.approve',
@@ -41,7 +41,7 @@ export type EntityType =
   | 'administration'
   | 'costPlanning';
 
-export type EntityAction = 'read' | 'write' | 'delete' | 'archive' | 'assess' | 'approve' | 'accept' | 'test' | 'report' | 'close' | 'verify' | 'manage' | 'export';
+export type EntityAction = 'read' | 'write' | 'delete' | 'archive' | 'assess' | 'approve' | 'accept' | 'test' | 'report' | 'close' | 'verify' | 'manage' | 'export' | 'context';
 
 export interface ScopeConstraints {
   legalEntityId: string | null;

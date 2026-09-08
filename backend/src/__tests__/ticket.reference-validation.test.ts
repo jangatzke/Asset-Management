@@ -58,4 +58,29 @@ describe('Ticket reference integrity', () => {
       data: expect.objectContaining({ requesterId: null, createdBy: 'email-gateway' }),
     }));
   });
+
+  it('records the affected asset ids when attaching assets so per-asset history can scope the event', async () => {
+    mockPrisma.asset.findMany.mockResolvedValue([{ id: 'asset-1' }, { id: 'asset-2' }]);
+    await ticketService.addAssets('ticket-2', ['asset-1', 'asset-2'], 'actor-1');
+
+    expect(mockPrisma.ticketHistoryEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        ticketId: 'ticket-2',
+        action: 'ASSET_LINK',
+        fieldChanges: { assetIds: ['asset-1', 'asset-2'] },
+      }),
+    });
+  });
+
+  it('records the affected asset ids when detaching assets', async () => {
+    await ticketService.removeAssets('ticket-2', ['asset-1'], 'actor-1');
+
+    expect(mockPrisma.ticketHistoryEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        ticketId: 'ticket-2',
+        action: 'ASSET_UNLINK',
+        fieldChanges: { assetIds: ['asset-1'] },
+      }),
+    });
+  });
 });

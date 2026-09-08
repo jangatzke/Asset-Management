@@ -36,6 +36,7 @@ import type {
   UpdateRiskControlDTO,
   UpdateRiskDTO,
 } from '../../../shared/src';
+import type { TicketType } from '../../../shared/src';
 
 export type { CreateIncidentDTO, UpdateIncidentDTO };
 
@@ -213,6 +214,9 @@ export interface EntityHistoryEntry {
   userAgent?: string;
   createdAt: string;
   updatedAt?: string;
+  ticketId?: string;
+  ticketDisplayId?: string;
+  source?: 'asset' | 'ticket';
 }
 
 export type EntityHistoryParams = { action?: string; limit?: number; offset?: number };
@@ -465,10 +469,30 @@ export const documentApi = {
   escalateOverdueReviews: () => api.post('/documents/reviews/escalate-overdue'),
 };
 
+export interface AssetContextAsset {
+  id: string;
+  displayId: string;
+  name: string;
+  status?: string | null;
+  assetTypeId?: string | null;
+  assetType?: { id: string; name: string } | null;
+  manufacturer?: string | null;
+  businessOwnerId?: string | null;
+}
+
+export interface AssetContextResponse {
+  ticketId: string;
+  assets: Array<{
+    id: string;
+    assetId: string;
+    asset: AssetContextAsset;
+  }>;
+}
+
 export interface TicketResponse {
   id: string;
   displayId: string;
-  type: string;
+  type: TicketType;
   title: string;
   description?: string | null;
   status: string;
@@ -477,7 +501,12 @@ export interface TicketResponse {
   impact: string;
   resolutionDueAt?: string | null;
   updatedAt: string;
-  comments?: Array<{ id: string; body: string; isInternal: boolean; createdAt: string }>;
+  assigneeId?: string | null;
+  assignee?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null;
+  requester?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null;
+  openedAt?: string | null;
+  createdAt?: string;
+  comments?: Array<{ id: string; body: string; isInternal: boolean; createdAt: string; authorId?: string | null; authorName?: string | null }>;
   change?: { cabApproved?: boolean } | null;
 }
 
@@ -505,8 +534,13 @@ export const ticketApi = {
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
   changeStatus: (id: string, data: { status: string; justification?: string }) => api.post<TicketResponse>(`/tickets/${id}/status`, data),
   comment: (id: string, data: { body: string; isInternal?: boolean }) => api.post<TicketResponse>(`/tickets/${id}/comments`, data),
+  requesterComment: (id: string, data: { body: string }) => api.post<TicketResponse>(`/tickets/${id}/requester-comment`, data),
   close: (id: string, data: { summary: string }) => api.post<TicketResponse>(`/tickets/${id}/close`, data),
   history: (id: string) => api.get(`/tickets/${id}/history`),
+  assign: (id: string, data: { assigneeId: string | null }) => api.post<TicketResponse>(`/tickets/${id}/assign`, data),
+  addAssets: (id: string, data: { assetIds: string[] }) => api.post<TicketResponse>(`/tickets/${id}/assets`, data),
+  removeAssets: (id: string, data: { assetIds: string[] }) => api.delete<TicketResponse>(`/tickets/${id}/assets`, { data }),
+  getAssets: (id: string) => api.get<AssetContextResponse>(`/tickets/${id}/assets`),
 };
 
 export const incidentApi = {

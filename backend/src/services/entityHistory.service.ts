@@ -141,6 +141,32 @@ export async function resolveActorName(actorId?: string): Promise<string | undef
 }
 
 /**
+ * Batch-resolve actor ids to human-readable display names.
+ * Returns a map of actorId -> name for every id that could be resolved.
+ * Guarded: test mocks may not expose the user model at all.
+ */
+export async function resolveActorNames(actorIds?: Array<string | null | undefined>): Promise<Map<string, string>> {
+  const ids = Array.from(new Set((actorIds ?? []).filter((id): id is string => Boolean(id))));
+  const names = new Map<string, string>();
+  if (ids.length === 0) return names;
+  try {
+    const users = await (prisma as any).user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    for (const user of users ?? []) {
+      if (!user?.id) continue;
+      const parts = [user.firstName, user.lastName].filter(Boolean);
+      const name = parts.length > 0 ? parts.join(' ') : user.email;
+      if (name) names.set(user.id, name);
+    }
+  } catch {
+    // User model may not be available or query failed — leave names unresolved
+  }
+  return names;
+}
+
+/**
  * Compute field-level diff between old and new entity snapshots.
  * Returns a normalized fieldChanges object with only semantically changed fields.
  */

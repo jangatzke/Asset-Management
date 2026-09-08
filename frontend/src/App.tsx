@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Assets = lazy(() => import('./pages/Assets'));
+const AssetDetail = lazy(() => import('./pages/AssetDetail'));
 const Risks = lazy(() => import('./pages/Risks'));
 const Controls = lazy(() => import('./pages/Controls'));
 const Incidents = lazy(() => import('./pages/Incidents'));
@@ -61,6 +62,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="assets" element={<Assets />} />
+            <Route path="assets/:assetId" element={<AssetDetail />} />
             <Route path="risks" element={<Risks />} />
             <Route path="risks/:riskId" element={<RiskDetail />} />
             <Route path="controls" element={<Controls />} />

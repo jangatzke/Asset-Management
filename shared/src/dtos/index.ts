@@ -1647,6 +1647,16 @@ export const CreateTicketCommentSchema = z.object({
 });
 export type CreateTicketCommentDTO = z.infer<typeof CreateTicketCommentSchema>;
 
+/**
+ * Comment submitted by the ticket requester (end user) in the app.
+ * `isInternal` is intentionally not accepted — requester comments are
+ * always public to the service desk (ITIL 4: requester feedback channel).
+ */
+export const RequesterCommentSchema = z.object({
+  body: z.string().min(1, 'Comment body is required').max(4000),
+});
+export type RequesterCommentDTO = z.infer<typeof RequesterCommentSchema>;
+
 export const CloseTicketSchema = z.object({
   summary: z.string().min(1, 'Closing a ticket requires a closure summary'),
 });
@@ -1668,6 +1678,13 @@ export const CreateTicketLinkSchema = z.object({
   linkType: TicketLinkTypeSchema,
 });
 export type CreateTicketLinkDTO = z.infer<typeof CreateTicketLinkSchema>;
+
+// ---- Asset context linking ----
+
+export const TicketAssetIdsSchema = z.object({
+  assetIds: z.array(EntityIdSchema).min(1, 'At least one asset id is required'),
+});
+export type TicketAssetIdsDTO = z.infer<typeof TicketAssetIdsSchema>;
 
 // ---- Ticket type configuration ----
 

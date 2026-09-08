@@ -5,7 +5,6 @@ import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, r
 import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
 import { authorizationService } from '../services/authorization.service';
-import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import { ArchiveAssetSchema, AssetQuerySchema, AssetRelationCreateSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, IdParamSchema, LifecycleTransitionSchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
 
@@ -104,11 +103,11 @@ assetRouter.get('/:id', authenticate, requireEntityPermission('assets.read', 'as
   }
 });
 
-// GET /api/v1/assets/:id/history - Get asset history
+// GET /api/v1/assets/:id/history - Get asset history (entity + linked ticket events)
 assetRouter.get('/:id/history', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), async (req: AuthRequest, res, next) => {
   try {
     await assetService.getById(req.params.id);
-    const history = await getEntityHistory('Asset', req.params.id, {
+    const history = await assetService.getAssetTicketHistory(req.params.id, {
       action: req.query.action as any,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
       offset: req.query.offset ? Number(req.query.offset) : undefined,

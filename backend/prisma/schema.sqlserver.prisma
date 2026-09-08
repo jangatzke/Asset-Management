@@ -3543,30 +3543,30 @@ model ProxmoxServer {
 // ==========================================
 
 model ServiceAccount {
-  id              String    @id @default(uuid())
-  displayId       String    @unique @default("")
-  name            String
-  description     String?
-  userId          String?
-  accessTokenHash String
-  accessTokenSalt String
-  scopes          String      @default("[]") @db.NVarChar(Max)
-  expiresAt       DateTime?
-  isActive        Boolean   @default(true)
-  isArchived      Boolean   @default(false)
-  lastUsedAt      DateTime?
+  id                      String    @id @default(uuid())
+  displayId               String    @unique @default("")
+  name                    String
+  description             String?
+  userId                  String?
+  accessTokenHash         String
+  accessTokenSalt         String
+  scopes                  String      @default("[]") @db.NVarChar(Max)
+  expiresAt               DateTime?
+  isActive                Boolean   @default(true)
+  isArchived              Boolean   @default(false)
+  lastUsedAt              DateTime?
   // --- Token rotation state ---
   // `tokenRotationId` is an opaque epoch that changes on every token
   // rotation. A token's embedded rotation epoch must match this value (or be
   // inside the deprecation window below) to remain valid. This lets a stale
   // token be rejected without ever deactivating the whole account row.
-  tokenRotationId        String?  @db.VarChar(8)
-  previousTokenRotationId String?  @db.VarChar(8)
+  tokenRotationId         String?   @db.VarChar(8)
+  previousTokenRotationId String?   @db.VarChar(8)
   tokenRotationValidUntil DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  createdBy       String?
-  updatedBy       String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  createdBy               String?
+  updatedBy               String?
 
   user            User?            @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   apiAuditLogs    ApiAuditLog[]
@@ -3623,34 +3623,34 @@ model IdempotencyKey {
 }
 
 model Webhook {
-  id                 String        @id @default(uuid())
-  displayId          String        @unique @default("")
-  name               String
-  description        String?
-  url                String
-  secret             String // HMAC signing secret for this webhook (current epoch)
-  previousWebhookSecret String? // Secret valid during the deprecation window after rotation
-  events             String @default("[]") @db.NVarChar(Max)      @db.NVarChar(Max)
-  status             String @default(active)
-  isActive           Boolean       @default(true)
-  isArchived         Boolean       @default(false)
-  lastDeliveryStatus String? // "success" | "failed"
-  lastDeliveredAt    DateTime?
-  failureCount       Int           @default(0)
-  maxRetries         Int           @default(5)
-  timeoutMs          Int           @default(10000)
+  id                      String        @id @default(uuid())
+  displayId               String        @unique @default("")
+  name                    String
+  description             String?
+  url                     String
+  secret                  String // HMAC signing secret for this webhook (current epoch)
+  previousWebhookSecret   String? // Secret valid during the deprecation window after rotation
+  events                  String @default("[]") @db.NVarChar(Max)      @db.NVarChar(Max)
+  status                  String @default(active)
+  isActive                Boolean       @default(true)
+  isArchived              Boolean       @default(false)
+  lastDeliveryStatus      String? // "success" | "failed"
+  lastDeliveredAt         DateTime?
+  failureCount            Int           @default(0)
+  maxRetries              Int           @default(5)
+  timeoutMs               Int           @default(10000)
   // --- Signing-secret rotation state ---
   // `webhookSecretId` is an opaque epoch that changes on every secret
   // rotation. `previousWebhookSecretId` + `webhookSecretValidUntil` grant a
   // short deprecation window during which the previous secret still verifies,
   // so consumers can migrate before the old secret is purged.
-  webhookSecretId            String?  @db.VarChar(8)
-  previousWebhookSecretId    String?  @db.VarChar(8)
-  webhookSecretValidUntil    DateTime?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  createdBy          String?
-  updatedBy          String?
+  webhookSecretId         String?       @db.VarChar(8)
+  previousWebhookSecretId String?       @db.VarChar(8)
+  webhookSecretValidUntil DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  createdBy               String?
+  updatedBy               String?
 
   deliveries WebhookDelivery[]
   attempts   WebhookDeliveryAttempt[]

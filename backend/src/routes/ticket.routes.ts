@@ -6,7 +6,8 @@ import { authorizationService } from '../services/authorization.service';
 import { ticketService } from '../services/ticket.service';
 import {
   AssignTicketSchema, ChangeTicketStatusSchema, CloseTicketSchema, CreateTicketCommentSchema,
-  CreateTicketLinkSchema, CreateTicketSchema, EscalateTicketSchema, UpdateTicketSchema,
+  CreateTicketLinkSchema, CreateTicketSchema, EscalateTicketSchema, RequesterCommentSchema,
+  TicketAssetIdsSchema, UpdateTicketSchema,
 } from 'shared';
 
 export const ticketRouter = Router();
@@ -24,7 +25,14 @@ ticketRouter.put('/:id', authenticate, requireEntityPermission('tickets.write', 
 ticketRouter.post('/:id/status', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(ChangeTicketStatusSchema), handle(async (req, res) => { res.json(await ticketService.changeStatus(req.params.id, req.body.status, req.body.justification, req.userId!)); }));
 ticketRouter.post('/:id/assign', authenticate, requireEntityPermission('tickets.assign', 'tickets'), validateBody(AssignTicketSchema), handle(async (req, res) => { res.json(await ticketService.assign(req.params.id, req.body.assigneeId, req.userId!)); }));
 ticketRouter.post('/:id/comments', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(CreateTicketCommentSchema), handle(async (req, res) => { res.status(201).json(await ticketService.comment(req.params.id, req.body, req.userId!)); }));
+// Requester (end user) feedback channel: only tickets.read is required, and the
+// service enforces req.userId === ticket.requesterId (isInternal is forced to
+// false) — ITIL 4 requester communication, ISO 27001 A.8.2 attribution.
+ticketRouter.post('/:id/requester-comment', authenticate, requirePermission('tickets.read'), validateBody(RequesterCommentSchema), handle(async (req, res) => { res.status(201).json(await ticketService.requesterComment(req.params.id, req.body.body, req.userId!)); }));
 ticketRouter.post('/:id/close', authenticate, requireEntityPermission('tickets.close', 'tickets'), validateBody(CloseTicketSchema), handle(async (req, res) => { res.json(await ticketService.close(req.params.id, req.body.summary, req.userId!)); }));
 ticketRouter.post('/:id/escalations', authenticate, requireEntityPermission('tickets.escalate', 'tickets'), validateBody(EscalateTicketSchema), handle(async (req, res) => { res.status(201).json(await ticketService.escalate(req.params.id, req.body, req.userId!)); }));
 ticketRouter.post('/:id/links', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(CreateTicketLinkSchema), handle(async (req, res) => { res.status(201).json(await ticketService.link(req.params.id, req.body, req.userId!)); }));
 ticketRouter.get('/:id/history', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.historyList(req.params.id, req.query)); }));
+ticketRouter.get('/:id/assets', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.getAssetContext(req.params.id)); }));
+ticketRouter.post('/:id/assets', authenticate, requireEntityPermission('tickets.context', 'tickets'), validateBody(TicketAssetIdsSchema), handle(async (req, res) => { res.json(await ticketService.addAssets(req.params.id, req.body.assetIds, req.userId!)); }));
+ticketRouter.delete('/:id/assets', authenticate, requireEntityPermission('tickets.context', 'tickets'), validateBody(TicketAssetIdsSchema), handle(async (req, res) => { res.json(await ticketService.removeAssets(req.params.id, req.body.assetIds, req.userId!)); }));

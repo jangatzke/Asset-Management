@@ -1154,6 +1154,125 @@ export class AssetService {
 
     return { success: true, role, userId };
   }
+
+  /**
+   * Merge the asset's own entity change history with ticket-history events that
+   * reference this specific asset, so the asset history view only shows ticket
+   * events that actually touched the asset.
+   *
+   * A ticket-history event is scoped to this asset when it records the asset in
+   * `fieldChanges.assetIds` (written by ticket.service for CREATE/UPDATE/
+   * ASSET_LINK/ASSET_UNLINK). Events that do not reference the asset (e.g. status
+   * changes or comments on a ticket that also involves other assets) are excluded.
+   * Legacy ASSET_LINK events without recorded asset ids are included when the
+   * ticket is currently linked to the asset.
+   *
+   * Asset-facing entries are normalized to the shared EntityHistoryEntry shape,
+   * annotated with `source: 'ticket'` plus the ticket `ticketId`/`ticketDisplayId`
+   * so the UI can surface a link, and phrased from the asset's perspective
+   * (e.g. "Attached to TCKT-0002" instead of "Attached 1 asset(s) to TCKT-0002").
+   */
+  async getAssetTicketHistory(assetId: string, query: { action?: string; limit?: number; offset?: number } = {}) {
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (!asset) throw new AppError('Asset not found', 404);
+
+    const { action, limit = 100, offset = 0 } = query;
+
+    // 1. Asset's own entity history + current ticket links for this asset.
+    const [entityHistory, ticketLinks] = await Promise.all([
+      (prisma as any).entityHistoryEntry.findMany({
+        where: { entityType: 'Asset', entityId: assetId, ...(action && { action }) },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      (prisma as any).ticketAsset.findMany({ where: { assetId } }),
+    ]);
+
+    // 2. Ticket-history events for tickets linked to this asset, narrowed to the
+    //    events that explicitly reference this asset.
+    const ticketIds = [...new Set(ticketLinks.map((link: any) => link.ticketId))];
+    const linkedTicketIds = new Set(ticketIds);
+    let ticketHistory: any[] = [];
+    if (ticketIds.length) {
+      const candidateEvents = await (prisma as any).ticketHistoryEntry.findMany({
+        where: { ticketId: { in: ticketIds } },
+        orderBy: { createdAt: 'desc' },
+      });
+      ticketHistory = candidateEvents
+        .filter((entry: any) => {
+          const affected = Array.isArray(entry?.fieldChanges?.assetIds) ? entry.fieldChanges.assetIds : null;
+          if (affected) return affected.includes(assetId);
+          // Legacy events predate the assetIds recording: only safe to attribute
+          // to this asset for ASSET_LINK while the link still exists.
+          return entry?.action === 'ASSET_LINK' && linkedTicketIds.has(entry?.ticketId);
+        })
+        .filter((entry: any) => !action || entry.action === action)
+        .slice(offset, offset + limit);
+    }
+
+    // Human-readable ticket identifiers for the ticket badge.
+    const ticketDisplayById = new Map<string, string>();
+    if (ticketHistory.length) {
+      const ticketRows = await (prisma as any).ticket.findMany({
+        where: { id: { in: [...new Set(ticketHistory.map((e: any) => e.ticketId))] } },
+        select: { id: true, displayId: true },
+      });
+      for (const row of ticketRows) ticketDisplayById.set(row.id, row.displayId);
+    }
+
+    // Phrase asset-touching events from the asset's perspective.
+    const assetPerspectiveSummary = (entry: any): string => {
+      const displayId = ticketDisplayById.get(entry.ticketId);
+      if (!displayId) return entry.summary;
+      if (entry.action === 'ASSET_LINK') return `Attached to ${displayId}`;
+      if (entry.action === 'ASSET_UNLINK') return `Detached from ${displayId}`;
+      return entry.summary;
+    };
+
+    const entries = [
+      ...entityHistory.map((entry: any) => ({
+        id: entry.id,
+        entityType: 'Asset',
+        entityId: assetId,
+        action: entry.action,
+        fieldChanges: entry.fieldChanges,
+        summary: entry.summary,
+        details: entry.summary,
+        actorId: entry.actorId,
+        actorName: entry.actorName,
+        ipAddress: entry.ipAddress,
+        userAgent: entry.userAgent,
+        createdAt: entry.createdAt,
+        updatedAt: null,
+        source: 'asset',
+      })),
+      ...ticketHistory.map((entry: any) => {
+        const summary = assetPerspectiveSummary(entry);
+        return {
+          id: entry.id,
+          entityType: 'Ticket',
+          entityId: entry.ticketId,
+          action: entry.action,
+          fieldChanges: entry.fieldChanges,
+          summary,
+          details: summary,
+          actorId: entry.actorId,
+          actorName: entry.actorName,
+          ipAddress: entry.ipAddress,
+          userAgent: entry.userAgent,
+          createdAt: entry.createdAt,
+          updatedAt: null,
+          source: 'ticket',
+          ticketId: entry.ticketId,
+          ticketDisplayId: ticketDisplayById.get(entry.ticketId),
+        };
+      }),
+    ];
+
+    entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return entries.slice(0, limit);
+  }
 }
 
 export const assetService = new AssetService();
