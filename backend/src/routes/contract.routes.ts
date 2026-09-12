@@ -9,7 +9,7 @@ import { getEntityHistory } from '../services/entityHistory.service';
 export const contractRouter = Router();
 
 // GET /api/v1/contracts - List contracts with filtering
-contractRouter.get('/', authenticate, async (req, res, next) => {
+contractRouter.get('/', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     const result = await contractService.list(req.query);
     res.json(result);
@@ -29,7 +29,7 @@ contractRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
 });
 
 // GET /api/v1/contracts/:id - Get contract by ID
-contractRouter.get('/:id', authenticate, async (req, res, next) => {
+contractRouter.get('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     const contract = await contractService.findById(req.params.id);
     res.json(contract);
@@ -39,7 +39,7 @@ contractRouter.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // GET /api/v1/contracts/:id/history - Get contract history
-contractRouter.get('/:id/history', authenticate, async (req, res, next) => {
+contractRouter.get('/:id/history', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     await contractService.findById(req.params.id);
     const history = await getEntityHistory('Contract', req.params.id, {
@@ -74,7 +74,7 @@ contractRouter.delete('/:id', authenticate, requireAdminAccess, async (req: Auth
 });
 
 // GET /api/v1/contracts/:id/assets - List linked assets
-contractRouter.get('/:id/assets', authenticate, async (req, res, next) => {
+contractRouter.get('/:id/assets', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     const assets = await contractService.getAssets(req.params.id);
     res.json(assets);

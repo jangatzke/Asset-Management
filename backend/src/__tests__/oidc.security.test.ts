@@ -1,7 +1,7 @@
 const mockPrismaClient: any = {
   oidcConfig: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   oidcLoginState: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
-  oidcAccountLink: { findUnique: jest.fn() },
+  oidcAccountLink: { findUnique: jest.fn(), create: jest.fn() },
   user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   userRole: { findMany: jest.fn(), create: jest.fn() },
   displayIdCounter: { upsert: jest.fn() },
@@ -163,12 +163,16 @@ describe('OidcService Phase 4 security', () => {
     }));
   });
 
-  it('does not auto-link an existing local account by email alone', async () => {
+  it('links an existing local account by email instead of rejecting the OIDC login', async () => {
     mockPrismaClient.oidcAccountLink.findUnique.mockResolvedValue(null);
-    mockPrismaClient.user.findUnique.mockResolvedValue({ id: 'local-1', email: 'linked@example.com' });
+    mockPrismaClient.user.findUnique.mockResolvedValue({ id: 'local-1', email: 'linked@example.com', isActive: true });
 
-    await expect(oidcService.handleCallback('auth-code', 'plain-state', undefined, { ipAddress: '127.0.0.1' })).rejects.toThrow('OIDC account is not linked');
-    expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'OIDC_EMAIL_LINK_REJECTED' }) }));
+    const result = await oidcService.handleCallback('auth-code', 'plain-state', undefined, { ipAddress: '127.0.0.1' });
+
+    expect(result.state).toBe('authenticated');
+    expect(authService.issueExternalSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'local-1', oidcId: 'subject-123', oidcProvider: 'entra_id' }), expect.anything(), 'OIDC_LOGIN');
+    expect(mockPrismaClient.oidcAccountLink.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ oidcConfigId: 'config-1', subject: 'subject-123', userId: 'local-1' }) }));
+    expect(mockPrismaClient.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'OIDC_EMAIL_LINK' }) }));
   });
 
   it('allows a pre-linked account to receive the normal session', async () => {
@@ -201,5 +205,27 @@ describe('OidcService Phase 4 security', () => {
     process.env.NODE_ENV = 'production';
 
     expect(() => oidcService.resolveClientSecret({ clientSecret: 'cleartext-secret', clientSecretRef: null })).toThrow('OIDC client secret must be provided by environment reference in production');
+  });
+
+  it('enforces tenant even when the tenantId looks like a URL (no https:// bypass)', async () => {
+    mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, tenantId: 'https://login.microsoftonline.com/tenant-123' });
+    openidClient.authorizationCodeGrant.mockResolvedValueOnce({ claims: () => ({ sub: 'subject-123', email: 'linked@example.com', tid: 'different-tenant' }) });
+
+    await expect(oidcService.handleCallback('auth-code', 'plain-state')).rejects.toThrow('OIDC tenant mismatch');
+  });
+
+  it('provisions a new external user with a bcrypt (no-password) passwordHash', async () => {
+    mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, autoProvisioning: true });
+    mockPrismaClient.oidcAccountLink.findUnique.mockResolvedValueOnce(null);
+    mockPrismaClient.user.findUnique.mockResolvedValue(null);
+    mockPrismaClient.displayIdCounter.upsert.mockResolvedValueOnce({ sequence: 5 });
+    mockPrismaClient.user.create.mockResolvedValueOnce({ id: 'user-2', email: 'new@example.com', oidcId: 'subject-123', isActive: true });
+
+    await oidcService.handleCallback('auth-code', 'plain-state');
+
+    const created = mockPrismaClient.user.create.mock.calls[0][0].data;
+    expect(created.passwordHash).not.toBe('');
+    expect(created.passwordHash.startsWith('$2')).toBe(true);
+    expect(created.oidcId).toBe('subject-123');
   });
 });

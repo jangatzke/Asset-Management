@@ -1,11 +1,13 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ClockIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { licenseApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface License {
   id: string;
@@ -118,6 +120,34 @@ const Licenses = () => {
     const matchesStatus = !filterStatus || l.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  // Client-side sort persisted in localStorage (survives reload/revisit).
+  const { sort, toggleSort } = useLocalSort({
+    routeKey: 'licenses',
+    defaultSort: { column: 'name', direction: 'asc' },
+  });
+
+  const sortedLicenses = useMemo(() => {
+    if (!sort.column) return filtered;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (l: License) => {
+      if (sort.column === 'id') return (l.displayId ?? l.id ?? '').toLowerCase();
+      if (sort.column === 'name') return (l.title ?? l.name ?? '').toLowerCase();
+      if (sort.column === 'vendor') return (l.vendor ?? '').toLowerCase();
+      if (sort.column === 'type') return (l.licenseType ?? l.type ?? '').toLowerCase();
+      if (sort.column === 'licensingBasis') return (l.licensingBasis ?? '').toLowerCase();
+      if (sort.column === 'assignmentModel') return (l.assignmentModel ?? '').toLowerCase();
+      if (sort.column === 'seats') return String(l.seats ?? '').toLowerCase();
+      if (sort.column === 'status') return (l.status ?? '').toLowerCase();
+      if (sort.column === 'expiryDate') return (l.expiryDate ?? l.endDate ?? '').toLowerCase();
+      return '';
+    };
+    return [...filtered].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [filtered, sort]);
 
   const handleDiscard = () => {
     form.resetForm();
@@ -241,22 +271,22 @@ const Licenses = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.id')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.name')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.vendor')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.type')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.licensingBasis')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.assignmentModel')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.seats')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.status')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('licenses.fields.expiryDate')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.actions')}</th>
+              <SortableTh column="id" label={t('common.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="vendor" label={t('common.vendor')} activeColumn={sort.column} direction={sort.column === 'vendor' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="type" label={t('common.type')} activeColumn={sort.column} direction={sort.column === 'type' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="licensingBasis" label={t('licenses.fields.licensingBasis')} activeColumn={sort.column} direction={sort.column === 'licensingBasis' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="assignmentModel" label={t('licenses.fields.assignmentModel')} activeColumn={sort.column} direction={sort.column === 'assignmentModel' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="seats" label={t('licenses.fields.seats')} activeColumn={sort.column} direction={sort.column === 'seats' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="expiryDate" label={t('licenses.fields.expiryDate')} activeColumn={sort.column} direction={sort.column === 'expiryDate' ? sort.direction : ''} onSort={toggleSort} />
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filtered.length === 0 ? (
+            {sortedLicenses.length === 0 ? (
               <tr><td colSpan={10} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('licenses.noLicenses')}</td></tr>
-            ) : filtered.map(l => {
+            ) : sortedLicenses.map(l => {
               const daysLeft = getDaysUntilExpiry(l.expiryDate);
               return (
                 <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">

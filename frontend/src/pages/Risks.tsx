@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { ClockIcon, PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -8,6 +8,8 @@ import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 import { useI18n } from '../context/I18nContext';
 import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
 import { getRiskColor, getErrorMessage } from '../utils/statusHelpers';
@@ -350,6 +352,29 @@ const Risks = () => {
     return matchesSearch && matchesRiskStatusFilter(risk, statusFilter);
   });
 
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'risks', defaultSort: { column: 'title', direction: 'asc' } });
+  const sortedRisks = useMemo(() => {
+    if (!sort.column) return filteredRisks;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (risk: Risk) => {
+      if (sort.column === 'id') return (risk.displayId ?? '').toLowerCase();
+      if (sort.column === 'title') return (risk.title ?? '').toLowerCase();
+      if (sort.column === 'likelihood') return String(risk.likelihood ?? '');
+      if (sort.column === 'impact') return String(risk.impact ?? '');
+      if (sort.column === 'inherentRisk') return (risk.inherentRisk ?? '').toLowerCase();
+      if (sort.column === 'residualRisk') return (risk.residualRisk ?? '').toLowerCase();
+      if (sort.column === 'targetRisk') return (risk.targetRisk ?? '').toLowerCase();
+      if (sort.column === 'controls') return String((risk.riskControls ?? []).length);
+      if (sort.column === 'status') return (risk.status ?? '').toLowerCase();
+      return '';
+    };
+    return [...filteredRisks].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [filteredRisks, sort]);
+
   const handleSubmit = async () => {
     if (!formState.values.title || !formState.values.description || !formState.values.possibleImpact || !formState.values.riskOwnerId?.id || !formState.values.assessorId?.id || !formState.values.nextReviewDate || !formState.values.justification) {
       setError(t('common.requiredField'));
@@ -529,22 +554,22 @@ const Risks = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.id')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.title')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.likelihood')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.impact')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.inherentRisk')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.residualRisk')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.targetRisk')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.controls')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('risks.columns.status')}</th>
-              <th className="sticky right-0 z-10 bg-gray-50 dark:bg-gray-900 px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider shadow-lg">{t('common.actions')}</th>
+              <SortableTh column="id" label={t('risks.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="title" label={t('risks.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="likelihood" label={t('risks.columns.likelihood')} activeColumn={sort.column} direction={sort.column === 'likelihood' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="impact" label={t('risks.columns.impact')} activeColumn={sort.column} direction={sort.column === 'impact' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="inherentRisk" label={t('risks.columns.inherentRisk')} activeColumn={sort.column} direction={sort.column === 'inherentRisk' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="residualRisk" label={t('risks.columns.residualRisk')} activeColumn={sort.column} direction={sort.column === 'residualRisk' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="targetRisk" label={t('risks.columns.targetRisk')} activeColumn={sort.column} direction={sort.column === 'targetRisk' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="controls" label={t('risks.columns.controls')} activeColumn={sort.column} direction={sort.column === 'controls' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="status" label={t('risks.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+              <th className="sticky right-0 z-10 bg-gray-50 dark:bg-gray-900 px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200 shadow-lg">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredRisks.length === 0 ? (
               <tr><td colSpan={10} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('risks.noRisks')}</td></tr>
-            ) : filteredRisks.map((risk) => (
+            ) : sortedRisks.map((risk) => (
               <tr key={risk.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.displayId}</td>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white min-w-[16rem]">

@@ -169,6 +169,13 @@ async function resolveUserByEmail(email: string | null | undefined): Promise<Any
   const user = Array.isArray(users) ? (users[0] as AnyObject) ?? null : null;
   return user;
 }
+
+// Case-insensitive email comparison used to verify the From header against the
+// MTA-set envelope sender. A mismatch signals a spoofed From header.
+function emailAddressesEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
 export class EmailGatewayService {
   private sanitizeConfig(config: AnyObject | null) {
     if (!config) return null;
@@ -431,6 +438,11 @@ export class EmailGatewayService {
             summary.skipped += 1;
             continue;
           }
+          // The envelope sender is set by the receiving MTA and is far harder for an
+          // attacker to forge than the human-readable From header. We compare the two
+          // so a reply whose From header impersonates the ticket requester cannot be
+          // attributed as a public comment on the requester's behalf.
+          const envelopeFrom = ((envelope?.from?.[0] && envelope.from[0].address) || null);
           let message: AnyObject | null = existingMessage ?? null;
           try {
             const fetched = await client.fetchOne(String(uid), { source: true }, { uid: true });
@@ -442,6 +454,9 @@ export class EmailGatewayService {
             const bodyText = (parsed.text || '').trim();
             const inReplyTo = (parsed.inReplyTo || '').trim() || null;
             const receivedAt = parsed.date ? new Date(parsed.date) : new Date();
+            // Treat the From header as untrusted unless it matches the envelope sender
+            // (when the envelope provides one). A mismatch means the header is spoofed.
+            const fromHeaderTrusted = envelopeFrom === null || emailAddressesEqual(envelopeFrom, fromEmail);
 
             // Persist the message before processing. Failed records are reused on retry.
             const messageData = {
@@ -472,7 +487,14 @@ export class EmailGatewayService {
                 // to the requester (not an internal gateway note). Unknown or
                 // non-requester senders stay internal notes, attributed to the
                 // resolved user when possible.
-                const replySender = fromEmail ? await resolveUserByEmail(fromEmail) : null;
+                //
+                // SECURITY FIX (Problem 5): Only treat the sender as the ticket
+                // requester when the From header matches the MTA-set envelope
+                // sender. A reply whose From header impersonates the requester
+                // (spoofed address) must NOT be attributed as a public comment on
+                // the requester's behalf, which would otherwise let an attacker
+                // post forged public comments under the requester's identity.
+                const replySender = fromHeaderTrusted && fromEmail ? await resolveUserByEmail(fromEmail) : null;
                 const isRequester = Boolean(replySender?.id && replySender.id === existing.requesterId);
                 await ticketService.comment(
                   existing.id,

@@ -16,6 +16,9 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
+    '^.+\\.[tj]s$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!@otplib/|@scure/base|@noble/hashes)',
+  ],
 };

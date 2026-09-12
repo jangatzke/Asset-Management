@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { assetApi, controlApi, costPlanningApi, incidentApi, riskApi, ticketApi } from '../services/api';
 import { DashboardMetrics, emptyDashboardMetrics, paginatedTotal } from './dashboardHelpers';
+import { metricCard } from '../styles/tokens';
 
 const money = (value: string | number | undefined) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR' }).format(Number(value || 0));
 
@@ -29,7 +30,7 @@ const ticketPriorityClasses: Record<string, string> = {
   critical: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200',
 };
 
-const metricCardClasses = 'block bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900';
+const metricCardClasses = metricCard;
 
 const Dashboard = () => {
   const { t } = useI18n();
@@ -121,15 +122,15 @@ const Dashboard = () => {
           <Link to="/tickets" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">{t('dashboard.recentTickets')}</Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-          <Link to="/tickets?statusGroup=open" className={metricCardClasses} aria-label={t('dashboard.openTickets')}>
+          <Link to="/tickets?statusGroup=open" className={`${metricCardClasses} border border-gray-200 dark:border-gray-700`} aria-label={t('dashboard.openTickets')}>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t('dashboard.openTickets')}</h3>
             <p className="text-3xl font-bold text-orange-600 mt-2">{ticketMetrics.openTickets}</p>
           </Link>
-          <Link to="/tickets?statusGroup=assigned" className={metricCardClasses} aria-label={t('dashboard.assignedToMe')}>
+          <Link to="/tickets?statusGroup=assigned" className={`${metricCardClasses} border border-gray-200 dark:border-gray-700`} aria-label={t('dashboard.assignedToMe')}>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t('dashboard.assignedToMe')}</h3>
             <p className="text-3xl font-bold text-green-600 mt-2">{ticketMetrics.assignedToMe}</p>
           </Link>
-          <Link to="/tickets" className={metricCardClasses} aria-label={t('dashboard.tickets')}>
+          <Link to="/tickets" className={`${metricCardClasses} border border-gray-200 dark:border-gray-700`} aria-label={t('dashboard.tickets')}>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">{t('dashboard.tickets')}</h3>
             <p className="text-3xl font-bold text-primary-600 mt-2">{ticketMetrics.recentTickets.length}</p>
           </Link>

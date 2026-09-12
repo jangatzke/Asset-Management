@@ -11,6 +11,7 @@
  */
 import * as React from 'react';
 import { render, screen, fireEvent, waitFor, act, cleanup, within } from '@testing-library/react';
+import { useState, useEffect } from 'react';
 
 // --- Mock I18nContext (t returns the key itself, so assertions are deterministic) ---
 // IMPORTANT: `t` must be a stable reference across renders, otherwise every render
@@ -22,9 +23,51 @@ vi.mock('../context/I18nContext', () => {
 });
 
 // --- Mock react-router-dom ---
-vi.mock('react-router-dom', () => ({
-  useLocation: () => ({ search: '' }),
-}));
+// useLocation and useNavigate share one mutable `search` string so the real
+// usePersistedView code path (which writes the URL via navigate and reads it
+// back via location.search) works inside the tests without a full router.
+// useLocation subscribes to search changes and forces a re-render (mirroring
+// the real router, which returns a new location object on every navigation).
+const { store } = vi.hoisted(() => {
+  let search = '';
+  const listeners = new Set<() => void>();
+  return {
+    store: {
+      getSearch() {
+        return search;
+      },
+      setSearch(value: string) {
+        search = value;
+        listeners.forEach((l) => l());
+      },
+      reset() {
+        search = '';
+        listeners.forEach((l) => l());
+      },
+      subscribe(fn: () => void) {
+        listeners.add(fn);
+        return () => {
+          listeners.delete(fn);
+        };
+      },
+    },
+  };
+});
+vi.mock('react-router-dom', async (importOriginal: () => Promise<typeof import('react-router-dom')>) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useLocation: () => {
+      const [state, setState] = useState(() => ({ search: store.getSearch() }));
+      useEffect(() => store.subscribe(() => setState({ search: store.getSearch() })), []);
+      return state;
+    },
+    useNavigate: () => (target: { search: string }) => {
+      store.setSearch(target.search);
+    },
+    Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  };
+});
 
 // --- Mock heavy/visual components (not under test) ---
 vi.mock('../components/AssetGraph', () => ({ default: () => null }));
@@ -108,6 +151,7 @@ async function flush() {
 describe('Assets page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    store.reset();
     mockList.mockResolvedValue(paginatedResponse([assetFixture]));
     mockGetTypes.mockResolvedValue({ data: [{ id: 'type-1', name: 'Server' }] });
     mockCreate.mockResolvedValue({ data: { id: 'a-2' } });
@@ -332,14 +376,14 @@ it('discards a stale, out-of-order response when a newer request resolves first'
       });
       expect(screen.queryByText('assets.createSuccess')).not.toBeInTheDocument();
     });
-
     it('deletes after confirmation and shows a success toast', async () => {
-      vi.stubGlobal('confirm', vi.fn(() => true));
-
       renderAssets();
       await flush();
 
       fireEvent.click(screen.getByRole('button', { name: 'common.delete: Web Server 01' }));
+
+      // The native confirm() was replaced by a styled ConfirmDialog (Vorschlag 1).
+      fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }));
 
       await waitFor(() => {
         expect(screen.getByText('assets.deleteSuccess')).toBeInTheDocument();
@@ -348,7 +392,6 @@ it('discards a stale, out-of-order response when a newer request resolves first'
     });
 
     it('keeps the current page and filters when refreshing after delete', async () => {
-      vi.stubGlobal('confirm', vi.fn(() => true));
       mockList.mockImplementation(async (params: any) =>
         paginatedResponse(
           params.page === 2 ? [{ ...assetFixture, id: 'a-2', name: 'Page Two Asset' }] : [assetFixture],
@@ -374,8 +417,9 @@ it('discards a stale, out-of-order response when a newer request resolves first'
 
       const callsBeforeDelete = mockList.mock.calls.length;
 
-      // Delete the asset on the current page.
+      // Delete the asset on the current page (confirm via the styled dialog, not native confirm()).
       fireEvent.click(screen.getByRole('button', { name: 'common.delete: Page Two Asset' }));
+      fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }));
 
       await waitFor(() => {
         expect(mockDelete).toHaveBeenCalledWith('a-2');

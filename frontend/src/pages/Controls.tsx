@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi } from '../services/api';
 import { getAccessToken } from '../store/accessToken';
@@ -10,6 +10,8 @@ import { useI18n } from '../context/I18nContext';
 import { implementationRiskDisplayRows } from './riskControlWorkflow.utils';
 import { getControlStatusColor, getErrorMessage } from '../utils/statusHelpers';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface Control {
   id: string;
@@ -203,6 +205,30 @@ const Controls = () => {
     control.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     control.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Client-side sort persisted in localStorage (survives reload/revisit).
+  const { sort, toggleSort } = useLocalSort({
+    routeKey: 'controls',
+    defaultSort: { column: 'title', direction: 'asc' },
+  });
+
+  const sortedControls = useMemo(() => {
+    if (!sort.column) return filteredControls;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (control: Control) => {
+      if (sort.column === 'title') return (control.title ?? '').toLowerCase();
+      if (sort.column === 'controlGoal') return (control.controlGoal ?? '').toLowerCase();
+      if (sort.column === 'maturity') return String(primaryImplementation(control)?.maturityLevel ?? control.maturityLevel ?? 0);
+      if (sort.column === 'applicability') return (control.applicability ?? '').toLowerCase();
+      if (sort.column === 'requirements') return String((control.requirementMappings ?? []).length);
+      return '';
+    };
+    return [...filteredControls].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [filteredControls, sort]);
 
   const primaryImplementation = (control: Control) => control.implementations?.[0];
 
@@ -527,24 +553,24 @@ const Controls = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.title')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.controlGoal')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.implementation')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.maturity')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.applicability')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('controls.columns.requirements')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
+              <SortableTh column="title" label={t('controls.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="controlGoal" label={t('controls.columns.controlGoal')} activeColumn={sort.column} direction={sort.column === 'controlGoal' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="implementation" label={t('controls.columns.implementation')} activeColumn={sort.column} direction={sort.column === 'implementation' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="maturity" label={t('controls.columns.maturity')} activeColumn={sort.column} direction={sort.column === 'maturity' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="applicability" label={t('controls.columns.applicability')} activeColumn={sort.column} direction={sort.column === 'applicability' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="requirements" label={t('controls.columns.requirements')} activeColumn={sort.column} direction={sort.column === 'requirements' ? sort.direction : ''} onSort={toggleSort} />
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredControls.length === 0 ? (
+            {sortedControls.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                   {t('controls.noControls')}
                 </td>
               </tr>
             ) : (
-              filteredControls.map((control) => (
+              sortedControls.map((control) => (
                 <tr key={control.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{control.title}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{control.controlGoal}</td>

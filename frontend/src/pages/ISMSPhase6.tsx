@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { EyeIcon } from '@heroicons/react/24/outline';
 import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
+import { SortableTh } from '../components/SortableTh';
 import EntityPicker from '../components/EntityPicker';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useLocalSort } from '../hooks/useLocalSort';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { useI18n } from '../context/I18nContext';
 import { useNavigate } from 'react-router-dom';
@@ -419,6 +421,7 @@ const ISMSPhase6 = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [overdueFilter, setOverdueFilter] = useState(false);
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'isms-phase6' });
 
   // Modals
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -453,6 +456,18 @@ const ISMSPhase6 = () => {
 
   const meta = resourceMetas[resource] || null;
   const activeDomain = domainGroups.find((group) => group.resources.includes(resource));
+  const sortedRows = useMemo(() => {
+    if (!sort.column) return rows;
+
+    return [...rows].sort((left, right) => {
+      const leftValue = left[sort.column];
+      const rightValue = right[sort.column];
+      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : formatCellValue(leftValue).localeCompare(formatCellValue(rightValue), undefined, { numeric: true, sensitivity: 'base' });
+      return sort.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [rows, sort]);
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -836,13 +851,21 @@ const ISMSPhase6 = () => {
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   {meta.columns.map((col) => (
-                    <th key={col.key} className={`text-left p-3 ${col.width}`}>{col.label}</th>
+                    <SortableTh
+                      key={col.key}
+                      column={col.key}
+                      label={col.label}
+                      activeColumn={sort.column}
+                      direction={sort.column === col.key ? sort.direction : ''}
+                      onSort={toggleSort}
+                      className={col.width}
+                    />
                   ))}
-                  <th className="p-3 w-32">{t('common.actions')}</th>
+                  <th scope="col" className="w-32 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {sortedRows.map((row) => (
                   <tr key={row.id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     {meta.columns.map((col) => (
                       <td key={col.key} className={`p-3 ${col.width} ${col.key === meta?.statusField ? getStatusColor(row[col.key]) : ''}`}>

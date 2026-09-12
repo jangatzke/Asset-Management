@@ -2,6 +2,8 @@ import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { AxiosError } from 'axios';
 import { adminApi, DatabaseImportMode, DatabaseImportResult, SafeDatabaseConfig } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 const extractFileName = (contentDisposition?: string) => {
   const match = contentDisposition?.match(/filename="?([^";]+)"?/i);
@@ -28,6 +30,19 @@ const AdminDatabase = () => {
 
   const replaceConfirmed = mode !== 'replace' || replaceConfirmation === t('databaseAdmin.replaceConfirmationPhrase');
   const rowCountEntries = useMemo(() => Object.entries(result?.rowCounts ?? {}).sort(([a], [b]) => a.localeCompare(b)), [result]);
+
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'admin-database', defaultSort: { column: 'model', direction: 'asc' } });
+
+  const sortedRowCountEntries = useMemo(() => {
+    if (!sort.column) return rowCountEntries;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (entry: [string, number]) => {
+      if (sort.column === 'model') return entry[0].toLowerCase();
+      if (sort.column === 'count') return String(entry[1]);
+      return '';
+    };
+    return [...rowCountEntries].sort((a, b) => { const av = get(a); const bv = get(b); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0; });
+  }, [rowCountEntries, sort]);
 
   const loadConfig = async () => {
     setLoadingConfig(true);
@@ -194,8 +209,14 @@ const AdminDatabase = () => {
             <h3 className="font-medium text-gray-900 dark:text-white">{t('databaseAdmin.rowCounts')}</h3>
             <div className="mt-2 max-h-72 overflow-auto rounded border border-gray-200 dark:border-gray-700">
               <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <SortableTh column="model" label={t('databaseAdmin.table.model')} activeColumn={sort.column} direction={sort.column === 'model' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200" />
+                    <SortableTh column="count" label={t('databaseAdmin.table.count')} activeColumn={sort.column} direction={sort.column === 'count' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200" />
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {rowCountEntries.map(([model, count]) => (
+                  {sortedRowCountEntries.map(([model, count]) => (
                     <tr key={model}><td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{model}</td><td className="px-3 py-2 text-right text-gray-700 dark:text-gray-200">{count}</td></tr>
                   ))}
                 </tbody>

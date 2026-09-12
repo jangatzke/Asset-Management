@@ -1,7 +1,9 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { riskAggregationApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface AggregationGroup {
   name: string;
@@ -72,6 +74,23 @@ const RiskAggregation = () => {
   ];
 
   const currentData = data[activeTab] || [];
+
+  const { sort, toggleSort } = useLocalSort({ routeKey: `risk-aggregation-${activeTab}`, defaultSort: { column: 'group', direction: 'asc' } });
+
+  const sortedData = useMemo(() => {
+    if (!sort.column) return currentData;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (g: AggregationGroup) => {
+      if (sort.column === 'group') return (g.name ?? '').toLowerCase();
+      if (sort.column === 'total') return String(g.totalRisks ?? 0);
+      if (sort.column === 'critical') return String(g.critical ?? g.veryHigh ?? 0);
+      if (sort.column === 'high') return String(g.high ?? 0);
+      if (sort.column === 'medium') return String(g.medium ?? 0);
+      if (sort.column === 'low') return String(g.low ?? 0);
+      return '';
+    };
+    return [...currentData].sort((a, b) => { const av = get(a); const bv = get(b); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0; });
+  }, [currentData, sort]);
 
   const severityBg = (level: string) => {
     switch (level?.toLowerCase()) {
@@ -201,16 +220,16 @@ const RiskAggregation = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('riskAggregation.table.group')}</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('riskAggregation.table.total')}</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-red-600 dark:text-red-400 uppercase">{t('riskAggregation.table.critical')}</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-orange-600 dark:text-orange-400 uppercase">{t('riskAggregation.table.high')}</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-yellow-600 dark:text-yellow-400 uppercase">{t('riskAggregation.table.medium')}</th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-green-600 dark:text-green-400 uppercase">{t('riskAggregation.table.low')}</th>
+              <SortableTh column="group" label={t('riskAggregation.table.group')} activeColumn={sort.column} direction={sort.column === 'group' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="total" label={t('riskAggregation.table.total')} activeColumn={sort.column} direction={sort.column === 'total' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="critical" label={t('riskAggregation.table.critical')} activeColumn={sort.column} direction={sort.column === 'critical' ? sort.direction : ''} onSort={toggleSort} className="text-center" />
+              <SortableTh column="high" label={t('riskAggregation.table.high')} activeColumn={sort.column} direction={sort.column === 'high' ? sort.direction : ''} onSort={toggleSort} className="text-center" />
+              <SortableTh column="medium" label={t('riskAggregation.table.medium')} activeColumn={sort.column} direction={sort.column === 'medium' ? sort.direction : ''} onSort={toggleSort} className="text-center" />
+              <SortableTh column="low" label={t('riskAggregation.table.low')} activeColumn={sort.column} direction={sort.column === 'low' ? sort.direction : ''} onSort={toggleSort} className="text-center" />
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {currentData.map((group, i) => (
+            {sortedData.map((group, i) => (
               <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{group.name}</td>
                 <td className="px-6 py-4 text-sm text-center text-gray-900 dark:text-white">{group.totalRisks || 0}</td>

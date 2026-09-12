@@ -316,7 +316,9 @@ export class AdminService {
     // Assign default role or provided roles
     const roles = data.roles && data.roles.length > 0 ? data.roles : ['employee'];
 
-    for (const role of roles) {
+    const uniqueRoles = await this.validateRoleNames(roles, { builtIn: true });
+
+    for (const role of uniqueRoles) {
       await prisma.userRole.create({
         data: {
           userId: user.id,
@@ -520,7 +522,9 @@ export class AdminService {
     await prisma.userRole.deleteMany({ where: { userId } });
 
     // Assign new roles
-    for (const role of data.roles) {
+    const uniqueRoles = await this.validateRoleNames(data.roles, { builtIn: true });
+
+    for (const role of uniqueRoles) {
       await prisma.userRole.create({
         data: {
           userId,
@@ -623,6 +627,24 @@ export class AdminService {
     const invalid = unique.filter((name) => !GRANULAR_PERMISSIONS.includes(name as PermissionName));
     if (invalid.length) throw new AppError(`Unknown canonical permission(s): ${invalid.join(', ')}`, 400);
     return unique as PermissionName[];
+  }
+
+  // Validates role names assigned to a user so an admin cannot grant an undeclared role (e.g. 'system_admin') that would silently escalate privileges.
+  private async validateRoleNames(roles: string[], options: { builtIn?: boolean } = {}): Promise<string[]> {
+    if (!Array.isArray(roles) || roles.some((role) => typeof role !== 'string') || roles.some((role) => role.trim().length === 0)) {
+      throw new AppError('roles must be an array of non-empty role names', 400);
+    }
+    const builtInNames = new Set(BUILTIN_ROLES.map((role) => role.name));
+    const existing = await prisma.role.findMany({ where: { name: { in: [...new Set(roles)] } }, select: { name: true } });
+    const knownNames = new Set(existing.map((role) => role.name));
+    if (options.builtIn) {
+      for (const name of builtInNames) knownNames.add(name);
+    }
+    const invalid = [...new Set(roles)].filter((role) => !knownNames.has(role));
+    if (invalid.length) {
+      throw new AppError(`Unknown role(s): ${invalid.join(', ')}. Only existing roles may be assigned.`, 400);
+    }
+    return [...new Set(roles)];
   }
 
   private async replaceRolePermissions(tx: any, roleId: string, permissionNames: PermissionName[]): Promise<void> {

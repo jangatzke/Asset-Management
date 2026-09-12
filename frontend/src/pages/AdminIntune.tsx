@@ -35,6 +35,8 @@ import HealthIcon from '@mui/icons-material/Favorite';
 import api from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { MuiSortableTh } from '../components/MuiSortableTh';
 
 interface IntuneConfig {
   id: string;
@@ -124,6 +126,16 @@ export default function IntuneAdmin() {
   const [devicePage, setDevicePage] = useState(1);
   const [deviceTotalPages, setDeviceTotalPages] = useState(1);
   const [deviceTotal, setDeviceTotal] = useState(0);
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'admin-intune', defaultSort: { column: 'name', direction: 'asc' } });
+  const sortedDevices = useMemo(() => {
+    if (!sort.column) return devices;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    return [...devices].sort((a, b) => {
+      const aVal = a[sort.column as keyof DeviceSync] ?? '';
+      const bVal = b[sort.column as keyof DeviceSync] ?? '';
+      return (String(aVal).localeCompare(String(bVal))) * dir;
+    });
+  }, [devices, sort]);
   // Credentials state
   interface CredentialFormValues {
     name: string;
@@ -677,16 +689,16 @@ export default function IntuneAdmin() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>{t('common.name')}</TableCell>
-                  <TableCell>{t('common.type')}</TableCell>
-                  <TableCell>{t('common.vendor')}</TableCell>
-                  <TableCell>{t('intune.syncStatus')}</TableCell>
-                  <TableCell>{t('intune.lastError')}</TableCell>
-                  <TableCell>{t('intune.lastSync')}</TableCell>
+                  <MuiSortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
+                  <MuiSortableTh column="osName" label={t('common.type')} activeColumn={sort.column} direction={sort.column === 'osName' ? sort.direction : ''} onSort={toggleSort} />
+                  <MuiSortableTh column="manufacturer" label={t('common.vendor')} activeColumn={sort.column} direction={sort.column === 'manufacturer' ? sort.direction : ''} onSort={toggleSort} />
+                  <MuiSortableTh column="syncStatus" label={t('intune.syncStatus')} activeColumn={sort.column} direction={sort.column === 'syncStatus' ? sort.direction : ''} onSort={toggleSort} />
+                  <MuiSortableTh column="syncErrorMessage" label={t('intune.lastError')} activeColumn={sort.column} direction={sort.column === 'syncErrorMessage' ? sort.direction : ''} onSort={toggleSort} />
+                  <MuiSortableTh column="lastSyncAt" label={t('intune.lastSync')} activeColumn={sort.column} direction={sort.column === 'lastSyncAt' ? sort.direction : ''} onSort={toggleSort} />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {devices.map((device) => (
+                {sortedDevices.map((device) => (
                   <TableRow key={device.id}>
                     <TableCell>{device.name || '—'}</TableCell>
                     <TableCell>{device.osName || '—'}</TableCell>

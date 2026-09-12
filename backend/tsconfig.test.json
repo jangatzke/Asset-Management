@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": false,
     "isolatedModules": true,
+    "allowJs": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {

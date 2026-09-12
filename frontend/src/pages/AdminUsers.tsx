@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface User {
   id: string;
@@ -119,6 +121,26 @@ const AdminUsers = () => {
       u.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.lastName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'admin-users', defaultSort: { column: 'email', direction: 'asc' } });
+  const sortedUsers = useMemo(() => {
+    if (!sort.column) return filteredUsers;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (u: User) => {
+      if (sort.column === 'user') return `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase();
+      if (sort.column === 'email') return (u.email ?? '').toLowerCase();
+      if (sort.column === 'account') return u.isOidcLinked ? `oidc ${u.oidcProvider ?? ''}`.toLowerCase() : 'local';
+      if (sort.column === 'roles') return (u.roles ?? []).join(', ').toLowerCase();
+      if (sort.column === 'groups') return (u.groups ?? []).join(', ').toLowerCase();
+      if (sort.column === 'status') return u.isActive ? 'active' : 'inactive';
+      return '';
+    };
+    return [...filteredUsers].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [filteredUsers, sort]);
 
   const handleCreate = async () => {
     if (!createForm.values.email || !createForm.values.firstName || !createForm.values.lastName) {
@@ -325,17 +347,17 @@ const AdminUsers = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('adminUsers.columns.user')}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('adminUsers.columns.email')}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('adminUsers.columns.account')}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('adminUsers.columns.roles')}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('adminUsers.columns.groups')}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('adminUsers.columns.status')}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">{t('common.actions')}</th>
+                <SortableTh column="user" label={t('adminUsers.columns.user')} activeColumn={sort.column} direction={sort.column === 'user' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="email" label={t('adminUsers.columns.email')} activeColumn={sort.column} direction={sort.column === 'email' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="account" label={t('adminUsers.columns.account')} activeColumn={sort.column} direction={sort.column === 'account' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="roles" label={t('adminUsers.columns.roles')} activeColumn={sort.column} direction={sort.column === 'roles' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="groups" label={t('adminUsers.columns.groups')} activeColumn={sort.column} direction={sort.column === 'groups' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="status" label={t('adminUsers.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+                <th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
-              {filteredUsers.map((user) => (
+              {sortedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900 dark:text-white">
@@ -348,11 +370,11 @@ const AdminUsers = () => {
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.email}</td>
                   <td className="px-4 py-3">
                     {user.isOidcLinked ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                         {t('adminUsers.account.oidc')} {user.oidcProvider ? `(${user.oidcProvider})` : ''}
                       </span>
                     ) : (
-                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
                         {t('adminUsers.account.local')}
                       </span>
                     )}
@@ -362,7 +384,7 @@ const AdminUsers = () => {
                       {user.roles.map((role) => (
                         <span
                           key={role}
-                          className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700"
+                          className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200"
                         >
                           {role.replace(/_/g, ' ')}
                         </span>
@@ -375,7 +397,7 @@ const AdminUsers = () => {
                         user.groups.map((group) => (
                           <span
                             key={group}
-                            className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700"
+                            className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
                           >
                             {group}
                           </span>
@@ -389,8 +411,8 @@ const AdminUsers = () => {
                     <span
                       className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
                         user.isActive
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200'
                       }`}
                     >
                       {user.isActive ? t('adminUsers.status.active') : t('adminUsers.status.inactive')}

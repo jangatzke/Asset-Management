@@ -35,7 +35,7 @@ function resolveTranslation(tree: Record<string, unknown>, key: string): unknown
 interface I18nContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
   tObject: (key: string) => Record<string, string>;
 }
 
@@ -88,9 +88,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }
   }, [updateUserPreferences]);
 
-  const t = useCallback((key: string): string => {
+  const t = useCallback((key: string, params?: Record<string, string | number>): string => {
     const value = resolveTranslation(translations[language], key);
-    return typeof value === 'string' ? value : key;
+    const base = typeof value === 'string' ? value : key;
+    if (!params) return base;
+    return base.replace(/\{(\w+)\}/g, (match, name) => (params[name] !== undefined ? String(params[name]) : match));
   }, [language]);
 
   const tObject = useCallback((key: string): Record<string, string> => {

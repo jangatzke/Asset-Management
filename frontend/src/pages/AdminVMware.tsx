@@ -39,6 +39,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { MuiSortableTh } from '../components/MuiSortableTh';
 import { vmwareApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -119,6 +121,28 @@ export default function AdminVMware() {
     port: 443,
     credentialId: '',
   });
+
+  const { sort: credSort, toggleSort: toggleCredSort } = useLocalSort({ routeKey: 'admin-vmware-credentials', defaultSort: { column: 'name', direction: 'asc' } });
+  const sortedCredentials = useMemo(() => {
+    if (!credSort.column) return credentials;
+    const dir = credSort.direction === 'desc' ? -1 : 1;
+    return [...credentials].sort((a, b) => {
+      const aVal = a[credSort.column as keyof VMwareCredential] ?? '';
+      const bVal = b[credSort.column as keyof VMwareCredential] ?? '';
+      return (String(aVal).localeCompare(String(bVal))) * dir;
+    });
+  }, [credentials, credSort]);
+
+  const { sort: serverSort, toggleSort: toggleServerSort } = useLocalSort({ routeKey: 'admin-vmware-servers', defaultSort: { column: 'name', direction: 'asc' } });
+  const sortedServers = useMemo(() => {
+    if (!serverSort.column) return servers;
+    const dir = serverSort.direction === 'desc' ? -1 : 1;
+    return [...servers].sort((a, b) => {
+      const aVal = a[serverSort.column as keyof VCenterServer] ?? '';
+      const bVal = b[serverSort.column as keyof VCenterServer] ?? '';
+      return (String(aVal).localeCompare(String(bVal))) * dir;
+    });
+  }, [servers, serverSort]);
 
   // Loading and status state
   const [importing, setImporting] = useState<Record<string, boolean>>({});
@@ -394,16 +418,16 @@ export default function AdminVMware() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>{t('common.name')}</TableCell>
-                  <TableCell>{t('vmware.username')}</TableCell>
-                  <TableCell>{t('vmware.vcenterServers')}</TableCell>
-                  <TableCell>{t('vmware.default')}</TableCell>
-                  <TableCell>{t('common.created')}</TableCell>
+                  <MuiSortableTh column="name" label={t('common.name')} activeColumn={credSort.column} direction={credSort.column === 'name' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="username" label={t('vmware.username')} activeColumn={credSort.column} direction={credSort.column === 'username' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="vCenterCount" label={t('vmware.vcenterServers')} activeColumn={credSort.column} direction={credSort.column === 'vCenterCount' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="isDefault" label={t('vmware.default')} activeColumn={credSort.column} direction={credSort.column === 'isDefault' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="createdAt" label={t('common.created')} activeColumn={credSort.column} direction={credSort.column === 'createdAt' ? credSort.direction : ''} onSort={toggleCredSort} />
                   <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {credentials.map((cred) => (
+                {sortedCredentials.map((cred) => (
                   <TableRow key={cred.id}>
                     <TableCell>{cred.name}</TableCell>
                     <TableCell>{cred.username}</TableCell>
@@ -426,7 +450,7 @@ export default function AdminVMware() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {credentials.length === 0 && (
+                {sortedCredentials.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} align="center">
                       {t('vmware.noCredentialsConfigured')}
@@ -462,18 +486,18 @@ export default function AdminVMware() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>{t('common.name')}</TableCell>
-                  <TableCell>{t('vmware.host')}</TableCell>
-                  <TableCell>{t('vmware.credential')}</TableCell>
-                  <TableCell>{t('vmware.enabled')}</TableCell>
-                  <TableCell>{t('vmware.vmCount')}</TableCell>
-                  <TableCell>{t('vmware.lastSync')}</TableCell>
-                  <TableCell>{t('vmware.status')}</TableCell>
+                  <MuiSortableTh column="name" label={t('common.name')} activeColumn={serverSort.column} direction={serverSort.column === 'name' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="host" label={t('vmware.host')} activeColumn={serverSort.column} direction={serverSort.column === 'host' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="credentialName" label={t('vmware.credential')} activeColumn={serverSort.column} direction={serverSort.column === 'credentialName' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="enabled" label={t('vmware.enabled')} activeColumn={serverSort.column} direction={serverSort.column === 'enabled' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="vmCount" label={t('vmware.vmCount')} activeColumn={serverSort.column} direction={serverSort.column === 'vmCount' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="lastSyncAt" label={t('vmware.lastSync')} activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncAt' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="lastSyncStatus" label={t('vmware.status')} activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncStatus' ? serverSort.direction : ''} onSort={toggleServerSort} />
                   <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {servers.map((server) => (
+                {sortedServers.map((server) => (
                   <TableRow key={server.id}>
                     <TableCell>{server.name}</TableCell>
                     <TableCell>
@@ -552,7 +576,7 @@ export default function AdminVMware() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {servers.length === 0 && (
+                {sortedServers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} align="center">
                       {t('vmware.noServersConfigured')}

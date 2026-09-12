@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { authenticator } from 'otplib';
+import { authenticator } from '@otplib/v12-adapter';
 import { Prisma } from '@prisma/client';
 import QRCode from 'qrcode';
 import { prisma } from '../config/database';

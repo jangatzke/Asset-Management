@@ -212,11 +212,11 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                           {expanded && (
                             <div className="mt-2 overflow-x-auto">
                               <table className="min-w-full text-sm">
-                                <thead>
-                                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                                    <th className="pb-1 pr-3 font-medium">{t('history.field')}</th>
-                                    <th className="pb-1 pr-3 font-medium">{t('history.oldValue')}</th>
-                                    <th className="pb-1 font-medium">{t('history.newValue')}</th>
+                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                  <tr>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('history.field')}</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('history.oldValue')}</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('history.newValue')}</th>
                                   </tr>
                                 </thead>
                                 <tbody>

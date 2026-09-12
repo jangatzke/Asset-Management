@@ -13,6 +13,7 @@
 import { jest } from '@jest/globals';
 
 type MockFunction = ReturnType<typeof jest.fn>;
+
 type MockModel = {
   findUnique: MockFunction;
   findFirst: MockFunction;
@@ -32,6 +33,7 @@ export type MockPrismaClient = {
   $connect: MockFunction;
   $disconnect: MockFunction;
   $transaction: MockFunction;
+  $queryRaw: MockFunction;
 };
 
 // Create a mock structure matching PrismaClient
@@ -233,5 +235,6 @@ export const createMockPrismaClient = (): MockPrismaClient => {
     $connect: jest.fn(),
     $disconnect: jest.fn(),
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   };
 };

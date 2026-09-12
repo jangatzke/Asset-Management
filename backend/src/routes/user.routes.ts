@@ -7,7 +7,7 @@ export const userRouter = Router();
 const userService = new UserService();
 
 // List users with pagination and search
-userRouter.get('/', authenticate, async (_req, res, next) => {
+userRouter.get('/', authenticate, requireAdminAccess, async (_req, res, next) => {
   try {
     res.json(await userService.listUsers(_req.query));
   } catch (error) {
@@ -16,7 +16,7 @@ userRouter.get('/', authenticate, async (_req, res, next) => {
 });
 
 // Search users (for owner dropdown)
-userRouter.get('/search', authenticate, async (req, res, next) => {
+userRouter.get('/search', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     const q = (req.query.q as string) || '';
     const limit = parseInt(req.query.limit as string) || 20;
@@ -27,7 +27,7 @@ userRouter.get('/search', authenticate, async (req, res, next) => {
 });
 
 // Get users for owner selection dropdown
-userRouter.get('/owners', authenticate, async (req, res, next) => {
+userRouter.get('/owners', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     const q = (req.query.q as string) || undefined;
     res.json(await userService.getOwnersForSelect(q));
@@ -37,7 +37,7 @@ userRouter.get('/owners', authenticate, async (req, res, next) => {
 });
 
 // Get user by ID
-userRouter.get('/:id', authenticate, async (req, res, next) => {
+userRouter.get('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     res.json(await userService.getUserById(req.params.id));
   } catch (error) {

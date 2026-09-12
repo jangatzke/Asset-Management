@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { adminApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface Group {
   id: string;
@@ -159,6 +161,24 @@ const AdminGroups = () => {
   const handleCreateDiscard = () => { createForm.resetForm(); setCreateModalOpen(false); };
   const handleEditDiscard = () => { editForm.resetForm(); setEditModalOpen(false); };
 
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'admin-groups', defaultSort: { column: 'name', direction: 'asc' } });
+  const sortedGroups = useMemo(() => {
+    if (!sort.column) return groups;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (g: Group) => {
+      if (sort.column === 'name') return (g.name ?? '').toLowerCase();
+      if (sort.column === 'description') return (g.description ?? '').toLowerCase();
+      if (sort.column === 'users') return String((g.users ?? g.userGroups ?? []).length);
+      if (sort.column === 'roles') return String((g.roles ?? g.groupRoles ?? []).length);
+      return '';
+    };
+    return [...groups].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [groups, sort]);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -182,25 +202,15 @@ const AdminGroups = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">
-                  {t('common.name')}
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">
-                  {t('common.description')}
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">
-                  {t('common.users')}
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">
-                  {t('common.roles')}
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">
-                  {t('common.actions')}
-                </th>
+                <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="description" label={t('common.description')} activeColumn={sort.column} direction={sort.column === 'description' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="users" label={t('common.users')} activeColumn={sort.column} direction={sort.column === 'users' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="roles" label={t('common.roles')} activeColumn={sort.column} direction={sort.column === 'roles' ? sort.direction : ''} onSort={toggleSort} />
+                <th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {groups.map((group) => (
+              {sortedGroups.map((group) => (
                 <tr key={group.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                     {group.name}

@@ -1,17 +1,32 @@
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, ShareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { assetApi, contractApi, licenseApi, adminApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { usePersistedView } from '../hooks/usePersistedView';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { EmptyState } from '../components/EmptyState';
+import { ActiveFilters } from '../components/ActiveFilters';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import AssetGraph from '../components/AssetGraph';
 import AssetImpactAnalysis from '../components/AssetImpactAnalysis';
+import { StatusBadge } from '../components/StatusBadge';
+import { SortableTh } from '../components/SortableTh';
 import { useI18n } from '../context/I18nContext';
 import { useToast } from '../components/useToast';
+import {
+  iconButtonEdit,
+  iconButtonView,
+  iconButtonHistory,
+  iconButtonDanger,
+  buttonPrimary,
+  selectField,
+  inputField,
+} from '../styles/tokens';
 
 interface Asset {
   id: string;
@@ -53,7 +68,6 @@ interface AssetRelation {
   targetLabel?: string;
 }
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 const PAGE_SIZE = 50;
 const messageFrom = (error: any, fallback: string) =>
@@ -111,10 +125,18 @@ const Assets = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterCriticality, setFilterCriticality] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [page, setPage] = useState(1);
+  // Filters, page and sort are owned by the URL (filters + page) and
+  // localStorage (sort + column order) via usePersistedView, so a filtered
+  // link is shareable and the view survives reload/revisit.
+  const { filters, page, setPage, setFilter, sort, toggleSort, clearView } = usePersistedView({
+    routeKey: 'assets',
+    filterKeys: ['type', 'criticality', 'status'],
+    defaultSort: { column: 'name', direction: 'asc' },
+    defaultColumns: ['id', 'name', 'inventoryNumber', 'type', 'subtype', 'criticality', 'status'],
+  });
+  const filterType = filters.type ?? '';
+  const filterCriticality = filters.criticality ?? '';
+  const filterStatus = filters.status ?? '';
   const [pagination, setPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 1 });
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -122,6 +144,7 @@ const Assets = () => {
   const form = useDirtyForm<CreateAssetForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const pendingClose = useRef<(() => void) | null>(null);
   // Guard against out-of-order / stale list responses (same pattern as ISMS Phase 6):
   // only the most recent request may update state, all others are discarded.
@@ -174,6 +197,25 @@ const Assets = () => {
       setModalOpen(false);
     }
   }, [form]);
+
+  const resetForm = useCallback(() => {
+    form.resetForm();
+    setEditingId(null);
+    setNewRelationTarget(null);
+    setExistingRelations([]);
+  }, [form]);
+
+  // Listen for the global "create asset" request dispatched by Layout when the
+  // `n` shortcut fires on this list page.
+  useEffect(() => {
+    const handleNewEvent = () => {
+      resetForm();
+      form.setFormValues(initialForm);
+      setModalOpen(true);
+    };
+    document.addEventListener('am:new-asset', handleNewEvent);
+    return () => document.removeEventListener('am:new-asset', handleNewEvent);
+  }, [form, resetForm]);
 
   const loadAssets = useCallback(async (overrides?: { page?: number; search?: string; assetTypeId?: string; criticality?: string; lifecycleStatus?: string }) => {
     // Cancel any in-flight request and mark this one as the latest.
@@ -277,15 +319,44 @@ const Assets = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Reset to first page whenever filters change
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, filterType, filterCriticality, filterStatus]);
-
-  // Fetch the current page from the server whenever the query changes
+  // Fetch the current page from the server whenever the query changes. The
+  // filters + page live in the URL (usePersistedView), so a shareable filtered
+  // link restores the exact view on reload/revisit.
   useEffect(() => {
     void refreshCurrentQuery();
   }, [refreshCurrentQuery]);
+
+  // Client-side sort of the already-loaded page. Sorting is a view preference
+  // persisted in localStorage (see usePersistedView), so the direction survives
+  // reload/revisit. The server is untouched — we just reorder the current slice.
+  const sortedAssets = useMemo(() => {
+    if (!sort.column) return assets;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const key = sort.column;
+    const get = (a: Asset) => {
+      if (key === 'name') return a.name?.toLowerCase() ?? '';
+      if (key === 'id') return a.displayId?.toLowerCase() ?? '';
+      if (key === 'inventoryNumber') return a.inventoryNumber?.toLowerCase() ?? '';
+      if (key === 'type') return a.assetType?.name?.toLowerCase() ?? '';
+      if (key === 'subtype') return a.assetSubtype?.name?.toLowerCase() ?? '';
+      if (key === 'criticality') return a.criticality?.toLowerCase() ?? '';
+      if (key === 'status') return (a.lifecycleStatus || a.status)?.toLowerCase() ?? '';
+      return '';
+    };
+    return [...assets].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [assets, sort]);
+
+  // Clear the whole view (filters + page + sort + column order + search) via the
+  // "clear view" control on the filter chips. The hook resets filters, page,
+  // sort and column order; we reset the search input here.
+  const handleClearView = useCallback(() => {
+    clearView();
+    setSearchTerm('');
+  }, [clearView]);
 
   const selectedType = assetTypes.find((type) => type.id === form.values.assetTypeId);
   const selectedSubtype = selectedType?.subtypes?.find((subtype) => subtype.id === form.values.assetSubtypeId);
@@ -410,8 +481,8 @@ const Assets = () => {
     }
   }, [form, t, addToast]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('assets.deleteConfirm'))) return;
+  const handleDeleteConfirm = async (id: string) => {
+    setPendingDeleteId(null);
     try {
       await assetApi.delete(id);
       addToast('success', t('assets.deleteSuccess'));
@@ -427,13 +498,6 @@ const Assets = () => {
     setSelectedAsset(asset);
     setDetailTab('graph');
   };
-
-  const resetForm = useCallback(() => {
-    form.resetForm();
-    setEditingId(null);
-    setNewRelationTarget(null);
-    setExistingRelations([]);
-  }, [form]);
 
   // Relation management
   const handleAddRelation = async () => {
@@ -501,7 +565,7 @@ const Assets = () => {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('assets.title')}</h1>
             <button onClick={() => { resetForm(); form.setFormValues(initialForm); setModalOpen(true); }}
-              className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
+              className={buttonPrimary}>
               {t('assets.newAsset')}
             </button>
           </div>
@@ -515,24 +579,24 @@ const Assets = () => {
           <div className="mb-4 space-y-3">
             <div className="flex flex-col sm:flex-row gap-3">
               <input type="text" placeholder={t('assets.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} aria-label={t('assets.fields.assetType')}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={inputField + ' flex-1'} />
+              <select value={filterType} onChange={(e) => setFilter('type', e.target.value)} aria-label={t('assets.fields.assetType')}
+                className={selectField}>
                 <option value="">{t('common.all')} {t('assets.fields.assetType')}</option>
                 {assetTypes.map((type) => (
                   <option key={type.id} value={type.id}>{type.name}</option>
                 ))}
               </select>
-              <select value={filterCriticality} onChange={(e) => setFilterCriticality(e.target.value)} aria-label={t('assets.fields.criticality')}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={filterCriticality} onChange={(e) => setFilter('criticality', e.target.value)} aria-label={t('assets.fields.criticality')}
+                className={selectField}>
                 <option value="">{t('common.all')} {t('assets.fields.criticality')}</option>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
                 <option value="high">{t('assets.criticality.high')}</option>
                 <option value="critical">{t('assets.criticality.critical')}</option>
               </select>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} aria-label={t('assets.fields.lifecycleStatus')}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={filterStatus} onChange={(e) => setFilter('status', e.target.value)} aria-label={t('assets.fields.lifecycleStatus')}
+                className={selectField}>
                 <option value="">{t('common.all')} {t('assets.fields.lifecycleStatus')}</option>
                 <option value="planned">{t('assets.lifecycleStatus.planned')}</option>
                 <option value="ordered">{t('assets.lifecycleStatus.ordered')}</option>
@@ -547,58 +611,77 @@ const Assets = () => {
                 <option value="unknown">{t('assets.lifecycleStatus.unknown')}</option>
               </select>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} {t('assets.results')}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <ActiveFilters
+                labelKey="common.filters"
+                clearAllKey="common.clearAll"
+                onClearView={handleClearView}
+                chips={[
+                  filterType ? { value: 'type', label: t('assets.fields.assetType') + ': ' + (assetTypes.find((type) => type.id === filterType)?.name ?? t('assets.fields.assetType')), onRemove: () => setFilter('type', '') } : null,
+                  filterCriticality ? { value: 'criticality', label: t(`assets.criticality.${filterCriticality}`), onRemove: () => setFilter('criticality', '') } : null,
+                  filterStatus ? { value: 'status', label: t(`assets.lifecycleStatus.${filterStatus}`), onRemove: () => setFilter('status', '') } : null,
+                ].filter((chip): chip is Exclude<typeof chip, null> => chip !== null)}
+              />
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{pagination.total} {t('assets.results')}</p>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.id')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.name')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.inventoryNumber')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.type')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.subtype')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.criticality')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('assets.columns.status')}</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
+                  <SortableTh column="id" label={t('assets.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
+                  <SortableTh column="name" label={t('assets.columns.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
+                  <SortableTh column="inventoryNumber" label={t('assets.columns.inventoryNumber')} activeColumn={sort.column} direction={sort.column === 'inventoryNumber' ? sort.direction : ''} onSort={toggleSort} />
+                  <SortableTh column="type" label={t('assets.columns.type')} activeColumn={sort.column} direction={sort.column === 'type' ? sort.direction : ''} onSort={toggleSort} />
+                  <SortableTh column="subtype" label={t('assets.columns.subtype')} activeColumn={sort.column} direction={sort.column === 'subtype' ? sort.direction : ''} onSort={toggleSort} />
+                  <SortableTh column="criticality" label={t('assets.columns.criticality')} activeColumn={sort.column} direction={sort.column === 'criticality' ? sort.direction : ''} onSort={toggleSort} />
+                  <SortableTh column="status" label={t('assets.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {assets.length === 0 ? (
-                   <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('assets.noAssets')}</td></tr>
-                ) : assets.map((asset) => (
-                  <tr key={asset.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.displayId}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-blue-600 dark:text-blue-400 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.inventoryNumber || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.assetType?.name || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.assetSubtype?.name || '-'}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        asset.criticality === 'critical' ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200' :
-                        asset.criticality === 'high' ? 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200' :
-                        asset.criticality === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200' :
-                        'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                      }`}>
-                        {t(`assets.criticality.${asset.criticality}`)}
-                      </span>
+                {sortedAssets.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8">
+                      <EmptyState
+                        titleKey="assets.emptyTitle"
+                        descriptionKey="assets.emptyDescription"
+                        action={
+                          <Link to="?editAsset=" className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            {t('assets.emptyAction')}
+                          </Link>
+                        }
+                      />
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{asset.status}</td>
+                  </tr>
+                ) : sortedAssets.map((asset) => (
+                  <tr key={asset.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{asset.displayId}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.inventoryNumber || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.assetType?.name || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.assetSubtype?.name || '-'}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <StatusBadge kind="criticality" value={asset.criticality} label={t(`assets.criticality.${asset.criticality}`)} ariaLabel={t('assets.columns.criticality')} />
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <StatusBadge kind="state" value={asset.lifecycleStatus || asset.status} label={t(`assets.lifecycleStatus.${asset.lifecycleStatus || asset.status}`)} ariaLabel={t('assets.columns.status')} />
+                    </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => handleEdit(asset)} aria-label={`${t('common.edit')}: ${asset.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                        <button onClick={() => handleEdit(asset)} aria-label={`${t('common.edit')}: ${asset.name}`} title={t('common.edit')} className={iconButtonEdit}>
                           <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                         </button>
-                        <button onClick={() => setGraphViewerAsset(asset)} aria-label={`${t('assets.openTreeViewer')}: ${asset.name}`} title={t('assets.openTreeViewer')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
+                        <button onClick={() => setGraphViewerAsset(asset)} aria-label={`${t('assets.openTreeViewer')}: ${asset.name}`} title={t('assets.openTreeViewer')} className={iconButtonView}>
                           <ShareIcon aria-hidden="true" className={actionIconClassName} />
                         </button>
-                        <button onClick={() => setHistoryAsset(asset)} aria-label={`${t('history.viewHistory')}: ${asset.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                        <button onClick={() => setHistoryAsset(asset)} aria-label={`${t('history.viewHistory')}: ${asset.name}`} title={t('history.viewHistory')} className={iconButtonHistory}>
                           <ClockIcon aria-hidden="true" className={actionIconClassName} />
                         </button>
-                        <button onClick={() => handleDelete(asset.id)} aria-label={`${t('common.delete')}: ${asset.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
-                          <TrashIcon aria-hidden="true" className={actionIconClassName} />
-                        </button>
+                        <button onClick={() => setPendingDeleteId(asset.id)} aria-label={`${t('common.delete')}: ${asset.name}`} title={t('common.delete')} className={iconButtonDanger}>
+                           <TrashIcon aria-hidden="true" className={actionIconClassName} />
+                         </button>
                       </div>
                     </td>
                   </tr>
@@ -609,12 +692,12 @@ const Assets = () => {
 
           {pagination.totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
+              <button onClick={() => setPage(page - 1)} disabled={page <= 1}
                 className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 {t('common.back')}
               </button>
               <span className="text-sm text-gray-500 dark:text-gray-400">{page} / {pagination.totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages}
+              <button onClick={() => setPage(page + 1)} disabled={page >= pagination.totalPages}
                 className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 {t('common.next')}
               </button>
@@ -632,20 +715,20 @@ const Assets = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.name')} *</label>
             <input type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className={inputField} />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.description')}</label>
             <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className={inputField} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetType')} *</label>
               <select value={form.values.assetTypeId} onChange={(e) => form.handleChange({ assetTypeId: e.target.value, assetSubtypeId: '', inventoryNumber: '' } as any)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="">{t('common.select')}</option>
                 {assetTypes.map((type) => (
                   <option key={type.id} value={type.id}>{type.name}</option>
@@ -655,7 +738,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetSubtype')}</label>
               <select value={form.values.assetSubtypeId} onChange={(e) => form.handleChange({ assetSubtypeId: e.target.value, inventoryNumber: '' } as any)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="">{t('assets.noSubtype')}</option>
                 {(selectedType?.subtypes ?? []).map((subtype) => <option key={subtype.id} value={subtype.id}>{subtype.name}</option>)}
               </select>
@@ -666,7 +749,7 @@ const Assets = () => {
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.inventoryNumber')}</label>
               <input type="text" value={form.values.inventoryNumber} onChange={(e) => form.handleChange({ inventoryNumber: e.target.value })} placeholder={t('assets.inventory.manualPlaceholder')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className={inputField} />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{selectedSubtype?.inventoryPattern || selectedType?.inventoryPattern || t('assets.inventory.noPattern')}</p>
             </div>
             <button type="button" onClick={handleGenerateInventory} className="self-end px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600">{t('assets.inventory.generateNext')}</button>
@@ -675,19 +758,19 @@ const Assets = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.serialNumber')}</label>
             <input type="text" value={form.values.serialNumber} onChange={(e) => form.handleChange({ serialNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className={inputField} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.manufacturer')}</label>
               <input type="text" value={form.values.manufacturer} onChange={(e) => form.handleChange({ manufacturer: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className={inputField} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.model')}</label>
               <input type="text" value={form.values.model} onChange={(e) => form.handleChange({ model: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className={inputField} />
             </div>
           </div>
 
@@ -695,7 +778,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.criticality')}</label>
               <select value={form.values.criticality} onChange={(e) => form.handleChange({ criticality: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
                 <option value="high">{t('assets.criticality.high')}</option>
@@ -705,7 +788,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.lifecycleStatus')}</label>
               <select value={form.values.lifecycleStatus} onChange={(e) => form.handleChange({ lifecycleStatus: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="planned">{t('assets.lifecycleStatus.planned')}</option>
                 <option value="ordered">{t('assets.lifecycleStatus.ordered')}</option>
                 <option value="in_stock">{t('assets.lifecycleStatus.in_stock')}</option>
@@ -751,7 +834,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.personnelSafetyRelevance')}</label>
               <select value={form.values.personnelSafetyRelevance} onChange={(e) => form.handleChange({ personnelSafetyRelevance: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
                 <option value="high">{t('assets.criticality.high')}</option>
@@ -760,7 +843,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.regulatoryRelevance')}</label>
               <select value={form.values.regulatoryRelevance} onChange={(e) => form.handleChange({ regulatoryRelevance: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
                 <option value="high">{t('assets.criticality.high')}</option>
@@ -772,7 +855,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.financialDamagePotential')}</label>
               <select value={form.values.financialDamagePotential} onChange={(e) => form.handleChange({ financialDamagePotential: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
                 <option value="high">{t('assets.criticality.high')}</option>
@@ -781,7 +864,7 @@ const Assets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.productionDowntimeImpact')}</label>
               <select value={form.values.productionDowntimeImpact} onChange={(e) => form.handleChange({ productionDowntimeImpact: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
                 <option value="high">{t('assets.criticality.high')}</option>
@@ -800,7 +883,7 @@ const Assets = () => {
             <div className="w-40">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.relationType')}</label>
               <select value={newRelationType} onChange={(e) => setNewRelationType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className={selectField}>
                 <option value="depends_on">{t('assets.relationTypes.depends_on')}</option>
                 <option value="connects_to">{t('assets.relationTypes.connects_to')}</option>
                 <option value="hosts">{t('assets.relationTypes.hosts')}</option>
@@ -830,7 +913,7 @@ const Assets = () => {
               {t('common.cancel')}
             </button>
             <button onClick={handleSubmit} disabled={saving}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
+              className={buttonPrimary}>
               {saving ? t('common.loading') : (editingId ? t('common.update') : t('assets.createAsset'))}
             </button>
           </div>
@@ -865,6 +948,14 @@ const Assets = () => {
         }}
         titleKey="Discard Changes"
         messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => pendingDeleteId && handleDeleteConfirm(pendingDeleteId)}
+        danger
+        titleKey="assets.deleteConfirm"
       />
     </div>
   );

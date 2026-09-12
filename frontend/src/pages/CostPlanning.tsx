@@ -9,13 +9,12 @@ import {
   PencilSquareIcon,
   CheckIcon,
   DocumentArrowDownIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
-  ChevronUpDownIcon,
   FunnelIcon,
   CurrencyDollarIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 type Supplier = { id: string; legalName: string; displayId: string };
 type ManualItem = { title: string; category: string; investmentType: string; plannedAmount: string; currency: string; supplierId: string; supplierName: string; quoteNumber: string; remark: string };
@@ -43,8 +42,6 @@ interface CostPlanItem {
   completedAt?: string;
 }
 
-type SortDirection = 'asc' | 'desc' | null;
-type SortConfig = { key: keyof CostPlanItem; direction: SortDirection };
 
 const money = (value: string | number | null | undefined, currency = 'EUR') => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(value || 0));
 const emptyManual = (): ManualItem => ({ title: '', category: 'hardware', investmentType: 'new_acquisition', plannedAmount: '', currency: 'EUR', supplierId: '', supplierName: '', quoteNumber: '', remark: '' });
@@ -103,8 +100,8 @@ const CostPlanning = () => {
   const [editSupplierSearch, setEditSupplierSearch] = useState('');
   const [editSuppliers, setEditSuppliers] = useState<Supplier[]>([]);
 
-  // Sorting state
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'dueDate', direction: null });
+  const { sort, toggleSort } = useLocalSort({ routeKey: 'cost-planning', defaultSort: { column: 'dueDate', direction: 'asc' } });
+  const { sort: candidateSort, toggleSort: candidateToggleSort } = useLocalSort({ routeKey: 'cost-planning-candidates', defaultSort: { column: 'source', direction: 'asc' } });
 
   // Filter state
   const [showFilters, setShowFilters] = useState(false);
@@ -349,23 +346,6 @@ const CostPlanning = () => {
     } finally { setEditSaving(false); }
   }, [editingItem, editForm, t, ensurePlan]);
 
-  // Sorting
-  const handleSort = (key: keyof CostPlanItem) => {
-    setSortConfig((prev) => ({
-      key,
-      direction: prev.key === key
-        ? prev.direction === 'asc' ? 'desc' : prev.direction === 'desc' ? null : 'asc'
-        : 'asc',
-    }));
-  };
-
-  const getSortIcon = (key: keyof CostPlanItem) => {
-    if (sortConfig.key !== key) return <ChevronUpDownIcon className="w-4 h-4 inline ml-1 opacity-40" />;
-    if (sortConfig.direction === 'asc') return <ChevronUpIcon className="w-4 h-4 inline ml-1" />;
-    if (sortConfig.direction === 'desc') return <ChevronDownIcon className="w-4 h-4 inline ml-1" />;
-    return <ChevronUpDownIcon className="w-4 h-4 inline ml-1 opacity-40" />;
-  };
-
   // Filtered and sorted items
   const filteredItems = useMemo(() => {
     let items = plan?.items ?? [];
@@ -391,22 +371,38 @@ const CostPlanning = () => {
   }, [plan?.items, filters]);
 
   const sortedItems = useMemo(() => {
-    if (!sortConfig.direction) return filteredItems;
-    const items = [...filteredItems];
-    items.sort((a: CostPlanItem, b: CostPlanItem) => {
-      const aVal = a[sortConfig.key];
-      const bVal = b[sortConfig.key];
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-      const comparison = typeof aVal === 'number' && typeof bVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal));
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
-    return items;
-  }, [filteredItems, sortConfig]);
+    if (!sort.column) return filteredItems;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (item: CostPlanItem) => {
+      if (sort.column === 'displayId') return (item.displayId ?? '').toLowerCase();
+      if (sort.column === 'title') return (item.title ?? '').toLowerCase();
+      if (sort.column === 'status') return (item.status ?? '').toLowerCase();
+      if (sort.column === 'category') return (item.category ?? '').toLowerCase();
+      if (sort.column === 'knownAmount') return String(item.knownAmount ?? item.plannedAmount ?? 0);
+      if (sort.column === 'dueDate') return item.dueDate ? new Date(item.dueDate).getTime() : 0;
+      if (sort.column === 'supplierName') return (item.supplierName ?? '').toLowerCase();
+      if (sort.column === 'quoteNumber') return (item.quoteNumber ?? '').toLowerCase();
+      if (sort.column === 'remark') return (item.remark ?? '').toLowerCase();
+      return '';
+    };
+    return [...filteredItems].sort((a: CostPlanItem, b: CostPlanItem) => { const av = get(a); const bv = get(b); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0; });
+  }, [filteredItems, sort]);
+
+  const sortedCandidates = useMemo(() => {
+    if (!candidateSort.column) return candidates;
+    const dir = candidateSort.direction === 'desc' ? -1 : 1;
+    const get = (candidate: any) => {
+      if (candidateSort.column === 'source') return (candidate.sourceDisplayId ?? '').toLowerCase();
+      if (candidateSort.column === 'title') return (candidate.title ?? '').toLowerCase();
+      if (candidateSort.column === 'reason') return (candidate.relevanceReason ?? '').toLowerCase();
+      if (candidateSort.column === 'amount') return String(candidate.plannedAmount ?? 0);
+      return '';
+    };
+    return [...candidates].sort((a: any, b: any) => { const av = get(a); const bv = get(b); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0; });
+  }, [candidates, candidateSort]);
 
   const clearFilters = () => {
     setFilters({ search: '', status: '', category: '', supplierName: '' });
-    setSortConfig({ key: 'dueDate', direction: null });
   };
 
   const hasActiveFilters = filters.search || filters.status || filters.category || filters.supplierName;
@@ -517,41 +513,13 @@ const CostPlanning = () => {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500">
-                <th className="py-2">
-                  <button onClick={() => handleSort('displayId')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.item')}{getSortIcon('displayId')}
-                  </button>
-                </th>
-                <th className="py-2">
-                  <button onClick={() => handleSort('title')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.titleField')}{getSortIcon('title')}
-                  </button>
-                </th>
-                <th className="py-2">
-                  <button onClick={() => handleSort('status')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.status')}{getSortIcon('status')}
-                  </button>
-                </th>
-                <th className="py-2">
-                  <button onClick={() => handleSort('category')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.category')}{getSortIcon('category')}
-                  </button>
-                </th>
-                <th className="py-2">
-                  <button onClick={() => handleSort('knownAmount')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.amount')}{getSortIcon('knownAmount')}
-                  </button>
-                </th>
-                <th className="py-2">
-                  <button onClick={() => handleSort('dueDate')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.due')}{getSortIcon('dueDate')}
-                  </button>
-                </th>
-                <th className="py-2">
-                  <button onClick={() => handleSort('supplierName')} className="flex items-center hover:text-gray-700 dark:hover:text-gray-200">
-                    {t('costPlanning.supplier')}{getSortIcon('supplierName')}
-                  </button>
-                </th>
+                <SortableTh column="displayId" label={t('costPlanning.item')} activeColumn={sort.column} direction={sort.column === 'displayId' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="title" label={t('costPlanning.titleField')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="status" label={t('costPlanning.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="category" label={t('costPlanning.category')} activeColumn={sort.column} direction={sort.column === 'category' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="knownAmount" label={t('costPlanning.amount')} activeColumn={sort.column} direction={sort.column === 'knownAmount' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="dueDate" label={t('costPlanning.due')} activeColumn={sort.column} direction={sort.column === 'dueDate' ? sort.direction : ''} onSort={toggleSort} />
+                <SortableTh column="supplierName" label={t('costPlanning.supplier')} activeColumn={sort.column} direction={sort.column === 'supplierName' ? sort.direction : ''} onSort={toggleSort} />
                 <th className="py-2">{t('costPlanning.quoteNumber')}</th>
                 <th className="py-2">{t('costPlanning.remark')}</th>
                 <th className="py-2">{t('costPlanning.actions')}</th>
@@ -638,7 +606,7 @@ const CostPlanning = () => {
       {/* Candidates */}
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.candidates')}</h2><button onClick={takeover} disabled={selected.length === 0} className="px-3 py-2 rounded bg-blue-600 disabled:bg-gray-300 text-white">{t('costPlanning.takeOverSelected')}</button></div>
-        <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="text-left text-gray-500"><th><input ref={selectAllCandidatesCheckboxRef} type="checkbox" aria-label={t('costPlanning.selectAllCandidates')} aria-checked={isCandidateSelectionIndeterminate ? 'mixed' : allSelectableCandidatesSelected} checked={allSelectableCandidatesSelected} disabled={selectableCandidateKeys.length === 0} onChange={toggleAllVisibleCandidates} /></th><th>{t('costPlanning.source')}</th><th>{t('costPlanning.titleField')}</th><th>{t('costPlanning.reason')}</th><th>{t('costPlanning.amount')}</th></tr></thead><tbody>{candidates.map((candidate) => <tr key={candidate.candidateKey} className="border-t dark:border-gray-700"><td><input type="checkbox" disabled={candidate.alreadyInPlan} checked={selected.includes(candidate.candidateKey)} onChange={(e) => toggleCandidate(candidate.candidateKey, e.target.checked)} /></td><td className="py-2 dark:text-white">{candidate.sourceDisplayId} {candidate.sourceLabel}</td><td>{candidate.title}</td><td>{candidate.alreadyInPlan ? t('costPlanning.alreadyInPlan') : candidate.relevanceReason}</td><td>{candidate.plannedAmount ? money(candidate.plannedAmount, candidate.currency) : '—'}</td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="text-left text-gray-500"><th><input ref={selectAllCandidatesCheckboxRef} type="checkbox" aria-label={t('costPlanning.selectAllCandidates')} aria-checked={isCandidateSelectionIndeterminate ? 'mixed' : allSelectableCandidatesSelected} checked={allSelectableCandidatesSelected} disabled={selectableCandidateKeys.length === 0} onChange={toggleAllVisibleCandidates} /></th><SortableTh column="source" label={t('costPlanning.source')} activeColumn={candidateSort.column} direction={candidateSort.column === 'source' ? candidateSort.direction : ''} onSort={candidateToggleSort} /><SortableTh column="title" label={t('costPlanning.titleField')} activeColumn={candidateSort.column} direction={candidateSort.column === 'title' ? candidateSort.direction : ''} onSort={candidateToggleSort} /><SortableTh column="reason" label={t('costPlanning.reason')} activeColumn={candidateSort.column} direction={candidateSort.column === 'reason' ? candidateSort.direction : ''} onSort={candidateToggleSort} /><SortableTh column="amount" label={t('costPlanning.amount')} activeColumn={candidateSort.column} direction={candidateSort.column === 'amount' ? candidateSort.direction : ''} onSort={candidateToggleSort} /></tr></thead><tbody>{sortedCandidates.map((candidate) => <tr key={candidate.candidateKey} className="border-t dark:border-gray-700"><td><input type="checkbox" disabled={candidate.alreadyInPlan} checked={selected.includes(candidate.candidateKey)} onChange={(e) => toggleCandidate(candidate.candidateKey, e.target.checked)} /></td><td className="py-2 dark:text-white">{candidate.sourceDisplayId} {candidate.sourceLabel}</td><td>{candidate.title}</td><td>{candidate.alreadyInPlan ? t('costPlanning.alreadyInPlan') : candidate.relevanceReason}</td><td>{candidate.plannedAmount ? money(candidate.plannedAmount, candidate.currency) : '—'}</td></tr>)}</tbody></table></div>
       </section>
 
       {/* Edit Item Modal */}

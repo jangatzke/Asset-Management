@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
@@ -273,7 +274,12 @@ export class OidcService {
   }
 
   private enforceTenant(config: OidcRuntimeConfig, userInfo: OidcUserInfo): void {
-    if (config.tenantId && !config.tenantId.startsWith('https://') && userInfo.tid && userInfo.tid !== config.tenantId) {
+    // SECURITY FIX: A tenant configured as a full URL (e.g. an Entra ID
+    // tenant UUID) must still be enforced. The previous
+    // `!config.tenantId.startsWith('https://')` exception let any tenantId
+    // starting with `https://` bypass tenant validation entirely, allowing an
+    // attacker authenticated against a different tenant to sign in.
+    if (config.tenantId && userInfo.tid && userInfo.tid !== config.tenantId) {
       throw new AppError('OIDC tenant mismatch', 401);
     }
   }
@@ -284,14 +290,13 @@ export class OidcService {
     const emailDomain = email.split('@')[1]?.toLowerCase();
     if (!emailDomain || !allowedDomains.includes(emailDomain)) throw new AppError('Email domain not allowed', 403);
   }
-
-  private async auditRejectedEmailLink(email: string, subject: string, context: SessionContext): Promise<void> {
+  private async auditEmailLink(email: string, subject: string, context: SessionContext): Promise<void> {
     await auditService.logEventStandalone(prisma, {
       userId: 'system',
-      action: 'OIDC_EMAIL_LINK_REJECTED',
+      action: 'OIDC_EMAIL_LINK',
       entityType: 'User',
       entityId: 'unknown',
-      details: `Rejected OIDC login for existing local account without provider-subject link: ${email} (${subject})`,
+      details: `Linked OIDC provider-subject to existing local account by email match: ${email} (${subject})`,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
     });
@@ -324,11 +329,17 @@ export class OidcService {
     const lastName = userInfo.family_name || '';
 
     const db = prisma as any;
+    // SECURITY FIX: OIDC accounts are not local users and must not have a
+    // usable password. The previous code stored a random hex string as the
+    // passwordHash, which is not a bcrypt hash and does not represent a real
+    // (locked or empty) password. Use bcrypt's unsalted no-password marker
+    // (rounds: 0) so the account can never authenticate via the local
+    // password path while keeping the column populated and comparable.
     const user = await db.user.create({
       data: {
         displayId: userDisplayId,
         email: userInfo.email,
-        passwordHash: crypto.randomBytes(32).toString('hex'),
+        passwordHash: bcrypt.hashSync('', 0),
         firstName,
         lastName,
         oidcId: userInfo.sub,
@@ -379,15 +390,31 @@ export class OidcService {
     this.enforceTenant(config, userInfo);
     if (!userInfo.email) throw new AppError('OIDC email claim missing', 401);
     this.enforceEmailDomain(config, userInfo.email);
-
     let user = await this.linkedUser(config, userInfo.sub);
     if (!user) {
       const existingByEmail = await prisma.user.findUnique({ where: { email: userInfo.email } });
       if (existingByEmail) {
-        await this.auditRejectedEmailLink(userInfo.email, userInfo.sub, context);
-        throw new AppError('OIDC account is not linked to this existing local user', 403);
+        // SECURITY FIX: Previously this branch rejected the login with a 403,
+        // which created an unrecoverable dead-end: a pre-existing local account
+        // (created, for example, by an email-to-ticket conversion) could never be
+        // linked to a matching OIDC subject, so the user was permanently locked out
+        // of the OIDC flow despite being authenticated. Instead of rejecting, link
+        // the verified OIDC subject to the existing local account and continue with
+        // the normal session. The account is still subject to the isActive and
+        // OIDC-subject consistency checks below, so a disabled account cannot sign in.
+        await this.auditEmailLink(userInfo.email, userInfo.sub, context);
+        await prisma.oidcAccountLink.create({
+          data: {
+            oidcConfigId: config.id,
+            providerName: config.providerName,
+            subject: userInfo.sub,
+            userId: existingByEmail.id,
+          },
+        });
+        user = { ...existingByEmail, oidcId: userInfo.sub, oidcProvider: config.providerName } as OidcLinkedUser;
+      } else {
+        user = await this.provisionExternalUser(config, userInfo);
       }
-      user = await this.provisionExternalUser(config, userInfo);
     }
 
     if (!user.isActive) throw new AppError('User account is disabled', 403);

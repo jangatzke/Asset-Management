@@ -132,6 +132,9 @@ describe('AdminService', () => {
     );
     mockPrismaClient.rolePermission.createMany.mockResolvedValue({ count: 0 });
     mockPrismaClient.rolePermission.deleteMany.mockResolvedValue({ count: 0 });
+    // validateRoleNames queries role.findMany to reject undeclared role names.
+    // Defaults to empty because the built-in role names are always treated as known.
+    mockPrismaClient.role.findMany.mockResolvedValue([]);
   });
 
   describe('listUsers', () => {
@@ -240,6 +243,28 @@ describe('AdminService', () => {
       await expect(adminService.createUser(userData, 'admin-id')).rejects.toThrow(AppError);
       await expect(adminService.createUser(userData, 'admin-id')).rejects.toThrow('Email already registered');
     });
+
+    it('should reject creation with an unknown role name (no arbitrary privilege escalation)', async () => {
+      const userData: any = {
+        email: 'newuser@example.com',
+        password: 'Str0ng!Password',
+        firstName: 'New',
+        lastName: 'User',
+        roles: ['super_secret_privileged_role'],
+      };
+
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...testUser, firstName: 'Admin', lastName: 'User' });
+      mockPrismaClient.user.create.mockResolvedValue({
+        ...testUser,
+        id: 'new-user-id',
+        email: 'newuser@example.com',
+        userRoles: [],
+        userGroups: [],
+      });
+
+      await expect(adminService.createUser(userData, 'admin-id')).rejects.toThrow(/Unknown role/);
+    });
   });
 
   describe('updateUser', () => {
@@ -324,6 +349,46 @@ describe('AdminService', () => {
       mockPrismaClient.user.findUnique.mockResolvedValueOnce({
         ...testUser,
         userRoles: [systemAdminRole],
+        userGroups: [],
+      });
+
+      const result = await adminService.assignRoles(testUser.id, assignRolesData);
+
+      expect(result.roles).toContain('system_admin');
+    });
+
+    it('should reject assigning an unknown role name (no arbitrary privilege escalation)', async () => {
+      const assignRolesData = {
+        roles: ['super_secret_privileged_role'],
+      };
+
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        ...testUser,
+        userRoles: [],
+        userGroups: [],
+      });
+      mockPrismaClient.userRole.findMany.mockResolvedValue([]);
+      mockPrismaClient.userRole.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(adminService.assignRoles(testUser.id, assignRolesData)).rejects.toThrow(/Unknown role/);
+    });
+
+    it('should allow assigning the built-in system_admin role through the built-in allowlist', async () => {
+      const assignRolesData = {
+        roles: ['system_admin'],
+      };
+
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        ...testUser,
+        userRoles: [],
+        userGroups: [],
+      });
+      mockPrismaClient.userRole.findMany.mockResolvedValue([]);
+      mockPrismaClient.userRole.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.userRole.create.mockResolvedValue({ ...testUserRole, id: 'ur-system-admin', roleName: 'system_admin' });
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        ...testUser,
+        userRoles: [{ ...testUserRole, id: 'ur-system-admin', roleName: 'system_admin' }],
         userGroups: [],
       });
 

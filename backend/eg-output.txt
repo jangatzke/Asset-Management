@@ -1,0 +1,41 @@
+  console.error
+    [credentialEncryption] FATAL: CREDENTIAL_ENCRYPTION_KEY is missing or invalid. Credentials cannot be encrypted/decrypted. Generate with: openssl rand -hex 32
+
+    [0m [90m 82 |[39m [90m// decrypt credentials stored in the database — never do this silently.[39m
+     [90m 83 |[39m [36mif[39m ([33m![39m[33mENCRYPTION_AVAILABLE[39m) {
+    [31m[1m>[22m[39m[90m 84 |[39m   console[33m.[39merror(
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 85 |[39m     [32m'[credentialEncryption] FATAL: CREDENTIAL_ENCRYPTION_KEY is missing or invalid. '[39m [33m+[39m
+     [90m 86 |[39m     [32m'Credentials cannot be encrypted/decrypted. Generate with: openssl rand -hex 32'[39m[33m,[39m
+     [90m 87 |[39m   )[33m;[39m[0m
+
+      at Object.<anonymous> (src/services/credentialEncryption.service.ts:84:11)
+      at Object.<anonymous> (src/services/emailGateway.service.ts:28:1)
+      at Object.<anonymous> (src/__tests__/emailGateway.service.test.ts:9:33)
+
+FAIL src/__tests__/emailGateway.service.test.ts
+  EmailGatewayService configuration security
+    √ never exposes mailbox, SMTP, or Exchange secret values in configuration responses (1 ms)
+    √ rejects an unsupported inbound provider before changing configuration
+    √ rejects polling intervals outside the bounded operational range (1 ms)
+  EmailGatewayService reply attribution security (From header vs envelope sender)
+    × attributes a spoofed From header (mismatched envelope sender) as an internal note, not the requester (11 ms)
+    × attributes a reply whose From header matches the envelope sender as the requester (2 ms)
+
+  ● EmailGatewayService reply attribution security (From header vs envelope sender) › attributes a spoofed From header (mismatched envelope sender) as an internal note, not the requester
+
+    AggregateError:
+
+
+
+  ● EmailGatewayService reply attribution security (From header vs envelope sender) › attributes a reply whose From header matches the envelope sender as the requester
+
+    AggregateError:
+
+
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 3 passed, 5 total
+Snapshots:   0 total
+Time:        0.785 s, estimated 1 s
+Ran all test suites matching /src\\__tests__\\emailGateway.service.test.ts/i.

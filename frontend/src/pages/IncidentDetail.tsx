@@ -71,10 +71,10 @@ const IncidentDetail = () => {
 
   const deadlines = useMemo(() => incident?.notificationDeadlines || [], [incident]);
   const deadlineState = (deadline: IncidentDeadlineResponse) => {
-    if (deadline.status === 'sent') return 'bg-green-100 text-green-800';
-    if (deadline.status === 'overdue' || new Date(deadline.deadlineDate) < new Date()) return 'bg-red-100 text-red-800';
-    if (new Date(deadline.deadlineDate).getTime() - Date.now() < 24 * 60 * 60 * 1000) return 'bg-amber-100 text-amber-800';
-    return 'bg-blue-100 text-blue-800';
+    if (deadline.status === 'sent') return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+    if (deadline.status === 'overdue' || new Date(deadline.deadlineDate) < new Date()) return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+    if (new Date(deadline.deadlineDate).getTime() - Date.now() < 24 * 60 * 60 * 1000) return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
   };
 
   const exportReport = async (reportId: string, type: string) => {
@@ -113,7 +113,7 @@ const IncidentDetail = () => {
       ) : (
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-            <span className={'rounded px-2 py-1 text-xs font-semibold ' + (nis2Status.severity === 'final' ? 'bg-green-100 text-green-800' : nis2Status.severity === 'notification' ? 'bg-blue-100 text-blue-800' : nis2Status.severity === 'early_warning' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800')}>{(nis2Status.severity || '').replace(/_/g, ' ')}</span>
+            <span className={'rounded px-2 py-1 text-xs font-semibold ' + (nis2Status.severity === 'final' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : nis2Status.severity === 'notification' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : nis2Status.severity === 'early_warning' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200')}>{(nis2Status.severity || '').replace(/_/g, ' ')}</span>
             <span>24h notification deadline: <strong>{toLocal(nis2Status.reportDeadline)}</strong>{nis2Status.isReportDeadlineOverdue && nis2Status.severity !== 'final' && nis2Status.severity !== 'notification' ? <em className="ml-1 text-red-700">(overdue)</em> : null}</span>
             <span>Final report due: <strong>{toLocal(nis2Status.finalReportDue)}</strong>{nis2Status.isFinalReportDueOverdue && nis2Status.severity !== 'final' ? <em className="ml-1 text-red-700">(overdue)</em> : null}</span>
             {nis2Status.reportedAt ? <span>Reported at: {toLocal(nis2Status.reportedAt)}</span> : null}

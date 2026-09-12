@@ -32,7 +32,7 @@ controlRouter.post('/', authenticate, authorizeEntityWrite('controls'), validate
 });
 
 // Static route /soa must be before /:id
-controlRouter.get('/soa', authenticate, async (req, res, next) => {
+controlRouter.get('/soa', authenticate, requirePermission('controls.read'), async (req, res, next) => {
   try {
     const soa = await controlService.getSOA(req.query.scopeId as string);
     res.json(soa);

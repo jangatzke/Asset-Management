@@ -116,6 +116,7 @@ export type AuditAction =
   | 'MFA_LOGIN'
   | 'OIDC_LOGIN'
   | 'OIDC_EMAIL_LINK_REJECTED'
+  | 'OIDC_EMAIL_LINK'
   | 'OIDC_GROUP_ROLE_MAPPING_SKIPPED'
   | 'MFA_ENABLE'
   | 'MFA_RESET'

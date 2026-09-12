@@ -40,6 +40,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { MuiSortableTh } from '../components/MuiSortableTh';
 import { proxmoxApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -131,6 +133,28 @@ export default function AdminProxmox() {
     nodeId: '',
     credentialId: '',
   });
+
+  const { sort: credSort, toggleSort: toggleCredSort } = useLocalSort({ routeKey: 'admin-proxmox-credentials', defaultSort: { column: 'name', direction: 'asc' } });
+  const sortedCredentials = useMemo(() => {
+    if (!credSort.column) return credentials;
+    const dir = credSort.direction === 'desc' ? -1 : 1;
+    return [...credentials].sort((a, b) => {
+      const aVal = a[credSort.column as keyof ProxmoxCredential] ?? '';
+      const bVal = b[credSort.column as keyof ProxmoxCredential] ?? '';
+      return (String(aVal).localeCompare(String(bVal))) * dir;
+    });
+  }, [credentials, credSort]);
+
+  const { sort: serverSort, toggleSort: toggleServerSort } = useLocalSort({ routeKey: 'admin-proxmox-servers', defaultSort: { column: 'name', direction: 'asc' } });
+  const sortedServers = useMemo(() => {
+    if (!serverSort.column) return servers;
+    const dir = serverSort.direction === 'desc' ? -1 : 1;
+    return [...servers].sort((a, b) => {
+      const aVal = a[serverSort.column as keyof ProxmoxServer] ?? '';
+      const bVal = b[serverSort.column as keyof ProxmoxServer] ?? '';
+      return (String(aVal).localeCompare(String(bVal))) * dir;
+    });
+  }, [servers, serverSort]);
 
   // Loading and status state
   const [importing, setImporting] = useState<Record<string, boolean>>({});
@@ -433,17 +457,17 @@ export default function AdminProxmox() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Username</TableCell>
-                  <TableCell>Auth Type</TableCell>
-                  <TableCell>Server Count</TableCell>
-                  <TableCell>Default</TableCell>
-                  <TableCell>Created</TableCell>
+                  <MuiSortableTh column="name" label="Name" activeColumn={credSort.column} direction={credSort.column === 'name' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="username" label="Username" activeColumn={credSort.column} direction={credSort.column === 'username' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="credentialType" label="Auth Type" activeColumn={credSort.column} direction={credSort.column === 'credentialType' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="proxmoxServerCount" label="Server Count" activeColumn={credSort.column} direction={credSort.column === 'proxmoxServerCount' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="isDefault" label="Default" activeColumn={credSort.column} direction={credSort.column === 'isDefault' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="createdAt" label="Created" activeColumn={credSort.column} direction={credSort.column === 'createdAt' ? credSort.direction : ''} onSort={toggleCredSort} />
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {credentials.map((cred) => (
+                {sortedCredentials.map((cred) => (
                   <TableRow key={cred.id}>
                     <TableCell>{cred.name}</TableCell>
                     <TableCell>{cred.username}</TableCell>
@@ -470,7 +494,7 @@ export default function AdminProxmox() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {credentials.length === 0 && (
+                {sortedCredentials.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} align="center">
                       No credentials configured
@@ -506,19 +530,19 @@ export default function AdminProxmox() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Host</TableCell>
-                  <TableCell>Node</TableCell>
-                  <TableCell>Credential</TableCell>
-                  <TableCell>Enabled</TableCell>
-                  <TableCell>VM Count</TableCell>
-                  <TableCell>Last Sync</TableCell>
-                  <TableCell>Status</TableCell>
+                  <MuiSortableTh column="name" label="Name" activeColumn={serverSort.column} direction={serverSort.column === 'name' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="host" label="Host" activeColumn={serverSort.column} direction={serverSort.column === 'host' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="nodeId" label="Node" activeColumn={serverSort.column} direction={serverSort.column === 'nodeId' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="credentialName" label="Credential" activeColumn={serverSort.column} direction={serverSort.column === 'credentialName' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="enabled" label="Enabled" activeColumn={serverSort.column} direction={serverSort.column === 'enabled' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="vmCount" label="VM Count" activeColumn={serverSort.column} direction={serverSort.column === 'vmCount' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="lastSyncAt" label="Last Sync" activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncAt' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="lastSyncStatus" label="Status" activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncStatus' ? serverSort.direction : ''} onSort={toggleServerSort} />
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {servers.map((server) => (
+                {sortedServers.map((server) => (
                   <TableRow key={server.id}>
                     <TableCell>{server.name}</TableCell>
                     <TableCell>
@@ -598,7 +622,7 @@ export default function AdminProxmox() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {servers.length === 0 && (
+                {sortedServers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
                       No Proxmox servers configured

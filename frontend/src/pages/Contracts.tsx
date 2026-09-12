@@ -1,11 +1,13 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ClockIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { contractApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface Contract {
   id: string;
@@ -64,10 +66,6 @@ const Contracts = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [historyContract, setHistoryContract] = useState<Contract | null>(null);
 
-  useEffect(() => { loadContracts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial contracts load only; loader uses current translation fallback for this mount.
-  }, []);
-
   const loadContracts = async () => {
     try {
       setLoading(true);
@@ -78,6 +76,10 @@ const Contracts = () => {
     } finally { setLoading(false); }
   };
 
+  useEffect(() => { loadContracts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial contracts load only; loader uses current translation fallback for this mount.
+  }, []);
+
   const filtered = contracts.filter(c => {
     const matchesSearch = !searchTerm ||
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,6 +88,32 @@ const Contracts = () => {
     const matchesStatus = !filterStatus || c.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  // Client-side sort persisted in localStorage (survives reload/revisit).
+  const { sort, toggleSort } = useLocalSort({
+    routeKey: 'contracts',
+    defaultSort: { column: 'name', direction: 'asc' },
+  });
+
+  const sortedContracts = useMemo(() => {
+    if (!sort.column) return filtered;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (c: Contract) => {
+      if (sort.column === 'name') return (c.name ?? '').toLowerCase();
+      if (sort.column === 'id') return (c.displayId ?? c.id ?? '').toLowerCase();
+      if (sort.column === 'number') return (c.contractNumber ?? '').toLowerCase();
+      if (sort.column === 'vendor') return (c.vendor ?? '').toLowerCase();
+      if (sort.column === 'type') return (c.type ?? '').toLowerCase();
+      if (sort.column === 'status') return (c.status ?? '').toLowerCase();
+      if (sort.column === 'dates') return `${c.startDate ?? ''} ${c.endDate ?? ''}`.toLowerCase();
+      return '';
+    };
+    return [...filtered].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [filtered, sort]);
 
   const handleDiscard = () => {
     form.resetForm();
@@ -188,20 +216,20 @@ const Contracts = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.id')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.name')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.number')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.vendor')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.type')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.status')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.dates')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.actions')}</th>
+              <SortableTh column="id" label={t('common.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="number" label={t('common.number')} activeColumn={sort.column} direction={sort.column === 'number' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="vendor" label={t('common.vendor')} activeColumn={sort.column} direction={sort.column === 'vendor' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="type" label={t('common.type')} activeColumn={sort.column} direction={sort.column === 'type' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="dates" label={t('common.dates')} activeColumn={sort.column} direction={sort.column === 'dates' ? sort.direction : ''} onSort={toggleSort} />
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filtered.length === 0 ? (
+            {sortedContracts.length === 0 ? (
               <tr><td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('contracts.noContracts')}</td></tr>
-            ) : filtered.map(c => (
+            ) : sortedContracts.map(c => (
               <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 text-sm text-gray-500">{c.displayId || c.id}</td>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{c.name}</td>

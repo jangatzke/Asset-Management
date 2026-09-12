@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { DocumentPlusIcon, PencilSquareIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { incidentApi } from '../services/api';
@@ -11,6 +11,8 @@ import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useAuthStore } from '../store/auth';
 import { normalizeIncidentStatusFilter, matchesIncidentStatusFilter } from './incidentStatusHelpers';
+import { useLocalSort } from '../hooks/useLocalSort';
+import { SortableTh } from '../components/SortableTh';
 
 interface HistoryEntry {
   id: string;
@@ -315,32 +317,32 @@ const Incidents = () => {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'new':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'under_investigation':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       case 'contained':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
       case 'resolved':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'closed':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity?.toLowerCase()) {
       case 'low':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       case 'high':
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
       case 'critical':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
   };
 
@@ -360,6 +362,30 @@ const Incidents = () => {
     );
     return matchesSearch && matchesIncidentStatusFilter(incident, statusFilter);
   });
+
+  // Client-side sort persisted in localStorage (survives reload/revisit).
+  const { sort, toggleSort } = useLocalSort({
+    routeKey: 'incidents',
+    defaultSort: { column: 'detectionTime', direction: 'desc' },
+  });
+
+  const sortedIncidents = useMemo(() => {
+    if (!sort.column) return filteredIncidents;
+    const dir = sort.direction === 'desc' ? -1 : 1;
+    const get = (incident: Incident) => {
+      if (sort.column === 'title') return (incident.title ?? '').toLowerCase();
+      if (sort.column === 'status') return (incident.status ?? '').toLowerCase();
+      if (sort.column === 'severity') return (incident.severity ?? '').toLowerCase();
+      if (sort.column === 'detectionTime') return incident.detectionTime ?? '';
+      if (sort.column === 'nis2') return incident.isSignificant ? 'a' : 'b';
+      return '';
+    };
+    return [...filteredIncidents].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [filteredIncidents, sort]);
 
   if (loading) {
     return (
@@ -420,35 +446,25 @@ const Incidents = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('incidents.columns.title')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('incidents.columns.status')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('incidents.columns.severity')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {t('incidents.columns.detectionTime')}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                NIS-2
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <SortableTh column="title" label={t('incidents.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="status" label={t('incidents.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="severity" label={t('incidents.columns.severity')} activeColumn={sort.column} direction={sort.column === 'severity' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="detectionTime" label={t('incidents.columns.detectionTime')} activeColumn={sort.column} direction={sort.column === 'detectionTime' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="nis2" label="NIS-2" activeColumn={sort.column} direction={sort.column === 'nis2' ? sort.direction : ''} onSort={toggleSort} />
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">
                 {t('common.actions')}
               </th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-card divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredIncidents.length === 0 ? (
+            {sortedIncidents.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                  {t('incidents.noIncidents')}
+                {t('incidents.noIncidents')}
                 </td>
               </tr>
             ) : (
-              filteredIncidents.map((incident) => (
+              sortedIncidents.map((incident) => (
                 <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
                     <Link to={`/incidents/${incident.id}`} className="hover:text-blue-600 hover:underline">{incident.title}</Link>

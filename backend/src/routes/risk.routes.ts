@@ -97,7 +97,7 @@ riskRouter.post('/assessment-versions/:id/close', authenticate, authorizeEntityW
 // Review Task Routes (Paket 3.2)
 // ==========================================
 
-riskRouter.get('/review-tasks', authenticate, async (req, res, next) => {
+riskRouter.get('/review-tasks', authenticate, requirePermission('risks.read'), async (req, res, next) => {
   try {
     const tasks = await riskService.listReviewTasks(req.query as any);
     res.json(tasks);

@@ -1,0 +1,17 @@
+FAIL src/__tests__/emailGateway.service.test.ts
+  ● EmailGatewayService reply attribution security (From header vs envelope sender) › attributes a spoofed From header (mismatched envelope sender) as an internal note, not the requester
+
+    AggregateError:
+
+
+
+  ● EmailGatewayService reply attribution security (From header vs envelope sender) › attributes a reply whose From header matches the envelope sender as the requester
+
+    AggregateError:
+
+
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 3 passed, 5 total
+Snapshots:   0 total
+Time:        0.775 s, estimated 1 s

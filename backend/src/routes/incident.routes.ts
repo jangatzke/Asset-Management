@@ -63,7 +63,7 @@ incidentRouter.post('/escalations/run-overdue', authenticate, authorizeEntityWri
   }
 });
 
-incidentRouter.get('/reports/:reportId/export', authenticate, async (req: AuthRequest, res, next) => {
+incidentRouter.get('/reports/:reportId/export', authenticate, requirePermission('incidents.read'), async (req: AuthRequest, res, next) => {
   try {
     const report = await incidentService.exportReportPackage(req.params.reportId, req.userId ?? 'system');
     res.json(report);

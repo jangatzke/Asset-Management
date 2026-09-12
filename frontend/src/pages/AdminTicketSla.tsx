@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi, type TicketTypeConfig } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { SortableTh } from '../components/SortableTh';
 
 const priorities = ['low', 'medium', 'high', 'critical'];
 
@@ -48,6 +49,29 @@ export default function AdminTicketSla() {
     }));
   };
 
+  const [sort, setSort] = useState<Record<string, { column: string; direction: 'asc' | 'desc' }>>({});
+
+  const toggleSort = (type: string, column: string) => setSort((prev) => {
+    const prevColumn = prev[type];
+    const direction = prevColumn?.column === column && prevColumn.direction === 'asc' ? 'desc' : 'asc';
+    return { ...prev, [type]: { column, direction } };
+  });
+
+  const sortedPriorities = (config: TicketTypeConfig) => {
+    const col = sort[config.type]?.column ?? '';
+    const dir = sort[config.type]?.direction ?? 'asc';
+    if (!col) return priorities;
+    const factor = dir === 'desc' ? -1 : 1;
+    const get = (priority: string) => {
+      const entry = config.slaPolicy.byPriority[priority];
+      if (col === 'priority') return priorities.indexOf(priority);
+      if (col === 'firstResponseHours') return entry.firstResponseHours ?? 0;
+      if (col === 'resolutionHours') return entry.resolutionHours ?? 0;
+      return 0;
+    };
+    return [...priorities].sort((a, b) => { const av = get(a); const bv = get(b); return av < bv ? -1 * factor : av > bv ? 1 * factor : 0; });
+  };
+
   const save = async (config: TicketTypeConfig) => {
     setSaving(config.type);
     try {
@@ -74,7 +98,7 @@ export default function AdminTicketSla() {
     {message && <div className="rounded border border-green-200 bg-green-50 p-3 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-100">{message}</div>}
     {loading ? <p className="text-gray-600 dark:text-gray-300">{t('common.loading')}</p> : configs.map((config) => <section key={config.type} className="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t(`tickets.types.${config.type}`)}</h2><p className="text-sm text-gray-600 dark:text-gray-300">{config.description}</p></div><button type="button" onClick={() => void save(config)} disabled={saving === config.type} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{saving === config.type ? t('common.saving') : t('common.save')}</button></div>
-      <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b border-gray-200 text-left dark:border-gray-700"><th className="p-2">{t('ticketSla.priority')}</th><th className="p-2">{t('ticketSla.firstResponseHours')}</th><th className="p-2">{t('ticketSla.resolutionHours')}</th></tr></thead><tbody>{priorities.map((priority) => <tr key={priority} className="border-b border-gray-100 dark:border-gray-700"><td className="p-2 font-medium">{t(`tickets.priorities.${priority}`)}</td><td className="p-2"><input aria-label={`${t('ticketSla.firstResponseHours')} ${t(`tickets.priorities.${priority}`)}`} min="0" type="number" value={config.slaPolicy.byPriority[priority].firstResponseHours} onChange={(event) => updateTarget(config.type, priority, 'firstResponseHours', event.target.value)} className="w-28 rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-700" /></td><td className="p-2"><input aria-label={`${t('ticketSla.resolutionHours')} ${t(`tickets.priorities.${priority}`)}`} min="0" type="number" value={config.slaPolicy.byPriority[priority].resolutionHours} onChange={(event) => updateTarget(config.type, priority, 'resolutionHours', event.target.value)} className="w-28 rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-700" /></td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="border-b border-gray-200 text-left dark:border-gray-700"><SortableTh column="priority" label={t('ticketSla.priority')} activeColumn={sort[config.type]?.column ?? ''} direction={sort[config.type]?.column === 'priority' ? sort[config.type].direction : ''} onSort={(col) => toggleSort(config.type, col)} /><SortableTh column="firstResponseHours" label={t('ticketSla.firstResponseHours')} activeColumn={sort[config.type]?.column ?? ''} direction={sort[config.type]?.column === 'firstResponseHours' ? sort[config.type].direction : ''} onSort={(col) => toggleSort(config.type, col)} /><SortableTh column="resolutionHours" label={t('ticketSla.resolutionHours')} activeColumn={sort[config.type]?.column ?? ''} direction={sort[config.type]?.column === 'resolutionHours' ? sort[config.type].direction : ''} onSort={(col) => toggleSort(config.type, col)} /></tr></thead><tbody>{sortedPriorities(config).map((priority) => <tr key={`${config.type}-${priority}`} className="border-b border-gray-100 dark:border-gray-700"><td className="p-2 font-medium">{t(`tickets.priorities.${priority}`)}</td><td className="p-2"><input aria-label={`${t('ticketSla.firstResponseHours')} ${t(`tickets.priorities.${priority}`)}`} min="0" type="number" value={config.slaPolicy.byPriority[priority].firstResponseHours} onChange={(event) => updateTarget(config.type, priority, 'firstResponseHours', event.target.value)} className="w-28 rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-700" /></td><td className="p-2"><input aria-label={`${t('ticketSla.resolutionHours')} ${t(`tickets.priorities.${priority}`)}`} min="0" type="number" value={config.slaPolicy.byPriority[priority].resolutionHours} onChange={(event) => updateTarget(config.type, priority, 'resolutionHours', event.target.value)} className="w-28 rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-700" /></td></tr>)}</tbody></table></div>
     </section>)}
   </main>;
 }
