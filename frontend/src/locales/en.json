@@ -64,7 +64,13 @@
     "clearAll": "Clear all filters",
     "clearView": "Clear view",
     "filters": "Filters",
+    "columns": "Columns",
     "removeFilter": "Remove filter"
+  },
+  "dataTable": {
+    "density": "Density",
+    "compact": "Compact",
+    "comfortable": "Comfortable"
   },
   "navigation": {
     "dashboard": "Dashboard",

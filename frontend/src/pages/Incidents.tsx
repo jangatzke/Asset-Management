@@ -458,7 +458,7 @@ const Incidents = () => {
         </select>
       </div>
 
-      <DataTableShell onExport={exportVisibleIncidents} exportLabel="Export CSV">
+      <DataTableShell onExport={exportVisibleIncidents} exportLabel="Export CSV" rowCount={sortedIncidents.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>

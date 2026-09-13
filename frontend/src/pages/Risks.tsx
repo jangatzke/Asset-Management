@@ -213,6 +213,7 @@ const Risks = () => {
       const response = await riskApi.list(params);
       const list = response.data?.data || [];
       setRisks(list);
+      setDensity(list.length > 10 ? 'compact' : 'comfortable');
       const detailPairs = await Promise.allSettled(list.slice(0, 20).map((risk: Risk) => riskApi.getById(risk.id)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API responses have dynamic shape
       const details: Record<string, any> = {};
@@ -556,14 +557,19 @@ const Risks = () => {
       )}
 
       <DataTableShell
-        filterLabel="Filters"
-        exportLabel="Export CSV"
+        filterLabel={t('common.filters')}
+        exportLabel={t('common.exportCsv')}
         onExport={exportRisks}
         columns={riskColumns}
         visibleColumns={visibleColumns}
         onVisibleColumnsChange={setVisibleColumns}
         density={density}
         onDensityChange={setDensity}
+        rowCount={sortedRisks.length}
+        densityLabel={t('dataTable.density')}
+        compactLabel={t('dataTable.compact')}
+        comfortableLabel={t('dataTable.comfortable')}
+        columnsLabel={t('common.columns')}
         filters={<div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem]"><input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><select aria-label="Risk status filter" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)} className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('common.all')}</option><option value="open">{t('risks.statusFilter.open')}</option><option value="identified">{t('risks.status.identified')}</option><option value="assessed">{t('risks.status.assessed')}</option><option value="treatment_planned">{t('risks.status.treatment_planned')}</option><option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option><option value="accepted">{t('risks.status.accepted')}</option><option value="closed">{t('risks.status.closed')}</option></select></div>}
       >
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

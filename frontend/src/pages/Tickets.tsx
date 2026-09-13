@@ -130,6 +130,10 @@ export default function Tickets() {
     <DataTableShell
       onExport={exportVisibleTickets}
       exportLabel="Export CSV"
+      rowCount={sortedTickets.length}
+      densityLabel={t('dataTable.density')}
+      compactLabel={t('dataTable.compact')}
+      comfortableLabel={t('dataTable.comfortable')}
       filters={<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem_12rem_auto]">
         <input aria-label={t('tickets.searchLabel')} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load()} placeholder={t('tickets.searchPlaceholder')} className={inputField} />
         <select aria-label={t('tickets.typeLabel')} value={type} onChange={(e) => setFilter('type', e.target.value)} className={selectField}>

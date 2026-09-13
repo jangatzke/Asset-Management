@@ -64,7 +64,13 @@
     "clearAll": "Alle Filter zurücksetzen",
     "clearView": "Ansicht zurücksetzen",
     "filters": "Filter",
+    "columns": "Spalten",
     "removeFilter": "Filter entfernen"
+  },
+  "dataTable": {
+    "density": "Ansicht",
+    "compact": "Kompakt",
+    "comfortable": "Komfortabel"
   },
   "navigation": {
     "dashboard": "Dashboard",

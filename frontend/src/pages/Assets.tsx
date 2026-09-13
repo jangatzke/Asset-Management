@@ -586,6 +586,10 @@ const Assets = () => {
 
           <DataTableShell
             onExport={exportVisibleAssets}
+            rowCount={sortedAssets.length}
+            densityLabel={t('dataTable.density')}
+            compactLabel={t('dataTable.compact')}
+            comfortableLabel={t('dataTable.comfortable')}
             exportLabel="Export CSV"
             filters={<div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(16rem,1.35fr)_minmax(13rem,1fr)_minmax(13rem,1fr)_minmax(15rem,1.1fr)]">
               <input type="text" placeholder={t('assets.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
