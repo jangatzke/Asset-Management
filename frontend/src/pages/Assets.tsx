@@ -585,7 +585,6 @@ const Assets = () => {
           )}
 
           <DataTableShell
-            defaultFiltersOpen
             onExport={exportVisibleAssets}
             exportLabel="Export CSV"
             filters={<div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(16rem,1.35fr)_minmax(13rem,1fr)_minmax(13rem,1fr)_minmax(15rem,1.1fr)]">
