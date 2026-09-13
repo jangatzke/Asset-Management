@@ -128,7 +128,8 @@ export default function Tickets() {
     </div>
     {error && <div role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
     <DataTableShell
-      className="mb-4"
+      onExport={exportVisibleTickets}
+      exportLabel="Export CSV"
       filters={<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem_12rem_auto]">
         <input aria-label={t('tickets.searchLabel')} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load()} placeholder={t('tickets.searchPlaceholder')} className={inputField} />
         <select aria-label={t('tickets.typeLabel')} value={type} onChange={(e) => setFilter('type', e.target.value)} className={selectField}>
@@ -150,12 +151,10 @@ export default function Tickets() {
       </div>}
     >
       {chips.length > 0 && (
-        <div className="px-4 py-3 sm:px-5">
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-5">
           <ActiveFilters labelKey="tickets.filterTitle" clearAllKey="common.clearAll" onClearView={handleClearView} chips={chips} />
         </div>
       )}
-    </DataTableShell>
-    <DataTableShell onExport={exportVisibleTickets} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
