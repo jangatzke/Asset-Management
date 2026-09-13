@@ -11,6 +11,7 @@ const Controls = lazy(() => import('./pages/Controls'));
 const Incidents = lazy(() => import('./pages/Incidents'));
 const Tickets = lazy(() => import('./pages/Tickets'));
 const TicketDetail = lazy(() => import('./pages/TicketDetail'));
+const TicketWorkload = lazy(() => import('./pages/TicketWorkload'));
 const IncidentDetail = lazy(() => import('./pages/IncidentDetail'));
 const Login = lazy(() => import('./pages/Login'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -69,6 +70,7 @@ function App() {
             <Route path="incidents" element={<Incidents />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="tickets/:ticketId" element={<TicketDetail />} />
+            <Route path="ticket-workload" element={<TicketWorkload />} />
             <Route path="incidents/:incidentId" element={<IncidentDetail />} />
             <Route path="contracts" element={<Contracts />} />
             <Route path="licenses" element={<Licenses />} />

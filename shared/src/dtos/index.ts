@@ -1582,6 +1582,8 @@ export const CreateTicketSchema = z
     impact: TicketLevelSchema.default('medium'),
     // priority is derived from urgency+impact (ITIL matrix) when omitted
     priority: TicketLevelSchema.optional(),
+    // One unit equals 15 minutes of planned work.
+    estimatedEffortUnits: z.number().int().min(0).max(10000).optional(),
     requesterId: EntityIdSchema.optional(),
     assigneeId: EntityIdSchema.optional(),
     managerId: EntityIdSchema.optional(),
@@ -1619,6 +1621,8 @@ export const UpdateTicketSchema = z.object({
   urgency: TicketLevelSchema.optional(),
   impact: TicketLevelSchema.optional(),
   priority: TicketLevelSchema.optional(),
+  // One unit equals 15 minutes of planned work.
+  estimatedEffortUnits: z.number().int().min(0).max(10000).optional(),
   requesterId: EntityIdSchema.optional(),
   assigneeId: EntityIdSchema.optional(),
   managerId: EntityIdSchema.optional(),

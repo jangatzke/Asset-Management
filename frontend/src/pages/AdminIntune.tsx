@@ -32,11 +32,13 @@ import type { ChipProps } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import HealthIcon from '@mui/icons-material/Favorite';
+import DownloadIcon from '@mui/icons-material/Download';
 import api from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
+import { exportCsv } from '../utils/csvExport';
 
 interface IntuneConfig {
   id: string;
@@ -116,7 +118,7 @@ const configTextFieldSx = {
 export default function IntuneAdmin() {
   const { t, language } = useI18n();
   const { darkMode } = useDarkMode();
-  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
+  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' }, components: { MuiTableHead: { styleOverrides: { root: { backgroundColor: darkMode ? '#374151' : '#f9fafb' } } }, MuiTableCell: { styleOverrides: { head: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.025em', textTransform: 'uppercase' } } } } }), [darkMode]);
   const [config, setConfig] = useState<IntuneConfig | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [devices, setDevices] = useState<DeviceSync[]>([]);
@@ -136,6 +138,18 @@ export default function IntuneAdmin() {
       return (String(aVal).localeCompare(String(bVal))) * dir;
     });
   }, [devices, sort]);
+
+  const exportVisibleDevices = () => exportCsv('intune-devices', [
+    t('common.name'), t('common.type'), t('common.vendor'),
+    t('intune.syncStatus'), t('intune.lastError'), t('intune.lastSync'),
+  ], sortedDevices.map((device) => [
+    device.name || '',
+    device.osName || '',
+    device.manufacturer || '',
+    device.syncStatus,
+    device.syncErrorMessage || '',
+    device.lastSyncAt || '',
+  ]));
   // Credentials state
   interface CredentialFormValues {
     name: string;
@@ -668,16 +682,21 @@ export default function IntuneAdmin() {
           <Typography variant="h6">
              {t('intune.syncCount')} ({deviceTotal})
           </Typography>
-          <Button
-            startIcon={<RefreshIcon />}
-            onClick={() => {
-              loadDevices();
-              loadSyncStatus();
-            }}
-            disabled={loading}
-          >
-            {t('common.update')}
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button startIcon={<DownloadIcon />} onClick={exportVisibleDevices} disabled={loading}>
+              Export CSV
+            </Button>
+            <Button
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                loadDevices();
+                loadSyncStatus();
+              }}
+              disabled={loading}
+            >
+              {t('common.update')}
+            </Button>
+          </Stack>
         </Box>
 
         {loading ? (

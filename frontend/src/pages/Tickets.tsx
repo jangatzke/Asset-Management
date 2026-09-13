@@ -7,6 +7,8 @@ import { EmptyState } from '../components/EmptyState';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { StatusBadge } from '../components/StatusBadge';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import { usePersistedView } from '../hooks/usePersistedView';
@@ -79,6 +81,12 @@ export default function Tickets() {
     });
   }, [tickets, sort]);
 
+  const exportVisibleTickets = () => exportCsv('tickets', [
+    t('tickets.headings.ticket'), t('tickets.headings.type'), t('tickets.headings.priority'), t('tickets.headings.status'), t('tickets.headings.slaTarget'), t('tickets.headings.reportedBy'), t('tickets.headings.created'), t('tickets.headings.updated'),
+  ], sortedTickets.map((ticket) => [
+    `${ticket.displayId} — ${ticket.title}`, t(`tickets.types.${ticket.type}`), t(`tickets.priorities.${ticket.priority}`), ticket.status, ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : '', ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '', ticket.openedAt ?? ticket.createdAt ?? '', ticket.updatedAt ?? '',
+  ]));
+
   const handleClearView = useCallback(() => {
     clearView();
     setQuery('');
@@ -119,8 +127,9 @@ export default function Tickets() {
       {canWrite && <button onClick={() => setModalOpen(true)} className={buttonPrimary}><PlusIcon className="h-5 w-5" />{t('tickets.newTicket')}</button>}
     </div>
     {error && <div role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
-    <section className="mb-4 rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem_12rem_auto]">
+    <DataTableShell
+      className="mb-4"
+      filters={<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem_12rem_auto]">
         <input aria-label={t('tickets.searchLabel')} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load()} placeholder={t('tickets.searchPlaceholder')} className={inputField} />
         <select aria-label={t('tickets.typeLabel')} value={type} onChange={(e) => setFilter('type', e.target.value)} className={selectField}>
           <option value="">{t('tickets.allTypes')}</option>
@@ -138,22 +147,22 @@ export default function Tickets() {
           <option value="assigned">{t('tickets.assignedToMe')}</option>
         </select>
         <button onClick={() => void load()} className="rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">{t('tickets.filter')}</button>
-      </div>
+      </div>}
+    >
       {chips.length > 0 && (
-        <div className="mt-4">
+        <div className="px-4 py-3 sm:px-5">
           <ActiveFilters labelKey="tickets.filterTitle" clearAllKey="common.clearAll" onClearView={handleClearView} chips={chips} />
         </div>
       )}
-    </section>
-    <section className="overflow-hidden rounded-lg bg-white shadow-sm dark:bg-gray-800">
-      <div className="overflow-x-auto">
+    </DataTableShell>
+    <DataTableShell onExport={exportVisibleTickets} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="ticket" label={t('tickets.headings.ticket')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
               <SortableTh column="type" label={t('tickets.headings.type')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
-              <SortableTh column="priority" label={t('tickets.headings.priority')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} indicator={<StatusBadge kind="priority" value="" label="" ariaLabel={t('tickets.headings.priority')} />} />
-              <SortableTh column="status" label={t('tickets.headings.status')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} indicator={<StatusBadge kind="state" value="" label="" ariaLabel={t('tickets.headings.status')} />} />
+              <SortableTh column="priority" label={t('tickets.headings.priority')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
+              <SortableTh column="status" label={t('tickets.headings.status')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
               <SortableTh column="slaTarget" label={t('tickets.headings.slaTarget')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
               <SortableTh column="reportedBy" label={t('tickets.headings.reportedBy')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
               <SortableTh column="created" label={t('tickets.headings.created')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
@@ -192,7 +201,6 @@ export default function Tickets() {
             ))}
           </tbody>
         </table>
-      </div>
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between gap-4 border-t border-gray-200 p-4 dark:border-gray-700">
           <button onClick={() => setPage(page - 1)} disabled={page <= 1}
@@ -206,7 +214,7 @@ export default function Tickets() {
           </button>
         </div>
       )}
-    </section>
+    </DataTableShell>
     <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={t('tickets.newTicket')}>
       <form onSubmit={submit} className="space-y-4">
         <label className="block text-sm font-medium">{t('tickets.typeLabel')}

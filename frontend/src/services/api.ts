@@ -499,6 +499,7 @@ export interface TicketResponse {
   priority: string;
   urgency: string;
   impact: string;
+  estimatedEffortUnits?: number | null;
   resolutionDueAt?: string | null;
   updatedAt: string;
   assigneeId?: string | null;
@@ -508,6 +509,23 @@ export interface TicketResponse {
   createdAt?: string;
   comments?: Array<{ id: string; body: string; isInternal: boolean; createdAt: string; authorId?: string | null; authorName?: string | null }>;
   change?: { cabApproved?: boolean } | null;
+}
+
+export interface TicketWorkloadEntry {
+  user: { id: string; email: string; firstName?: string | null; lastName?: string | null };
+  ticketCount: number;
+  effortUnits: number;
+  unestimatedTicketCount: number;
+  capacityUnits: number;
+  utilizationPercent: number;
+}
+
+export interface TicketWorkloadResponse {
+  week: string;
+  weekStart: string;
+  weekEnd: string;
+  capacityUnits: number;
+  data: TicketWorkloadEntry[];
 }
 
 export interface TicketSlaTarget {
@@ -529,6 +547,7 @@ export type TicketTypeConfigUpdate = Pick<TicketTypeConfig, 'label' | 'descripti
 
 export const ticketApi = {
   list: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string; statusGroup?: string; scope?: string }) => api.get<PaginatedApiResponse<TicketResponse>>('/tickets', { params }),
+  workload: (params?: { week?: string; search?: string; ticketsOnly?: boolean }) => api.get<TicketWorkloadResponse>('/tickets/workload', { params }),
   getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),

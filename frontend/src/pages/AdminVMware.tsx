@@ -39,11 +39,13 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { vmwareApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
+import { exportCsv } from '../utils/csvExport';
 
 interface VMwareCredential {
   id: string;
@@ -82,7 +84,7 @@ const syncStatusColors: Record<string, string> = {
 export default function AdminVMware() {
   const { t, language } = useI18n();
   const { darkMode } = useDarkMode();
-  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
+  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' }, components: { MuiTableHead: { styleOverrides: { root: { backgroundColor: darkMode ? '#374151' : '#f9fafb' } } }, MuiTableCell: { styleOverrides: { head: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.025em', textTransform: 'uppercase' } } } } }), [darkMode]);
 
   // Credential state
   interface CredentialFormValues {
@@ -143,6 +145,20 @@ export default function AdminVMware() {
       return (String(aVal).localeCompare(String(bVal))) * dir;
     });
   }, [servers, serverSort]);
+
+  const exportVisibleCredentials = () => exportCsv('vmware-credentials', [
+    'Name', 'Username', 'Default', 'vCenters', 'Created', 'Updated',
+  ], sortedCredentials.map((credential) => [
+    credential.name, credential.username, credential.isDefault,
+    credential.vCenterCount, credential.createdAt, credential.updatedAt,
+  ]));
+
+  const exportVisibleServers = () => exportCsv('vmware-servers', [
+    'Name', 'Host', 'Port', 'Credential', 'Enabled', 'VMs', 'Last sync', 'Sync status',
+  ], sortedServers.map((server) => [
+    server.name, server.host, server.port, server.credentialName || '',
+    server.enabled, server.vmCount, server.lastSyncAt || '', server.lastSyncStatus || '',
+  ]));
 
   // Loading and status state
   const [importing, setImporting] = useState<Record<string, boolean>>({});
@@ -409,9 +425,12 @@ export default function AdminVMware() {
               <VpnKeyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               {t('vmware.credentials')}
             </Typography>
-            <Button variant="contained" onClick={openCreateCredentialDialog}>
-              {t('vmware.addCredential')}
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportVisibleCredentials}>Export CSV</Button>
+              <Button variant="contained" onClick={openCreateCredentialDialog}>
+                {t('vmware.addCredential')}
+              </Button>
+            </Stack>
           </Box>
 
           <TableContainer>
@@ -471,9 +490,12 @@ export default function AdminVMware() {
               <CloudIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                {t('vmware.vcenterServers')}
             </Typography>
-            <Button variant="contained" onClick={openCreateServerDialog} disabled={credentials.length === 0}>
-               {t('vmware.addVcenterServer')}
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportVisibleServers}>Export CSV</Button>
+              <Button variant="contained" onClick={openCreateServerDialog} disabled={credentials.length === 0}>
+                 {t('vmware.addVcenterServer')}
+              </Button>
+            </Stack>
           </Box>
 
           {credentials.length === 0 && (

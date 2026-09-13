@@ -10,10 +10,12 @@ import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell, type TableDensity } from '../components/DataTableShell';
 import { useI18n } from '../context/I18nContext';
 import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
 import { getRiskColor, getErrorMessage } from '../utils/statusHelpers';
 import { normalizeRiskStatusFilter, matchesRiskStatusFilter } from './riskStatusHelpers';
+import { exportCsv } from '../utils/csvExport';
 
 interface Risk {
   id: string;
@@ -151,6 +153,8 @@ const Risks = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState(() => normalizeRiskStatusFilter(searchParams.get('status')));
+  const [density, setDensity] = useState<TableDensity>('comfortable');
+  const [visibleColumns, setVisibleColumns] = useState(['id', 'title', 'likelihood', 'impact', 'inherentRisk', 'residualRisk', 'targetRisk', 'controls', 'status']);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -353,6 +357,23 @@ const Risks = () => {
   });
 
   const { sort, toggleSort } = useLocalSort({ routeKey: 'risks', defaultSort: { column: 'title', direction: 'asc' } });
+  const riskColumns = [
+    { key: 'id', label: t('risks.columns.id'), hideable: false },
+    { key: 'title', label: t('risks.columns.title'), hideable: false },
+    { key: 'likelihood', label: t('risks.columns.likelihood') },
+    { key: 'impact', label: t('risks.columns.impact') },
+    { key: 'inherentRisk', label: t('risks.columns.inherentRisk') },
+    { key: 'residualRisk', label: t('risks.columns.residualRisk') },
+    { key: 'targetRisk', label: t('risks.columns.targetRisk') },
+    { key: 'controls', label: t('risks.columns.controls') },
+    { key: 'status', label: t('risks.columns.status') },
+  ];
+
+  const exportRisks = () => {
+    const headings = ['ID', 'Title', 'Likelihood', 'Impact', 'Inherent risk', 'Residual risk', 'Target risk', 'Status'];
+    const rows = sortedRisks.map((risk) => [risk.displayId, risk.title, risk.likelihood, risk.impact, risk.inherentRisk, risk.residualRisk, risk.targetRisk ?? '', risk.status]);
+    exportCsv('risks', headings, rows);
+  };
   const sortedRisks = useMemo(() => {
     if (!sort.column) return filteredRisks;
     const dir = sort.direction === 'desc' ? -1 : 1;
@@ -534,64 +555,55 @@ const Risks = () => {
         </div>
       )}
 
-      <div className="mb-4 flex flex-col gap-3 md:flex-row">
-        <input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <select aria-label="Risk status filter" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">{t('common.all')}</option>
-          <option value="open">{t('risks.statusFilter.open')}</option>
-          <option value="identified">{t('risks.status.identified')}</option>
-          <option value="assessed">{t('risks.status.assessed')}</option>
-          <option value="treatment_planned">{t('risks.status.treatment_planned')}</option>
-          <option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option>
-          <option value="accepted">{t('risks.status.accepted')}</option>
-          <option value="closed">{t('risks.status.closed')}</option>
-        </select>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+      <DataTableShell
+        filterLabel="Filters"
+        exportLabel="Export CSV"
+        onExport={exportRisks}
+        columns={riskColumns}
+        visibleColumns={visibleColumns}
+        onVisibleColumnsChange={setVisibleColumns}
+        density={density}
+        onDensityChange={setDensity}
+        filters={<div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem]"><input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><select aria-label="Risk status filter" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)} className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('common.all')}</option><option value="open">{t('risks.statusFilter.open')}</option><option value="identified">{t('risks.status.identified')}</option><option value="assessed">{t('risks.status.assessed')}</option><option value="treatment_planned">{t('risks.status.treatment_planned')}</option><option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option><option value="accepted">{t('risks.status.accepted')}</option><option value="closed">{t('risks.status.closed')}</option></select></div>}
+      >
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-900">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <SortableTh column="id" label={t('risks.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="title" label={t('risks.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="likelihood" label={t('risks.columns.likelihood')} activeColumn={sort.column} direction={sort.column === 'likelihood' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="impact" label={t('risks.columns.impact')} activeColumn={sort.column} direction={sort.column === 'impact' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="inherentRisk" label={t('risks.columns.inherentRisk')} activeColumn={sort.column} direction={sort.column === 'inherentRisk' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="residualRisk" label={t('risks.columns.residualRisk')} activeColumn={sort.column} direction={sort.column === 'residualRisk' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="targetRisk" label={t('risks.columns.targetRisk')} activeColumn={sort.column} direction={sort.column === 'targetRisk' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="controls" label={t('risks.columns.controls')} activeColumn={sort.column} direction={sort.column === 'controls' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="status" label={t('risks.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
-              <th className="sticky right-0 z-10 bg-gray-50 dark:bg-gray-900 px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200 shadow-lg">{t('common.actions')}</th>
+              {visibleColumns.includes('id') && <SortableTh column="id" label={t('risks.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} className="w-24" />}
+              {visibleColumns.includes('title') && <SortableTh column="title" label={t('risks.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} className="min-w-[19rem]" />}
+              {visibleColumns.includes('likelihood') && <SortableTh column="likelihood" label={t('risks.columns.likelihood')} activeColumn={sort.column} direction={sort.column === 'likelihood' ? sort.direction : ''} onSort={toggleSort} className="w-24" />}
+              {visibleColumns.includes('impact') && <SortableTh column="impact" label={t('risks.columns.impact')} activeColumn={sort.column} direction={sort.column === 'impact' ? sort.direction : ''} onSort={toggleSort} className="w-20" />}
+              {visibleColumns.includes('inherentRisk') && <SortableTh column="inherentRisk" label={t('risks.columns.inherentRisk')} activeColumn={sort.column} direction={sort.column === 'inherentRisk' ? sort.direction : ''} onSort={toggleSort} className="w-28" />}
+              {visibleColumns.includes('residualRisk') && <SortableTh column="residualRisk" label={t('risks.columns.residualRisk')} activeColumn={sort.column} direction={sort.column === 'residualRisk' ? sort.direction : ''} onSort={toggleSort} className="w-28" />}
+              {visibleColumns.includes('targetRisk') && <SortableTh column="targetRisk" label={t('risks.columns.targetRisk')} activeColumn={sort.column} direction={sort.column === 'targetRisk' ? sort.direction : ''} onSort={toggleSort} className="w-28" />}
+              {visibleColumns.includes('controls') && <SortableTh column="controls" label={t('risks.columns.controls')} activeColumn={sort.column} direction={sort.column === 'controls' ? sort.direction : ''} onSort={toggleSort} className="min-w-[12rem]" />}
+              {visibleColumns.includes('status') && <SortableTh column="status" label={t('risks.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} className="w-32" />}
+              <th className="sticky right-0 z-10 bg-gray-50 px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 shadow-[ -8px_0_12px_-10px_rgba(0,0,0,0.5)] dark:bg-gray-700 dark:text-gray-200">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredRisks.length === 0 ? (
-              <tr><td colSpan={10} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('risks.noRisks')}</td></tr>
+              <tr><td colSpan={visibleColumns.length + 1} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('risks.noRisks')}</td></tr>
             ) : sortedRisks.map((risk) => (
               <tr key={risk.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.displayId}</td>
-                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white min-w-[16rem]">
+                {visibleColumns.includes('id') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.displayId}</td>}
+                {visibleColumns.includes('title') && <td className="min-w-[19rem] px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
                   <div>{risk.title}</div>
-                  <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} mt-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
-                    <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
-                  </button>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.likelihood}</td>
-                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.impact}</td>
-                <td className="min-w-[6.5rem] px-6 py-4 text-sm whitespace-nowrap">
+                </td>}
+                {visibleColumns.includes('likelihood') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.likelihood}</td>}
+                {visibleColumns.includes('impact') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.impact}</td>}
+                {visibleColumns.includes('inherentRisk') && <td className="min-w-[6.5rem] px-4 py-4 text-sm whitespace-nowrap">
                   <RiskLevelBadge level={currentAssessment(risk, 'inherent')?.inherentRisk ?? risk.inherentRisk} translate={t} />
-                </td>
-                <td className="min-w-[6.5rem] px-6 py-4 text-sm whitespace-nowrap"><RiskLevelBadge level={currentAssessment(risk, 'current')?.residualRisk ?? risk.residualRisk} translate={t} /></td>
-                <td className="min-w-[6.5rem] px-6 py-4 text-sm whitespace-nowrap"><RiskLevelBadge level={currentAssessment(risk, 'target')?.targetRisk ?? risk.targetRisk ?? risk.residualRisk} translate={t} /></td>
-                <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                </td>}
+                {visibleColumns.includes('residualRisk') && <td className="min-w-[6.5rem] px-4 py-4 text-sm whitespace-nowrap"><RiskLevelBadge level={currentAssessment(risk, 'current')?.residualRisk ?? risk.residualRisk} translate={t} /></td>}
+                {visibleColumns.includes('targetRisk') && <td className="min-w-[6.5rem] px-4 py-4 text-sm whitespace-nowrap"><RiskLevelBadge level={currentAssessment(risk, 'target')?.targetRisk ?? risk.targetRisk ?? risk.residualRisk} translate={t} /></td>}
+                {visibleColumns.includes('controls') && <td className="px-4 py-4 text-xs text-gray-500 dark:text-gray-400">
                   {riskControls(risk).length === 0 ? t('risks.controls.none') : riskControls(risk).slice(0, 2).map((link) => (
                     <div key={link.id}>{link.controlImplementation?.control?.title ?? link.controlImplementationId}: {controlVerificationLabel(link)}</div>
                   ))}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`risks.status.${risk.status}`)}</td>
-                <td className="sticky right-0 bg-white dark:bg-gray-800 px-6 py-4 text-sm shadow-lg whitespace-nowrap">
+                </td>}
+                {visibleColumns.includes('status') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`risks.status.${risk.status}`)}</td>}
+                <td className="sticky right-0 bg-white px-4 py-4 text-sm whitespace-nowrap shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.5)] dark:bg-gray-800">
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
                       <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
@@ -614,7 +626,7 @@ const Risks = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
       {/* Create/Edit Risk Modal */}
       <Modal isOpen={modalOpen} onClose={handleMainModalClose} title={editingId ? t('risks.editRisk') : t('risks.createRisk')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleMainDiscard}>

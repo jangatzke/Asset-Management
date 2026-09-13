@@ -3,6 +3,8 @@ import { reminderAdminApi } from '../services/api';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { useI18n } from '../context/I18nContext';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface ReminderConfig {
   id?: string;
@@ -69,6 +71,18 @@ export default function AdminReminders() {
     };
     return [...logs].sort((a, b) => { const av = get(a); const bv = get(b); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0; });
   }, [logs, sort]);
+
+  const exportVisibleLogs = () => exportCsv('reminder-log', [
+    t('reminders.time'), t('reminders.resource'), t('reminders.recipient'),
+    t('reminders.due'), t('common.status'), t('reminders.error'),
+  ], sortedLogs.map((log) => [
+    log.createdAt,
+    log.resource,
+    log.recipientEmail || '',
+    log.dueDate || '',
+    log.status,
+    log.errorMessage || '',
+  ]));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,18 +200,17 @@ export default function AdminReminders() {
         <button onClick={runNow} className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">{t('reminders.runNow')}</button>
       </div>
 
-      <section className="rounded-lg bg-white dark:bg-gray-800 shadow overflow-hidden">
-        <div className="p-5"><h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('reminders.recentLog')}</h2></div>
+      <DataTableShell toolbar={<h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('reminders.recentLog')}</h2>} onExport={exportVisibleLogs} exportLabel="Export CSV">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200"><tr><SortableTh column="time" label={t('reminders.time')} activeColumn={sort.column} direction={sort.column === 'time' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="resource" label={t('reminders.resource')} activeColumn={sort.column} direction={sort.column === 'resource' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="recipient" label={t('reminders.recipient')} activeColumn={sort.column} direction={sort.column === 'recipient' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="due" label={t('reminders.due')} activeColumn={sort.column} direction={sort.column === 'due' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="error" label={t('reminders.error')} activeColumn={sort.column} direction={sort.column === 'error' ? sort.direction : ''} onSort={toggleSort} /></tr></thead>
+            <thead className="bg-gray-50 dark:bg-gray-700"><tr><SortableTh column="time" label={t('reminders.time')} activeColumn={sort.column} direction={sort.column === 'time' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="resource" label={t('reminders.resource')} activeColumn={sort.column} direction={sort.column === 'resource' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="recipient" label={t('reminders.recipient')} activeColumn={sort.column} direction={sort.column === 'recipient' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="due" label={t('reminders.due')} activeColumn={sort.column} direction={sort.column === 'due' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="error" label={t('reminders.error')} activeColumn={sort.column} direction={sort.column === 'error' ? sort.direction : ''} onSort={toggleSort} /></tr></thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {sortedLogs.map((log) => <tr key={log.id} className="text-gray-800 dark:text-gray-100"><td className="p-2">{new Date(log.createdAt).toLocaleString()}</td><td className="p-2">{log.resource}</td><td className="p-2">{log.recipientEmail ?? 'n/a'}</td><td className="p-2">{log.dueDate ? new Date(log.dueDate).toLocaleDateString() : 'n/a'}</td><td className="p-2">{log.status}</td><td className="p-2">{log.errorMessage ?? ''}</td></tr>)}
               {sortedLogs.length === 0 && <tr><td className="p-3 text-gray-500" colSpan={6}>{t('reminders.noLogEntries')}</td></tr>}
             </tbody>
           </table>
         </div>
-      </section>
+      </DataTableShell>
     </div>
   );
 }

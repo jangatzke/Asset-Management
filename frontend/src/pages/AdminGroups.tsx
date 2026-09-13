@@ -7,6 +7,8 @@ import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface Group {
   id: string;
@@ -179,6 +181,15 @@ const AdminGroups = () => {
     });
   }, [groups, sort]);
 
+  const exportVisibleGroups = () => exportCsv('groups', [
+    t('common.name'), t('common.description'), t('common.users'), t('common.roles'),
+  ], sortedGroups.map((group) => [
+    group.name,
+    group.description || '',
+    (group.users ?? group.userGroups ?? []).length,
+    (group.roles ?? group.groupRoles ?? []).length,
+  ]));
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -198,7 +209,7 @@ const AdminGroups = () => {
       ) : loadError ? (
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{t('common.noResults')}</div>
       ) : (
-        <div className="bg-white dark:bg-card rounded-lg shadow overflow-hidden">
+        <DataTableShell onExport={exportVisibleGroups} exportLabel="Export CSV">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
@@ -260,7 +271,7 @@ const AdminGroups = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </DataTableShell>
       )}
 
       {/* Create Modal */}

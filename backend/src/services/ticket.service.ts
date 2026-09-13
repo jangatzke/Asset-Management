@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
+import { authorizationService } from './authorization.service';
 import { nextDisplayId } from './displayId.service';
 import { resolveActorName, resolveActorNames } from './entityHistory.service';
 import { CLOSE_TARGET_STATUS, computePriority, getAllowedTicketTransitions, INITIAL_TICKET_STATUS, type TicketType } from 'shared';
@@ -72,6 +73,23 @@ const ACTIVE_TICKET_STATUSES = new Set([
   'on_hold', 'investigating', 'identified', 'workaround', 'reviewing',
 ]);
 
+const WORKLOAD_WEEKLY_CAPACITY_UNITS = 160;
+
+function parseIsoWeek(value?: unknown): { key: string; start: Date; end: Date } {
+  const match = typeof value === 'string' ? /^(\d{4})-W(\d{2})$/.exec(value) : null;
+  const date = match ? new Date(Date.UTC(Number(match[1]), 0, 4)) : new Date();
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() - day + 1);
+  date.setUTCHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setUTCDate(end.getUTCDate() + 7);
+  const thursday = new Date(date);
+  thursday.setUTCDate(thursday.getUTCDate() + 3);
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((thursday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return { key: `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`, start: date, end };
+}
+
 export class TicketService {
   async list(query: Data, authzWhere: Prisma.TicketWhereInput = {}, actorId?: string) {
     const page = Math.max(Number(query.page) || 1, 1);
@@ -141,6 +159,7 @@ export class TicketService {
         data: {
           displayId: await nextDisplayId(tx, 'Ticket'), type, title: data.title, description: data.description, status, priority,
           urgency: data.urgency ?? 'medium', impact: data.impact ?? 'medium',
+          estimatedEffortUnits: data.estimatedEffortUnits,
           // An explicit null requester (e.g. unknown e-mail sender) is preserved;
           // only an omitted (undefined) requester defaults to the acting user.
           requesterId: data.requesterId !== undefined ? data.requesterId : actorId,
@@ -194,6 +213,55 @@ export class TicketService {
       await this.audit(tx, actorId, 'TICKET_UPDATE', id, `Updated ${current.displayId}`);
     });
     return this.getById(id);
+  }
+
+  async workload(query: Data, authzWhere: Prisma.TicketWhereInput = {}) {
+    const week = parseIsoWeek(query.week);
+    const search = typeof query.search === 'string' ? query.search.trim() : '';
+    const ticketsOnly = query.ticketsOnly === 'true' || query.ticketsOnly === true;
+    const users = await (prisma as any).user.findMany({
+      where: {
+        isActive: true,
+        isArchived: false,
+        ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }] } : {}),
+      },
+      select: userSelect,
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { email: 'asc' }],
+    });
+    const editors = (await Promise.all(users.map(async (user: any) => (
+      await authorizationService.can(user.id, 'tickets.write') ? user : null
+    )))).filter(Boolean) as Array<typeof users[number]>;
+    const editorIds = editors.map((user: any) => user.id);
+    const tickets = editorIds.length ? await (prisma as any).ticket.findMany({
+      where: {
+        AND: [authzWhere, {
+          isArchived: false,
+          assigneeId: { in: editorIds },
+          resolutionDueAt: { gte: week.start, lt: week.end },
+          status: { notIn: CLOSED_TICKET_STATUSES },
+        }],
+      },
+      select: { id: true, displayId: true, title: true, assigneeId: true, resolutionDueAt: true, estimatedEffortUnits: true },
+    }) : [];
+    const totals = new Map<string, { ticketCount: number; effortUnits: number; unestimatedTicketCount: number }>();
+    for (const ticket of tickets) {
+      const current = totals.get(ticket.assigneeId) ?? { ticketCount: 0, effortUnits: 0, unestimatedTicketCount: 0 };
+      current.ticketCount += 1;
+      if (ticket.estimatedEffortUnits == null) current.unestimatedTicketCount += 1;
+      else current.effortUnits += ticket.estimatedEffortUnits;
+      totals.set(ticket.assigneeId, current);
+    }
+    const data = editors.map((user: any) => {
+      const total = totals.get(user.id) ?? { ticketCount: 0, effortUnits: 0, unestimatedTicketCount: 0 };
+      return {
+        user,
+        ...total,
+        capacityUnits: WORKLOAD_WEEKLY_CAPACITY_UNITS,
+        utilizationPercent: Math.round((total.effortUnits / WORKLOAD_WEEKLY_CAPACITY_UNITS) * 100),
+      };
+    }).filter((entry) => !ticketsOnly || entry.ticketCount > 0)
+      .sort((a, b) => b.utilizationPercent - a.utilizationPercent || b.ticketCount - a.ticketCount || a.user.email.localeCompare(b.user.email));
+    return { week: week.key, weekStart: week.start, weekEnd: week.end, capacityUnits: WORKLOAD_WEEKLY_CAPACITY_UNITS, data };
   }
 
   async changeStatus(id: string, status: string, justification: string | undefined, actorId: string) {

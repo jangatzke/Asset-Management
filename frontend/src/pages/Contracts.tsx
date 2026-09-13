@@ -8,6 +8,8 @@ import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface Contract {
   id: string;
@@ -115,6 +117,24 @@ const Contracts = () => {
     });
   }, [filtered, sort]);
 
+  const exportVisibleContracts = () => exportCsv('contracts', [
+    t('common.id'),
+    t('common.name'),
+    t('common.number'),
+    t('common.vendor'),
+    t('common.type'),
+    t('common.status'),
+    t('common.dates'),
+  ], sortedContracts.map((contract) => [
+    contract.displayId || contract.id,
+    contract.name,
+    contract.contractNumber || '',
+    contract.vendor || '',
+    contract.type || '',
+    contract.status || '',
+    `${contract.startDate?.split('T')[0] || ''} → ${contract.endDate?.split('T')[0] || ''}`,
+  ]));
+
   const handleDiscard = () => {
     form.resetForm();
     setEditingId(null);
@@ -212,9 +232,9 @@ const Contracts = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <DataTableShell onExport={exportVisibleContracts} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-900">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="id" label={t('common.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
@@ -255,7 +275,7 @@ const Contracts = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
        <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? t('contracts.editContract') : t('contracts.newContract')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">

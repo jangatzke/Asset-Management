@@ -13,6 +13,8 @@ import { useAuthStore } from '../store/auth';
 import { normalizeIncidentStatusFilter, matchesIncidentStatusFilter } from './incidentStatusHelpers';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface HistoryEntry {
   id: string;
@@ -387,6 +389,20 @@ const Incidents = () => {
     });
   }, [filteredIncidents, sort]);
 
+  const exportVisibleIncidents = () => exportCsv('incidents', [
+    t('incidents.columns.title'),
+    t('incidents.columns.status'),
+    t('incidents.columns.severity'),
+    t('incidents.columns.detectionTime'),
+    'NIS-2',
+  ], sortedIncidents.map((incident) => [
+    incident.title,
+    incident.status?.replace(/_/g, ' ').toUpperCase() || '',
+    incident.severity?.toUpperCase() || '',
+    incident.detectionTime ? new Date(incident.detectionTime).toLocaleDateString() : '',
+    incident.isSignificant ? t('incidents.significant') : t('incidents.notSignificant'),
+  ]));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -442,9 +458,9 @@ const Incidents = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-card rounded-lg shadow overflow-hidden border border-transparent dark:border-gray-700">
+      <DataTableShell onExport={exportVisibleIncidents} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="title" label={t('incidents.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="status" label={t('incidents.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
@@ -505,7 +521,7 @@ const Incidents = () => {
             )}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
       <Modal isOpen={modalOpen} onClose={handleModalClose} title={editingIncident ? t('incidents.editIncident') : t('incidents.createIncident')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">

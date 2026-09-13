@@ -209,7 +209,7 @@ const AdminDatabase = () => {
             <h3 className="font-medium text-gray-900 dark:text-white">{t('databaseAdmin.rowCounts')}</h3>
             <div className="mt-2 max-h-72 overflow-auto rounded border border-gray-200 dark:border-gray-700">
               <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
                     <SortableTh column="model" label={t('databaseAdmin.table.model')} activeColumn={sort.column} direction={sort.column === 'model' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200" />
                     <SortableTh column="count" label={t('databaseAdmin.table.count')} activeColumn={sort.column} direction={sort.column === 'count' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200" />

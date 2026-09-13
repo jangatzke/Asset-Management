@@ -1155,7 +1155,19 @@
     "openTickets": "Open tickets",
     "assignedToMe": "Assigned to me",
     "recentTickets": "Recent tickets",
-    "noTickets": "No tickets found."
+    "noTickets": "No tickets found.",
+    "loading": "Loading dashboard metrics",
+    "loadError": "Some dashboard metrics could not be loaded. Displayed values may be incomplete.",
+    "needsAttention": "Needs attention",
+    "needsAttentionDescription": "Prioritized operational items requiring review.",
+    "openActionCenter": "Open Action Center",
+    "historicalDevelopmentDescription": "Planned cost development by fiscal year. Values are relative to the current fiscal year's plan.",
+    "workload": "Workload",
+    "workloadDescription": "Planned effort per assignee, based on a 40-hour week.",
+    "viewWorkload": "View workload",
+    "currentWeek": "Current week",
+    "nextWeek": "Next week",
+    "noWorkload": "No tickets with an SLA target in this week."
   },
   "login": {
     "title": "Login",
@@ -1825,5 +1837,19 @@
     "loadError": "Ticket SLA configuration could not be loaded.",
     "saveError": "Ticket SLA configuration could not be saved.",
     "saved": "Ticket SLA configuration saved."
+  },
+  "ticketWorkload": {
+    "title": "Ticket workload",
+    "description": "Planned effort by SLA target week. A full week equals 160 15-minute work units.",
+    "week": "Calendar week",
+    "employee": "Employee",
+    "email": "Email",
+    "utilization": "Utilization",
+    "effortUnits": "Effort (×15 min)",
+    "ticketCount": "Tickets",
+    "unestimated": "Without estimate",
+    "ticketsOnly": "Only employees with tickets",
+    "empty": "No authorized employees found for this selection.",
+    "loadError": "Ticket workload could not be loaded."
   }
 }

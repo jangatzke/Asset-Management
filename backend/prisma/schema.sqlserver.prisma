@@ -3830,6 +3830,8 @@ model Ticket {
   priority    String  @default("medium") // low | medium | high | critical
   urgency     String  @default("medium") // low | medium | high | critical
   impact      String  @default("medium") // low | medium | high | critical
+  // Estimated workload in 15-minute work units.
+  estimatedEffortUnits Int?
 
   // Requester / ownership (ITIL: requester, assigned engineer, manager)
   requesterId String?
@@ -3878,6 +3880,7 @@ model Ticket {
 
   @@index([type, status])
   @@index([assigneeId, status])
+  @@index([assigneeId, resolutionDueAt])
   @@index([slaTargetAt])
   @@map("tickets")
 }

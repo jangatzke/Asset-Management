@@ -1155,7 +1155,19 @@
     "openTickets": "Offene Tickets",
     "assignedToMe": "Mir zugewiesen",
     "recentTickets": "Letzte Tickets",
-    "noTickets": "Keine Tickets gefunden."
+    "noTickets": "Keine Tickets gefunden.",
+    "loading": "Dashboard-Kennzahlen werden geladen",
+    "loadError": "Einige Dashboard-Kennzahlen konnten nicht geladen werden. Die angezeigten Werte können unvollständig sein.",
+    "needsAttention": "Handlungsbedarf",
+    "needsAttentionDescription": "Priorisierte operative Punkte, die geprüft werden müssen.",
+    "openActionCenter": "Aktionszentrum öffnen",
+    "historicalDevelopmentDescription": "Geplante Kostenentwicklung nach Geschäftsjahr. Die Werte beziehen sich auf den aktuellen Jahresplan.",
+    "workload": "Auslastung",
+    "workloadDescription": "Geplanter Aufwand je Bearbeiter, basierend auf 40 Stunden pro Woche.",
+    "viewWorkload": "Auslastung anzeigen",
+    "currentWeek": "Aktuelle Woche",
+    "nextWeek": "Nächste Woche",
+    "noWorkload": "Keine Tickets mit SLA-Ziel in dieser Woche."
   },
   "login": {
     "title": "Login",
@@ -1806,7 +1818,7 @@
     "types": { "incident": "Vorfall", "service_request": "Serviceanfrage", "problem": "Problem", "change": "Änderung" },
     "priorities": { "low": "Niedrig", "medium": "Mittel", "high": "Hoch", "critical": "Kritisch" },
     "status": { "new": "Neu", "in_progress": "In Bearbeitung", "under_investigation": "Wird untersucht", "resolved": "Gelöst", "fulfilled": "Erfüllt", "closed": "Geschlossen" },
-    "detail": { "allTickets": "Alle Tickets", "loading": "Ticket wird geladen.", "loadError": "Ticket konnte nicht geladen werden.", "status": "Status", "priority": "Priorität", "slaTarget": "SLA-Ziel", "notConfigured": "Nicht konfiguriert", "noDescription": "Keine Beschreibung vorhanden.", "moveTo": "Verschieben nach {status}", "transitionLabel": "Status ändern", "reopenTicket": "Ticket wiedereröffnen", "closeTicket": "Ticket schließen", "closurePrompt": "Abschlusszusammenfassung (für den Audit-Trail erforderlich):", "closeError": "Ticket konnte nicht geschlossen werden.", "statusError": "Statusänderung fehlgeschlagen.", "commentError": "Kommentar konnte nicht hinzugefügt werden.", "commentsTitle": "Kommentare und Arbeitsnotizen", "internalWorkNote": "Interne Arbeitsnotiz", "requesterComment": "Für Anfragende sichtbarer Kommentar", "by": "von", "anonymous": "Anonym", "noComments": "Noch keine Kommentare.", "updatePlaceholder": "Aktualisierung dokumentieren.", "addUpdate": "Aktualisierung hinzufügen", "requesterCommentPlaceholder": "Kommentar als Anfragender hinzufügen…", "submitComment": "Kommentar senden", "historyTitle": "Revisionssichere Tickethistorie", "noHistory": "Keine Historeneinträge.", "assignmentTitle": "Zuweisung", "assignee": "Bearbeiter", "unassigned": "Nicht zugewiesen", "assign": "Zuweisen", "unassign": "Aufheben", "assignError": "Zuweisung konnte nicht gespeichert werden.", "assetContextTitle": "Asset-Kontext", "attachAsset": "Asset anhängen", "attachAssets": "Asset(s) anhängen", "attachError": "Asset konnte nicht angehängt werden.", "detach": "Lösen", "detachError": "Asset konnte nicht gelöst werden.", "noAssets": "Noch keine Assets angehängt.", "noManufacturer": "Kein Hersteller" }
+    "detail": { "allTickets": "Alle Tickets", "loading": "Ticket wird geladen.", "loadError": "Ticket konnte nicht geladen werden.", "status": "Status", "priority": "Priorität", "slaTarget": "SLA-Ziel", "notConfigured": "Nicht konfiguriert", "noDescription": "Keine Beschreibung vorhanden.", "moveTo": "Verschieben nach {status}", "transitionLabel": "Status ändern", "reopenTicket": "Ticket wiedereröffnen", "closeTicket": "Ticket schließen", "closurePrompt": "Abschlusszusammenfassung (für den Audit-Trail erforderlich):", "closeError": "Ticket konnte nicht geschlossen werden.", "statusError": "Statusänderung fehlgeschlagen.", "commentError": "Kommentar konnte nicht hinzugefügt werden.", "commentsTitle": "Kommentare und Arbeitsnotizen", "internalWorkNote": "Interne Arbeitsnotiz", "requesterComment": "Für Anfragende sichtbarer Kommentar", "by": "von", "anonymous": "Anonym", "noComments": "Noch keine Kommentare.", "updatePlaceholder": "Aktualisierung dokumentieren.", "addUpdate": "Aktualisierung hinzufügen", "requesterCommentPlaceholder": "Kommentar als Anfragender hinzufügen…", "submitComment": "Kommentar senden", "historyTitle": "Revisionssichere Tickethistorie", "historyButton": "Historie", "noHistory": "Keine Historeneinträge.", "estimatedEffort": "Aufwand (×15 Min.)", "estimatedEffortHint": "Geschätzter Aufwand in Arbeitseinheiten zu je 15 Minuten.", "assignmentTitle": "Zuweisung", "assignee": "Bearbeiter", "unassigned": "Nicht zugewiesen", "assign": "Zuweisen", "unassign": "Aufheben", "assignError": "Zuweisung konnte nicht gespeichert werden.", "assetContextTitle": "Asset-Kontext", "attachAsset": "Asset anhängen", "attachAssets": "Asset(s) anhängen", "attachError": "Asset konnte nicht angehängt werden.", "detach": "Lösen", "detachError": "Asset konnte nicht gelöst werden.", "noAssets": "Noch keine Assets angehängt.", "noManufacturer": "Kein Hersteller" }
   },
   "ticketSla": {
     "title": "Ticket-SLA-Konfiguration",
@@ -1817,5 +1829,19 @@
     "loadError": "Die Ticket-SLA-Konfiguration konnte nicht geladen werden.",
     "saveError": "Die Ticket-SLA-Konfiguration konnte nicht gespeichert werden.",
     "saved": "Ticket-SLA-Konfiguration gespeichert."
+  },
+  "ticketWorkload": {
+    "title": "Ticket-Auslastung",
+    "description": "Geplanter Aufwand nach SLA-Zielwoche. Eine volle Woche entspricht 160 Arbeitseinheiten à 15 Minuten.",
+    "week": "Kalenderwoche",
+    "employee": "Mitarbeiter",
+    "email": "E-Mail",
+    "utilization": "Auslastung",
+    "effortUnits": "Aufwand (×15 Min.)",
+    "ticketCount": "Tickets",
+    "unestimated": "Ohne Aufwand",
+    "ticketsOnly": "Nur Mitarbeiter mit Tickets",
+    "empty": "Keine berechtigten Mitarbeiter für diese Auswahl gefunden.",
+    "loadError": "Die Ticket-Auslastung konnte nicht geladen werden."
   }
 }

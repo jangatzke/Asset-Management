@@ -40,11 +40,13 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import CloudIcon from '@mui/icons-material/Cloud';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { proxmoxApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
+import { exportCsv } from '../utils/csvExport';
 
 interface ProxmoxCredential {
   id: string;
@@ -86,7 +88,7 @@ const syncStatusColors: Record<string, string> = {
 export default function AdminProxmox() {
   const { t } = useI18n();
   const { darkMode } = useDarkMode();
-  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' } }), [darkMode]);
+  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' }, components: { MuiTableHead: { styleOverrides: { root: { backgroundColor: darkMode ? '#374151' : '#f9fafb' } } }, MuiTableCell: { styleOverrides: { head: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.025em', textTransform: 'uppercase' } } } } }), [darkMode]);
 
   // Credential state
   interface CredentialFormValues {
@@ -155,6 +157,33 @@ export default function AdminProxmox() {
       return (String(aVal).localeCompare(String(bVal))) * dir;
     });
   }, [servers, serverSort]);
+
+  const exportVisibleCredentials = () => exportCsv('proxmox-credentials', [
+    'Name', 'Username', 'Password configured', 'API token configured', 'Default', 'Servers', 'Created', 'Updated',
+  ], sortedCredentials.map((credential) => [
+    credential.name,
+    credential.username,
+    credential.hasPassword,
+    credential.hasApiToken,
+    credential.isDefault,
+    credential.proxmoxServerCount,
+    credential.createdAt,
+    credential.updatedAt,
+  ]));
+
+  const exportVisibleServers = () => exportCsv('proxmox-servers', [
+    'Name', 'Host', 'Port', 'Node ID', 'Credential', 'Enabled', 'VMs/Containers', 'Last sync', 'Sync status',
+  ], sortedServers.map((server) => [
+    server.name,
+    server.host,
+    server.port,
+    server.nodeId || '',
+    server.credentialName || '',
+    server.enabled,
+    server.vmCount,
+    server.lastSyncAt || '',
+    server.lastSyncStatus || '',
+  ]));
 
   // Loading and status state
   const [importing, setImporting] = useState<Record<string, boolean>>({});
@@ -448,9 +477,14 @@ export default function AdminProxmox() {
               <VpnKeyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Proxmox Credentials
             </Typography>
-            <Button variant="contained" onClick={openCreateCredentialDialog}>
-              Add Credential
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportVisibleCredentials}>
+                Export CSV
+              </Button>
+              <Button variant="contained" onClick={openCreateCredentialDialog}>
+                Add Credential
+              </Button>
+            </Stack>
           </Box>
 
           <TableContainer>
@@ -515,9 +549,14 @@ export default function AdminProxmox() {
               <CloudIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Proxmox Servers
             </Typography>
-            <Button variant="contained" onClick={openCreateServerDialog} disabled={credentials.length === 0}>
-              Add Proxmox Server
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportVisibleServers}>
+                Export CSV
+              </Button>
+              <Button variant="contained" onClick={openCreateServerDialog} disabled={credentials.length === 0}>
+                Add Proxmox Server
+              </Button>
+            </Stack>
           </Box>
 
           {credentials.length === 0 && (

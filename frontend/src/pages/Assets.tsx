@@ -16,6 +16,8 @@ import AssetGraph from '../components/AssetGraph';
 import AssetImpactAnalysis from '../components/AssetImpactAnalysis';
 import { StatusBadge } from '../components/StatusBadge';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 import { useI18n } from '../context/I18nContext';
 import { useToast } from '../components/useToast';
 import {
@@ -350,6 +352,12 @@ const Assets = () => {
     });
   }, [assets, sort]);
 
+  const exportVisibleAssets = () => exportCsv('assets', [
+    t('assets.columns.id'), t('assets.columns.name'), t('assets.columns.inventoryNumber'), t('assets.columns.type'), t('assets.columns.subtype'), t('assets.columns.criticality'), t('assets.columns.status'),
+  ], sortedAssets.map((asset) => [
+    asset.displayId, asset.name, asset.inventoryNumber || '', asset.assetType?.name || '', asset.assetSubtype?.name || '', t(`assets.criticality.${asset.criticality}`), t(`assets.lifecycleStatus.${asset.lifecycleStatus || asset.status}`),
+  ]));
+
   // Clear the whole view (filters + page + sort + column order + search) via the
   // "clear view" control on the filter chips. The hook resets filters, page,
   // sort and column order; we reset the search input here.
@@ -576,19 +584,22 @@ const Assets = () => {
             </div>
           )}
 
-          <div className="mb-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
+          <DataTableShell
+            defaultFiltersOpen
+            onExport={exportVisibleAssets}
+            exportLabel="Export CSV"
+            filters={<div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(16rem,1.35fr)_minmax(13rem,1fr)_minmax(13rem,1fr)_minmax(15rem,1.1fr)]">
               <input type="text" placeholder={t('assets.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className={inputField + ' flex-1'} />
+                className={inputField + ' min-w-0'} />
               <select value={filterType} onChange={(e) => setFilter('type', e.target.value)} aria-label={t('assets.fields.assetType')}
-                className={selectField}>
+                className={selectField + ' min-w-0'}>
                 <option value="">{t('common.all')} {t('assets.fields.assetType')}</option>
                 {assetTypes.map((type) => (
                   <option key={type.id} value={type.id}>{type.name}</option>
                 ))}
               </select>
               <select value={filterCriticality} onChange={(e) => setFilter('criticality', e.target.value)} aria-label={t('assets.fields.criticality')}
-                className={selectField}>
+                className={selectField + ' min-w-0'}>
                 <option value="">{t('common.all')} {t('assets.fields.criticality')}</option>
                 <option value="low">{t('assets.criticality.low')}</option>
                 <option value="medium">{t('assets.criticality.medium')}</option>
@@ -596,7 +607,7 @@ const Assets = () => {
                 <option value="critical">{t('assets.criticality.critical')}</option>
               </select>
               <select value={filterStatus} onChange={(e) => setFilter('status', e.target.value)} aria-label={t('assets.fields.lifecycleStatus')}
-                className={selectField}>
+                className={selectField + ' min-w-0'}>
                 <option value="">{t('common.all')} {t('assets.fields.lifecycleStatus')}</option>
                 <option value="planned">{t('assets.lifecycleStatus.planned')}</option>
                 <option value="ordered">{t('assets.lifecycleStatus.ordered')}</option>
@@ -610,8 +621,9 @@ const Assets = () => {
                 <option value="lost">{t('assets.lifecycleStatus.lost')}</option>
                 <option value="unknown">{t('assets.lifecycleStatus.unknown')}</option>
               </select>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            </div>}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
               <ActiveFilters
                 labelKey="common.filters"
                 clearAllKey="common.clearAll"
@@ -624,11 +636,9 @@ const Assets = () => {
               />
               <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{pagination.total} {t('assets.results')}</p>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <SortableTh column="id" label={t('assets.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
                   <SortableTh column="name" label={t('assets.columns.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
@@ -688,7 +698,7 @@ const Assets = () => {
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableShell>
 
           {pagination.totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">

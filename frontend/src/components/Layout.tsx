@@ -36,6 +36,7 @@ const Layout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [moreNavigationOpen, setMoreNavigationOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -251,8 +252,8 @@ const Layout = () => {
                   {t('navigation.applicationName')}
                 </span>
               </div>
-              <div className="hidden lg:ml-6 lg:flex lg:flex-wrap lg:items-center lg:gap-1 min-w-0 overflow-hidden">
-                {navigation.map((item) => (
+               <div className="hidden lg:ml-6 lg:flex lg:items-center lg:gap-1 min-w-0 overflow-visible">
+                 {navigation.slice(0, 8).map((item) => (
                   <Link
                     key={item.name}
                     to={item.href}
@@ -375,6 +376,7 @@ const Layout = () => {
                      {item.name}
                    </Link>
                  ))}
+                 {navigation.length > 8 && <div className="relative"><button type="button" onClick={() => setMoreNavigationOpen((open) => !open)} aria-expanded={moreNavigationOpen} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white">More<ChevronDownIcon className="h-4 w-4" /></button>{moreNavigationOpen && <div className="absolute left-0 z-50 mt-2 grid w-64 grid-cols-1 rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">{navigation.slice(8).map((item) => <Link key={item.name} to={item.href} onClick={() => setMoreNavigationOpen(false)} className={`rounded px-3 py-2 text-sm font-medium ${isActive(item.href) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}><item.icon className="mr-2 inline h-4 w-4" />{item.name}</Link>)}</div>}</div>}
                </div>
              </div>
            )}

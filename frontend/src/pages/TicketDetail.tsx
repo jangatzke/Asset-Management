@@ -5,6 +5,7 @@ import { getAllowedTicketTransitions, isTerminalTicketStatus, REOPEN_TARGET_STAT
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import EntityPicker from '../components/EntityPicker';
+import { Modal } from '../components/Modal';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 
 /** Human-readable label for an assignee (name when available, else email). */
@@ -33,17 +34,17 @@ export default function TicketDetail() {
   const [assigneePicker, setAssigneePicker] = useState<EntityPickerResult | null>(null);
   const [assetContext, setAssetContext] = useState<AssetContextResponse | null>(null);
   const [assetPickerValues, setAssetPickerValues] = useState<EntityPickerResult[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   const load = useCallback(async () => {
     if (!ticketId) return;
     try {
-      const [ticketResponse, historyResponse, assetContextResponse] = await Promise.all([
+      const [ticketResponse, assetContextResponse] = await Promise.all([
         ticketApi.getById(ticketId),
-        ticketApi.history(ticketId),
         ticketApi.getAssets(ticketId).catch(() => ({ data: { ticketId, assets: [] } })) as any,
       ]);
       setTicket(ticketResponse.data);
-      setHistory(historyResponse.data.data ?? []);
       setAssetContext(assetContextResponse.data);
       setAssetPickerValues([]);
       const assignee = ticketResponse.data.assignee;
@@ -60,11 +61,33 @@ export default function TicketDetail() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const openHistory = async () => {
+    if (!ticketId) return;
+    setHistoryOpen(true);
+    if (historyLoaded) return;
+    try {
+      const response = await ticketApi.history(ticketId);
+      setHistory(response.data.data ?? []);
+      setHistoryLoaded(true);
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message ?? t('tickets.detail.loadError'));
+    }
+  };
+
   const transition = async (status: string) => {
     if (!ticketId) return;
     setWorking(true);
     try { await ticketApi.changeStatus(ticketId, { status }); await load(); }
     catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.statusError')); }
+    finally { setWorking(false); }
+  };
+  const updateEstimatedEffort = async (value: string) => {
+    if (!ticketId || value === '') return;
+    const estimatedEffortUnits = Number(value);
+    if (!Number.isInteger(estimatedEffortUnits) || estimatedEffortUnits < 0) return;
+    setWorking(true);
+    try { await ticketApi.update(ticketId, { estimatedEffortUnits }); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('common.saveError')); }
     finally { setWorking(false); }
   };
 const addComment = async (event: FormEvent) => {
@@ -131,36 +154,30 @@ const addComment = async (event: FormEvent) => {
   if (!ticket) return <main className="p-8"><Link to="/tickets" className="text-blue-700 hover:underline">← {t('navigation.tickets')}</Link><p role="alert" className="mt-4 text-red-700">{error}</p></main>;
 
   const targets = getAllowedTicketTransitions(ticket.type as any, ticket.status);
+  const selectableStatuses = isTerminalTicketStatus(ticket.type as any, ticket.status)
+    ? [ticket.status, REOPEN_TARGET_STATUS[ticket.type]]
+    : [ticket.status, ...targets];
   return <main id="main-content" className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
     <Link to="/tickets" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">← {t('tickets.detail.allTickets')}</Link>
     {error && <div role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
     <header className="mt-4 rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
       <div className="flex flex-col justify-between gap-4 sm:flex-row">
-        <div>
-          <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">{ticket.displayId} · {t(`tickets.types.${ticket.type}`)}</p>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{ticket.title}</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{ticket.displayId} – {ticket.title}</h1>
           <p className="mt-3 whitespace-pre-wrap text-gray-700 dark:text-gray-200">{ticket.description || t('tickets.detail.noDescription')}</p>
         </div>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <div><dt className="text-gray-500">{t('tickets.detail.status')}</dt><dd className="font-semibold">{ticket.status}</dd></div>
+        <dl className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <div><dt className="text-gray-500">{t('common.type')}</dt><dd className="font-semibold">{t(`tickets.types.${ticket.type}`)}</dd></div>
+          <div><dt className="text-gray-500">{t('tickets.detail.status')}</dt><dd>{canWrite ? <select value={ticket.status} disabled={working} onChange={(event) => { if (event.target.value !== ticket.status) void transition(event.target.value); }} aria-label={t('tickets.detail.status')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value={ticket.status}>{t(`tickets.status.${ticket.status}`)}</option>{selectableStatuses.filter((status, index, values) => values.indexOf(status) === index && status !== ticket.status).map((status) => <option key={status} value={status}>{t(`tickets.status.${status}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.status.${ticket.status}`)}</span>}</dd></div>
           <div><dt className="text-gray-500">{t('tickets.detail.priority')}</dt><dd className="font-semibold">{t(`tickets.priorities.${ticket.priority}`)}</dd></div>
           <div><dt className="text-gray-500">{t('tickets.detail.slaTarget')}</dt><dd>{ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : t('tickets.detail.notConfigured')}</dd></div>
+          <div><dt className="text-gray-500" title={t('tickets.detail.estimatedEffortHint')}>{t('tickets.detail.estimatedEffort')}</dt><dd>{canWrite ? <input type="number" min="0" step="1" defaultValue={ticket.estimatedEffortUnits ?? ''} onBlur={(event) => void updateEstimatedEffort(event.target.value)} disabled={working} aria-label={t('tickets.detail.estimatedEffortHint')} className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /> : ticket.estimatedEffortUnits ?? '–'}</dd></div>
         </dl>
       </div>
-      {canWrite && <div className="mt-5 flex flex-wrap items-center gap-2">
-        <select
-          disabled={working || isTerminalTicketStatus(ticket.type as any, ticket.status)}
-          aria-label={t('tickets.detail.moveTo')}
-          onChange={(event) => void transition(event.target.value)}
-          defaultValue=""
-          className="rounded-md border border-blue-300 bg-white px-3 py-2 text-sm font-medium text-blue-800 disabled:opacity-50 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-200"
-        >
-          <option value="" disabled>{t('tickets.detail.transitionLabel')}</option>
-          {targets.map((status) => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
-        </select>
-        {isTerminalTicketStatus(ticket.type as any, ticket.status) && <button disabled={working} onClick={() => void transition(REOPEN_TARGET_STATUS[ticket.type])} className="rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-700 dark:text-blue-200">{t('tickets.detail.reopenTicket')}</button>}
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+        <button onClick={() => void openHistory()} className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200">{t('tickets.detail.historyButton')}</button>
         {canClose && !isTerminalTicketStatus(ticket.type as any, ticket.status) && <button disabled={working} onClick={() => void close()} className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">{t('tickets.detail.closeTicket')}</button>}
-      </div>}
+      </div>
     </header>
     <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
       <div className="grid gap-6 md:grid-cols-2">
@@ -204,8 +221,7 @@ const addComment = async (event: FormEvent) => {
         </div>
       </div>
     </section>
-    <div className="mt-6 grid gap-6 lg:grid-cols-2">
-      <section className="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
+    <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
         <h2 className="text-lg font-bold">{t('tickets.detail.commentsTitle')}</h2>
         <div className="mt-4 space-y-3">
           {ticket.comments?.length ? ticket.comments.map((entry) => (
@@ -228,9 +244,8 @@ const addComment = async (event: FormEvent) => {
           <textarea value={requesterCommentText} onChange={(event) => setRequesterCommentText(event.target.value)} required rows={3} placeholder={t('tickets.detail.requesterCommentPlaceholder')} className="w-full rounded-md border p-2 dark:bg-gray-700" />
           <button disabled={working} className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.submitComment')}</button>
         </form>}
-      </section>
-      <section className="rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-        <h2 className="text-lg font-bold">{t('tickets.detail.historyTitle')}</h2>
+    </section>
+    <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={t('tickets.detail.historyTitle')} maxWidthClassName="max-w-2xl">
         <ol className="mt-4 space-y-3">
           {history.length ? history.map((entry) => (
             <li key={entry.id} className="border-l-2 border-blue-500 pl-3">
@@ -240,7 +255,6 @@ const addComment = async (event: FormEvent) => {
             </li>
           )) : <li className="text-sm text-gray-500">{t('tickets.detail.noHistory')}</li>}
         </ol>
-      </section>
-    </div>
+    </Modal>
   </main>;
 }

@@ -7,6 +7,8 @@ import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface User {
   id: string;
@@ -141,6 +143,18 @@ const AdminUsers = () => {
       return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
     });
   }, [filteredUsers, sort]);
+
+  const exportVisibleUsers = () => exportCsv('users', [
+    t('adminUsers.columns.user'), t('adminUsers.columns.email'), t('adminUsers.columns.account'),
+    t('adminUsers.columns.roles'), t('adminUsers.columns.groups'), t('adminUsers.columns.status'),
+  ], sortedUsers.map((user) => [
+    `${user.firstName} ${user.lastName}`.trim(),
+    user.email,
+    user.isOidcLinked ? `${t('adminUsers.account.oidc')} ${user.oidcProvider || ''}`.trim() : t('adminUsers.account.local'),
+    user.roles.join('; '),
+    (user.groups ?? []).join('; '),
+    user.isActive ? t('common.active') : t('common.inactive'),
+  ]));
 
   const handleCreate = async () => {
     if (!createForm.values.email || !createForm.values.firstName || !createForm.values.lastName) {
@@ -330,7 +344,7 @@ const AdminUsers = () => {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <DataTableShell onExport={exportVisibleUsers} exportLabel="Export CSV">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <input
             type="text"
@@ -345,7 +359,7 @@ const AdminUsers = () => {
           <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('adminUsers.loading')}</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <SortableTh column="user" label={t('adminUsers.columns.user')} activeColumn={sort.column} direction={sort.column === 'user' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="email" label={t('adminUsers.columns.email')} activeColumn={sort.column} direction={sort.column === 'email' ? sort.direction : ''} onSort={toggleSort} />
@@ -449,7 +463,7 @@ const AdminUsers = () => {
         {!loading && filteredUsers.length === 0 && (
           <div className="p-8 text-center text-gray-500">{t('adminUsers.noUsers')}</div>
         )}
-      </div>
+      </DataTableShell>
 
       {/* Create User Modal */}
       <Modal isOpen={createModalOpen} onClose={() => { if (createForm.isDirty) { createForm.resetForm(); setCreateModalOpen(false); } else { setCreateModalOpen(false); } }} title={t('adminUsers.createUser')} isDirty={createForm.isDirty && !saving} onDiscardConfirm={() => { createForm.resetForm(); setCreateModalOpen(false); setError(''); }}>

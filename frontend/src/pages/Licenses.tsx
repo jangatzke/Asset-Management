@@ -8,6 +8,8 @@ import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface License {
   id: string;
@@ -149,6 +151,22 @@ const Licenses = () => {
     });
   }, [filtered, sort]);
 
+  const exportVisibleLicenses = () => exportCsv('licenses', [
+    t('common.id'), t('common.name'), t('common.vendor'), t('common.type'),
+    t('licenses.fields.licensingBasis'), t('licenses.fields.assignmentModel'),
+    t('licenses.fields.seats'), t('common.status'), t('licenses.fields.expiryDate'),
+  ], sortedLicenses.map((license) => [
+    license.displayId || license.id,
+    license.title,
+    license.vendor || '',
+    license.licenseType || license.type || '',
+    license.licensingBasis ? t(`licenses.basis.${license.licensingBasis}`) : '',
+    license.assignmentModel ? t(`licenses.model.${license.assignmentModel}`) : '',
+    license.seats ?? '',
+    license.status ? t(`licenses.status.${license.status}`) : '',
+    license.expiryDate?.split('T')[0] || '',
+  ]));
+
   const handleDiscard = () => {
     form.resetForm();
     setEditingId(null);
@@ -267,9 +285,9 @@ const Licenses = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <DataTableShell onExport={exportVisibleLicenses} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-900">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="id" label={t('common.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
@@ -324,7 +342,7 @@ const Licenses = () => {
             })}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
       <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? t('licenses.editLicense') : t('licenses.newLicense')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">

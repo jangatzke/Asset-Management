@@ -4,6 +4,8 @@ import { riskAggregationApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface AggregationGroup {
   name: string;
@@ -91,6 +93,22 @@ const RiskAggregation = () => {
     };
     return [...currentData].sort((a, b) => { const av = get(a); const bv = get(b); return av < bv ? -1 * dir : av > bv ? 1 * dir : 0; });
   }, [currentData, sort]);
+
+  const exportVisibleAggregation = () => exportCsv(`risk-aggregation-${activeTab}`, [
+    t('riskAggregation.table.group'),
+    t('riskAggregation.table.total'),
+    t('riskAggregation.table.critical'),
+    t('riskAggregation.table.high'),
+    t('riskAggregation.table.medium'),
+    t('riskAggregation.table.low'),
+  ], sortedData.map((group) => [
+    group.name,
+    group.totalRisks || 0,
+    group.critical || group.veryHigh || 0,
+    group.high || 0,
+    group.medium || 0,
+    group.low || 0,
+  ]));
 
   const severityBg = (level: string) => {
     switch (level?.toLowerCase()) {
@@ -216,9 +234,9 @@ const RiskAggregation = () => {
       </div>
 
       {/* Detailed Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <DataTableShell onExport={exportVisibleAggregation} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-900">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="group" label={t('riskAggregation.table.group')} activeColumn={sort.column} direction={sort.column === 'group' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="total" label={t('riskAggregation.table.total')} activeColumn={sort.column} direction={sort.column === 'total' ? sort.direction : ''} onSort={toggleSort} />
@@ -241,7 +259,7 @@ const RiskAggregation = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
       {/* Top Risks per Group */}
       {currentData.some(g => g.risks && g.risks.length > 0) && (

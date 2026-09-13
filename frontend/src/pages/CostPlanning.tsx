@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
 
 type Supplier = { id: string; legalName: string; displayId: string };
 type ManualItem = { title: string; category: string; investmentType: string; plannedAmount: string; currency: string; supplierId: string; supplierName: string; quoteNumber: string; remark: string };
@@ -427,8 +428,22 @@ const CostPlanning = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[[t('costPlanning.planned'), summary.plannedAmount], [t('costPlanning.known'), summary.knownAmount], [t('costPlanning.acquired'), summary.acquiredAmount], [t('costPlanning.open'), summary.openAmount]].map(([label, value]) => <div key={label} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4"><h3 className="text-sm text-gray-500 dark:text-gray-400">{label}</h3><p className="text-2xl font-bold dark:text-white">{money(value, plan?.currency || 'EUR')}</p></div>)}
       </div>
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="flex justify-between items-center mb-3">
+      <DataTableShell
+        toolbar={<h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('costPlanning.yearlyPlanItems')}</h2>}
+        filters={(
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="relative"><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.search')}</label><div className="relative"><MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" /><input type="text" value={filters.search} onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))} placeholder={t('costPlanning.searchPlaceholder')} className="w-full rounded border-gray-300 py-2 pl-8 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div></div>
+            <div><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.status')}</label><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} className="w-full rounded border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('costPlanning.allStatuses')}</option><option value="planned">{t('costPlanning.statusPlanned')}</option><option value="acquired">{t('costPlanning.statusAcquired')}</option><option value="done">{t('costPlanning.statusDone')}</option><option value="ordered">{t('costPlanning.statusOrdered')}</option></select></div>
+            <div><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.category')}</label><select value={filters.category} onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('costPlanning.allCategories')}</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>
+            <div><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.supplier')}</label><input type="text" value={filters.supplierName} onChange={(e) => setFilters((prev) => ({ ...prev, supplierName: e.target.value }))} placeholder={t('costPlanning.supplierFilterPlaceholder')} className="w-full rounded border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div>
+            <button type="button" onClick={clearFilters} className="text-left text-sm font-medium text-primary-600 hover:underline dark:text-primary-300">{t('costPlanning.clearAll')}</button>
+          </div>
+        )}
+        onExport={exportCsv}
+        exportLabel={t('costPlanning.csvExport')}
+      >
+        {/* Legacy toolbar/filter controls have moved into DataTableShell. */}
+        {false && <>
           <h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.yearlyPlanItems')}</h2>
           <div className="flex items-center gap-2">
             <button
@@ -445,8 +460,6 @@ const CostPlanning = () => {
               {t('costPlanning.csvExport')}
             </button>
           </div>
-        </div>
-
         {/* Filter Panel */}
         {showFilters && (
           <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700">
@@ -509,10 +522,11 @@ const CostPlanning = () => {
           </div>
         )}
 
+        </>}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
                 <SortableTh column="displayId" label={t('costPlanning.item')} activeColumn={sort.column} direction={sort.column === 'displayId' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="title" label={t('costPlanning.titleField')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="status" label={t('costPlanning.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
@@ -520,9 +534,9 @@ const CostPlanning = () => {
                 <SortableTh column="knownAmount" label={t('costPlanning.amount')} activeColumn={sort.column} direction={sort.column === 'knownAmount' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="dueDate" label={t('costPlanning.due')} activeColumn={sort.column} direction={sort.column === 'dueDate' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="supplierName" label={t('costPlanning.supplier')} activeColumn={sort.column} direction={sort.column === 'supplierName' ? sort.direction : ''} onSort={toggleSort} />
-                <th className="py-2">{t('costPlanning.quoteNumber')}</th>
-                <th className="py-2">{t('costPlanning.remark')}</th>
-                <th className="py-2">{t('costPlanning.actions')}</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('costPlanning.quoteNumber')}</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('costPlanning.remark')}</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('costPlanning.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -581,7 +595,7 @@ const CostPlanning = () => {
             </tbody>
           </table>
         </div>
-      </section>
+      </DataTableShell>
 
       {/* Manual Planned Acquisition */}
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
@@ -606,7 +620,40 @@ const CostPlanning = () => {
       {/* Candidates */}
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.candidates')}</h2><button onClick={takeover} disabled={selected.length === 0} className="px-3 py-2 rounded bg-blue-600 disabled:bg-gray-300 text-white">{t('costPlanning.takeOverSelected')}</button></div>
-        <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead><tr className="text-left text-gray-500"><th><input ref={selectAllCandidatesCheckboxRef} type="checkbox" aria-label={t('costPlanning.selectAllCandidates')} aria-checked={isCandidateSelectionIndeterminate ? 'mixed' : allSelectableCandidatesSelected} checked={allSelectableCandidatesSelected} disabled={selectableCandidateKeys.length === 0} onChange={toggleAllVisibleCandidates} /></th><SortableTh column="source" label={t('costPlanning.source')} activeColumn={candidateSort.column} direction={candidateSort.column === 'source' ? candidateSort.direction : ''} onSort={candidateToggleSort} /><SortableTh column="title" label={t('costPlanning.titleField')} activeColumn={candidateSort.column} direction={candidateSort.column === 'title' ? candidateSort.direction : ''} onSort={candidateToggleSort} /><SortableTh column="reason" label={t('costPlanning.reason')} activeColumn={candidateSort.column} direction={candidateSort.column === 'reason' ? candidateSort.direction : ''} onSort={candidateToggleSort} /><SortableTh column="amount" label={t('costPlanning.amount')} activeColumn={candidateSort.column} direction={candidateSort.column === 'amount' ? candidateSort.direction : ''} onSort={candidateToggleSort} /></tr></thead><tbody>{sortedCandidates.map((candidate) => <tr key={candidate.candidateKey} className="border-t dark:border-gray-700"><td><input type="checkbox" disabled={candidate.alreadyInPlan} checked={selected.includes(candidate.candidateKey)} onChange={(e) => toggleCandidate(candidate.candidateKey, e.target.checked)} /></td><td className="py-2 dark:text-white">{candidate.sourceDisplayId} {candidate.sourceLabel}</td><td>{candidate.title}</td><td>{candidate.alreadyInPlan ? t('costPlanning.alreadyInPlan') : candidate.relevanceReason}</td><td>{candidate.plannedAmount ? money(candidate.plannedAmount, candidate.currency) : '—'}</td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th scope="col" className="w-10 px-4 py-3 text-left">
+                  <input
+                    ref={selectAllCandidatesCheckboxRef}
+                    type="checkbox"
+                    aria-label={t('costPlanning.selectAllCandidates')}
+                    aria-checked={isCandidateSelectionIndeterminate ? 'mixed' : allSelectableCandidatesSelected}
+                    checked={allSelectableCandidatesSelected}
+                    disabled={selectableCandidateKeys.length === 0}
+                    onChange={toggleAllVisibleCandidates}
+                  />
+                </th>
+                <SortableTh column="source" label={t('costPlanning.source')} activeColumn={candidateSort.column} direction={candidateSort.column === 'source' ? candidateSort.direction : ''} onSort={candidateToggleSort} />
+                <SortableTh column="title" label={t('costPlanning.titleField')} activeColumn={candidateSort.column} direction={candidateSort.column === 'title' ? candidateSort.direction : ''} onSort={candidateToggleSort} />
+                <SortableTh column="reason" label={t('costPlanning.reason')} activeColumn={candidateSort.column} direction={candidateSort.column === 'reason' ? candidateSort.direction : ''} onSort={candidateToggleSort} />
+                <SortableTh column="amount" label={t('costPlanning.amount')} activeColumn={candidateSort.column} direction={candidateSort.column === 'amount' ? candidateSort.direction : ''} onSort={candidateToggleSort} />
+              </tr>
+            </thead>
+            <tbody>
+              {sortedCandidates.map((candidate) => (
+                <tr key={candidate.candidateKey} className="border-t dark:border-gray-700">
+                  <td className="px-4 py-2"><input type="checkbox" disabled={candidate.alreadyInPlan} checked={selected.includes(candidate.candidateKey)} onChange={(e) => toggleCandidate(candidate.candidateKey, e.target.checked)} /></td>
+                  <td className="py-2 dark:text-white">{candidate.sourceDisplayId} {candidate.sourceLabel}</td>
+                  <td>{candidate.title}</td>
+                  <td>{candidate.alreadyInPlan ? t('costPlanning.alreadyInPlan') : candidate.relevanceReason}</td>
+                  <td>{candidate.plannedAmount ? money(candidate.plannedAmount, candidate.currency) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* Edit Item Modal */}

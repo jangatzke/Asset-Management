@@ -92,6 +92,18 @@ summary {
     overflow-wrap: anywhere;
   }
 
+  /* The shared table shell exposes an optional compact density without forcing
+     individual pages to duplicate cell-spacing rules. */
+  [data-table-density='compact'] th {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  [data-table-density='compact'] td {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
   button,
   input,
   select,

@@ -8,6 +8,8 @@ import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface Process {
   id: string;
@@ -108,6 +110,18 @@ const Processes = () => {
       return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
     });
   }, [filtered, sort]);
+
+  const exportVisibleProcesses = () => exportCsv('processes', [
+    t('processes.columns.id'), t('processes.columns.name'), t('processes.columns.category'),
+    t('processes.columns.criticality'), t('processes.columns.status'), t('processes.columns.owner'),
+  ], sortedProcesses.map((process) => [
+    process.displayId || process.id,
+    process.name,
+    process.category || '',
+    process.criticality || '',
+    process.status || '',
+    process.processOwner || '',
+  ]));
 
   const handleDiscard = () => {
     form.resetForm();
@@ -223,9 +237,9 @@ const Processes = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <DataTableShell onExport={exportVisibleProcesses} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-900">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="id" label={t('processes.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="name" label={t('processes.columns.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
@@ -267,7 +281,7 @@ const Processes = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
       {/* Create/Edit Modal */}
       <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? t('processes.editProcess') : t('processes.newProcess')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>

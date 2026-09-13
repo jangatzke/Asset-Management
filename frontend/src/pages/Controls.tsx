@@ -12,6 +12,8 @@ import { getControlStatusColor, getErrorMessage } from '../utils/statusHelpers';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 interface Control {
   id: string;
@@ -241,6 +243,24 @@ const Controls = () => {
   };
 
   const implementationRiskCount = (control: Control) => (control.implementations ?? []).reduce((sum, impl) => sum + (impl.linkedRisks?.length ?? 0), 0);
+
+  const exportVisibleControls = () => exportCsv('controls', [
+    t('controls.columns.title'),
+    t('controls.columns.controlGoal'),
+    t('controls.columns.implementation'),
+    t('controls.columns.maturity'),
+    t('controls.columns.applicability'),
+    t('controls.columns.requirements'),
+  ], sortedControls.map((control) => [
+    control.title,
+    control.controlGoal,
+    implementationSummary(control),
+    `${primaryImplementation(control)?.maturityLevel ?? control.maturityLevel ?? 0}/5`,
+    t(`controls.applicability.${control.applicability}`),
+    (control.requirementMappings ?? []).map((mapping) =>
+      `${mapping.requirement?.requirementKey ?? ''} ${mapping.requirement?.title ?? ''}`.trim(),
+    ).join('; '),
+  ]));
 
   const latestEffectiveness = (risk: any) => t(implementationRiskDisplayRows([risk])[0].effectivenessKey);
 
@@ -549,9 +569,9 @@ const Controls = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <DataTableShell onExport={exportVisibleControls} exportLabel="Export CSV">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-900">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <SortableTh column="title" label={t('controls.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="controlGoal" label={t('controls.columns.controlGoal')} activeColumn={sort.column} direction={sort.column === 'controlGoal' ? sort.direction : ''} onSort={toggleSort} />
@@ -622,7 +642,7 @@ const Controls = () => {
             )}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
 
       {/* Control Modal */}
       <Modal isOpen={modalOpen} onClose={handleControlModalClose} title={editingControlId ? t('controls.editControlTitle') : t('controls.createControl')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleControlDiscard}>

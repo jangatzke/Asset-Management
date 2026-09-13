@@ -6,6 +6,8 @@ import { useToast } from '../components/useToast';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { DataTableShell } from '../components/DataTableShell';
+import { exportCsv } from '../utils/csvExport';
 
 const PERMISSION_GROUPS = {
   Assets: ['assets.read', 'assets.write', 'assets.archive'],
@@ -99,9 +101,17 @@ const AdminRoles = () => {
     });
   }, [roles, sort]);
 
+  const exportVisibleRoles = () => exportCsv('roles', [
+    t('common.name'), t('common.description'), 'Permissions',
+  ], sortedRoles.map((role) => [
+    role.name,
+    role.description || '',
+    role.permissionNames.join('; '),
+  ]));
+
   return <div>
     <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('navigation.roleManagement')}</h1><button onClick={openCreate} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">{t('common.createNew')} {t('common.role').toLowerCase()}</button></div>
-    {loading ? <div className="text-center py-8 text-gray-500">{t('common.loading')}</div> : <div className="bg-white dark:bg-card rounded-lg shadow overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-700"><tr><SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="description" label={t('common.description')} activeColumn={sort.column} direction={sort.column === 'description' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="permissions" label="Permissions" activeColumn={sort.column} direction={sort.column === 'permissions' ? sort.direction : ''} onSort={toggleSort} /><th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th></tr></thead><tbody className="divide-y divide-gray-200 dark:divide-gray-700">{sortedRoles.map((role) => <tr key={role.id}><td className="px-4 py-3 font-medium">{role.name}{role.isBuiltIn && <span className="ml-2 text-xs text-gray-500">{t('roles.builtIn')}</span>}</td><td className="px-4 py-3">{role.description || '-'}</td><td className="px-4 py-3">{role.permissionNames.length}</td><td className="px-4 py-3 space-x-2"><button onClick={() => void openEdit(role)} disabled={role.isBuiltIn} className="text-blue-600 hover:underline disabled:text-gray-400">{t('common.edit')}</button>{!role.isBuiltIn && <button onClick={() => void remove(role.id)} className="text-red-600 hover:underline">{t('common.delete')}</button>}</td></tr>)}</tbody></table></div>}
+    {loading ? <div className="text-center py-8 text-gray-500">{t('common.loading')}</div> : <DataTableShell onExport={exportVisibleRoles} exportLabel="Export CSV"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-700"><tr><SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="description" label={t('common.description')} activeColumn={sort.column} direction={sort.column === 'description' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="permissions" label="Permissions" activeColumn={sort.column} direction={sort.column === 'permissions' ? sort.direction : ''} onSort={toggleSort} /><th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th></tr></thead><tbody className="divide-y divide-gray-200 dark:divide-gray-700">{sortedRoles.map((role) => <tr key={role.id}><td className="px-4 py-3 font-medium">{role.name}{role.isBuiltIn && <span className="ml-2 text-xs text-gray-500">{t('roles.builtIn')}</span>}</td><td className="px-4 py-3">{role.description || '-'}</td><td className="px-4 py-3">{role.permissionNames.length}</td><td className="px-4 py-3 space-x-2"><button onClick={() => void openEdit(role)} disabled={role.isBuiltIn} className="text-blue-600 hover:underline disabled:text-gray-400">{t('common.edit')}</button>{!role.isBuiltIn && <button onClick={() => void remove(role.id)} className="text-red-600 hover:underline">{t('common.delete')}</button>}</td></tr>)}</tbody></table></DataTableShell>}
     <Modal isOpen={modalOpen} onClose={handleModalClose} title={selectedRole ? t('roles.editRole') : t('roles.createRole')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
       <div className="space-y-4">
         <input aria-label={t('common.name')} value={form.values.name} onChange={(event) => form.handleChange({ name: event.target.value })} className="w-full px-3 py-2 border rounded-md" placeholder={t('common.name')} />
