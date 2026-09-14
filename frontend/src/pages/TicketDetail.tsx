@@ -90,6 +90,13 @@ export default function TicketDetail() {
     catch (err: any) { setError(err.response?.data?.error?.message ?? t('common.saveError')); }
     finally { setWorking(false); }
   };
+  const updatePriority = async (priority: string) => {
+    if (!ticketId || !ticket || priority === ticket.priority) return;
+    setWorking(true);
+    try { await ticketApi.update(ticketId, { priority }); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('common.saveError')); }
+    finally { setWorking(false); }
+  };
 const addComment = async (event: FormEvent) => {
   event.preventDefault();
   if (!ticketId || !comment.trim()) return;
@@ -168,8 +175,8 @@ const addComment = async (event: FormEvent) => {
         </div>
         <dl className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div><dt className="text-gray-500">{t('common.type')}</dt><dd className="font-semibold">{t(`tickets.types.${ticket.type}`)}</dd></div>
-          <div><dt className="text-gray-500">{t('tickets.detail.status')}</dt><dd>{canWrite ? <select value={ticket.status} disabled={working} onChange={(event) => { if (event.target.value !== ticket.status) void transition(event.target.value); }} aria-label={t('tickets.detail.status')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value={ticket.status}>{t(`tickets.status.${ticket.status}`)}</option>{selectableStatuses.filter((status, index, values) => values.indexOf(status) === index && status !== ticket.status).map((status) => <option key={status} value={status}>{t(`tickets.status.${status}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.status.${ticket.status}`)}</span>}</dd></div>
-          <div><dt className="text-gray-500">{t('tickets.detail.priority')}</dt><dd className="font-semibold">{t(`tickets.priorities.${ticket.priority}`)}</dd></div>
+          <div><dt className="text-gray-500">{t('tickets.detail.status')}</dt><dd>{canWrite ? <select value={ticket.status} disabled={working} onChange={(event) => { if (event.target.value !== ticket.status) void transition(event.target.value); }} aria-label={t('tickets.detail.status')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{selectableStatuses.filter((status, index, values) => values.indexOf(status) === index).map((status) => <option key={status} value={status}>{t(`tickets.status.${status}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.status.${ticket.status}`)}</span>}</dd></div>
+          <div><dt className="text-gray-500">{t('tickets.detail.priority')}</dt><dd>{canWrite ? <select value={ticket.priority} disabled={working} onChange={(event) => void updatePriority(event.target.value)} aria-label={t('tickets.detail.priority')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{t(`tickets.priorities.${priority}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.priorities.${ticket.priority}`)}</span>}</dd></div>
           <div><dt className="text-gray-500">{t('tickets.detail.slaTarget')}</dt><dd>{ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : t('tickets.detail.notConfigured')}</dd></div>
           <div><dt className="text-gray-500" title={t('tickets.detail.estimatedEffortHint')}>{t('tickets.detail.estimatedEffort')}</dt><dd>{canWrite ? <input type="number" min="0" step="1" defaultValue={ticket.estimatedEffortUnits ?? ''} onBlur={(event) => void updateEstimatedEffort(event.target.value)} disabled={working} aria-label={t('tickets.detail.estimatedEffortHint')} className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /> : ticket.estimatedEffortUnits ?? '–'}</dd></div>
         </dl>
