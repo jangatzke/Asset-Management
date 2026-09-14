@@ -1638,6 +1638,11 @@ export const ChangeTicketStatusSchema = z.object({
 });
 export type ChangeTicketStatusDTO = z.infer<typeof ChangeTicketStatusSchema>;
 
+export const ChangeTicketTypeSchema = z.object({
+  type: z.enum(['service_request', 'problem', 'change']),
+});
+export type ChangeTicketTypeDTO = z.infer<typeof ChangeTicketTypeSchema>;
+
 // ---- Assignment / comments / close / escalate / links ----
 
 export const AssignTicketSchema = z.object({

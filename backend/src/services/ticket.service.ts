@@ -215,6 +215,25 @@ export class TicketService {
     return this.getById(id);
   }
 
+  async changeType(id: string, type: Exclude<TicketType, 'incident'>, actorId: string) {
+    const ticket = await this.getById(id);
+    if (ticket.type === 'incident') throw new AppError('Incident tickets cannot be converted through the ticket workflow', 409);
+    if (ticket.type === type) return ticket;
+    const status = INITIAL_TICKET_STATUS[type];
+    await prisma.$transaction(async (tx: any) => {
+      await tx.problem.deleteMany({ where: { ticketId: id } });
+      await tx.change.deleteMany({ where: { ticketId: id } });
+      await tx.serviceRequest.deleteMany({ where: { ticketId: id } });
+      const extension = type === 'problem' ? { problem: { create: {} } }
+        : type === 'change' ? { change: { create: {} } }
+          : { serviceRequest: { create: {} } };
+      await tx.ticket.update({ where: { id }, data: { type, status, resolvedAt: null, closedAt: null, closedBy: null, ...extension, updatedBy: actorId, version: { increment: 1 } } });
+      await this.history(tx, id, 'TYPE_CHANGE', `Changed ticket type from ${ticket.type} to ${type}`, { type: { old: ticket.type, new: type }, status: { old: ticket.status, new: status } }, actorId);
+      await this.audit(tx, actorId, 'TICKET_TYPE_CHANGE', id, `Ticket type ${ticket.type} → ${type}`);
+    });
+    return this.getById(id);
+  }
+
   async workload(query: Data, authzWhere: Prisma.TicketWhereInput = {}) {
     const week = parseIsoWeek(query.week);
     const search = typeof query.search === 'string' ? query.search.trim() : '';

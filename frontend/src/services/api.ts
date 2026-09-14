@@ -551,6 +551,7 @@ export const ticketApi = {
   getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
+  changeType: (id: string, data: { type: 'service_request' | 'problem' | 'change' }) => api.post<TicketResponse>(`/tickets/${id}/type`, data),
   changeStatus: (id: string, data: { status: string; justification?: string }) => api.post<TicketResponse>(`/tickets/${id}/status`, data),
   comment: (id: string, data: { body: string; isInternal?: boolean }) => api.post<TicketResponse>(`/tickets/${id}/comments`, data),
   requesterComment: (id: string, data: { body: string }) => api.post<TicketResponse>(`/tickets/${id}/requester-comment`, data),

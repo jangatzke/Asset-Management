@@ -5,7 +5,7 @@ import { validateBody } from '../middleware/validation';
 import { authorizationService } from '../services/authorization.service';
 import { ticketService } from '../services/ticket.service';
 import {
-  AssignTicketSchema, ChangeTicketStatusSchema, CloseTicketSchema, CreateTicketCommentSchema,
+  AssignTicketSchema, ChangeTicketStatusSchema, ChangeTicketTypeSchema, CloseTicketSchema, CreateTicketCommentSchema,
   CreateTicketLinkSchema, CreateTicketSchema, EscalateTicketSchema, RequesterCommentSchema,
   TicketAssetIdsSchema, UpdateTicketSchema,
 } from 'shared';
@@ -23,6 +23,7 @@ ticketRouter.get('/workload', authenticate, requirePermission('tickets.read'), h
 ticketRouter.post('/', authenticate, authorizeEntityWrite('tickets'), validateBody(CreateTicketSchema), handle(async (req, res) => { res.status(201).json(await ticketService.create(req.body, req.userId!)); }));
 ticketRouter.get('/:id', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.getById(req.params.id)); }));
 ticketRouter.put('/:id', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(UpdateTicketSchema), handle(async (req, res) => { res.json(await ticketService.update(req.params.id, req.body, req.userId!)); }));
+ticketRouter.post('/:id/type', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(ChangeTicketTypeSchema), handle(async (req, res) => { res.json(await ticketService.changeType(req.params.id, req.body.type, req.userId!)); }));
 ticketRouter.post('/:id/status', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(ChangeTicketStatusSchema), handle(async (req, res) => { res.json(await ticketService.changeStatus(req.params.id, req.body.status, req.body.justification, req.userId!)); }));
 ticketRouter.post('/:id/assign', authenticate, requireEntityPermission('tickets.assign', 'tickets'), validateBody(AssignTicketSchema), handle(async (req, res) => { res.json(await ticketService.assign(req.params.id, req.body.assigneeId, req.userId!)); }));
 ticketRouter.post('/:id/comments', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(CreateTicketCommentSchema), handle(async (req, res) => { res.status(201).json(await ticketService.comment(req.params.id, req.body, req.userId!)); }));

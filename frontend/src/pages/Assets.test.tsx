@@ -228,6 +228,7 @@ describe('Assets page', () => {
 
       expect(mockList).toHaveBeenCalledTimes(1);
 
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       const searchInput = screen.getByPlaceholderText('assets.searchPlaceholder');
       fireEvent.change(searchInput, { target: { value: 'web' } });
       expect(mockList).toHaveBeenCalledTimes(1);
@@ -244,16 +245,19 @@ describe('Assets page', () => {
       renderAssets();
       await flush();
 
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       fireEvent.change(screen.getByRole('combobox', { name: 'assets.fields.assetType' }), { target: { value: 'type-1' } });
       await waitFor(() => {
         expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ assetTypeId: 'type-1' }));
       });
 
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       fireEvent.change(screen.getByRole('combobox', { name: 'assets.fields.criticality' }), { target: { value: 'high' } });
       await waitFor(() => {
         expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ criticality: 'high', assetTypeId: 'type-1' }));
       });
 
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       fireEvent.change(screen.getByRole('combobox', { name: 'assets.fields.lifecycleStatus' }), { target: { value: 'active' } });
       await waitFor(() => {
         expect(mockList).toHaveBeenLastCalledWith(
@@ -273,6 +277,7 @@ describe('Assets page', () => {
         expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
       });
 
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       fireEvent.change(screen.getByRole('combobox', { name: 'assets.fields.criticality' }), { target: { value: 'critical' } });
       await waitFor(() => {
         expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ criticality: 'critical', page: 1 }));
@@ -402,6 +407,7 @@ it('discards a stale, out-of-order response when a newer request resolves first'
       renderAssets();
       await flush();
 
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
       // Apply a criticality filter, then move to page 2 (the reported scenario:
       // UI shows page 2 with an active filter).
       fireEvent.change(screen.getByRole('combobox', { name: 'assets.fields.criticality' }), { target: { value: 'critical' } });

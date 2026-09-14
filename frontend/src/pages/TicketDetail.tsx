@@ -97,6 +97,13 @@ export default function TicketDetail() {
     catch (err: any) { setError(err.response?.data?.error?.message ?? t('common.saveError')); }
     finally { setWorking(false); }
   };
+  const updateType = async (type: 'service_request' | 'problem' | 'change') => {
+    if (!ticketId || !ticket || type === ticket.type) return;
+    setWorking(true);
+    try { await ticketApi.changeType(ticketId, { type }); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.typeError')); }
+    finally { setWorking(false); }
+  };
 const addComment = async (event: FormEvent) => {
   event.preventDefault();
   if (!ticketId || !comment.trim()) return;
@@ -174,7 +181,7 @@ const addComment = async (event: FormEvent) => {
           <p className="mt-3 whitespace-pre-wrap text-gray-700 dark:text-gray-200">{ticket.description || t('tickets.detail.noDescription')}</p>
         </div>
         <dl className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          <div><dt className="text-gray-500">{t('common.type')}</dt><dd className="font-semibold">{t(`tickets.types.${ticket.type}`)}</dd></div>
+          <div><dt className="text-gray-500">{t('common.type')}</dt><dd>{canWrite && ticket.type !== 'incident' ? <select value={ticket.type} disabled={working} onChange={(event) => void updateType(event.target.value as 'service_request' | 'problem' | 'change')} aria-label={t('common.type')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{(['service_request', 'problem', 'change'] as const).map((type) => <option key={type} value={type}>{t(`tickets.types.${type}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.types.${ticket.type}`)}</span>}</dd></div>
           <div><dt className="text-gray-500">{t('tickets.detail.status')}</dt><dd>{canWrite ? <select value={ticket.status} disabled={working} onChange={(event) => { if (event.target.value !== ticket.status) void transition(event.target.value); }} aria-label={t('tickets.detail.status')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{selectableStatuses.filter((status, index, values) => values.indexOf(status) === index).map((status) => <option key={status} value={status}>{t(`tickets.status.${status}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.status.${ticket.status}`)}</span>}</dd></div>
           <div><dt className="text-gray-500">{t('tickets.detail.priority')}</dt><dd>{canWrite ? <select value={ticket.priority} disabled={working} onChange={(event) => void updatePriority(event.target.value)} aria-label={t('tickets.detail.priority')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{t(`tickets.priorities.${priority}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.priorities.${ticket.priority}`)}</span>}</dd></div>
           <div><dt className="text-gray-500">{t('tickets.detail.slaTarget')}</dt><dd>{ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : t('tickets.detail.notConfigured')}</dd></div>
