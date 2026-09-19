@@ -10,6 +10,7 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
 !backend/prisma/.env
 backend/secrets/
 backend/backups/

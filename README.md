@@ -12,6 +12,8 @@ IT asset management and ISMS application for asset inventory, risk and control m
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Quickstart](#quickstart)
+- [Docker Deployment](#docker-deployment)
+- [Portainer Setup](#portainer-setup)
 - [Configuration](#configuration)
 - [Development, Tests, and Build](#development-tests-and-build)
 - [API and OpenAPI](#api-and-openapi)
@@ -82,6 +84,7 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect, cors, helmet |
 | Tests | Jest, ts-jest, Supertest, Vitest, Playwright |
 | Tooling | npm Workspaces, ESLint, Prettier, TypeScript (~5.9.0 backend, ^5.3.3 frontend/shared) |
+| Deployment | Docker (multi-stage builds), Docker Compose, Nginx 1.27 (frontend), Portainer (optional stack management) |
 | Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, otplib, prom-client, qrcode, redis, @azure/msal-node, multer, imapflow, mailparser, openid-client, express-rate-limit |
 | Icon Library (Frontend) | @emotion/react, @emotion/styled, @headlessui/react, @heroicons/react, @mui/icons-material |
 
@@ -94,10 +97,12 @@ asset-management-isms/
 |-- backend/                 # Express API, Prisma, routes, middleware, tests
 |   |-- prisma/              # Prisma schema, seed, and migration-related SQL files
 |   |-- scripts/             # Provider-aware Prisma wrapper, env loader
+|   |-- Dockerfile           # Multi-stage Docker build (deps → build → production)
 |   `-- src/                 # API entry point, config, middleware, routes, services, utils, __tests__, test
 |      |-- test/             # Test fixtures, setup, globals
 |-- frontend/                # React/Vite SPA
 |   |-- e2e/                 # Playwright end-to-end tests
+|   |-- Dockerfile           # Multi-stage Docker build (deps → build → nginx)
 |   `-- src/                 # App, components, pages, contexts, locales, services, hooks, utils, tests
 |-- shared/                  # Shared types and DTOs
 |   `-- src/                 # index, dtos, types
@@ -107,6 +112,9 @@ asset-management-isms/
 |-- analysis/                # ISO 27001 / NIS 2 improvement analysis
 |-- plans/                   # Implementation plans for individual work packages
 |-- scripts/                 # Check scripts, e.g. requirements and vulnerability checks
+|-- docker-compose.yml       # Full-stack compose (db, redis, backend, frontend)
+|-- .dockerignore            # Excludes node_modules, dist, .env, and other artifacts from Docker builds
+|-- .env.production.example  # Production environment template for Docker/Portainer deployments
 |-- package.json             # Root workspace and project-wide scripts
 |-- plan.md                  # ISO 27001 gap analysis plan
 |-- fix-locales.js           # Locale file generation helper
@@ -172,6 +180,187 @@ Useful local endpoints:
 - Backend: `http://localhost:3001`
 - Health: `http://localhost:3001/health`, `http://localhost:3001/health/live`, `http://localhost:3001/health/ready`
 - Metrics: `http://localhost:3001/metrics`
+
+---
+
+## Docker Deployment
+
+The application is containerized with Docker Compose for production deployments. The full stack consists of four services:
+
+| Service | Image / Build | Purpose |
+|---|---|---|
+| `db` | `postgres:16-alpine` | PostgreSQL database with persistent volume |
+| `redis` | `redis:7-alpine` | Distributed idempotency and rate limiting |
+| `backend` | [`backend/Dockerfile`](backend/Dockerfile) (multi-stage) | Express API with Prisma migrations on startup |
+| `frontend` | [`frontend/Dockerfile`](frontend/Dockerfile) (multi-stage) | React SPA served by Nginx with API proxy |
+
+### Prerequisites
+
+- Docker Engine 20.10+ with Docker Compose 2.0+ (or `docker compose` plugin)
+- At least 2 GB RAM for the full stack
+- A valid `JWT_SECRET` (generate with `openssl rand -hex 32`)
+
+### Build and Run
+
+```bash
+# Start the full stack (builds images on first run)
+docker compose up -d
+
+# Use a custom environment file (recommended for production)
+docker compose --env-file .env.production up -d
+
+# View logs
+docker compose logs -f
+
+# Stop the stack
+docker compose down
+
+# Stop and remove volumes (destroys database data)
+docker compose down -v
+```
+
+### Environment Variables
+
+The compose file reads configuration from environment variables. The required variables are:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `JWT_SECRET` | **Yes** | – | 32-byte hex secret for JWT signing |
+| `POSTGRES_PASSWORD` | Recommended | `asset_password` | Database password |
+| `POSTGRES_USER` | No | `asset_user` | Database user |
+| `POSTGRES_DB` | No | `asset_management` | Database name |
+| `CORS_ORIGINS` | No | `http://localhost:8080` | Allowed CORS origins |
+| `FRONTEND_PORT` | No | `8080` | Host port for the frontend |
+
+All other variables (encryption keys, integration settings, rate limits, etc.) are optional and default to safe values. See [`.env.production.example`](.env.production.example) for the full list.
+
+### Docker Image Stages
+
+Each Dockerfile uses a multi-stage build:
+
+1. **`deps`** – Installs npm workspace dependencies.
+2. **`build`** – Compiles TypeScript (shared + backend/frontend) and runs Prisma generate.
+3. **`production`** – Minimal runtime image:
+   - Backend: `node:20-alpine` with Prisma `migrate deploy` on container start.
+   - Frontend: `nginx:1.27-alpine` with SPA fallback and `/api` proxy to the backend.
+
+The backend container runs Prisma migrations automatically on startup before starting the Express server, ensuring the database schema is always in sync.
+
+### Volumes
+
+| Volume | Mount | Purpose |
+|---|---|---|
+| `pgdata` | `/var/lib/postgresql/data` | PostgreSQL data persistence |
+| `redisdata` | `/data` | Redis AOF persistence |
+| `uploads` | `/app/uploads` | Uploaded files (evidence, documents, backups) |
+
+### Health Checks
+
+All services include Docker health checks:
+
+- **db**: `pg_isready` every 10s
+- **redis**: `redis-cli ping` every 10s
+- **backend**: HTTP GET `/health/live` every 30s (20s start period)
+- **frontend**: HTTP GET `/` every 30s (5s start period)
+
+The `depends_on` configuration uses `condition: service_healthy` to ensure proper startup ordering.
+
+---
+
+## Portainer Setup
+
+For production deployments managed through [Portainer](https://www.portainer.io/), follow these steps:
+
+### 1. Prepare the Host
+
+1. Install Docker and Docker Compose on the target host.
+2. Copy the application repository (or the required files) to the host:
+   ```bash
+   # Required files for Portainer stack deployment
+   docker-compose.yml
+   backend/          # Entire backend directory (Dockerfile + source)
+   frontend/         # Entire frontend directory (Dockerfile + source)
+   shared/           # Shared workspace (types/DTOs)
+   package.json      # Root workspace manifest
+   package-lock.json # Lock file for reproducible installs
+   ```
+3. Create the production environment file:
+   ```bash
+   cp .env.production.example .env.production
+   # Edit .env.production and fill in required values
+   ```
+
+### 2. Deploy via Portainer UI
+
+1. Log in to Portainer.
+2. Navigate to **Stacks** → **Add Stack**.
+3. Enter a name (e.g., `asset-management`) and paste the contents of [`docker-compose.yml`](docker-compose.yml).
+4. Set the **Relative path** to the directory containing the compose file and build contexts.
+5. Click **Deploy the stack**.
+6. Portainer will build the images and start all four services.
+
+### 3. Deploy via Portainer CLI (alternative)
+
+```bash
+# From the directory containing docker-compose.yml
+docker compose --env-file .env.production up -d
+```
+
+### 4. Verify Deployment
+
+```bash
+# Check all services are healthy
+docker compose ps
+
+# Test backend health
+curl http://localhost:8080/api/v1/health/live
+
+# Test frontend
+curl -I http://localhost:8080/
+```
+
+### 5. Portainer Best Practices
+
+- **Stack updates**: When deploying new versions, edit the stack in Portainer and redeploy. Use `docker compose down && docker compose up -d` for clean rebuilds.
+- **Secrets management**: Never store `JWT_SECRET` or `POSTGRES_PASSWORD` in the compose file. Use the `.env.production` file or Portainer's built-in secret store.
+- **Resource limits**: Set CPU/memory limits in the compose file or via Portainer's container settings for production stability.
+- **Backups**: Regularly back up the `pgdata` volume (PostgreSQL) and `uploads` volume (files). Use the admin database export endpoint for portable JSON backups.
+- **Log rotation**: Configure Docker log rotation in `/etc/docker/daemon.json`:
+  ```json
+  {
+    "log-driver": "json-file",
+    "log-opts": {
+      "max-size": "10m",
+      "max-file": "5"
+    }
+  }
+  ```
+
+### 6. Reverse Proxy (optional)
+
+For HTTPS deployments, place a reverse proxy (Caddy, Nginx, Traefik, or Portainer's built-in reverse proxy) in front of the frontend:
+
+```nginx
+# Example Nginx reverse proxy config
+server {
+    listen 443 ssl;
+    server_name your-domain.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/your-domain/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain/privkey.pem;
+
+    # Forward all requests to the frontend container
+    location / {
+        proxy_pass http://frontend:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+When using a reverse proxy, set `TRUST_PROXY=1` (or `2` for CDN → LB → app) and update `CORS_ORIGINS` to the public domain.
 
 ---
 

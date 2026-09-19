@@ -1,0 +1,185 @@
+# ============================================================================
+# Asset Management ISMS – Docker Compose
+#
+# Usage:
+#   docker compose up -d          # Start the full stack
+#   docker compose down           # Stop the stack
+#   docker compose down -v        # Stop and remove volumes
+#
+# For Portainer:
+#   1. Copy this file and .env.production to the target host
+#   2. Portainer → Stacks → Add Stack → paste the compose file
+#   3. Set environment variables in the .env.production file
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asset_management}
+      POSTGRES_USER: ${POSTGRES_USER:-asset_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asset_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-asset_user} -d ${POSTGRES_DB:-asset_management}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # --------------------------------------------------------------------------
+  # Redis (for distributed idempotency and rate limiting)
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # --------------------------------------------------------------------------
+  # Backend API (Node.js + Express + Prisma)
+  # --------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    restart: unless-stopped
+    environment:
+      # Server
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      TRUST_PROXY: 1
+
+      # Database
+      DB_PROVIDER: postgresql
+      DATABASE_URL: postgresql://${POSTGRES_USER:-asset_user}:${POSTGRES_PASSWORD:-asset_password}@db:5432/${POSTGRES_DB:-asset_management}?schema=public
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_TOKEN_EXPIRES_IN: ${JWT_ACCESS_TOKEN_EXPIRES_IN:-20m}
+      JWT_REFRESH_TOKEN_EXPIRES_IN: ${JWT_REFRESH_TOKEN_EXPIRES_IN:-7d}
+      REFRESH_TOKEN_COOKIE_NAME: ${REFRESH_TOKEN_COOKIE_NAME:-refreshToken}
+      REFRESH_TOKEN_SAME_SITE: ${REFRESH_TOKEN_SAME_SITE:-lax}
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-20}
+      REFRESH_RATE_LIMIT_MAX: ${REFRESH_RATE_LIMIT_MAX:-120}
+      SERVICE_ACCOUNT_AUTH_RATE_LIMIT_MAX: ${SERVICE_ACCOUNT_AUTH_RATE_LIMIT_MAX:-60}
+
+      # File Upload
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      UPLOAD_DIR: /app/uploads
+      BACKUP_MAX_FILE_SIZE_MB: ${BACKUP_MAX_FILE_SIZE_MB:-50}
+
+      # Session
+      SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+
+      # Encryption Keys (required for integrations)
+      VMWARE_ENCRYPTION_KEY: ${VMWARE_ENCRYPTION_KEY:-}
+      PROXMOX_ENCRYPTION_KEY: ${PROXMOX_ENCRYPTION_KEY:-}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
+
+      # Health & Metrics
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      HEALTH_CHECK_NETWORK_TIMEOUT_MS: ${HEALTH_CHECK_NETWORK_TIMEOUT_MS:-5000}
+
+      # Webhook
+      WEBHOOK_SIGNATURE_SECRET: ${WEBHOOK_SIGNATURE_SECRET:-}
+      WEBHOOK_SIGNATURE_MAX_AGE_MS: ${WEBHOOK_SIGNATURE_MAX_AGE_MS:-300000}
+      WEBHOOK_QUEUE_POLL_INTERVAL_MS: ${WEBHOOK_QUEUE_POLL_INTERVAL_MS:-5000}
+
+      # Redis (distributed idempotency)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+
+      # Intune Integration
+      INTUNE_ENABLED: ${INTUNE_ENABLED:-false}
+      INTUNE_TENANT_ID: ${INTUNE_TENANT_ID:-}
+      INTUNE_APP_ID: ${INTUNE_APP_ID:-}
+      INTUNE_CERT_PRIVATE_KEY_SECRET_REF: ${INTUNE_CERT_PRIVATE_KEY_SECRET_REF:-}
+      INTUNE_CERT_X5C_SECRET_REF: ${INTUNE_CERT_X5C_SECRET_REF:-}
+      INTUNE_CERT_THUMBPRINT: ${INTUNE_CERT_THUMBPRINT:-}
+      INTUNE_APP_NAME: ${INTUNE_APP_NAME:-Asset-Management}
+      INTUNE_FULL_SYNC_INTERVAL: ${INTUNE_FULL_SYNC_INTERVAL:-24}
+      INTUNE_INCREMENTAL_SYNC_INTERVAL: ${INTUNE_INCREMENTAL_SYNC_INTERVAL:-120}
+      INTUNE_GRACE_PERIOD_HOURS: ${INTUNE_GRACE_PERIOD_HOURS:-168}
+      INTUNE_MAX_RETRY_ATTEMPTS: ${INTUNE_MAX_RETRY_ATTEMPTS:-3}
+      INTUNE_RETRY_DELAY_MS: ${INTUNE_RETRY_DELAY_MS:-5000}
+      INTUNE_BATCH_SIZE: ${INTUNE_BATCH_SIZE:-100}
+
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health/live',r=>{process.exit(r.statusCode<400?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+    networks:
+      - app-network
+
+  # --------------------------------------------------------------------------
+  # Frontend (React SPA served by Nginx)
+  # --------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: production
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    networks:
+      - app-network
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  app-network:
+    driver: bridge

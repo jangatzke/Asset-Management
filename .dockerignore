@@ -1,0 +1,61 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+**/dist
+**/build
+**/.next
+frontend/dist
+backend/dist
+shared/dist
+
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.sln
+*.code-workspace
+
+# Environment / secrets
+.env
+.env.*
+*.env
+backend/.env
+backend/secrets/
+**/.env
+**/secrets/
+
+# Logs and temp files
+*.log
+*.txt
+*.tmp
+backend/eg-output.txt
+backend/tmp-eg.txt
+docs/baseline-artifacts/
+
+# Tests and coverage
+**/__tests__
+**/test/
+**/tests/
+**/*.test.ts
+**/*.test.tsx
+**/coverage
+**/.coverage
+**/.nyc_output
+
+# CI artifacts
+trivy-results.sarif
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+.dockerignore
