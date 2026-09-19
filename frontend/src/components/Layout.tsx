@@ -38,6 +38,7 @@ const Layout = () => {
   const [helpOpen, setHelpOpen] = useState(false);
   const [moreNavigationOpen, setMoreNavigationOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     checkAuth();
@@ -53,12 +54,13 @@ const Layout = () => {
   useEffect(() => {
     const closeMenu = (event: MouseEvent) => {
       if (!userMenuRef.current?.contains(event.target as Node)) setUserMenuOpen(false);
+      if (!moreMenuRef.current?.contains(event.target as Node)) setMoreNavigationOpen(false);
     };
-    if (userMenuOpen) {
+    if (userMenuOpen || moreNavigationOpen) {
       document.addEventListener('click', closeMenu);
       return () => document.removeEventListener('click', closeMenu);
     }
-  }, [userMenuOpen]);
+  }, [userMenuOpen, moreNavigationOpen]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -70,6 +72,7 @@ const Layout = () => {
       if (event.key !== 'Escape') return;
       setMobileMenuOpen(false);
       setUserMenuOpen(false);
+      setMoreNavigationOpen(false);
     };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
@@ -156,6 +159,7 @@ const Layout = () => {
     { name: t('navigation.vmwareConfig'), href: '/admin/vmware' },
     { name: t('navigation.proxmoxConfig'), href: '/admin/proxmox' },
     { name: t('navigation.reminderSettings'), href: '/admin/reminders' },
+    { name: t('slaEscalation.title'), href: '/admin/sla-escalation' },
     { name: t('navigation.emailGateway'), href: '/admin/email-gateway' },
     { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
     { name: t('navigation.databaseBackup'), href: '/admin/database' },
@@ -238,7 +242,7 @@ const Layout = () => {
       {/* Skip to content link for keyboard users */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded shadow-md"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded shadow-md"
       >
         Skip to main content
       </a>
@@ -247,7 +251,7 @@ const Layout = () => {
           <div className="flex justify-between min-h-16 gap-3 py-2 lg:py-0">
             <div className="flex items-center flex-1 min-w-0 overflow-hidden">
                 <div className="flex-shrink-0 flex items-center min-w-0">
-                  <ShieldCheckIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                  <ShieldCheckIcon className="h-8 w-8 text-primary-600 dark:text-primary-400" aria-hidden="true" />
                 <span className="ml-2 text-lg font-bold text-gray-900 dark:text-white truncate">
                   {t('navigation.applicationName')}
                 </span>
@@ -259,7 +263,7 @@ const Layout = () => {
                     to={item.href}
                     className={`px-2 xl:px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${
                       isActive(item.href)
-                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                        ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                         : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -279,7 +283,7 @@ const Layout = () => {
                   <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
                   <span className="hidden sm:inline">{t('shortcuts.commandPalette')}</span>
                 </button>
-               <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 ${isActive('/action-center') ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label="Open Action Center">
+               <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 ${isActive('/action-center') ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label="Open Action Center">
                   <BellAlertIcon className="h-5 w-5" aria-hidden="true" />
                </Link>
                <button
@@ -324,7 +328,7 @@ const Layout = () => {
                        </div>
                        <div className="text-xs mt-1">
                          {user?.isOidcLinked ? (
-                           <span className="text-blue-600 dark:text-blue-400">
+                           <span className="text-primary-600 dark:text-primary-400">
                              {t('settings.oidcLinked')}
                            </span>
                          ) : (
@@ -368,7 +372,7 @@ const Layout = () => {
                      onClick={() => setMobileMenuOpen(false)}
                      className={`px-3 py-2 rounded-md text-sm font-medium ${
                        isActive(item.href)
-                         ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                         ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                          : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
                      }`}
                    >
@@ -376,7 +380,39 @@ const Layout = () => {
                      {item.name}
                    </Link>
                  ))}
-                 {navigation.length > 8 && <div className="relative"><button type="button" onClick={() => setMoreNavigationOpen((open) => !open)} aria-expanded={moreNavigationOpen} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white">More<ChevronDownIcon className="h-4 w-4" /></button>{moreNavigationOpen && <div className="absolute left-0 z-50 mt-2 grid w-64 grid-cols-1 rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">{navigation.slice(8).map((item) => <Link key={item.name} to={item.href} onClick={() => setMoreNavigationOpen(false)} className={`rounded px-3 py-2 text-sm font-medium ${isActive(item.href) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}><item.icon className="mr-2 inline h-4 w-4" />{item.name}</Link>)}</div>}</div>}
+                 {navigation.length > 8 && (
+                   <div ref={moreMenuRef} className="relative">
+                     <button
+                       type="button"
+                       onClick={() => setMoreNavigationOpen((open) => !open)}
+                       aria-expanded={moreNavigationOpen}
+                       aria-controls="more-navigation-menu"
+                       aria-haspopup="menu"
+                       aria-label={t('navigation.moreNavigation')}
+                       className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                     >
+                       {t('navigation.moreNavigation')}
+                       <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+                     </button>
+                     {moreNavigationOpen && (
+                       <div id="more-navigation-menu" role="menu" className="absolute left-0 z-50 mt-2 w-64 grid-cols-1 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 p-1">
+                         {navigation.slice(8).map((item) => (
+                           <Link
+                             key={item.name}
+                             to={item.href}
+                             role="menuitem"
+                             aria-current={isActive(item.href) ? 'page' : undefined}
+                             onClick={() => setMoreNavigationOpen(false)}
+                             className={`flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${isActive(item.href) ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                           >
+                             <item.icon className="inline h-4 w-4" aria-hidden="true" />
+                             {item.name}
+                           </Link>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                 )}
                </div>
              </div>
            )}
@@ -391,7 +427,7 @@ const Layout = () => {
                  to={page.href}
                  className={`font-medium whitespace-nowrap ${
                    location.pathname === page.href
-                     ? 'text-blue-700 dark:text-blue-300 border-b-2 border-blue-600 dark:border-blue-400'
+                     ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-600 dark:border-primary-400'
                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
                  }`}
                >

@@ -7,7 +7,7 @@ const urgencyClasses: Record<ActionCenterItem['urgency'], string> = {
   overdue: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
   critical: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
   upcoming: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
-  planned: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+  planned: 'bg-primary-100 text-primary-800 dark:bg-primary-900/40 dark:text-primary-200',
 };
 
 export default function ActionCenter() {
@@ -33,7 +33,7 @@ export default function ActionCenter() {
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Your open work and due ISMS items you are authorized to view.</p>
     </div>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {(['overdue', 'critical', 'upcoming', 'planned'] as const).map((urgency) => <button key={urgency} onClick={() => update({ urgency: filters.urgency === urgency ? undefined : urgency })} className={`rounded-lg p-4 text-left ${urgencyClasses[urgency]} ${filters.urgency === urgency ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`}>
+      {(['overdue', 'critical', 'upcoming', 'planned'] as const).map((urgency) => <button key={urgency} onClick={() => update({ urgency: filters.urgency === urgency ? undefined : urgency })} className={`rounded-lg p-4 text-left ${urgencyClasses[urgency]} ${filters.urgency === urgency ? 'ring-2 ring-offset-2 ring-primary-500' : ''}`}>
         <div className="text-2xl font-semibold">{result?.summary[urgency] ?? 0}</div><div className="text-sm capitalize">{urgency}</div>
       </button>)}
     </div>
@@ -47,7 +47,7 @@ export default function ActionCenter() {
       <ul className="divide-y divide-gray-200 dark:divide-gray-700">{result?.data.map((entry) => <li key={`${entry.sourceType}-${entry.id}`} data-testid={`action-center-item-${entry.id}`} className="flex flex-wrap items-center gap-3 p-4">
         <span className={`rounded-full px-2 py-1 text-xs font-medium ${urgencyClasses[entry.urgency]}`}>{entry.urgency}</span>
         <div className="min-w-[14rem] flex-1"><div className="font-medium text-gray-900 dark:text-white">{entry.title}</div><div className="text-sm text-gray-500 dark:text-gray-400">{entry.sourceType} · {entry.assignment} · Due {new Date(entry.dueDate).toLocaleString()}</div></div>
-        <span className="text-sm text-gray-500 dark:text-gray-400">{entry.status}</span>{entry.href && <Link to={entry.href} data-testid={`action-center-open-${entry.id}`} className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400">Open</Link>}
+        <span className="text-sm text-gray-500 dark:text-gray-400">{entry.status}</span>{entry.href && <Link to={entry.href} data-testid={`action-center-open-${entry.id}`} className="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">Open</Link>}
       </li>)}</ul>
       {!result?.data.length && <p className="p-6 text-center text-gray-500 dark:text-gray-400">No open items match the selected filters.</p>}
     </div>}

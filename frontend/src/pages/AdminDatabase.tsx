@@ -121,7 +121,7 @@ const AdminDatabase = () => {
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('databaseAdmin.description')}</p>
       </div>
 
-      {message && <div className="rounded bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">{message}</div>}
+      {message && <div className="rounded bg-blue-50 p-3 text-sm text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">{message}</div>}
       {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
 
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
@@ -162,7 +162,7 @@ const AdminDatabase = () => {
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('databaseAdmin.exportTitle')}</h2>
         <p className="text-sm text-gray-600 dark:text-gray-300">{t('databaseAdmin.exportDescription')}</p>
-        <button onClick={handleExport} disabled={exporting} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400">
+        <button onClick={handleExport} disabled={exporting} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">
           {exporting ? t('databaseAdmin.exporting') : t('databaseAdmin.exportButton')}
         </button>
       </section>
@@ -191,7 +191,7 @@ const AdminDatabase = () => {
             </label>
           </div>
         )}
-        <button onClick={handleImport} disabled={importing || !backupFile || !replaceConfirmed} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400">
+        <button onClick={handleImport} disabled={importing || !backupFile || !replaceConfirmed} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">
           {importing ? t('databaseAdmin.importing') : t('databaseAdmin.importButton')}
         </button>
       </section>

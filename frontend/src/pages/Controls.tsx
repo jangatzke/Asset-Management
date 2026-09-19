@@ -104,7 +104,7 @@ const initialImplementationForm: ImplementationForm = {
   testFrequency: '',
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 
 const Controls = () => {
@@ -451,7 +451,7 @@ const Controls = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('controls.title')}</h1>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
       </div>
     );
@@ -463,7 +463,7 @@ const Controls = () => {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('controls.title')}</h1>
         <button
           onClick={() => { resetControlForm(); setModalOpen(true); }}
-          className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
+          className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
         >
           {t('controls.newControl')}
         </button>
@@ -481,7 +481,7 @@ const Controls = () => {
         </div>
       )}
 
-      <section className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4" aria-labelledby="iso27001-soa-generator-title">
+      <section className="bg-blue-50 dark:bg-blue-950 border border-primary-200 dark:border-primary-800 rounded-lg p-4 mb-4" aria-labelledby="iso27001-soa-generator-title">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 id="iso27001-soa-generator-title" className="font-semibold text-gray-900 dark:text-white">{t('controls.soaGenerator.title')}</h2>
@@ -502,7 +502,7 @@ const Controls = () => {
               type="button"
               onClick={handleGenerateIso27001SoA}
               disabled={!selectedSoAScopeId || generatingSoA}
-              className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {generatingSoA ? t('controls.soaGenerator.generating') : t('controls.soaGenerator.generateButton')}
             </button>
@@ -550,7 +550,7 @@ const Controls = () => {
           placeholder={t('controls.searchPlaceholder')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
 
@@ -602,7 +602,7 @@ const Controls = () => {
                     <div className="mt-1 text-xs text-purple-600 dark:text-purple-300">{t('controls.linkedRiskCount').replace('{count}', String(implementationRiskCount(control)))}</div>
                     {(control.implementations ?? []).map((impl) => (
                       <div key={impl.id} className="mt-2 text-xs">
-                        <button onClick={() => setExpandedImplementationId(expandedImplementationId === impl.id ? null : impl.id)} className="text-blue-600 dark:text-blue-400">
+                        <button onClick={() => setExpandedImplementationId(expandedImplementationId === impl.id ? null : impl.id)} className="text-primary-600 dark:text-primary-400">
                           {t('controls.showLinkedRisks').replace('{count}', String(impl.linkedRisks?.length ?? 0))}
                         </button>
                         {expandedImplementationId === impl.id && (
@@ -626,7 +626,7 @@ const Controls = () => {
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => handleEditControl(control)} aria-label={`${t('common.edit')}: ${control.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <button onClick={() => handleEditControl(control)} aria-label={`${t('common.edit')}: ${control.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                       <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
@@ -655,7 +655,7 @@ const Controls = () => {
               <select
                 value={selectedCatalogId}
                 onChange={(e) => handleCatalogChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">-- {t('controls.selectCatalog')} --</option>
                 {catalogOptions.map((catalog) => (
@@ -677,7 +677,7 @@ const Controls = () => {
               <select
                 value={formState.values.catalogVersion}
                 onChange={(e) => formState.handleChange({ catalogVersion: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">-- {t('controls.selectVersion')} --</option>
                 {selectedCatalogId && (
@@ -702,7 +702,7 @@ const Controls = () => {
               value={formState.values.title}
               onChange={(e) => formState.handleChange({ title: e.target.value })}
               placeholder={t('controls.fields.title')}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
@@ -715,7 +715,7 @@ const Controls = () => {
               onChange={(e) => formState.handleChange({ description: e.target.value })}
               placeholder={t('controls.fields.description')}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
@@ -728,7 +728,7 @@ const Controls = () => {
               onChange={(e) => formState.handleChange({ controlGoal: e.target.value })}
               placeholder={t('controls.fields.controlGoal')}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
@@ -742,7 +742,7 @@ const Controls = () => {
                 value={formState.values.responsibleId}
                 onChange={(e) => formState.handleChange({ responsibleId: e.target.value })}
                 placeholder={t('controls.fields.responsibleId')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
             <div>
@@ -754,7 +754,7 @@ const Controls = () => {
                 value={formState.values.applicability}
                 onChange={(e) => formState.handleChange({ applicability: e.target.value })}
                 placeholder={t('controls.fields.applicability')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
@@ -767,7 +767,7 @@ const Controls = () => {
               <select
                 value={formState.values.implementationStatus}
                 onChange={(e) => formState.handleChange({ implementationStatus: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="planned">{t('controls.implementationStatus.planned')}</option>
                 <option value="in_progress">{t('controls.implementationStatus.in_progress')}</option>
@@ -785,7 +785,7 @@ const Controls = () => {
               <select
                 value={formState.values.maturityLevel}
                 onChange={(e) => formState.handleChange({ maturityLevel: parseInt(e.target.value, 10) })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value={0}>{t('controls.maturity.0')}</option>
                 <option value={1}>{t('controls.maturity.1')}</option>
@@ -807,7 +807,7 @@ const Controls = () => {
             <button
               onClick={handleSubmitControl}
               disabled={!formState.values.catalogId || !formState.values.catalogVersion || !formState.values.title || !formState.values.controlGoal || saving}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? t('common.saving') : (editingControlId ? t('common.update') : t('controls.createControl'))}
             </button>
@@ -862,7 +862,7 @@ const Controls = () => {
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationNotice')}</p>
           <div className="flex justify-end gap-2">
             <button onClick={handleImplementationModalClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">{t('common.cancel')}</button>
-            <button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button>
+            <button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button>
           </div>
         </div>
       </Modal>

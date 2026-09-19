@@ -164,7 +164,7 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
             id="entity-history-action-filter"
             value={actionFilter}
             onChange={(event) => setActionFilter(event.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">{t('common.all')}</option>
             {actions.map((action) => <option key={action} value={action}>{actionLabel(action)}</option>)}
@@ -195,7 +195,7 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                         {ticketDisplayId && (
-                          <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                          <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/40 px-2 py-0.5 text-xs font-medium text-primary-700 dark:text-primary-300">
                             {t('history.ticket').replace('{ticket}', ticketDisplayId)}
                           </span>
                         )}
@@ -206,7 +206,7 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                       {entry.summary && <p className="text-sm text-gray-700 dark:text-gray-300">{entry.summary}</p>}
                       {hasVisibleChanges && (
                         <div className="mt-2">
-                          <button type="button" onClick={() => toggleExpanded(entry.id)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                          <button type="button" onClick={() => toggleExpanded(entry.id)} className="text-xs text-primary-600 dark:text-primary-400 hover:underline">
                             {t('history.changes')} ({Object.keys(visibleChanges).length})
                           </button>
                           {expanded && (

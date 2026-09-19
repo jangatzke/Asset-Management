@@ -109,7 +109,7 @@ const initialIncidentForm = (currentUserId = ''): IncidentForm => {
   };
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 
 const Incidents = () => {
@@ -319,7 +319,7 @@ const Incidents = () => {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'new':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        return 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200';
       case 'under_investigation':
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       case 'contained':
@@ -438,7 +438,7 @@ const Incidents = () => {
         <input
           type="text"
           placeholder={t('incidents.searchPlaceholder')}
-          className="flex-1 px-4 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="flex-1 px-4 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -446,7 +446,7 @@ const Incidents = () => {
           aria-label="Incident status filter"
           value={statusFilter}
           onChange={(e) => handleStatusFilterChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         >
           <option value="">{t('common.all')}</option>
           <option value="open">{t('incidents.statusFilter.open')}</option>
@@ -483,7 +483,7 @@ const Incidents = () => {
               sortedIncidents.map((incident) => (
                 <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                    <Link to={`/incidents/${incident.id}`} className="hover:text-blue-600 hover:underline">{incident.title}</Link>
+                    <Link to={`/incidents/${incident.id}`} className="hover:text-primary-600 hover:underline">{incident.title}</Link>
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(incident.status)}`}>
@@ -505,7 +505,7 @@ const Incidents = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEditModal(incident)} aria-label={`${t('common.edit')}: ${incident.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                      <button onClick={() => openEditModal(incident)} aria-label={`${t('common.edit')}: ${incident.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                       <button onClick={() => createEarlyWarning(incident)} aria-label={`${t('incidents.warningDraft')}: ${incident.title}`} title={t('incidents.warningDraft')} className={`${actionButtonClassName} text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300`}>
@@ -528,23 +528,23 @@ const Incidents = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.title')} *</label>
-              <input type="text" value={form.values.title} onChange={(e) => form.handleChange({ title: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={form.values.title} onChange={(e) => form.handleChange({ title: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.description')} *</label>
-              <textarea rows={3} value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea rows={3} value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.detectionTime')} *</label>
-              <input type="datetime-local" value={form.values.detectionTime} onChange={(e) => form.handleChange({ detectionTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="datetime-local" value={form.values.detectionTime} onChange={(e) => form.handleChange({ detectionTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.knowledgeTime')} *</label>
-              <input type="datetime-local" value={form.values.knowledgeTime} onChange={(e) => form.handleChange({ knowledgeTime: e.target.value })} disabled={Boolean(editingIncident)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60" />
+              <input type="datetime-local" value={form.values.knowledgeTime} onChange={(e) => form.handleChange({ knowledgeTime: e.target.value })} disabled={Boolean(editingIncident)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.severity')}</label>
-              <select value={form.values.severity} onChange={(e) => form.handleChange({ severity: e.target.value as IncidentForm['severity'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={form.values.severity} onChange={(e) => form.handleChange({ severity: e.target.value as IncidentForm['severity'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['low', 'medium', 'high', 'critical'] as const).map((severity) => <option key={severity} value={severity}>{t(`incidents.severity.${severity}`)}</option>)}
               </select>
             </div>
@@ -582,52 +582,52 @@ const Incidents = () => {
             />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.reporterSource')}</label>
-              <input type="text" value={form.values.reporterSource} onChange={(e) => form.handleChange({ reporterSource: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={form.values.reporterSource} onChange={(e) => form.handleChange({ reporterSource: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.confidentialityImpact')}</label>
-              <select value={form.values.confidentialityImpact} onChange={(e) => form.handleChange({ confidentialityImpact: e.target.value as IncidentForm['confidentialityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={form.values.confidentialityImpact} onChange={(e) => form.handleChange({ confidentialityImpact: e.target.value as IncidentForm['confidentialityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.integrityImpact')}</label>
-              <select value={form.values.integrityImpact} onChange={(e) => form.handleChange({ integrityImpact: e.target.value as IncidentForm['integrityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={form.values.integrityImpact} onChange={(e) => form.handleChange({ integrityImpact: e.target.value as IncidentForm['integrityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.availabilityImpact')}</label>
-              <select value={form.values.availabilityImpact} onChange={(e) => form.handleChange({ availabilityImpact: e.target.value as IncidentForm['availabilityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={form.values.availabilityImpact} onChange={(e) => form.handleChange({ availabilityImpact: e.target.value as IncidentForm['availabilityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.financialImpact')}</label>
-              <input type="number" min="0" step="0.01" value={form.values.financialImpact} onChange={(e) => form.handleChange({ financialImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" min="0" step="0.01" value={form.values.financialImpact} onChange={(e) => form.handleChange({ financialImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.operationalImpact')}</label>
-              <textarea rows={2} value={form.values.operationalImpact} onChange={(e) => form.handleChange({ operationalImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea rows={2} value={form.values.operationalImpact} onChange={(e) => form.handleChange({ operationalImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.legalImpact')}</label>
-              <textarea rows={2} value={form.values.legalImpact} onChange={(e) => form.handleChange({ legalImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea rows={2} value={form.values.legalImpact} onChange={(e) => form.handleChange({ legalImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.suspectedCause')}</label>
-              <textarea rows={2} value={form.values.suspectedCause} onChange={(e) => form.handleChange({ suspectedCause: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea rows={2} value={form.values.suspectedCause} onChange={(e) => form.handleChange({ suspectedCause: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={form.values.personalDataImpact} onChange={(e) => form.handleChange({ personalDataImpact: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              <input type="checkbox" checked={form.values.personalDataImpact} onChange={(e) => form.handleChange({ personalDataImpact: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
               {t('incidents.fields.personalDataImpact')}
             </label>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={form.values.isIntentional} onChange={(e) => form.handleChange({ isIntentional: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              <input type="checkbox" checked={form.values.isIntentional} onChange={(e) => form.handleChange({ isIntentional: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
               {t('incidents.fields.isIntentional')}
             </label>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={form.values.hasCrossBorderImpact} onChange={(e) => form.handleChange({ hasCrossBorderImpact: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              <input type="checkbox" checked={form.values.hasCrossBorderImpact} onChange={(e) => form.handleChange({ hasCrossBorderImpact: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
               {t('incidents.fields.hasCrossBorderImpact')}
             </label>
           </div>
@@ -635,7 +635,7 @@ const Incidents = () => {
             <button type="button" onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
               {t('common.cancel')}
             </button>
-            <button type="button" onClick={saveIncident} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
+            <button type="button" onClick={saveIncident} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50">
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>
@@ -657,7 +657,7 @@ const Incidents = () => {
               onChange={(e) => {
                 setHistoryActionFilter(e.target.value);
               }}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               onBlur={() => {
                 if (editingIncident) loadHistoryPage(editingIncident.id, 0);
               }}
@@ -715,7 +715,7 @@ const Incidents = () => {
                                 const el = document.getElementById(`changes-${entry.id}`);
                                 if (el) el.classList.toggle('hidden');
                               }}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
                             >
                               {t('incidents.history.changes')} ({Object.keys(visibleFieldChanges).length})
                             </button>

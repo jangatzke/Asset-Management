@@ -59,7 +59,7 @@ const AdminFiscalYear = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('fiscalYear.title')}</h1>
-      {message && <div className="rounded bg-blue-50 p-3 text-sm text-blue-700">{message}</div>}
+      {message && <div className="rounded bg-blue-50 p-3 text-sm text-primary-700">{message}</div>}
       {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
       {loading && <div className="rounded bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">{t('common.loading')}</div>}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -80,7 +80,7 @@ const AdminFiscalYear = () => {
           <input value={timezone} readOnly className="mt-1 w-full rounded border-gray-300 bg-gray-100 dark:bg-gray-700 dark:text-white" />
         </label>
         <div className="md:col-span-3">
-          <button onClick={save} disabled={saving || loading} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400">{saving ? t('common.saving') : t('common.save')}</button>
+          <button onClick={save} disabled={saving || loading} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">{saving ? t('common.saving') : t('common.save')}</button>
         </div>
       </div>
       {preview && (

@@ -25,6 +25,7 @@ const AdminIntune = lazy(() => import('./pages/AdminIntune'));
 const AdminVMware = lazy(() => import('./pages/AdminVMware'));
 const AdminProxmox = lazy(() => import('./pages/AdminProxmox'));
 const AdminReminders = lazy(() => import('./pages/AdminReminders'));
+const AdminSlaEscalation = lazy(() => import('./pages/AdminSlaEscalation'));
 const AdminEmailGateway = lazy(() => import('./pages/AdminEmailGateway'));
 const AdminFiscalYear = lazy(() => import('./pages/AdminFiscalYear'));
 const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
@@ -48,7 +49,7 @@ const ISMSProcessWorkspace = lazy(() => import('./pages/ismsProcessWorkspace'));
 const LoadingSpinner = (
   <div className="min-h-[60vh] flex items-center justify-center" role="status" aria-live="polite">
     <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" aria-hidden="true" />
+      <div className="w-12 h-12 border-4 border-primary-200 dark:border-primary-800 border-t-primary-600 dark:border-t-primary-400 rounded-full animate-spin" aria-hidden="true" />
       <span className="text-sm text-gray-600 dark:text-gray-400">Loading…</span>
     </div>
   </div>
@@ -97,6 +98,7 @@ function App() {
             <Route path="admin/vmware" element={<AdminVMware />} />
             <Route path="admin/proxmox" element={<AdminProxmox />} />
             <Route path="admin/reminders" element={<AdminReminders />} />
+            <Route path="admin/sla-escalation" element={<AdminSlaEscalation />} />
             <Route path="admin/email-gateway" element={<AdminEmailGateway />} />
             <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
             <Route path="admin/auth-settings" element={<AdminAuthSettings />} />

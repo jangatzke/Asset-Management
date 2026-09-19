@@ -198,7 +198,7 @@ const AdminGroups = () => {
         </h1>
         <button
           onClick={() => { createForm.setFormValues({ name: '', description: '' }); setCreateModalOpen(true); }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
+          className="bg-primary-600 text-white px-4 py-2 rounded-md text-sm hover:bg-primary-700"
         >
           {t('groups.createGroup')}
         </button>
@@ -243,7 +243,7 @@ const AdminGroups = () => {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => openEditModal(group)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                        className="text-primary-600 dark:text-primary-400 hover:underline text-xs"
                       >
                         {t('common.edit')}
                       </button>
@@ -291,7 +291,7 @@ const AdminGroups = () => {
               type="text"
               value={createForm.values.name}
               onChange={(e) => createForm.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
@@ -302,7 +302,7 @@ const AdminGroups = () => {
               value={createForm.values.description}
               onChange={(e) => createForm.handleChange({ description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
@@ -314,7 +314,7 @@ const AdminGroups = () => {
             </button>
             <button
               onClick={handleCreate}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
             >
               {t('common.create')}
             </button>
@@ -339,7 +339,7 @@ const AdminGroups = () => {
               type="text"
               value={editForm.values.name}
               onChange={(e) => editForm.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
@@ -350,7 +350,7 @@ const AdminGroups = () => {
               value={editForm.values.description}
               onChange={(e) => editForm.handleChange({ description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
@@ -362,7 +362,7 @@ const AdminGroups = () => {
             </button>
             <button
               onClick={handleUpdate}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
             >
               {t('common.save')}
             </button>
@@ -401,7 +401,7 @@ const AdminGroups = () => {
             <button
               onClick={handleAssignUsers}
               disabled={savingUsers}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
             >
               {savingUsers ? t('common.loading') : t('common.save')}
             </button>
@@ -446,7 +446,7 @@ const AdminGroups = () => {
             </button>
             <button
               onClick={handleAssignRoles}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
             >
               {t('common.save')}
             </button>

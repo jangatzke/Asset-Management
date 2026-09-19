@@ -418,7 +418,7 @@ const CostPlanning = () => {
             id="fiscal-year-select"
             value={fiscalYearLabel}
             onChange={(e) => setFiscalYearLabel(e.target.value)}
-            className="rounded-lg border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="rounded-lg border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           >
             {years.map((year) => <option key={year.label} value={year.label}>{year.label}</option>)}
           </select>
@@ -448,12 +448,12 @@ const CostPlanning = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 py-2 rounded flex items-center gap-1 text-sm ${showFilters ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+              className={`px-3 py-2 rounded flex items-center gap-1 text-sm ${showFilters ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
               title={t('costPlanning.filter')}
             >
               <FunnelIcon className="w-4 h-4" />
               {t('costPlanning.filter')}
-              {hasActiveFilters && <span className="ml-1 bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5">{Object.values(filters).filter(Boolean).length}</span>}
+              {hasActiveFilters && <span className="ml-1 bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5">{Object.values(filters).filter(Boolean).length}</span>}
             </button>
             <button onClick={exportCsv} className="px-3 py-2 rounded bg-gray-700 text-white flex items-center gap-1" title={t('costPlanning.csvExport')}>
               <DocumentArrowDownIcon className="w-4 h-4" />
@@ -465,7 +465,7 @@ const CostPlanning = () => {
           <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-sm font-semibold dark:text-white">{t('costPlanning.filterTitle')}</h3>
-              <button onClick={clearFilters} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              <button onClick={clearFilters} className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
                 {t('costPlanning.clearAll')}
               </button>
             </div>
@@ -547,7 +547,7 @@ const CostPlanning = () => {
                   <td className="py-2">
                     <span className={`px-2 py-1 rounded text-xs ${
                       item.status === 'done' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                      item.status === 'acquired' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                      item.status === 'acquired' ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-300' :
                       item.status === 'ordered' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
                       'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                     }`}>{item.status}</span>
@@ -562,7 +562,7 @@ const CostPlanning = () => {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditModal(item)}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-primary-600 dark:text-primary-400"
                         title={t('costPlanning.edit')}
                       >
                         <PencilSquareIcon className="w-4 h-4" />
@@ -607,19 +607,19 @@ const CostPlanning = () => {
           <div className="space-y-1">
             <input aria-label={t('costPlanning.supplierSearch')} list="cost-plan-suppliers" placeholder={t('costPlanning.supplierSearch')} value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); setManual((current) => ({ ...current, supplierId: '', supplierName: e.target.value })); }} onBlur={() => { const supplier = suppliers.find((candidate) => candidate.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()); if (supplier) setManual((current) => ({ ...current, supplierId: supplier.id, supplierName: supplier.legalName })); }} className="w-full rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
             <datalist id="cost-plan-suppliers">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.legalName}>{supplier.displayId}</option>)}</datalist>
-            {supplierSearch.trim() && !suppliers.some((supplier) => supplier.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()) && <button type="button" onClick={createSupplier} disabled={isCreatingSupplier} className="text-sm text-blue-600 disabled:text-gray-400">{isCreatingSupplier ? '…' : `${t('costPlanning.createSupplier')}: ${supplierSearch.trim()}`}</button>}
+            {supplierSearch.trim() && !suppliers.some((supplier) => supplier.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()) && <button type="button" onClick={createSupplier} disabled={isCreatingSupplier} className="text-sm text-primary-600 disabled:text-gray-400">{isCreatingSupplier ? '…' : `${t('costPlanning.createSupplier')}: ${supplierSearch.trim()}`}</button>}
           </div>
           <input aria-label={t('costPlanning.quoteNumber')} placeholder={t('costPlanning.quoteNumber')} value={manual.quoteNumber} onChange={(e) => setManual({ ...manual, quoteNumber: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
           <input aria-label={t('costPlanning.remark')} placeholder={t('costPlanning.remark')} value={manual.remark} onChange={(e) => setManual({ ...manual, remark: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
         </div>
         <div className="mt-2">
-          <button onClick={createManual} disabled={isSubmitting || !plan} className="rounded bg-blue-600 text-white px-4 py-2 disabled:bg-gray-400">{isSubmitting ? '…' : t('costPlanning.add')}</button>
+          <button onClick={createManual} disabled={isSubmitting || !plan} className="rounded bg-primary-600 text-white px-4 py-2 disabled:bg-gray-400">{isSubmitting ? '…' : t('costPlanning.add')}</button>
         </div>
       </section>
 
       {/* Candidates */}
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.candidates')}</h2><button onClick={takeover} disabled={selected.length === 0} className="px-3 py-2 rounded bg-blue-600 disabled:bg-gray-300 text-white">{t('costPlanning.takeOverSelected')}</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.candidates')}</h2><button onClick={takeover} disabled={selected.length === 0} className="px-3 py-2 rounded bg-primary-600 disabled:bg-gray-300 text-white">{t('costPlanning.takeOverSelected')}</button></div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700">
@@ -669,13 +669,13 @@ const CostPlanning = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.titleField')} *</label>
             <input type="text" value={editForm.values.title || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, title: e.target.value } as any)
               }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
             <textarea value={editForm.values.description || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, description: e.target.value } as any)} rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -683,7 +683,7 @@ const CostPlanning = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.category')}</label>
               <select value={editForm.values.category || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, category: e.target.value } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {categories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
@@ -691,7 +691,7 @@ const CostPlanning = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.status')}</label>
               <select value={editForm.values.status || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, status: e.target.value } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="planned">{t('costPlanning.statusPlanned')}</option>
                 <option value="ordered">{t('costPlanning.statusOrdered')}</option>
                 <option value="acquired">{t('costPlanning.statusAcquired')}</option>
@@ -705,19 +705,19 @@ const CostPlanning = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.amount')}</label>
               <input type="number" value={editForm.values.plannedAmount || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, plannedAmount: e.target.value } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.knownAmount')}</label>
               <input type="number" value={editForm.values.knownAmount ?? ''} onChange={(e) => editForm.handleChange({ ...editForm.values, knownAmount: e.target.value ? Number(e.target.value) : null } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.currency')}</label>
               <input type="text" value={editForm.values.currency || 'EUR'} onChange={(e) => editForm.handleChange({ ...editForm.values, currency: e.target.value.toUpperCase() } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
           </div>
 
@@ -725,14 +725,14 @@ const CostPlanning = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.due')}</label>
             <input type="date" value={editForm.values.dueDate ? new Date(editForm.values.dueDate).toISOString().split('T')[0] : ''} onChange={(e) => editForm.handleChange({ ...editForm.values, dueDate: new Date(e.target.value).toISOString() } as any)
               }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.quoteNumber')}</label>
             <input type="text" value={editForm.values.quoteNumber || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, quoteNumber: e.target.value } as any)
               }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="relative">
@@ -740,7 +740,7 @@ const CostPlanning = () => {
             <input type="text" value={editSupplierSearch}
               onChange={(e) => handleEditSupplierSearch(e.target.value)}
               placeholder={t('costPlanning.supplierSearch')}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             {editSuppliers.length > 0 && (
               <ul className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md mt-1 max-h-40 overflow-y-auto">
                 {editSuppliers.map((supplier) => (
@@ -760,7 +760,7 @@ const CostPlanning = () => {
             <textarea value={editForm.values.remark || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, remark: e.target.value } as any)
               }
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
@@ -769,7 +769,7 @@ const CostPlanning = () => {
               {t('common.cancel')}
             </button>
             <button onClick={saveEdit} disabled={editSaving || !editForm.values.title?.trim()}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
+              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50">
               {editSaving ? t('common.loading') : t('common.edit')}
             </button>
           </div>

@@ -123,10 +123,10 @@ const Settings = () => {
                 </span>
                 <span className="text-sm font-medium">
                   {user?.isOidcLinked ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200">
                       {t('settings.oidcLinked')}
                       {user?.oidcProvider && (
-                        <span className="ml-1 text-blue-500 dark:text-blue-400">
+                        <span className="ml-1 text-primary-500 dark:text-primary-400">
                           ({user.oidcProvider})
                         </span>
                       )}
@@ -171,7 +171,7 @@ const Settings = () => {
               {mfaError && <div className="text-sm text-red-600 dark:text-red-400 mb-2">{mfaError}</div>}
               {mfaMessage && <div className="text-sm text-green-600 dark:text-green-400 mb-2">{mfaMessage}</div>}
               <div className="flex gap-2">
-                {!user?.mfaEnabled && !mfaSetup && <button type="button" onClick={beginMfaSetup} className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">{t('settings.mfaSetup')}</button>}
+                {!user?.mfaEnabled && !mfaSetup && <button type="button" onClick={beginMfaSetup} className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700">{t('settings.mfaSetup')}</button>}
                 {!user?.mfaEnabled && mfaSetup && <button type="button" onClick={confirmMfaSetup} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700">{t('settings.mfaConfirm')}</button>}
                 {user?.mfaEnabled && <button type="button" onClick={disableMfa} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700">{t('settings.mfaDisable')}</button>}
               </div>
@@ -189,7 +189,7 @@ const Settings = () => {
                     type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     required
                   />
                 </div>
@@ -201,7 +201,7 @@ const Settings = () => {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -216,7 +216,7 @@ const Settings = () => {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     required
                   />
                 </div>
@@ -225,7 +225,7 @@ const Settings = () => {
                 <button
                   type="submit"
                   disabled={isChangingPassword}
-                  className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
                 >
                   {isChangingPassword ? t('settings.changingPassword') : t('settings.changePassword')}
                 </button>
@@ -242,7 +242,7 @@ const Settings = () => {
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value as 'en' | 'de')}
-              className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="en">English</option>
               <option value="de">Deutsch</option>
@@ -257,7 +257,7 @@ const Settings = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleDarkMode}
-                className="flex items-center px-4 py-2 border border-gray-300 dark:border-card rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex items-center px-4 py-2 border border-gray-300 dark:border-card rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {darkMode ? (
                   <>

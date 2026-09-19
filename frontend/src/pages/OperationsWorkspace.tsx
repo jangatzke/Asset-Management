@@ -18,7 +18,7 @@ const workspaces: Array<{ key: Workspace; resources: string[] }> = [
 ];
 
 const inputClass = 'w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800';
-const Button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className={`rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 ${props.className ?? ''}`}>{children}</button>;
+const Button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className={`rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 ${props.className ?? ''}`}>{children}</button>;
 
 export default function OperationsWorkspace() {
   const { t } = useI18n();
@@ -41,7 +41,7 @@ export default function OperationsWorkspace() {
 
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('operationsWorkspace.title')}</h1><p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('operationsWorkspace.description')}</p></div>
-    <nav className="flex flex-wrap gap-2" aria-label={t('operationsWorkspace.navigationLabel')}>{workspaces.map(item => <button key={item.key} onClick={() => setWorkspace(item.key)} className={`rounded px-3 py-2 text-sm font-medium ${workspace === item.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>{t(`operationsWorkspace.workspaces.${item.key}`)}</button>)}</nav>
+    <nav className="flex flex-wrap gap-2" aria-label={t('operationsWorkspace.navigationLabel')}>{workspaces.map(item => <button key={item.key} onClick={() => setWorkspace(item.key)} className={`rounded px-3 py-2 text-sm font-medium ${workspace === item.key ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>{t(`operationsWorkspace.workspaces.${item.key}`)}</button>)}</nav>
     {error && <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {workspace === 'training' && <Training courses={items('trainingCourses')} assignments={items('trainingAssignments')} acknowledgements={items('trainingAcknowledgements')} open={setModal} refresh={load} />}
     {workspace === 'metrics' && <Metrics definitions={items('metricDefinitions')} values={items('metricValues')} open={setModal} refresh={load} />}

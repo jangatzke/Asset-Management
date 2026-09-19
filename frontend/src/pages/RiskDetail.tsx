@@ -114,7 +114,7 @@ const RiskDetail = () => {
         <div>
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('common.status')}</h3>
           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            risk.status === 'open' ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' :
+            risk.status === 'open' ? 'bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200' :
             risk.status === 'mitigated' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
             'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
           }`}>
@@ -203,7 +203,7 @@ const RiskDetail = () => {
         <button
           type="button"
           onClick={() => navigate(`/risks/${riskId}/treatment/new`)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
           {t('common.create')}
         </button>
@@ -232,7 +232,7 @@ const RiskDetail = () => {
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">v{idx + 1}</span>
             <span className="text-sm text-gray-700 dark:text-gray-300">{t(`riskDetailExtra.assessmentType.${a.assessmentType}`)}</span>
             <span className={`px-2 py-0.5 rounded-full text-xs ${
-              a.status === 'closed' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+              a.status === 'closed' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200'
             }`}>
               {a.status || 'active'}
             </span>
@@ -282,7 +282,7 @@ const RiskDetail = () => {
         <button
           type="button"
           onClick={() => navigate('/risks')}
-          className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-2"
+          className="text-sm text-primary-600 dark:text-primary-400 hover:underline mb-2"
         >
           {t('common.back')}
         </button>
@@ -299,7 +299,7 @@ const RiskDetail = () => {
               onClick={() => setActiveTab(tab.key)}
               className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                 activeTab === tab.key
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
               }`}
             >

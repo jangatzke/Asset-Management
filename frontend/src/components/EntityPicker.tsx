@@ -149,7 +149,7 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
           {values.map(v => (
             <span
               key={v.id}
-              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200"
             >
               {v.label}
               <button
@@ -173,14 +173,14 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
           onChange={handleSearch}
           onFocus={() => setIsOpen(true)}
           placeholder={multiple ? placeholder : (value?.label || placeholder)}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
           disabled={disabled}
         />
 
         {/* Loading spinner */}
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
           </div>
         )}
       </div>
@@ -199,7 +199,7 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
                   onClick={() => handleSelect(option)}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
                     (!multiple && value?.id === option.id) || (multiple && values.some(v => v.id === option.id))
-                      ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                      ? 'bg-blue-50 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                       : 'text-gray-900 dark:text-white'
                   }`}
                 >

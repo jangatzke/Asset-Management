@@ -48,14 +48,14 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
       {chips.map((chip) => (
         <span
           key={chip.value}
-          className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 dark:bg-blue-900/50 dark:text-blue-200"
+          className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-3 py-1 text-sm font-medium text-primary-800 dark:bg-primary-900/50 dark:text-primary-200"
         >
           <span>{chip.label}</span>
           <button
             type="button"
             onClick={chip.onRemove}
             aria-label={t(clearAllKey ?? 'common.dismiss')}
-            className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-blue-200 dark:hover:bg-blue-800"
+            className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-primary-200 dark:hover:bg-primary-800"
           >
             <XMarkIcon aria-hidden="true" className="h-3 w-3" />
           </button>

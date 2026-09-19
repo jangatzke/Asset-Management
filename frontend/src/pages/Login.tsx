@@ -259,7 +259,7 @@ const Login = () => {
             </>
           )}
           {preAuthState && preAuthState !== 'disabled' && (
-            <div className="mb-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 px-3 py-2 rounded text-sm">
+            <div className="mb-4 bg-blue-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-700 text-primary-800 dark:text-primary-200 px-3 py-2 rounded text-sm">
               {preAuthState === 'mfa_required' && 'Enter your authenticator code to complete sign-in.'}
               {preAuthState === 'mfa_enrollment_required' && 'MFA enrollment is required. Scan the QR code and enter the generated code.'}
               {preAuthState === 'password_change_required' && 'Your password must be changed before sign-in can continue.'}

@@ -144,6 +144,7 @@ const Assets = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const form = useDirtyForm<CreateAssetForm>(initialForm);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CreateAssetForm, string>>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -379,10 +380,23 @@ const Assets = () => {
     }
   };
 
+  const validateForm = useCallback(() => {
+    const v = form.values;
+    const errors: Partial<Record<keyof CreateAssetForm, string>> = {};
+    if (!v.name) errors.name = t('common.requiredField');
+    if (!v.assetTypeId) errors.assetTypeId = t('common.requiredField');
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [form.values, t]);
+
   const handleSubmit = useCallback(async () => {
     const v = form.values;
-    if (!v.name) { setError(t('common.requiredField')); return; }
-    if (!v.assetTypeId) { setError(t('common.requiredField')); return; }
+
+    if (!validateForm()) {
+      const firstError = document.querySelector('[aria-invalid="true"]');
+      (firstError as HTMLElement | null)?.focus();
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -533,7 +547,7 @@ const Assets = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('assets.title')}</h1>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
       </div>
     );
@@ -544,7 +558,7 @@ const Assets = () => {
       {/* Asset Detail View */}
       {selectedAsset ? (
         <div>
-          <button onClick={() => setSelectedAsset(null)} className="mb-4 text-blue-600 hover:text-blue-800">
+          <button onClick={() => setSelectedAsset(null)} className="mb-4 text-primary-600 hover:text-primary-800">
             {t('assets.backToAssets')}
           </button>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{selectedAsset.name}</h1>
@@ -554,11 +568,11 @@ const Assets = () => {
           <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
             <nav className="-mb-px flex space-x-8">
               <button onClick={() => setDetailTab('graph')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm ${detailTab === 'graph' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                className={`py-3 px-1 border-b-2 font-medium text-sm ${detailTab === 'graph' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                 {t('assets.dependencyGraph')}
               </button>
               <button onClick={() => setDetailTab('impact')}
-                className={`py-3 px-1 border-b-2 font-medium text-sm ${detailTab === 'impact' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                className={`py-3 px-1 border-b-2 font-medium text-sm ${detailTab === 'impact' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                 {t('assets.impactAnalysis')}
               </button>
             </nav>
@@ -671,7 +685,7 @@ const Assets = () => {
                 ) : sortedAssets.map((asset) => (
                   <tr key={asset.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{asset.displayId}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-primary-600 dark:text-primary-300 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.inventoryNumber || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.assetType?.name || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.assetSubtype?.name || '-'}</td>
@@ -704,14 +718,37 @@ const Assets = () => {
           </DataTableShell>
 
           {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
               <button onClick={() => setPage(page - 1)} disabled={page <= 1}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                aria-label={t('common.back')}
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {t('common.back')}
               </button>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{page} / {pagination.totalPages}</span>
+              <nav aria-label={t('pagination.title')} className="flex items-center gap-1">
+                <ul className="flex flex-wrap items-center gap-1">
+                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((p) => (
+                    <li key={p}>
+                      <button
+                        type="button"
+                        onClick={() => setPage(p)}
+                        aria-current={p === page ? 'page' : undefined}
+                        aria-label={t('pagination.pageNumber', { page: String(p) })}
+                        className={`min-w-[2rem] px-3 py-1 text-sm rounded-md border focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                          p === page
+                            ? 'bg-primary-600 text-white border-primary-600 font-medium'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <span className="text-sm text-gray-500 dark:text-gray-400 px-2" aria-hidden="true">{page} / {pagination.totalPages}</span>
+              </nav>
               <button onClick={() => setPage(page + 1)} disabled={page >= pagination.totalPages}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                aria-label={t('common.next')}
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {t('common.next')}
               </button>
             </div>
@@ -726,9 +763,12 @@ const Assets = () => {
           <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">{t('assets.basicInformation')}</h3>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.name')} *</label>
-            <input type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
-              className={inputField} />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="asset-name">{t('assets.fields.name')} *</label>
+            <input id="asset-name" type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
+              aria-invalid={!!fieldErrors.name}
+              aria-describedby={fieldErrors.name ? 'asset-name-error' : undefined}
+              className={`${inputField} ${fieldErrors.name ? 'border-danger-500 dark:border-danger-600' : ''}`} />
+            {fieldErrors.name && <p id="asset-name-error" className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">{fieldErrors.name}</p>}
           </div>
 
           <div>
@@ -739,9 +779,11 @@ const Assets = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assets.fields.assetType')} *</label>
-              <select value={form.values.assetTypeId} onChange={(e) => form.handleChange({ assetTypeId: e.target.value, assetSubtypeId: '', inventoryNumber: '' } as any)}
-                className={selectField}>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="asset-type">{t('assets.fields.assetType')} *</label>
+              <select id="asset-type" value={form.values.assetTypeId} onChange={(e) => form.handleChange({ assetTypeId: e.target.value, assetSubtypeId: '', inventoryNumber: '' } as any)}
+                aria-invalid={!!fieldErrors.assetTypeId}
+                aria-describedby={fieldErrors.assetTypeId ? 'asset-type-error' : undefined}
+                className={`${selectField} ${fieldErrors.assetTypeId ? 'border-danger-500 dark:border-danger-600' : ''}`}>
                 <option value="">{t('common.select')}</option>
                 {assetTypes.map((type) => (
                   <option key={type.id} value={type.id}>{type.name}</option>
@@ -820,12 +862,20 @@ const Assets = () => {
           {/* AST-002: Relations */}
           <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">{t('assets.relations')}</h3>
 
-          <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchUsers} value={form.values.organizationUnitId}
-            onChange={(v) => form.handleChange({ organizationUnitId: v })} placeholder={t('assets.searchOrgUnits')} />
+          <div>
+            <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchUsers} value={form.values.organizationUnitId}
+              onChange={(v) => form.handleChange({ organizationUnitId: v })} placeholder={t('assets.searchOrgUnits')}
+              errorMessage={fieldErrors.organizationUnitId ? t('common.requiredField') : undefined} />
+            {fieldErrors.organizationUnitId && <p className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">{fieldErrors.organizationUnitId}</p>}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <EntitySearchSelect label={t('assets.businessOwner')} searchEndpoint={searchUsers} value={form.values.businessOwnerId}
-              onChange={(v) => form.handleChange({ businessOwnerId: v })} placeholder={t('assets.searchUsers')} />
+            <div>
+              <EntitySearchSelect label={t('assets.businessOwner')} searchEndpoint={searchUsers} value={form.values.businessOwnerId}
+                onChange={(v) => form.handleChange({ businessOwnerId: v })} placeholder={t('assets.searchUsers')}
+                errorMessage={fieldErrors.businessOwnerId ? t('common.requiredField') : undefined} />
+              {fieldErrors.businessOwnerId && <p className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">{fieldErrors.businessOwnerId}</p>}
+            </div>
             <EntitySearchSelect label={t('assets.technicalOperator')} searchEndpoint={searchUsers} value={form.values.technicalOperatorId}
               onChange={(v) => form.handleChange({ technicalOperatorId: v })} placeholder={t('assets.searchUsers')} />
           </div>
@@ -959,8 +1009,8 @@ const Assets = () => {
           handleDiscard();
           setDiscardConfirmOpen(false);
         }}
-        titleKey="Discard Changes"
-        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+        titleKey="common.discardChangesTitle"
+        messageKey="common.discardChangesMessage"
       />
 
       <ConfirmDialog

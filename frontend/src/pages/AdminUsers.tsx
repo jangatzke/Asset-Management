@@ -62,7 +62,7 @@ const initialEditForm: EditUserForm = {
   phoneNumber: '',
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 
 const AdminUsers = () => {
@@ -384,7 +384,7 @@ const AdminUsers = () => {
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.email}</td>
                   <td className="px-4 py-3">
                     {user.isOidcLinked ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200">
                         {t('adminUsers.account.oidc')} {user.oidcProvider ? `(${user.oidcProvider})` : ''}
                       </span>
                     ) : (
@@ -438,7 +438,7 @@ const AdminUsers = () => {
                         onClick={() => openEditModal(user)}
                         aria-label={formatUserLabel('adminUsers.actions.editUser', user)}
                         title={t('common.edit')}
-                        className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}
+                        className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}
                       >
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
@@ -672,7 +672,7 @@ const AdminUsers = () => {
                 </button>
                 <button
                   onClick={() => handleResetPassword(selectedUser.id)}
-                  className="px-4 py-2 text-sm text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                  className="px-4 py-2 text-sm text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700 rounded-md hover:bg-blue-50 dark:hover:bg-primary-900/30"
                 >
                   {t('adminUsers.actions.resetPassword')}
                 </button>

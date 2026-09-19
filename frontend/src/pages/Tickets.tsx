@@ -190,7 +190,7 @@ export default function Tickets() {
             ) : sortedTickets.map((ticket) => (
                <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-4 py-3">
-                  <Link to={`/tickets/${ticket.id}`} className="font-semibold text-blue-700 hover:underline dark:text-blue-300">{ticket.displayId}</Link>
+                  <Link to={`/tickets/${ticket.id}`} className="font-semibold text-primary-700 hover:underline dark:text-primary-300">{ticket.displayId}</Link>
                   <div className="max-w-sm truncate text-sm text-gray-900 dark:text-gray-100">{ticket.title}</div>
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{t(`tickets.types.${ticket.type}`)}</td>

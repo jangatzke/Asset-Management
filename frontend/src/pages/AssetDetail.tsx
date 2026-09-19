@@ -44,12 +44,12 @@ const AssetDetail = () => {
   useEffect(() => { void load(); }, [load]);
 
   if (loading) return <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8 text-gray-500">Loading asset…</div>;
-  if (!asset) return <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><Link to="/assets" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">← Assets</Link><p role="alert" className="mt-4 text-red-700">{error}</p></div>;
+  if (!asset) return <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8"><Link to="/assets" className="text-sm font-medium text-primary-700 hover:underline dark:text-primary-300">← Assets</Link><p role="alert" className="mt-4 text-red-700">{error}</p></div>;
 
   const graphFallbackNode = { id: asset.id, name: asset.name, displayId: asset.displayId, type: asset.assetType?.name, criticality: asset.criticality };
 
   return <main className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
-    <Link to="/assets" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">← Assets</Link>
+    <Link to="/assets" className="text-sm font-medium text-primary-700 hover:underline dark:text-primary-300">← Assets</Link>
     <header className="mt-4 rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{asset.displayId} · {asset.name}</h1>
       <p className="mt-2 text-sm text-gray-500">{asset.assetType?.name} · {(asset.assetSubtype as any)?.name} · {asset.criticality} criticality · {asset.lifecycleStatus}</p>

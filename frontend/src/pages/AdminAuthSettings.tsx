@@ -86,7 +86,7 @@ const AdminAuthSettings = () => {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('authSettings.title')}</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('authSettings.description')}</p>
       </div>
-      {message && <div className="rounded bg-blue-50 p-3 text-sm text-blue-700">{message}</div>}
+      {message && <div className="rounded bg-blue-50 p-3 text-sm text-primary-700">{message}</div>}
       {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
       {loading && <div className="rounded bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">{t('common.loading')}</div>}
 
@@ -139,7 +139,7 @@ const AdminAuthSettings = () => {
           {t('authSettings.localOnlyNotice')}
         </div>
 
-        <button onClick={save} disabled={saving || loading} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400">
+        <button onClick={save} disabled={saving || loading} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">
           {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>

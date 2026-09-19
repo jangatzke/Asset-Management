@@ -165,7 +165,7 @@ export default function NIS2() {
             <button
               disabled={busy}
               onClick={loadDefaultQuestionnaire}
-              className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+              className="rounded bg-primary-600 px-4 py-2 text-white disabled:opacity-50"
             >
               {busy ? t('common.loading') : t('nis2.loadDefaultQuestionnaire')}
             </button>
@@ -216,7 +216,7 @@ export default function NIS2() {
               <textarea className={input} value={justification} onChange={(e) => setJustification(e.target.value)} />
             </label>
 
-            <button disabled={busy || !questionnaireVersion} className="w-fit rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">
+            <button disabled={busy || !questionnaireVersion} className="w-fit rounded bg-primary-600 px-4 py-2 text-white disabled:opacity-50">
               {t('nis2.createDraftAssessment')}
             </button>
           </form>
@@ -284,7 +284,7 @@ export default function NIS2() {
             {t('nis2.submissionProof')}
             <input className={input} value={submissionProof} onChange={(e) => setSubmissionProof(e.target.value)} />
           </label>
-          <button disabled={busy || !approved.length} className="w-fit rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">
+          <button disabled={busy || !approved.length} className="w-fit rounded bg-primary-600 px-4 py-2 text-white disabled:opacity-50">
             {t('nis2.createRegistration')}
           </button>
         </form>
@@ -327,7 +327,7 @@ export default function NIS2() {
             {t('nis2.submissionProofChange')}
             <input className={input} value={changeProof} onChange={(e) => setChangeProof(e.target.value)} />
           </label>
-          <button disabled={busy || !registrations.length} className="w-fit rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">
+          <button disabled={busy || !registrations.length} className="w-fit rounded bg-primary-600 px-4 py-2 text-white disabled:opacity-50">
             {t('nis2.recordChange')}
           </button>
         </form>
@@ -387,7 +387,7 @@ export default function NIS2() {
                           {article.crosswalk.map((controlId: string) => (
                             <span
                               key={controlId}
-                              className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                              className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900 dark:text-primary-200"
                             >
                               {controlId}
                             </span>

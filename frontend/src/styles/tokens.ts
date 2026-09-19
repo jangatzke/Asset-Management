@@ -2,7 +2,7 @@
  * Semantic design tokens for the frontend.
  *
  * Centralizes color/spacing/radius usage so the app keeps a consistent look
- * without scattering raw Tailwind color literals (e.g. `bg-blue-600`) across
+ * without scattering raw Tailwind color literals (e.g. `bg-primary-600`) across
  * pages. Import these strings instead of hard-coding palette values.
  *
  * Usage:
@@ -30,7 +30,7 @@ export const buttonDanger =
 export const iconButtonBase =
   'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 
-export const iconButtonEdit = `${iconButtonBase} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`;
+export const iconButtonEdit = `${iconButtonBase} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`;
 export const iconButtonView = `${iconButtonBase} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`;
 export const iconButtonHistory = `${iconButtonBase} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`;
 export const iconButtonDanger = `${iconButtonBase} text-danger-600 hover:text-danger-800 dark:text-danger-400 dark:hover:text-danger-300`;

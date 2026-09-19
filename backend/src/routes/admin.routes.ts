@@ -16,7 +16,9 @@ import { auditService, AuditService } from '../services/audit.service';
 import { auditIntegrityService } from '../services/auditIntegrity.service';
 import { databaseBackupService, PortableBackupPayload } from '../services/databaseBackup.service';
 import { ticketService } from '../services/ticket.service';
-
+import { slaService } from '../services/sla.service';
+import { getSlaScheduler } from '../services/sla.scheduler';
+ 
 export const adminRouter = Router();
 
 // Backups are streamed to a file on disk (not held in memory) to avoid DoS
@@ -192,7 +194,51 @@ adminRouter.get('/reminders/logs', authenticate, requireAdminAccess, async (req,
     next(error);
   }
 });
-
+ 
+// ---- SLA Escalation (Breach Detection / Notification) ----
+ 
+adminRouter.get('/sla-escalation/config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await slaService.getConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+ 
+adminRouter.put('/sla-escalation/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const config = await slaService.updateConfig(req.body, req.userId ?? 'system');
+    await getSlaScheduler()?.restart();
+    res.json(config);
+  } catch (error) {
+    next(error);
+  }
+});
+ 
+adminRouter.post('/sla-escalation/test-smtp', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await slaService.testSmtp(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+ 
+adminRouter.post('/sla-escalation/run-now', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await slaService.scanBreach(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+ 
+adminRouter.get('/sla-escalation/logs', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    res.json(await slaService.listLogs(Number(req.query.limit ?? 50)));
+  } catch (error) {
+    next(error);
+  }
+});
+ 
 // ---- Ticket E-mail Gateway (IMAP / Exchange OAuth2 / SMTP) ----
 
 adminRouter.get('/email-gateway/config', authenticate, requireAdminAccess, async (_req, res, next) => {

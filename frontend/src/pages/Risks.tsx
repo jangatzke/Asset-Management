@@ -136,7 +136,7 @@ const initialTreatmentForm: TreatmentForm = {
 
 const initialRiskControlForm: RiskControlForm = { controlImplementationId: '', role: 'preventive', mitigationDimension: 'likelihood', isKeyControl: false, status: 'active' };
 const initialRiskControlAssessmentForm: RiskControlAssessmentForm = { RiskAssessmentVersionId: '', effectivenessStatus: 'not_tested', effectivenessRating: 0, likelihoodReduction: 0, impactReduction: 0, justification: '' };
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 const riskLevelBadgeClassName = 'inline-flex shrink-0 whitespace-nowrap rounded-full px-2 text-xs font-semibold leading-5';
 
@@ -534,7 +534,7 @@ const Risks = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('risks.title')}</h1>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
       </div>
     );
@@ -545,7 +545,7 @@ const Risks = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('risks.title')}</h1>
         <button onClick={handleOpenCreate}
-          className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
+          className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600">
           {t('risks.newRisk')}
         </button>
       </div>
@@ -611,7 +611,7 @@ const Risks = () => {
                 {visibleColumns.includes('status') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`risks.status.${risk.status}`)}</td>}
                 <td className="sticky right-0 bg-white px-4 py-4 text-sm whitespace-nowrap shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.5)] dark:bg-gray-800">
                   <div className="flex items-center justify-center gap-1">
-                    <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                    <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                       <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                     <button onClick={() => handleOpenControls(risk)} aria-label={`${t('risks.controls.manage')}: ${risk.title}`} title={t('risks.controls.manage')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
@@ -643,31 +643,31 @@ const Risks = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.title')} *</label>
             <input type="text" value={form.title} onChange={(e) => handleChange('title', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.description')} *</label>
             <textarea value={form.description} onChange={(e) => handleChange('description', e.target.value)} rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.possibleImpact')} *</label>
             <textarea value={form.possibleImpact} onChange={(e) => handleChange('possibleImpact', e.target.value)} rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.nextReviewDate')} *</label>
               <input type="date" value={form.nextReviewDate} onChange={(e) => handleChange('nextReviewDate', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.justification')} *</label>
               <input type="text" value={form.justification} onChange={(e) => handleChange('justification', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
           </div>
 
@@ -675,7 +675,7 @@ const Risks = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.likelihood')}</label>
               <select value={form.likelihood} onChange={(e) => handleChange('likelihood', parseInt(e.target.value, 10))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value={1}>{t('risks.likelihood.1')}</option>
                 <option value={2}>{t('risks.likelihood.2')}</option>
                 <option value={3}>{t('risks.likelihood.3')}</option>
@@ -686,7 +686,7 @@ const Risks = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('risks.fields.impact')}</label>
               <select value={form.impact} onChange={(e) => handleChange('impact', parseInt(e.target.value, 10))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value={1}>{t('risks.impact.1')}</option>
                 <option value={2}>{t('risks.impact.2')}</option>
                 <option value={3}>{t('risks.impact.3')}</option>
@@ -721,7 +721,7 @@ const Risks = () => {
               {t('common.cancel')}
             </button>
             <button onClick={handleSubmit} disabled={saving}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
+              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50">
               {saving ? t('common.loading') : (editingId ? t('common.update') : t('risks.createRisk'))}
             </button>
           </div>
@@ -738,7 +738,7 @@ const Risks = () => {
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
           <p className="text-sm text-amber-700 dark:text-amber-300">{t('risks.controls.separationNotice')}</p>
           {selectedRiskForControls && currentAssessment(selectedRiskForControls, 'current') && (
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded text-sm text-blue-800 dark:text-blue-200">
+            <div className="p-3 bg-blue-50 dark:bg-primary-900/30 rounded text-sm text-primary-800 dark:text-primary-200">
               {t('risks.controls.assessmentContext')}: {t('risks.columns.residualRisk')} {currentAssessment(selectedRiskForControls, 'current')?.residualRisk}. {t('risks.controls.noAutoResidual')}
             </div>
           )}
@@ -764,7 +764,7 @@ const Risks = () => {
                   <div className="text-xs font-semibold text-purple-700 dark:text-purple-300">{t('risks.controls.latestEffectiveness')}: {controlVerificationLabel(link)}</div>
                 </div>
                 <div className="space-x-2 whitespace-nowrap">
-                  <button onClick={() => handleUpdateRiskControl(link, { status: link.status === 'active' ? 'inactive' : 'active' })} className="text-blue-600 text-sm">{link.status === 'active' ? t('risks.controls.deactivate') : t('risks.controls.activate')}</button>
+                  <button onClick={() => handleUpdateRiskControl(link, { status: link.status === 'active' ? 'inactive' : 'active' })} className="text-primary-600 text-sm">{link.status === 'active' ? t('risks.controls.deactivate') : t('risks.controls.activate')}</button>
                   <button onClick={() => setAssessingRiskControlId(assessingRiskControlId === link.id ? null : link.id)} className="text-green-600 text-sm">{t('risks.controls.assess')}</button>
                   <button onClick={() => handleRemoveRiskControl(link)} className="text-red-600 text-sm">{t('common.delete')}</button>
                 </div>
@@ -804,7 +804,7 @@ const Risks = () => {
                    <span className="font-medium text-sm text-gray-900 dark:text-white">{tr.name || tr.description?.substring(0, 50) || t('common.treatment')}</span>
                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                      tr.status === 'approved' ? 'bg-green-100 text-green-800' :
-                     tr.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                     tr.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
                      'bg-yellow-100 text-yellow-800'
                    }`}>{tr.status || 'draft'}</span>
                  </div>
@@ -825,7 +825,7 @@ const Risks = () => {
              <option value="accept">{t('risks.treatmentOptions.accept')}</option>
            </select>
            <textarea value={treatmentFormState.values.plannedActions} onChange={(e) => treatmentFormState.handleChange({ plannedActions: e.target.value } as any)} rows={3}
-             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm" />
            <input value={treatmentFormState.values.actionTitle} onChange={(e) => treatmentFormState.handleChange({ actionTitle: e.target.value } as any)} placeholder={t('risks.treatmentActionTitle')}
              className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
            <select value={treatmentFormState.values.controlImplementationId} onChange={(e) => treatmentFormState.handleChange({ controlImplementationId: e.target.value } as any)}

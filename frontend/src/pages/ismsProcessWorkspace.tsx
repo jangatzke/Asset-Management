@@ -23,7 +23,7 @@ interface InterestedParty {
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 const inputClass = 'w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800';
-const Button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className={`rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 ${props.className ?? ''}`}>{children}</button>;
+const Button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className={`rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 ${props.className ?? ''}`}>{children}</button>;
 const SecondaryButton = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className={`rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 ${props.className ?? ''}`}>{children}</button>;
 
 const INTERESTED_PARTY_TYPES = [
@@ -375,7 +375,7 @@ const ISMSProcessWorkspace = () => {
           <button
             key={tab.key}
             onClick={() => setClause(tab.key)}
-            className={`rounded px-3 py-2 text-sm font-medium ${clause === tab.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}
+            className={`rounded px-3 py-2 text-sm font-medium ${clause === tab.key ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}
           >
             {t(tab.labelKey)}
           </button>
@@ -402,7 +402,7 @@ const ISMSProcessWorkspace = () => {
                 <section key={party.id} className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900 dark:text-white">{party.name}</h3>
-                    <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{party.type}</span>
+                    <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{party.type}</span>
                   </div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{party.contactEmail || party.contactPerson || '—'}</p>
                   <div className="mt-3 flex gap-2">
@@ -480,7 +480,7 @@ const ISMSProcessWorkspace = () => {
                       <div key={course.id} className="py-2 text-sm">
                         <div className="flex items-center justify-between">
                           <strong className="text-gray-900 dark:text-white">{course.title}</strong>
-                          <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{t(`ismsProcess.clause7.categories.${course.category}`) ?? course.category}</span>
+                          <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{t(`ismsProcess.clause7.categories.${course.category}`) ?? course.category}</span>
                         </div>
                         <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{course.status ?? ''}</p>
                       </div>
@@ -512,7 +512,7 @@ const ISMSProcessWorkspace = () => {
                             {assignment.dueDate ? t('ismsProcess.clause7.dueDateDisplay').replace('{date}', new Date(assignment.dueDate).toLocaleDateString()) : ''}
                           </p>
                           {canComplete && (
-                            <button onClick={() => handleOpenTrainingModal('completion', assignment)} className="mt-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">{t('ismsProcess.clause7.recordCompletion')}</button>
+                            <button onClick={() => handleOpenTrainingModal('completion', assignment)} className="mt-1 rounded bg-primary-600 px-2 py-1 text-xs font-medium text-white hover:bg-primary-700">{t('ismsProcess.clause7.recordCompletion')}</button>
                           )}
                         </div>
                       );

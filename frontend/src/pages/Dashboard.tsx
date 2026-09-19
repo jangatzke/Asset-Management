@@ -25,7 +25,7 @@ const emptyTicketMetrics = { openTickets: 0, assignedToMe: 0, recentTickets: [] 
 
 const ticketPriorityClasses: Record<string, string> = {
   low: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-  medium: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+  medium: 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200',
   high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200',
   critical: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200',
 };
@@ -138,7 +138,7 @@ const Dashboard = () => {
       <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6" aria-label={t('dashboard.tickets')}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('dashboard.tickets')}</h2>
-          <Link to="/tickets" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">{t('dashboard.recentTickets')}</Link>
+          <Link to="/tickets" className="text-sm font-medium text-primary-700 hover:underline dark:text-primary-300">{t('dashboard.recentTickets')}</Link>
         </div>
         <div className="mb-5 grid grid-cols-1 overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-900/40 md:grid-cols-3 md:divide-x md:divide-gray-200 dark:md:divide-gray-700">
           <Link to="/tickets?statusGroup=open" className="p-4 transition hover:bg-gray-100 dark:hover:bg-gray-700/50" aria-label={t('dashboard.openTickets')}>
@@ -181,14 +181,14 @@ const Dashboard = () => {
         <div className="mt-4 grid gap-3 md:grid-cols-3"><Link to="/incidents?status=open" className="rounded-md bg-white p-4 text-sm shadow-sm hover:ring-2 hover:ring-amber-400 dark:bg-gray-800"><span className="block font-semibold text-gray-900 dark:text-white">{t('dashboard.activeIncidents')}</span><span className="mt-1 block text-2xl font-bold text-red-600">{metrics.activeIncidents}</span></Link><Link to="/risks?status=open" className="rounded-md bg-white p-4 text-sm shadow-sm hover:ring-2 hover:ring-amber-400 dark:bg-gray-800"><span className="block font-semibold text-gray-900 dark:text-white">{t('dashboard.openRisks')}</span><span className="mt-1 block text-2xl font-bold text-orange-600">{metrics.openRisks}</span></Link><Link to="/tickets?statusGroup=open" className="rounded-md bg-white p-4 text-sm shadow-sm hover:ring-2 hover:ring-amber-400 dark:bg-gray-800"><span className="block font-semibold text-gray-900 dark:text-white">{t('dashboard.openTickets')}</span><span className="mt-1 block text-2xl font-bold text-primary-600">{ticketMetrics.openTickets}</span></Link></div>
       </section>
       <section className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('dashboard.workload')}</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('dashboard.workloadDescription')}</p></div><Link to="/ticket-workload" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">{t('dashboard.viewWorkload')}</Link></div>
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">{([{ key: 'current', label: t('dashboard.currentWeek') }, { key: 'next', label: t('dashboard.nextWeek') }] as const).map(({ key, label }) => <div key={key}><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</h3><div className="mt-3 space-y-3">{workload[key].slice(0, 10).map((entry) => <div key={entry.user.id}><div className="flex justify-between gap-2 text-sm"><span className="truncate">{entry.user.firstName || entry.user.lastName ? `${entry.user.firstName || ''} ${entry.user.lastName || ''}`.trim() : entry.user.email}</span><span className="font-semibold">{entry.utilizationPercent}%</span></div><div className="mt-1 h-2 overflow-hidden rounded bg-gray-200 dark:bg-gray-700"><div className="h-full rounded bg-blue-600" style={{ width: `${Math.min(entry.utilizationPercent, 100)}%` }} /></div></div>)}{workload[key].length === 0 && <p className="text-sm text-gray-500">{t('dashboard.noWorkload')}</p>}</div></div>)}</div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('dashboard.workload')}</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('dashboard.workloadDescription')}</p></div><Link to="/ticket-workload" className="text-sm font-medium text-primary-700 hover:underline dark:text-primary-300">{t('dashboard.viewWorkload')}</Link></div>
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">{([{ key: 'current', label: t('dashboard.currentWeek') }, { key: 'next', label: t('dashboard.nextWeek') }] as const).map(({ key, label }) => <div key={key}><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</h3><div className="mt-3 space-y-3">{workload[key].slice(0, 10).map((entry) => <div key={entry.user.id}><div className="flex justify-between gap-2 text-sm"><span className="truncate">{entry.user.firstName || entry.user.lastName ? `${entry.user.firstName || ''} ${entry.user.lastName || ''}`.trim() : entry.user.email}</span><span className="font-semibold">{entry.utilizationPercent}%</span></div><div className="mt-1 h-2 overflow-hidden rounded bg-gray-200 dark:bg-gray-700"><div className="h-full rounded bg-primary-600" style={{ width: `${Math.min(entry.utilizationPercent, 100)}%` }} /></div></div>)}{workload[key].length === 0 && <p className="text-sm text-gray-500">{t('dashboard.noWorkload')}</p>}</div></div>)}</div>
       </section>
       {costReport && (
         <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.costReport')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><h3 className="text-sm text-gray-500">{t('dashboard.currentFiscalYear').replace('{fiscalYear}', costReport.currentFiscalYear.label)}</h3><p className="text-2xl font-bold text-blue-600">{money(costReport.currentFiscalYear.plannedAmount)}</p></div>
+            <div><h3 className="text-sm text-gray-500">{t('dashboard.currentFiscalYear').replace('{fiscalYear}', costReport.currentFiscalYear.label)}</h3><p className="text-2xl font-bold text-primary-600">{money(costReport.currentFiscalYear.plannedAmount)}</p></div>
             <div><h3 className="text-sm text-gray-500">{t('dashboard.knownCostsNextFiscalYear')}</h3><p className="text-2xl font-bold text-purple-600">{money(costReport.nextFiscalYearKnownCosts.knownAmount)}</p></div>
             <div><h3 className="text-sm text-gray-500">{t('dashboard.acquiredCurrentFiscalYear')}</h3><p className="text-2xl font-bold text-green-600">{money(costReport.currentFiscalYear.acquiredAmount)}</p></div>
           </div>
@@ -196,7 +196,7 @@ const Dashboard = () => {
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.historicalDevelopmentDescription')}</p>
             {costReport.historicalDevelopment.map((year: any) => {
               const percentage = Math.min(100, Number(year.plannedAmount) / Math.max(1, Number(costReport.currentFiscalYear.plannedAmount)) * 100);
-              return <div key={year.fiscalYearLabel} className="flex items-center gap-3"><span className="w-20 text-sm dark:text-gray-200">{year.fiscalYearLabel}</span><div className="h-3 flex-1 rounded bg-blue-200 dark:bg-blue-950" role="progressbar" aria-label={`${year.fiscalYearLabel}: ${money(year.plannedAmount)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}><div className="h-3 rounded bg-blue-600" style={{ width: `${percentage}%` }} /></div><span className="w-14 text-right text-xs text-gray-500 dark:text-gray-400">{Math.round(percentage)}%</span><span className="w-28 text-right text-sm dark:text-gray-200">{money(year.plannedAmount)}</span></div>;
+              return <div key={year.fiscalYearLabel} className="flex items-center gap-3"><span className="w-20 text-sm dark:text-gray-200">{year.fiscalYearLabel}</span><div className="h-3 flex-1 rounded bg-primary-200 dark:bg-blue-950" role="progressbar" aria-label={`${year.fiscalYearLabel}: ${money(year.plannedAmount)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percentage)}><div className="h-3 rounded bg-primary-600" style={{ width: `${percentage}%` }} /></div><span className="w-14 text-right text-xs text-gray-500 dark:text-gray-400">{Math.round(percentage)}%</span><span className="w-28 text-right text-sm dark:text-gray-200">{money(year.plannedAmount)}</span></div>;
             })}
           </div>
         </section>

@@ -292,7 +292,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
         {rootAssetId && (
           <>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-full inline-block border-2 border-yellow-400 bg-blue-600"></span>
+              <span className="w-3 h-3 rounded-full inline-block border-2 border-yellow-400 bg-primary-600"></span>
               <span className="text-gray-600 dark:text-gray-400">{t('graph.focusAsset')}</span>
             </span>
             <span className="flex items-center gap-1">
@@ -320,12 +320,32 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
       {/* Loading / Error */}
       {loading && (
         <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
       )}
-      {error && (
-        <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">{error}</div>
-      )}
+      {/* Loading / error overlay covering the canvas viewport */}
+      {loading || error ? (
+        <div
+          data-testid="asset-graph-status"
+          aria-live="polite"
+          className={`relative w-full ${heightClassName} flex flex-col items-center justify-center gap-3 rounded-lg border bg-white dark:bg-gray-900 ${
+            error ? 'border-red-300 dark:border-red-800' : 'border-gray-200 dark:border-gray-700'
+          }`}
+          style={{ height }}
+        >
+          {error ? (
+            <div className="flex max-w-md flex-col items-start gap-2 px-6 text-center sm:text-left">
+              <p className="text-sm font-medium text-red-700 dark:text-red-300">{t('common.error')}</p>
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 px-6 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" aria-hidden="true" />
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.loading')}</p>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Canvas */}
       {!loading && visibleNodes.length > 0 && (
@@ -423,7 +443,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
                       {getNodeInitials(node)}
                     </text>
                     {focused && (
-                      <text x={-bounds.width / 2 + 64} y={-24} className="fill-blue-700 text-[10px] font-semibold uppercase tracking-wide dark:fill-blue-300">
+                      <text x={-bounds.width / 2 + 64} y={-24} className="fill-primary-700 text-[10px] font-semibold uppercase tracking-wide dark:fill-primary-300">
                         {t('graph.focusAsset')}
                       </text>
                     )}
@@ -444,18 +464,18 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
           {focusAssetNode && showIsolatedFocusAsset && (
             <div
               data-testid="asset-graph-isolated-focus"
-              className="pointer-events-none absolute left-1/2 top-1/2 flex max-w-md -translate-x-1/2 -translate-y-1/2 items-center gap-3 rounded-lg border border-blue-200 bg-blue-50/95 p-5 text-blue-900 shadow-lg dark:border-blue-800 dark:bg-blue-950/90 dark:text-blue-100"
+              className="pointer-events-none absolute left-1/2 top-1/2 flex max-w-md -translate-x-1/2 -translate-y-1/2 items-center gap-3 rounded-lg border border-primary-200 bg-blue-50/95 p-5 text-primary-900 shadow-lg dark:border-primary-800 dark:bg-blue-950/90 dark:text-primary-100"
             >
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-4 border-yellow-400 bg-blue-600 text-sm font-bold text-white shadow">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-4 border-yellow-400 bg-primary-600 text-sm font-bold text-white shadow">
                 {getNodeInitials(focusAssetNode)}
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{t('graph.focusAsset')}</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">{t('graph.focusAsset')}</div>
                 <div className="text-base font-semibold">{getNodeLabel(focusAssetNode)}</div>
-                <div className="text-sm text-blue-700 dark:text-blue-300">
+                <div className="text-sm text-primary-700 dark:text-primary-300">
                   {[focusAssetNode.displayId, focusAssetNode.type, focusAssetNode.criticality].filter(Boolean).join(' · ')}
                 </div>
-                {showIsolatedFocusAsset && <div className="mt-1 text-sm text-blue-700 dark:text-blue-300">{t('graph.noDependencies')}</div>}
+                {showIsolatedFocusAsset && <div className="mt-1 text-sm text-primary-700 dark:text-primary-300">{t('graph.noDependencies')}</div>}
               </div>
             </div>
           )}
@@ -472,7 +492,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
         <div data-testid="asset-graph-selected-details" className="mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow dark:border-gray-700 dark:bg-gray-800">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">{t('graph.details.title')}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300">{t('graph.details.title')}</p>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{getNodeLabel(selectedNode)}</h3>
               {selectedNode.displayId && <p className="text-sm text-gray-500 dark:text-gray-400">{selectedNode.displayId}</p>}
             </div>

@@ -3892,6 +3892,7 @@ model Ticket {
   serviceRequest ServiceRequest? // 1:1 extension for type='service_request'
   history        TicketHistoryEntry[]
   escalations    TicketEscalation[]
+  slaEscalations SlaEscalationLog[]
 
   // User references (ITIL: requester, assigned engineer, manager, creator)
   requester User? @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: SetNull)
@@ -4005,6 +4006,49 @@ model TicketTypeConfig {
   updatedAt       DateTime @updatedAt
 
   @@map("ticket_type_configs")
+}
+
+// ---- SLA breach escalation configuration (ITIL: escalation policy) ----------
+model SlaConfig {
+  id              String   @id @default(uuid())
+  enabled         Boolean  @default(false)
+  intervalMinutes Int      @default(60)
+  notifyAssignee  Boolean  @default(true)
+  notifyManager   Boolean  @default(true)
+  notifyEmail     Boolean  @default(false)
+  escalationLevels Json   @default("[1,2,3]") // escalation levels per breach (e.g. [1,2,3])
+  escalationDelayMinutes Int @default(30)       // minimum minutes a breach must be open before escalating
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  lastRunStatus   String?
+  lastRunMessage  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?
+
+  @@map("sla_configs")
+}
+
+// ---- SLA escalation audit log (per ticket, per breach type, per level) ------
+model SlaEscalationLog {
+  id             String    @id @default(uuid())
+  ticketId       String
+  escalationId   String?
+  breachType     String // 'firstResponse' | 'resolution'
+  level          Int       @default(1)
+  escalatedTo    String?
+  escalatedToType String  @default("user") // 'user' | 'group' | 'role'
+  sentVia        String    @default("in-app") // 'in-app' | 'email' | 'none'
+  status         String    @default("sent") // 'sent' | 'failed' | 'skipped'
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([breachType, createdAt])
+  @@unique([ticketId, breachType, level])
+  @@map("sla_escalation_logs")
 }
 
 // ---- Service catalog (request fulfillment: catalog items / request types) ---

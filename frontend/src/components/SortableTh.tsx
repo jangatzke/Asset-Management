@@ -45,7 +45,7 @@ export interface SortableThProps {
   className?: string;
 }
 
-const activeClass = 'text-blue-700 dark:text-blue-300';
+const activeClass = 'text-primary-700 dark:text-primary-300';
 const arrowClass = 'inline h-4 w-4';
 
 export const SortableTh: React.FC<SortableThProps> = ({

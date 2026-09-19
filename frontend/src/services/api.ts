@@ -873,7 +873,15 @@ export const reminderAdminApi = {
   runNow: () => api.post('/admin/reminders/run-now'),
   logs: (limit = 50) => api.get('/admin/reminders/logs', { params: { limit } }),
 };
-
+ 
+export const slaEscalationAdminApi = {
+  getConfig: () => api.get('/admin/sla-escalation/config'),
+  updateConfig: (data: any) => api.put('/admin/sla-escalation/config', data),
+  testSmtp: () => api.post('/admin/sla-escalation/test-smtp'),
+  runNow: () => api.post('/admin/sla-escalation/run-now'),
+  logs: (limit = 50) => api.get('/admin/sla-escalation/logs', { params: { limit } }),
+};
+ 
 export const emailGatewayAdminApi = {
   getConfig: () => api.get('/admin/email-gateway/config'),
   updateConfig: (data: any) => api.put('/admin/email-gateway/config', data),

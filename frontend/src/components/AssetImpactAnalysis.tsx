@@ -127,7 +127,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -170,7 +170,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Affected by Asset Type</h3>
             <div className="flex flex-wrap gap-2">
               {Object.entries(data.affectedByType).map(([type, count]) => (
-                <span key={type} className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm">
+                <span key={type} className="px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full text-sm">
                   {type}: {count as number}
                 </span>
               ))}

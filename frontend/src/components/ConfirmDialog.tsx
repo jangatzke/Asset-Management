@@ -97,13 +97,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
               danger
                 ? 'bg-red-100 dark:bg-red-900/50'
-                : 'bg-blue-100 dark:bg-blue-900/50'
+                : 'bg-primary-100 dark:bg-primary-900/50'
             }`}
           >
             <ExclamationTriangleIcon
               aria-hidden="true"
               className={`h-6 w-6 ${
-                danger ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                danger ? 'text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'
               }`}
             />
           </div>
@@ -147,7 +147,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className={`inline-flex h-9 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${
               danger
                 ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-                : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                : 'bg-primary-600 hover:bg-primary-700 focus:ring-primary-500'
             }`}
           >
             {confirmLabel ?? t('common.confirm')}

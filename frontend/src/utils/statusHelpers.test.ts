@@ -27,7 +27,7 @@ describe('getControlStatusColor', () => {
     expect(getControlStatusColor('implemented')).toContain('bg-green-100');
   });
   it('returns blue for planned', () => {
-    expect(getControlStatusColor('planned')).toContain('bg-blue-100');
+    expect(getControlStatusColor('planned')).toContain('bg-primary-100');
   });
   it('returns yellow for in_progress', () => {
     expect(getControlStatusColor('in_progress')).toContain('bg-yellow-100');
@@ -43,7 +43,7 @@ describe('getControlStatusColor', () => {
 describe('getStatusColor auto-detection', () => {
   it('detects control status from known values', () => {
     expect(getStatusColor('implemented')).toContain('bg-green-100');
-    expect(getStatusColor('planned')).toContain('bg-blue-100');
+    expect(getStatusColor('planned')).toContain('bg-primary-100');
   });
   it('defaults to risk color for non-control values', () => {
     expect(getStatusColor('high')).toContain('bg-orange-100');

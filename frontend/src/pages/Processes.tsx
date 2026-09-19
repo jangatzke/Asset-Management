@@ -40,7 +40,7 @@ const initialForm: ProcessForm = {
   processOwner: '',
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 
 const Processes = () => {
@@ -190,7 +190,7 @@ const Processes = () => {
       case 'active': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
       case 'inactive': return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
       case 'under_review': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      default: return 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200';
+      default: return 'bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200';
     }
   };
 
@@ -199,7 +199,7 @@ const Processes = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('processes.title')}</h1>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
       </div>
     );
@@ -210,7 +210,7 @@ const Processes = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('processes.title')}</h1>
         <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
-          className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600">
+          className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600">
           {t('processes.newProcess')}
         </button>
       </div>
@@ -219,7 +219,7 @@ const Processes = () => {
 
       <div className="flex gap-4 mb-4">
         <input type="text" placeholder={t('processes.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
           <option value="">{t('processes.filters.allStatuses')}</option>
@@ -263,10 +263,10 @@ const Processes = () => {
                 <td className="px-6 py-4 text-sm text-gray-500">{p.processOwner || '-'}</td>
                 <td className="px-6 py-4 text-sm">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => handleViewDetails(p)} aria-label={`${t('common.view')}: ${p.name}`} title={t('common.view')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                    <button onClick={() => handleViewDetails(p)} aria-label={`${t('common.view')}: ${p.name}`} title={t('common.view')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                       <EyeIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
-                    <button onClick={() => handleEdit(p)} aria-label={`${t('common.edit')}: ${p.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`}>
+                    <button onClick={() => handleEdit(p)} aria-label={`${t('common.edit')}: ${p.name}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                       <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                     <button onClick={() => setHistoryProcess(p)} aria-label={`${t('history.viewHistory')}: ${p.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
@@ -289,18 +289,18 @@ const Processes = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.name')} *</label>
             <input type="text" value={form.values.name} onChange={(e) => form.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.description')}</label>
             <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.category')}</label>
               <select value={form.values.category} onChange={(e) => form.handleChange({ category: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="operational">{t('processes.categories.operational')}</option>
                 <option value="management">{t('processes.categories.management')}</option>
                 <option value="support">{t('processes.categories.support')}</option>
@@ -310,7 +310,7 @@ const Processes = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.criticality')}</label>
               <select value={form.values.criticality} onChange={(e) => form.handleChange({ criticality: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="low">{t('processes.criticality.low')}</option>
                 <option value="medium">{t('processes.criticality.medium')}</option>
                 <option value="high">{t('processes.criticality.high')}</option>
@@ -322,7 +322,7 @@ const Processes = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.status')}</label>
               <select value={form.values.status} onChange={(e) => form.handleChange({ status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="active">{t('processes.status.active')}</option>
                 <option value="inactive">{t('processes.status.inactive')}</option>
                 <option value="under_review">{t('processes.status.under_review')}</option>
@@ -331,7 +331,7 @@ const Processes = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.processOwner')}</label>
               <input type="text" value={form.values.processOwner} onChange={(e) => form.handleChange({ processOwner: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
           </div>
 
@@ -341,7 +341,7 @@ const Processes = () => {
               {t('common.cancel')}
             </button>
             <button onClick={handleSubmit} disabled={saving}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50">
+              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50">
               {saving ? t('common.saving') : (editingId ? t('common.update') : t('common.create'))}
             </button>
           </div>
@@ -373,7 +373,7 @@ const Processes = () => {
             <div>
               <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">{t('processes.detail.linkedRisks')}</h4>
               {risksLoading ? (
-                <div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div></div>
+                <div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div></div>
               ) : linkedRisks.length > 0 ? (
                 <ul className="space-y-1">
                   {linkedRisks.map((r: any) => (

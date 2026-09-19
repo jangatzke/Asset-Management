@@ -165,14 +165,14 @@ const addComment = async (event: FormEvent) => {
   };
 
   if (!ticket && !error) return <main className="p-8 text-gray-600 dark:text-gray-300">{t('tickets.detail.loading')}</main>;
-  if (!ticket) return <main className="p-8"><Link to="/tickets" className="text-blue-700 hover:underline">← {t('navigation.tickets')}</Link><p role="alert" className="mt-4 text-red-700">{error}</p></main>;
+  if (!ticket) return <main className="p-8"><Link to="/tickets" className="text-primary-700 hover:underline">← {t('navigation.tickets')}</Link><p role="alert" className="mt-4 text-red-700">{error}</p></main>;
 
   const targets = getAllowedTicketTransitions(ticket.type as any, ticket.status);
   const selectableStatuses = isTerminalTicketStatus(ticket.type as any, ticket.status)
     ? [ticket.status, REOPEN_TARGET_STATUS[ticket.type]]
     : [ticket.status, ...targets];
   return <main id="main-content" className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
-    <Link to="/tickets" className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">← {t('tickets.detail.allTickets')}</Link>
+    <Link to="/tickets" className="text-sm font-medium text-primary-700 hover:underline dark:text-primary-300">← {t('tickets.detail.allTickets')}</Link>
     {error && <div role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
     <header className="mt-4 rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
       <div className="flex flex-col justify-between gap-4 sm:flex-row">
@@ -203,7 +203,7 @@ const addComment = async (event: FormEvent) => {
           {canAssign && <div className="mt-3">
             <EntityPicker labelKey="tickets.detail.assignee" entityType="user" value={assigneePicker} onChange={setAssigneePicker} />
             <div className="mt-2 flex gap-2">
-              <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{t('tickets.detail.assign')}</button>
+              <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.assign')}</button>
               {assignee && <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200">{t('tickets.detail.unassign')}</button>}
             </div>
           </div>}
@@ -216,7 +216,7 @@ const addComment = async (event: FormEvent) => {
                 {assetContext.assets.map((entry) => {
                   const a = entry.asset;
                   return <li key={entry.id} className="flex items-center justify-between rounded border p-2 dark:border-gray-700">
-                    <Link to={`/assets/${a?.id}`} className="group flex flex-1 items-center gap-2 text-blue-700 hover:underline dark:text-blue-300">
+                    <Link to={`/assets/${a?.id}`} className="group flex flex-1 items-center gap-2 text-primary-700 hover:underline dark:text-primary-300">
                       <span className="font-semibold">{a?.displayId}</span> · {a?.name}
                       <div className="text-xs text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300">{a?.assetType?.name} · {a?.manufacturer || t('tickets.detail.noManufacturer')} · {a?.status || ''}</div>
                     </Link>
@@ -229,7 +229,7 @@ const addComment = async (event: FormEvent) => {
           {canContext && <div className="mt-3">
             <EntityPicker labelKey="tickets.detail.attachAsset" entityType="asset" multiple values={assetPickerValues} onValuesChange={setAssetPickerValues} />
             <div className="mt-2">
-              <button disabled={working || !assetPickerValues.length} onClick={() => void addAssets()} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{t('tickets.detail.attachAssets')}</button>
+              <button disabled={working || !assetPickerValues.length} onClick={() => void addAssets()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.attachAssets')}</button>
             </div>
           </div>}
         </div>
@@ -252,17 +252,17 @@ const addComment = async (event: FormEvent) => {
         {canWrite && <form onSubmit={addComment} className="mt-4 border-t pt-4 dark:border-gray-700">
           <textarea value={comment} onChange={(event) => setComment(event.target.value)} required rows={3} placeholder={t('tickets.detail.updatePlaceholder')} className="w-full rounded-md border p-2 dark:bg-gray-700" />
           <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} /> {t('tickets.detail.internalWorkNote')}</label>
-          <button disabled={working} className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.addUpdate')}</button>
+          <button disabled={working} className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.addUpdate')}</button>
         </form>}
         {!canWrite && user?.id === ticket.requester?.id && <form onSubmit={requesterCommentSubmit} className="mt-4 border-t pt-4 dark:border-gray-700">
           <textarea value={requesterCommentText} onChange={(event) => setRequesterCommentText(event.target.value)} required rows={3} placeholder={t('tickets.detail.requesterCommentPlaceholder')} className="w-full rounded-md border p-2 dark:bg-gray-700" />
-          <button disabled={working} className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.submitComment')}</button>
+          <button disabled={working} className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.submitComment')}</button>
         </form>}
     </section>
     <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={t('tickets.detail.historyTitle')} maxWidthClassName="max-w-2xl">
         <ol className="mt-4 space-y-3">
           {history.length ? history.map((entry) => (
-            <li key={entry.id} className="border-l-2 border-blue-500 pl-3">
+            <li key={entry.id} className="border-l-2 border-primary-500 pl-3">
               <p className="text-sm font-semibold">{entry.action}</p>
               <p className="text-sm text-gray-700 dark:text-gray-200">{entry.summary}</p>
               <time className="text-xs text-gray-500">{new Date(entry.createdAt).toLocaleString()}</time>
