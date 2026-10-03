@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClockIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { processApi } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -60,9 +60,7 @@ const Processes = () => {
   const [risksLoading, setRisksLoading] = useState(false);
   const [historyProcess, setHistoryProcess] = useState<Process | null>(null);
 
-  useEffect(() => { loadProcesses(); }, []);
-
-  const loadProcesses = async () => {
+  const loadProcesses = useCallback(async () => {
     try {
       setLoading(true);
       const response = await processApi.list({ page: 1, limit: 100 });
@@ -70,7 +68,9 @@ const Processes = () => {
     } catch (err: any) {
       setError(err.response?.data?.error?.message || t('processes.loadError'));
     } finally { setLoading(false); }
-  };
+  }, [t]);
+
+  useEffect(() => { loadProcesses(); }, [loadProcesses]);
 
   const loadRisks = async (processId: string) => {
     try {

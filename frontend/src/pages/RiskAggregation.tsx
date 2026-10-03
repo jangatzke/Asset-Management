@@ -75,7 +75,7 @@ const RiskAggregation = () => {
     { key: 'scope', label: t('riskAggregation.tabs.scope') },
   ];
 
-  const currentData = data[activeTab] || [];
+  const currentData = useMemo(() => data[activeTab] || [], [data, activeTab]);
 
   const { sort, toggleSort } = useLocalSort({ routeKey: `risk-aggregation-${activeTab}`, defaultSort: { column: 'group', direction: 'asc' } });
 

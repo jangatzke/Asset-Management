@@ -448,7 +448,7 @@ const Assets = () => {
     } finally {
       setSaving(false);
     }
-  }, [form, editingId, existingRelations, t, addToast, refreshCurrentQuery]);
+  }, [form, editingId, existingRelations, t, addToast, refreshCurrentQuery, validateForm]);
 
   const handleEdit = useCallback(async (asset: Asset) => {
       const openEditor = (data: any) => {
@@ -600,6 +600,7 @@ const Assets = () => {
 
           <DataTableShell
             onExport={exportVisibleAssets}
+            filterLabel={t('common.filters')}
             rowCount={sortedAssets.length}
             densityLabel={t('dataTable.density')}
             compactLabel={t('dataTable.compact')}

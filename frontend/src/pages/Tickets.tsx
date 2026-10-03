@@ -130,6 +130,7 @@ export default function Tickets() {
     <DataTableShell
       onExport={exportVisibleTickets}
       exportLabel="Export CSV"
+      filterLabel={t('common.filters')}
       rowCount={sortedTickets.length}
       densityLabel={t('dataTable.density')}
       compactLabel={t('dataTable.compact')}

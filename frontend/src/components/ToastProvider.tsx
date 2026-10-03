@@ -70,7 +70,7 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
         timers.delete(id);
       }
     });
-  }, [toasts, removeToast]);
+  }, [toasts, removeToast, defaultDuration]);
 
   // Clean up all pending timers on unmount to avoid leaks.
   useEffect(() => {

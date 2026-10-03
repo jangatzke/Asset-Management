@@ -430,6 +430,7 @@ const CostPlanning = () => {
       </div>
       <DataTableShell
         toolbar={<h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('costPlanning.yearlyPlanItems')}</h2>}
+        filterLabel={t('common.filters')}
         filters={(
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div className="relative"><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.search')}</label><div className="relative"><MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" /><input type="text" value={filters.search} onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))} placeholder={t('costPlanning.searchPlaceholder')} className="w-full rounded border-gray-300 py-2 pl-8 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div></div>
