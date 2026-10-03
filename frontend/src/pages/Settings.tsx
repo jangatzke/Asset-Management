@@ -241,11 +241,13 @@ const Settings = () => {
             </label>
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value as 'en' | 'de')}
+              onChange={(e) => setLanguage(e.target.value as 'en' | 'de' | 'es' | 'fr')}
               className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="en">English</option>
               <option value="de">Deutsch</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
             </select>
           </div>
 

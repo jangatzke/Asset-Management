@@ -3,12 +3,16 @@ import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api';
 import en from '../locales/en.json';
 import de from '../locales/de.json';
+import es from '../locales/es.json';
+import fr from '../locales/fr.json';
 
-type Language = 'en' | 'de';
+type Language = 'en' | 'de' | 'es' | 'fr';
 
 const translations: Record<Language, any> = {
   en,
-  de
+  de,
+  es,
+  fr
 };
 
 /**
@@ -44,6 +48,8 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined);
 function getBrowserLocale(): Language {
   const locale = navigator.language.toLowerCase();
   if (locale.startsWith('de')) return 'de';
+  if (locale.startsWith('es')) return 'es';
+  if (locale.startsWith('fr')) return 'fr';
   return 'en';
 }
 
@@ -52,7 +58,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('language');
-    if (saved && (saved === 'en' || saved === 'de')) {
+    if (saved && (saved === 'en' || saved === 'de' || saved === 'es' || saved === 'fr')) {
       return saved as Language;
     }
     return getBrowserLocale();
@@ -61,7 +67,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   // Sync from user profile when loaded, without overwriting an explicit local choice
   useEffect(() => {
     if (!user) return;
-    if (user.language && (user.language === 'en' || user.language === 'de')) {
+    if (user.language && (user.language === 'en' || user.language === 'de' || user.language === 'es' || user.language === 'fr')) {
       setLanguageState(user.language as Language);
     } else {
       // No DB value yet - keep saved/local language and persist that preference
@@ -80,7 +86,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     updateUserPreferences({ language: lang });
     try {
       const response = await authApi.updatePreferences({ language: lang });
-      if (response.data?.language === 'en' || response.data?.language === 'de') {
+      if (response.data?.language === 'en' || response.data?.language === 'de' || response.data?.language === 'es' || response.data?.language === 'fr') {
         updateUserPreferences({ language: response.data.language });
       }
     } catch (err) {

@@ -1,6 +1,8 @@
 /// <reference types="vitest" />
 import en from './en.json';
 import de from './de.json';
+import es from './es.json';
+import fr from './fr.json';
 
 declare const test: typeof import('vitest').test;
 declare const expect: typeof import('vitest').expect;
@@ -8,7 +10,7 @@ declare const expect: typeof import('vitest').expect;
 const resolveKey = (source: Record<string, any>, key: string) => key.split('.').reduce<any>((value, part) => value?.[part], source);
 
 test('risk list locale keys resolve to translated strings', () => {
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     expect(resolveKey(locale, 'risks.title')).toEqual(expect.any(String));
     expect(resolveKey(locale, 'risks.title')).not.toBe('risks.title');
     expect(resolveKey(locale, 'risks.searchPlaceholder')).toEqual(expect.any(String));
@@ -17,7 +19,7 @@ test('risk list locale keys resolve to translated strings', () => {
 });
 
 test('common.all filter label exists in both locales', () => {
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     const key = 'common.all';
     const value = resolveKey(locale, key);
     expect(value).toBeDefined();
@@ -28,7 +30,7 @@ test('common.all filter label exists in both locales', () => {
 });
 
 test('common.allStatuses filter label exists in both locales', () => {
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     const key = 'common.allStatuses';
     const value = resolveKey(locale, key);
     expect(value).toBeDefined();
@@ -54,7 +56,7 @@ test('shared history locale keys resolve in both locales', () => {
     'history.fields.status',
   ];
 
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     for (const key of keys) {
       const value = resolveKey(locale, key);
       expect(value).toBeDefined();
@@ -79,7 +81,7 @@ test('database admin locale keys resolve in both locales', () => {
     'databaseAdmin.messages.dryRunSuccess',
   ];
 
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     for (const key of keys) {
       const value = resolveKey(locale, key);
       expect(value).toBeDefined();
@@ -100,7 +102,7 @@ test('ticket workflow and SLA locale keys resolve in both locales', () => {
     'ticketSla.title', 'ticketSla.firstResponseHours', 'ticketSla.resolutionHours',
   ];
 
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     for (const key of keys) {
       const value = resolveKey(locale, key);
       expect(value).toEqual(expect.any(String));
@@ -128,7 +130,7 @@ test('operations and administration locale catalogs remain complete in both loca
     'vmware.configuration', 'vmware.verifyCertificate',
   ];
 
-  for (const locale of [en, de]) {
+  for (const locale of [en, de, es, fr]) {
     for (const key of keys) {
       const value = resolveKey(locale, key);
       expect(value).toEqual(expect.any(String));

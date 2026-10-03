@@ -117,7 +117,6 @@ asset-management-isms/
 |-- .env.production.example  # Production environment template for Docker/Portainer deployments
 |-- package.json             # Root workspace and project-wide scripts
 |-- plan.md                  # ISO 27001 gap analysis plan
-|-- fix-locales.js           # Locale file generation helper
 |-- iso27001-annex-a.tsv     # ISO 27001 Annex A control catalog (TSV)
 |-- .gitleaks.toml           # Secret-scanning configuration
 |-- .semgrepignore           # Semgrep ignore rules
