@@ -1,5 +1,20 @@
 # Implementation Log
 
+## 2026-10-03 — Backfill: features implemented after the last logged entry (retrospective)
+
+| Field | Value |
+|-------|-------|
+| Scope | Retrospective documentation of major product features merged after `2026-07-28` that were never recorded in this log. No code changes; documentation-only backfill plus the associated docs refresh (README, `docs/api/openapi.yaml`, `docs/operations.md`, `docs/requirements.md`, `docs/compliance-matrix.yml`). |
+| IT ticket system | Added the full ITSM ticket module: ticket CRUD with display IDs, status workflow (`shared/src/ticketTransitions.ts`), assignment, comments, requester comments, escalation, links, history, and multi-asset linking via `TicketAsset` (commits `26c55fa`, `94bc0ed`, `ef8bb4d`, `ee78386`). Workload planning endpoint `GET /tickets/workload` and dashboard widget included. |
+| E-mail-to-ticket gateway | ITIL-style inbound gateway supporting IMAP and Exchange Online OAuth2 (MSAL client credentials), case-insensitive sender matching via `User.email`, RFC 822 `Message-ID` deduplication, reply threading into internal ticket comments, and admin-only configuration at `/admin/email-gateway` (commit `ea3c68c`). Polling runs cluster-safely through `executeTrackedJob` (jobType `email-gateway`). |
+| Ticket SLA and breach escalation | Per-ticket-type SLA targets configurable via `/admin/sla-escalation`; scheduled `sla-breach-scan` job (jobType `sla-breach`) detects breaches, escalates by e-mail through SMTP, and writes an exportable escalation log (commits `da71b47`, `bc97825`). Migration: `backend/prisma/migrations/20260918181200_sla_escalation/migration.sql`. |
+| Controlled ticket type change | `POST /tickets/{id}/type` replaces the type extension atomically, resets statuses where required, rejects invalid conversions with HTTP 409, and writes an audit trail entry (commit `4734533`). |
+| i18n expansion | Spanish and French locale catalogs added; UI now ships German/English/Spanish/French (commit `30007c7`). README prerequisites corrected to Node.js ≥ 20 / npm ≥ 10 (CI runs Node 22, commit `baaa41a`). |
+| Deployment | Docker and Portainer deployment setup added: root `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `.env.production.example` (commit `5229983`). |
+| Security/dependency | Multer upgraded to supported v2 (`28ef847`), nodemailer upgraded to 10.x with transitive-advisory handling in the vulnerability gate (`90d9c3a`), credential encryption service and webhook/service-account rotation fixes (`fc8e527`, `1e6dd69`). |
+| Docs refresh (this change) | `README.md`: i18n language list, Node.js/npm prerequisites, `/api/v1/tickets` API-table row. `docs/api/openapi.yaml`: added ~57 previously undocumented paths (tickets incl. `/type`, admin ticket-types/sla-escalation/email-gateway, action-center, catalog, cost-planning, imports) and repaired two pre-existing structural defects (root-level path block re-indented under `paths:`, duplicate `components:` blocks merged); spec now validates with 155 paths / 35 schemas. `docs/operations.md`: background-jobs table extended with `ticket-email-gateway` and `sla-breach-scan`. `docs/requirements.md` + `docs/compliance-matrix.yml`: added TCK-605 (SLA breach escalation) and TCK-606 (controlled ticket type change) with test evidence. |
+| verification | `node scripts/check-requirements.ts` PASS; OpenAPI spec parses as valid YAML via js-yaml (155 paths, 35 schemas); phase0 docs-consistency expectations unchanged (no Phase 0–5 IDs modified). |
+
 ## 2026-07-28 — Build and Lint Warning Cleanup
 
 | Field | Value |

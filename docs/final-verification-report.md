@@ -1,5 +1,7 @@
 # Final Integration and Compliance Verification
 
+> **Hinweis zur Aktualität (Stand 2026-10-03):** Alle Befunde in diesem Dokument sind datierte Verifikations-Snapshots (bis `2026-07-28`) und werden als Historie belassen. Sie bilden **nicht** den aktuellen Produktstand ab: Seit dem letzten Eintrag sind u. a. das IT-Ticket-System inkl. E-Mail-Gateway, die SLA-Breach-Eskalation (`TCK-605`), der kontrollierte Ticket-Typwechsel (`TCK-606`), spanische/französische Sprachkataloge sowie Docker/Portainer-Deployment hinzugekommen. Die Zahlen „59 requirements scanned“ und „23 migrations“ entsprechen dem Stand von Juli 2026; aktuelle Werte sind über `node scripts/check-requirements.ts` bzw. `npx prisma migrate status` (mit `DATABASE_URL`) zu ermitteln. Der aktuelle Dokumentationsstand findet sich in `docs/implementation-log.md`, `docs/api/openapi.yaml` und `docs/operations.md`.
+
 ## 2026-07-28 Build/Lint Warning Cleanup Addendum
 
 **Scope:** Remove the remaining non-blocking frontend Vite chunk-size warning and workspace lint warnings only; no new product features or ISMS modules.

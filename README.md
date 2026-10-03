@@ -30,7 +30,7 @@ IT asset management and ISMS application for asset inventory, risk and control m
 The project is structured as an npm workspace with `backend`, `frontend`, and `shared`. The current repository state includes:
 
 - Backend API with Express, TypeScript, Prisma ORM, PostgreSQL runtime support, and provider-specific Microsoft SQL Server runtime support.
-- React/Vite frontend with TypeScript, routing, i18n files for German/English, and dark mode context.
+- React/Vite frontend with TypeScript, routing, i18n files for German/English/Spanish/French, and dark mode context.
 - Shared types and DTOs in the `shared` workspace.
 - Prisma schema, seed logic, and migration-/runtime-related helper scripts in the backend.
 - Tests for backend and frontend, including asset, audit, risk/workflow, API, and UI helper functions.
@@ -127,8 +127,8 @@ asset-management-isms/
 
 ## Prerequisites
 
-- Node.js version 18 or later.
-- npm version 9 or later.
+- Node.js version 20 or later (the CI pipeline runs on Node.js 22; the backend Docker runtime uses `node:20-alpine`). Node.js 18 is end-of-life and no longer recommended.
+- npm version 10 or later.
 - PostgreSQL for default local development and tests against a real database, or Microsoft SQL Server when `DB_PROVIDER=sqlserver` is configured and the SQL Server Prisma schema/client path is generated.
 - Optional: credentials/permissions for Microsoft Intune, VMware vCenter, or Proxmox if these integrations are used.
 
@@ -617,7 +617,7 @@ The API is versioned under `/api/v1`. Registered routes in the backend include, 
 | Area | Base Path |
 |---|---|
 | Auth and users | `/api/v1/auth`, `/api/v1/users` |
-| Core objects | `/api/v1/assets`, `/api/v1/risks`, `/api/v1/controls`, `/api/v1/incidents` |
+| Core objects | `/api/v1/assets`, `/api/v1/risks`, `/api/v1/controls`, `/api/v1/incidents`, `/api/v1/tickets` |
 | Organization and administration | `/api/v1/organization`, `/api/v1/admin` |
 | Audit and evidence | `/api/v1/audit-logs`, `/api/v1/evidence`, `/api/v1/documents` |
 | ISMS/Compliance | `/api/v1/frameworks`, `/api/v1/nis2`, `/api/v1/phase6`, `/api/v1/isms-operations`, `/api/v1/catalog` |

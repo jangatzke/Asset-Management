@@ -1,4 +1,6 @@
-# Architektur – Asset Management System (ISO 27001)
+# Architektur - Asset Management System (ISO 27001)
+
+> **Hinweis zur Aktualität (Stand 2026-10-03):** Die Abschnitte „1. Ist-Architektur“ bis „4. Migration-Pfad“ sind eine Momentaufnahme des Refactoring-Baselines (Juli 2026) und werden bewusst als Historie belassen. Seitdem sind weitere Module hinzugekommen, die hier nicht gespiegelt sind: IT-Ticket-System inkl. E-Mail-Gateway (IMAP/Exchange Online OAuth2), SLA-Breach-Eskalation (`sla-breach-scan` Job), kontrollierter Ticket-Typwechsel (`POST /tickets/{id}/type`), Action Center, Kontroll-Kataloge, Kostenplanung, Import-Pipelines, Webhooks/Service Accounts sowie der cluster-safe Hintergrund-Job-Rahmen (`executeTrackedJob`, PostgreSQL-Advisory-Locks). Der aktuelle Stand ist in `docs/operations.md`, `docs/api/openapi.yaml` und `docs/implementation-log.md` dokumentiert.
 
 ## Phase 3 Authentication State Machine
 

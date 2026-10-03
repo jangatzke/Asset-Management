@@ -36,6 +36,42 @@
     - Polling is executed through the cluster-safe tracked job runner.
     - Configuration changes are audit logged and secret values are redacted from responses.
 
+- id: TCK-605
+  title: Configurable ticket SLA targets with cluster-safe breach escalation
+  priority: P1
+  dimension: application_coverage
+  status: tested
+  implementation:
+    - backend/src/services/sla.service.ts
+    - backend/src/services/sla.scheduler.ts
+    - backend/src/routes/admin.routes.ts
+    - backend/prisma/migrations/20260918181200_sla_escalation/migration.sql
+    - frontend/src/pages/AdminSlaEscalation.tsx
+  tests:
+    - backend/src/__tests__/sla.escalation.test.ts
+  gaps: []
+  evidence:
+    - Per-ticket-type SLA targets are managed via /admin/sla-escalation/config with admin-only access.
+    - The scheduled sla-breach-scan job (jobType sla-breach) runs through executeTrackedJob with PostgreSQL advisory locks and records each run in JobRun.
+    - Breaches trigger e-mail escalation via SMTP test support (/admin/sla-escalation/test-smtp) and manual runs (/admin/sla-escalation/run-now).
+    - Escalation history is retrievable via /admin/sla-escalation/logs and exportable from the admin page.
+
+- id: TCK-606
+  title: Controlled ticket type change with audit trail
+  priority: P1
+  dimension: application_coverage
+  status: tested
+  implementation:
+    - backend/src/routes/ticket.routes.ts
+    - backend/src/services/ticket.service.ts
+    - shared/src/dtos/index.ts
+  tests:
+    - backend/src/__tests__/ticket.type-change.test.ts
+  gaps: []
+  evidence:
+    - POST /tickets/{id}/type validates the target type against ChangeTicketTypeSchema and excludes the incident type.
+    - The type extension record is replaced atomically and status transitions are reset where required (for example Problem to initial Change status).
+    - Invalid conversions are rejected with HTTP 409; every accepted change is written to the audit trail.
 
 # Compliance Matrix — Asset Management System
 #

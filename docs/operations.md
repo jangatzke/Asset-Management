@@ -717,6 +717,10 @@ Background jobs use PostgreSQL advisory locks for cluster-safety. When multiple 
 |----------|---------------|----------|-------------|
 | `intune_sync` | `backend/src/services/intune.scheduler.ts` | Configurable interval | Syncs devices from Microsoft Intune/Graph API |
 | `reminder_send` | `backend/src/services/reminder.scheduler.ts` | Configurable interval | Sends due reminders (e.g., due-date, risk treatment) |
+| `ticket-email-gateway` | `backend/src/services/emailGateway.scheduler.ts` | Configurable interval (admin-configured mailbox poll) | Polls the inbound IMAP/Exchange Online mailbox and converts e-mails into tickets with Message-ID deduplication |
+| `sla-breach-scan` | `backend/src/services/sla.scheduler.ts` | Configurable interval | Scans for SLA-breached tickets and triggers escalation notifications via SMTP |
+
+All tracked jobs run through `executeTrackedJob` (`backend/src/services/jobRunner.service.ts`), which acquires the advisory lock, records the run in `job_runs`, and marks concurrent instances as `skipped`. Webhook delivery retries are also recorded with `jobType: webhook` via `backend/src/services/webhookQueue.service.ts`.
 
 ### 14.3 Advisory Lock Mechanism
 - **Lock acquisition**: `SELECT pg_try_advisory_lock(hashtext('phase10_lock_<jobId>')) AS acquired`
