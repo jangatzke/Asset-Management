@@ -17,7 +17,7 @@
  *    cached in memory only (short-lived, never logged).
  */
 
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { ConfidentialClientApplication } from '@azure/msal-node';
@@ -609,7 +609,7 @@ export class EmailGatewayService {
 
   // ---- Outbound SMTP ------------------------------------------------------
 
-  private buildSmtpTransport(config: AnyObject, accessToken?: string): nodemailer.Transporter {
+  private buildSmtpTransport(config: AnyObject, accessToken?: string): Transporter {
     // Decrypt password for runtime use (backward compatible with plaintext)
     const decryptedPassword = this.decryptIfNeeded(config.smtpPassword);
     const options: AnyObject = {

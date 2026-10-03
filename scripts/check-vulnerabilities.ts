@@ -130,30 +130,63 @@ function main(): number {
   // `suggestions` field is absent. Derive the stable GHSA/CVE identifier from
   // every direct advisory URL so an empty placeholder allowlist cannot turn a
   // failing security gate into a false pass.
+  //
+  // Transitive dependents (e.g. micromatch pulled in via the braces advisory)
+  // only carry string `via` references and no direct advisory URL. Resolve each
+  // package's dependency chain to the underlying GHSA/CVE identifiers: an
+  // allowlisted root advisory then also covers its dependents, while any
+  // unallowlisted advisory anywhere in the chain still fails the gate closed.
+  const byName = audit.vulnerabilities ?? {};
+
+  function collectAdvisoryIds(
+    name: string,
+    seen: Set<string> = new Set()
+  ): Array<{ id: string; severity: AuditSeverity }> {
+    const found: Array<{ id: string; severity: AuditSeverity }> = [];
+    if (seen.has(name)) return found;
+    seen.add(name);
+    const entry = byName[name];
+    if (!entry) return found;
+    for (const via of entry.via) {
+      if (typeof via === "string") {
+        found.push(...collectAdvisoryIds(via, seen));
+        continue;
+      }
+      if (via.severity !== "high" && via.severity !== "critical") continue;
+      const id = via.url?.match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+)/i)?.[1] ?? name;
+      found.push({ id, severity: via.severity });
+    }
+    return found;
+  }
+
   let blocked = false;
 
-  for (const vulnerability of Object.values(audit.vulnerabilities ?? {})) {
+  for (const vulnerability of Object.values(byName)) {
     if (vulnerability.severity !== "high" && vulnerability.severity !== "critical") continue;
 
-    const advisories = vulnerability.via.filter((via): via is AuditViaAdvisory => typeof via !== "string");
+    const advisories = collectAdvisoryIds(vulnerability.name);
     if (advisories.length === 0) {
       console.error(`BLOCKED: ${vulnerability.severity.toUpperCase()} — ${vulnerability.name} has no direct advisory identifier`);
       blocked = true;
       continue;
     }
 
+    const uniqueAdvisories = new Map<string, AuditSeverity>();
     for (const advisory of advisories) {
-      if (advisory.severity !== "high" && advisory.severity !== "critical") continue;
-      const vulnId = advisory.url?.match(/(GHSA-[a-z0-9-]+|CVE-\d{4}-\d+)/i)?.[1] ?? vulnerability.name;
-      const result = isVulnerabilityAllowed(vulnId, advisory.severity, allowlist);
+      if (!uniqueAdvisories.has(advisory.id)) uniqueAdvisories.set(advisory.id, advisory.severity);
+    }
 
+    let packageBlocked = false;
+    for (const [vulnId, severity] of uniqueAdvisories) {
+      const result = isVulnerabilityAllowed(vulnId, severity, allowlist);
       if (!result.allowed) {
-        console.error(`BLOCKED: ${advisory.severity.toUpperCase()} — ${vulnerability.name} (${vulnId}) — not in allowlist`);
-        blocked = true;
+        console.error(`BLOCKED: ${severity.toUpperCase()} — ${vulnerability.name} (${vulnId}) — not in allowlist`);
+        packageBlocked = true;
       } else {
-        console.log(`ALLOWED: ${advisory.severity.toUpperCase()} — ${vulnerability.name}: ${result.reason}`);
+        console.log(`ALLOWED: ${severity.toUpperCase()} — ${vulnerability.name} (${vulnId}): ${result.reason}`);
       }
     }
+    if (packageBlocked) blocked = true;
   }
 
   if (blocked) {
