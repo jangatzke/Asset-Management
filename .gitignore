@@ -52,5 +52,6 @@ jest_output*.txt
 jest_result*.txt
 *_output.txt
 tsc_*.txt
+tmp-*.txt
 # Patch/diff artifacts
 *.patch

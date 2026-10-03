@@ -49,6 +49,9 @@ var mockPrisma = {
   displayIdCounter: {
     upsert: jest.fn(),
   },
+  entityHistoryEntry: {
+    create: jest.fn(),
+  },
   $transaction: jest.fn((fn) => fn(mockPrisma)),
 };
 

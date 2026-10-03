@@ -39,9 +39,9 @@ describe('debug', () => {
     require('mailparser').simpleParser = mailParserMock;
 
     const { ImapFlow } = require('imapflow');
-    const connectSpy = jest.spyOn(ImapFlow.prototype, 'connect').mockResolvedValue(undefined);
-    const logoutSpy = jest.spyOn(ImapFlow.prototype, 'logout').mockResolvedValue(undefined);
-    const getMailboxLockSpy = jest
+    const _connectSpy = jest.spyOn(ImapFlow.prototype, 'connect').mockResolvedValue(undefined);
+    const _logoutSpy = jest.spyOn(ImapFlow.prototype, 'logout').mockResolvedValue(undefined);
+    const _getMailboxLockSpy = jest
       .spyOn(ImapFlow.prototype, 'getMailboxLock')
       .mockResolvedValue({ release: jest.fn().mockResolvedValue(undefined), mailbox: undefined } as any);
     jest

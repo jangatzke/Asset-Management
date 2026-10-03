@@ -18,6 +18,9 @@ const mockPrismaClient: any = {
   asset: {
     findMany: jest.fn(),
   },
+  entityHistoryEntry: {
+    create: jest.fn(),
+  },
 };
 
 jest.mock('../config/database', () => ({

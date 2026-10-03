@@ -7,6 +7,7 @@ const mockPrismaClient: any = {
   notificationDeadline: { createMany: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
   incidentAssessment: { upsert: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   incidentKnowledgeTimeChange: { create: jest.fn() },
+  incidentHistoryEntry: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   incidentReport: { create: jest.fn(), findUnique: jest.fn() },
   incidentCommunication: { create: jest.fn() },
   incidentEscalation: { create: jest.fn() },
