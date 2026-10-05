@@ -62,6 +62,11 @@ COPY --from=build /app/backend/ ./backend/
 # prisma-provider.cjs spawns the `prisma` CLI; make node_modules/.bin resolvable
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
+# Generate the Prisma client INTO this stage: the generated .prisma/client lives
+# in the build stage's tree and is not covered by the node_modules copy above.
+ENV DATABASE_URL="postgresql://build:***@localhost:5432/build"
+RUN npm run db:generate --workspace backend
+
 # Create uploads directory for file storage
 RUN mkdir -p /app/uploads && adduser -D -g '' appuser && chown -R appuser:appuser /app
 USER appuser
