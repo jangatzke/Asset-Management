@@ -24,13 +24,21 @@ export function validate(schema: ZodSchema<any>, source: 'body' | 'query' | 'par
       const data = req[source];
       const parsed = schema.parse(data);
 
-      // Attach validated data to request for downstream use
+      // Attach validated data to request for downstream use.
+      // `req.query` (and in newer router versions `req.params`) are accessor
+      // properties defined by Express with only a getter, so plain assignment
+      // throws "Cannot set property query ... which has only a getter" under
+      // strict mode. Define an own data property instead — this shadows the
+      // prototype getter and is safe for both body/query/params.
       if (source === 'body') {
         req.body = parsed;
-      } else if (source === 'query') {
-        req.query = parsed as any;
-      } else if (source === 'params') {
-        req.params = parsed as any;
+      } else {
+        Object.defineProperty(req, source, {
+          value: parsed,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
       }
 
       next();
