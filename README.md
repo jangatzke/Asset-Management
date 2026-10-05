@@ -225,6 +225,7 @@ The compose file reads configuration from environment variables. The required va
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `JWT_SECRET` | **Yes** | – | 32-byte hex secret for JWT signing |
+| `CREDENTIAL_ENCRYPTION_KEY` | **Yes (production)** | – | 32-byte hex key for encrypting stored integration credentials; the backend refuses to start in production without it |
 | `POSTGRES_PASSWORD` | Recommended | `asset_password` | Database password |
 | `POSTGRES_USER` | No | `asset_user` | Database user |
 | `POSTGRES_DB` | No | `asset_management` | Database name |
