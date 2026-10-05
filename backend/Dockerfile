@@ -62,7 +62,7 @@ COPY --from=build /app/backend/ ./backend/
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
 # Create uploads directory for file storage
-RUN mkdir -p /app/uploads && adduser -S appuser && chown -R appuser:appuser /app
+RUN mkdir -p /app/uploads && adduser -D -g '' appuser && chown -R appuser:appuser /app
 USER appuser
 
 ENV NODE_ENV=production
