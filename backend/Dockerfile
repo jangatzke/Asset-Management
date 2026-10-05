@@ -36,9 +36,10 @@ COPY backend/ ./backend/
 RUN npm run build --workspace=shared
 
 # Generate Prisma client (generate only parses the schema; a placeholder
-# DATABASE_URL satisfies the datasource env reference — no DB connection is made)
+# DATABASE_URL satisfies the datasource env reference — no DB connection is made).
+# Must go through npm so node_modules/.bin is on PATH for the prisma CLI.
 ENV DATABASE_URL="postgresql://build:***@localhost:5432/build"
-RUN cd backend && node scripts/prisma-provider.cjs generate
+RUN npm run db:generate --workspace backend
 
 # Build backend TypeScript
 RUN cd backend && npm run build
@@ -56,6 +57,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/shared/ ./shared/
 COPY --from=build /app/backend/ ./backend/
+
+# prisma-provider.cjs spawns the `prisma` CLI; make node_modules/.bin resolvable
+ENV PATH="/app/node_modules/.bin:${PATH}"
 
 # Create uploads directory for file storage
 RUN mkdir -p /app/uploads && adduser -S appuser && chown -R appuser:appuser /app
