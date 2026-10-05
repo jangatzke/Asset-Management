@@ -50,7 +50,8 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 # Install build tools for Prisma native engine at runtime
-RUN apk add --no-cache libc6-compat
+# (openssl is required so Prisma detects OpenSSL 3 and loads the matching musl engine)
+RUN apk add --no-cache libc6-compat openssl
 
 # Copy node_modules and built artifacts from build stage
 COPY --from=deps /app/node_modules ./node_modules
