@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "postinstall": "npm run db:generate --workspace backend",
+    "postinstall": "node -e \"const fs=require('fs');process.exit(fs.existsSync('backend/package.json')?0:1)\" && npm run db:generate --workspace backend || true",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "build": "npm run build --workspaces --if-present",

@@ -35,7 +35,9 @@ COPY backend/ ./backend/
 # Build shared workspace (backend imports shared/dist)
 RUN npm run build --workspace=shared
 
-# Generate Prisma client
+# Generate Prisma client (generate only parses the schema; a placeholder
+# DATABASE_URL satisfies the datasource env reference — no DB connection is made)
+ENV DATABASE_URL="postgresql://build:***@localhost:5432/build"
 RUN cd backend && node scripts/prisma-provider.cjs generate
 
 # Build backend TypeScript
