@@ -73,8 +73,10 @@ export class IntuneSyncScheduler {
     const syncService = initializeSyncService();
     await syncService.initialize();
 
-    // Update config in DB
-    let existingConfig = await prisma.intuneSyncConfig.findFirst();
+    // Persist the effective config on the canonical singleton row (configKey
+    // "singleton", unique index from migration 20261005000000). Upserting on
+    // the stable key avoids the findFirst -> update/create race when multiple
+    // instances start concurrently.
     const configData = {
       enabled: true,
       fullSyncIntervalHours: config.fullSyncIntervalHours,
@@ -84,16 +86,11 @@ export class IntuneSyncScheduler {
       retryDelayMs: config.retryDelayMs,
       batchSize: config.batchSize,
     };
-    if (existingConfig) {
-      await prisma.intuneSyncConfig.update({
-        where: { id: existingConfig.id },
-        data: configData,
-      });
-    } else {
-      await prisma.intuneSyncConfig.create({
-        data: configData,
-      });
-    }
+    await prisma.intuneSyncConfig.upsert({
+      where: { configKey: 'singleton' },
+      update: configData,
+      create: { configKey: 'singleton', ...configData },
+    });
 
     this.isRunning = true;
 

@@ -35,6 +35,12 @@ describe('service-account production route integration', () => {
   const accounts = new Map<string, any>();
 
   beforeEach(() => {
+    // S4: authorize() verifies CURRENT roles from the database rather than
+    // trusting JWT token roles — provide the active admin user for 'admin-user'.
+    mockPrisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      userRoles: [{ roleName: 'admin' }],
+    });
     accounts.clear();
     mockPrisma.serviceAccount.findFirst.mockImplementation(async ({ where, orderBy }: any) => {
       if (orderBy?.displayId) return null;

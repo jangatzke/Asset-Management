@@ -111,6 +111,15 @@ export function encrypt(plaintext: string): string {
 }
 
 /**
+ * S6: plaintext passthrough (returning an undecryptable stored value as-is)
+ * is only allowed outside production or with an explicit operator opt-in.
+ */
+function plaintextPassthroughAllowed(): boolean {
+  return process.env.NODE_ENV !== 'production'
+    || process.env.ALLOW_LEGACY_PLAINTEXT_SECRETS === 'true';
+}
+
+/**
  * Decrypt a Base64-encoded `<version><nonce><auth_tag><ciphertext>` string.
  *
  * Tries all configured keys (starting with the active key) to support key
@@ -129,7 +138,15 @@ export function decrypt(base64Data: string): string {
   const isVersioned = combined[0] === CURRENT_VERSION;
   const overhead = isVersioned ? CIPHER_OVERHEAD : IV_LENGTH + AUTH_TAG_LENGTH;
   if (combined.length < overhead + 1) {
-    // Likely plaintext or too short — return as-is
+    // Likely plaintext or too short. Only pass it through when allowed (S6);
+    // otherwise treat it as an undecryptable stored value and fail closed.
+    if (!plaintextPassthroughAllowed()) {
+      console.error(
+        '[credentialEncryption] decrypt() received a value that is not valid ciphertext — ' +
+        'refusing to return it as plaintext in production.',
+      );
+      throw new Error('Stored credential could not be decrypted: value is not valid ciphertext.');
+    }
     return base64Data;
   }
 
@@ -153,8 +170,24 @@ export function decrypt(base64Data: string): string {
     }
   }
 
-  // Decryption failed with all keys — return as-is for backward compatibility
-  console.warn('[credentialEncryption] decrypt() failed for all configured keys — returning stored value as-is');
+  // Decryption failed with all keys. S6: silently returning the stored value
+  // would hand consumers ciphertext as if it were a password — fail closed in
+  // production instead. Plaintext passthrough remains available only outside
+  // production or when an operator explicitly opts in via
+  // ALLOW_LEGACY_PLAINTEXT_SECRETS=true (migration aid for pre-encryption data).
+  const allowPlaintext = plaintextPassthroughAllowed();
+  if (!allowPlaintext) {
+    console.error(
+      '[credentialEncryption] decrypt() failed for all configured keys and the value is not valid ciphertext — ' +
+      'refusing to return it as plaintext in production. If this value predates encryption, set ' +
+      'ALLOW_LEGACY_PLAINTEXT_SECRETS=true temporarily and re-save the credential.',
+    );
+    throw new Error(
+      'Stored credential could not be decrypted with any configured key. ' +
+      'Check CREDENTIAL_ENCRYPTION_KEY(S) rotation or migrate pre-encryption values.',
+    );
+  }
+  console.warn('[credentialEncryption] decrypt() failed for all configured keys — returning stored value as-is (plaintext passthrough enabled)');
   return base64Data;
 }
 

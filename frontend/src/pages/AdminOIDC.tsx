@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { getErrorMessage } from '../utils/statusHelpers';
 
 interface OidcConfig {
   id: string;
@@ -24,6 +25,8 @@ const AdminOIDC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Surface genuine failures to the user instead of only logging them.
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadConfig();
@@ -33,8 +36,9 @@ const AdminOIDC = () => {
     try {
       const response = await adminApi.getOidcConfig();
       setConfig(response.data);
-    } catch (error) {
-      console.error('Failed to load OIDC config:', error);
+    } catch (err) {
+      console.error('Failed to load OIDC config:', err);
+      setError(getErrorMessage(err) || t('common.loadError'));
     } finally {
       setLoading(false);
     }
@@ -49,8 +53,9 @@ const AdminOIDC = () => {
       setConfig(response.data);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (error) {
-      console.error('Failed to save OIDC config:', error);
+    } catch (err) {
+      console.error('Failed to save OIDC config:', err);
+      setError(getErrorMessage(err) || t('common.saveError'));
     } finally {
       setSaving(false);
     }
@@ -82,6 +87,12 @@ const AdminOIDC = () => {
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
         {t('navigation.oidcConfig')}
       </h1>
+
+      {error && (
+        <div role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white dark:bg-card rounded-lg shadow p-6 max-w-3xl">
         <div className="space-y-6">

@@ -8,6 +8,7 @@
 import { prisma } from '../config/database';
 import { vmwareCredentialService } from './vmware.credential';
 import { AppError } from '../middleware/errorHandler';
+import { validateHost, validatePort } from './hostValidator';
 
 export interface VCenterDto {
   id: string;
@@ -121,7 +122,14 @@ export class VCenterService {
       throw new AppError('Credential not found', 404);
     }
 
+    // SSRF hygiene: reject malformed hosts, link-local and metadata-style IPs
+    // before persisting the endpoint (see services/hostValidator.ts).
+    const hostCheck = validateHost(data.host);
+    if (!hostCheck.valid) throw new AppError(`Invalid vCenter host: ${hostCheck.reason}`, 400);
+
     const port = data.port || 443;
+    const portCheck = validatePort(port);
+    if (!portCheck.valid) throw new AppError(`Invalid vCenter port: ${portCheck.reason}`, 400);
 
     // Check unique constraint
     const existing = await prisma.vCenterServer.findFirst({ where: { host: data.host, port } });
@@ -157,6 +165,16 @@ export class VCenterService {
       if (!cred) {
         throw new AppError('Credential not found', 404);
       }
+    }
+
+    // SSRF hygiene: validate host/port before saving changed values.
+    if (data.host !== undefined) {
+      const hostCheck = validateHost(data.host);
+      if (!hostCheck.valid) throw new AppError(`Invalid vCenter host: ${hostCheck.reason}`, 400);
+    }
+    if (data.port !== undefined) {
+      const portCheck = validatePort(data.port);
+      if (!portCheck.valid) throw new AppError(`Invalid vCenter port: ${portCheck.reason}`, 400);
     }
 
     // Check unique constraint for host+port (excluding current server)
@@ -236,16 +254,24 @@ export class VCenterService {
       // Fetch all VMs via REST API with pagination
       const allVms = await this.fetchAllVMs(baseUrl, token);
 
+      // Preload all assets that could match this import in ONE query and index
+      // them by externalId — avoids one findFirst per VM (N+1).
+      const externalIds = allVms
+        .filter((vm) => vm.uuid && vm.name)
+        .map((vm) => `vcenter:${vcenterId}:${vm.uuid}`);
+      const existingAssets = externalIds.length
+        ? await prisma.asset.findMany({ where: { externalId: { in: externalIds } }, select: { id: true, externalId: true, status: true } })
+        : [];
+      const existingByExternalId = new Map(existingAssets.map((a) => [a.externalId as string, a]));
+
       for (const vm of allVms) {
         try {
           if (!vm.uuid || !vm.name) continue;
 
           const externalId = `vcenter:${vcenterId}:${vm.uuid}`;
 
-          // Check if asset already exists by external ID
-          let existingAsset = await prisma.asset.findFirst({
-            where: { externalId },
-          });
+          // Check if asset already exists by external ID (preloaded map lookup)
+          let existingAsset = existingByExternalId.get(externalId);
 
           if (existingAsset) {
             if (!options?.dryRun) {

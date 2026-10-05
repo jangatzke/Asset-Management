@@ -263,7 +263,7 @@ export interface PaginatedResponse<T> {
 }
 
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -284,6 +284,11 @@ export const refreshAccessToken = (): Promise<string> => {
       // every subsequent request fails with 401 and the interceptor keeps
       // trying to refresh with an invalid refresh token.
       setAccessToken(null);
+      // Let the UI react to the expired session (logout + redirect to login)
+      // without api.ts importing the auth store, which would create a cycle.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:session-expired'));
+      }
       throw error;
     }).finally(() => {
       refreshPromise = null;
@@ -374,7 +379,7 @@ export const assetApi = {
 };
 
 export const riskApi = {
-  list: (params?: { page?: number; limit?: number; search?: string; status?: string; organizationUnitId?: string; riskOwnerId?: string }) => api.get('/risks', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; status?: string; organizationUnitId?: string; riskOwnerId?: string }, config?: { signal?: AbortSignal }) => api.get('/risks', { params, signal: config?.signal }),
   getById: (id: string) => api.get(`/risks/${id}`),
   create: (data: CreateRiskDTO) => api.post('/risks', data),
   update: (id: string, data: UpdateRiskDTO) => api.put(`/risks/${id}`, data),
@@ -397,7 +402,7 @@ export const riskApi = {
 };
 
 export const controlApi = {
-  list: (params?: { page?: number; limit?: number; search?: string; status?: string; implementationStatus?: string; catalogId?: string }) => api.get('/controls', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; status?: string; implementationStatus?: string; catalogId?: string }, config?: { signal?: AbortSignal }) => api.get('/controls', { params, signal: config?.signal }),
   getById: (id: string) => api.get(`/controls/${id}`),
   create: (data: CreateControlDTO | { catalogId: string; catalogVersion: string; title: string; description: string; controlGoal: string; applicability?: string }) => api.post('/controls', data),
   update: (id: string, data: UpdateControlDTO) => api.put(`/controls/${id}`, data),
@@ -546,7 +551,7 @@ export interface TicketTypeConfig {
 export type TicketTypeConfigUpdate = Pick<TicketTypeConfig, 'label' | 'description' | 'enabled' | 'defaultPriority' | 'slaPolicy'>;
 
 export const ticketApi = {
-  list: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string; statusGroup?: string; scope?: string }) => api.get<PaginatedApiResponse<TicketResponse>>('/tickets', { params }),
+  list: (params?: { page?: number; limit?: number; search?: string; type?: string; status?: string; statusGroup?: string; scope?: string }, config?: { signal?: AbortSignal }) => api.get<PaginatedApiResponse<TicketResponse>>('/tickets', { params, signal: config?.signal }),
   workload: (params?: { week?: string; search?: string; ticketsOnly?: boolean }) => api.get<TicketWorkloadResponse>('/tickets/workload', { params }),
   getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
@@ -740,7 +745,7 @@ export const contractApi = {
 
 // License API
 export const licenseApi = {
-  list: (params?: any) => api.get('/licenses', { params }),
+  list: (params?: any, config?: { signal?: AbortSignal }) => api.get('/licenses', { params, signal: config?.signal }),
   getById: (id: string) => api.get(`/licenses/${id}`),
   create: (data: any) => api.post('/licenses', data),
   update: (id: string, data: any) => api.patch(`/licenses/${id}`, data),

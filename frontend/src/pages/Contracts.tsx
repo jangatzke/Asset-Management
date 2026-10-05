@@ -10,6 +10,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Contract {
   id: string;
@@ -178,8 +179,15 @@ const Contracts = () => {
     setModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('contracts.deleteConfirm'))) return;
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDelete = (id: string, name: string) => setPendingDelete({ id, name });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await contractApi.delete(id);
       await loadContracts();
@@ -266,7 +274,7 @@ const Contracts = () => {
                     <button onClick={() => setHistoryContract(c)} aria-label={`${t('history.viewHistory')}: ${c.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
                       <ClockIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
-                    <button onClick={() => handleDelete(c.id)} aria-label={`${t('common.delete')}: ${c.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                    <button onClick={() => handleDelete(c.id, c.name)} aria-label={`${t('common.delete')}: ${c.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
                       <TrashIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                   </div>
@@ -363,6 +371,15 @@ const Contracts = () => {
       </Modal>
 
       <EntityHistoryModal isOpen={!!historyContract} onClose={() => setHistoryContract(null)} entityId={historyContract?.id} entityName={historyContract?.name} loadHistory={contractApi.history} />
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        danger
+        titleKey="contracts.deleteConfirm"
+        message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+      />
     </div>
   );
 };

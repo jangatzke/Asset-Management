@@ -7,6 +7,17 @@ import { fiscalYearService } from './fiscalYear.service';
 
 const COMMITTED_STATUSES = ['approved', 'ordered', 'acquired', 'done'];
 
+/** Convert a Decimal/number/string money value to an integer number of cents. */
+const toCents = (value: unknown): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  // Multiply in decimal space via the value's string form, then round once, so
+  // summation stays in exact integer cents instead of binary floating point.
+  return Math.round(Number(value) * 100);
+};
+
+/** Format an integer-cent total back to a fixed 2-decimal string. */
+const fromCents = (cents: number): string => (cents / 100).toFixed(2);
+
 export class CostPlanningService {
   async years() {
     return fiscalYearService.listSelectableYears();
@@ -174,7 +185,10 @@ export class CostPlanningService {
   async exportCsv(planId: string, filters: any, userId: string) {
     const plan = await this.getPlan(planId, filters) as any;
     await auditService.logEventStandalone(prisma, { userId, action: 'COST_PLAN_EXPORT_CSV', entityType: 'CostPlan', entityId: plan.id, details: `Rows: ${plan.items.length}` });
-    const rows = [['Fiscal year','Plan display ID','Item display ID','Status','Source type','Title','Category','Investment type','Planned amount','Known amount','Currency','Due date','Supplier','Invoice number','Invoice date','Acquired at','Completed at'], ...plan.items.map((i: any) => [plan.fiscalYearLabel, plan.displayId, i.displayId, i.status, i.sourceType, i.title, i.category, i.investmentType, i.plannedAmount?.toString(), i.knownAmount?.toString() || '', i.currency, i.dueDate?.toISOString() || '', i.supplierName || '', i.invoiceNumber || '', i.invoiceDate?.toISOString() || '', i.acquiredAt?.toISOString() || '', i.completedAt?.toISOString() || ''])];
+    // Amounts go through the same integer-cent conversion used by the summaries
+    // so exported figures always carry exactly two decimals.
+    const amountCsv = (value: unknown): string => (value === null || value === undefined || value === '' ? '' : fromCents(toCents(value)));
+    const rows = [['Fiscal year','Plan display ID','Item display ID','Status','Source type','Title','Category','Investment type','Planned amount','Known amount','Currency','Due date','Supplier','Invoice number','Invoice date','Acquired at','Completed at'], ...plan.items.map((i: any) => [plan.fiscalYearLabel, plan.displayId, i.displayId, i.status, i.sourceType, i.title, i.category, i.investmentType, amountCsv(i.plannedAmount), amountCsv(i.knownAmount), i.currency, i.dueDate?.toISOString() || '', i.supplierName || '', i.invoiceNumber || '', i.invoiceDate?.toISOString() || '', i.acquiredAt?.toISOString() || '', i.completedAt?.toISOString() || ''])];
     return rows.map((row) => row.map(this.csvEscape).join(',')).join('\r\n');
   }
 
@@ -195,12 +209,13 @@ export class CostPlanningService {
   private withSummary(plan: any) { return { ...plan, summary: this.summarizeItems(plan.items ?? []) }; }
   private summarizeItems(items: any[]) {
     const active = items.filter((i) => !['cancelled', 'rejected'].includes(i.status));
-    const plannedAmount = active.reduce((s, i) => s + Number(i.plannedAmount || 0), 0);
-    const knownAmount = active.reduce((s, i) => s + (i.knownAmount ? Number(i.knownAmount) : COMMITTED_STATUSES.includes(i.status) ? Number(i.plannedAmount || 0) : 0), 0);
-    const acquiredAmount = active.filter((i) => ['acquired', 'done'].includes(i.status)).reduce((s, i) => s + Number(i.knownAmount || i.plannedAmount || 0), 0);
-    return { plannedAmount: plannedAmount.toFixed(2), knownAmount: knownAmount.toFixed(2), acquiredAmount: acquiredAmount.toFixed(2), openAmount: (plannedAmount - acquiredAmount).toFixed(2), itemCount: active.length };
+    // Sum in integer cents to avoid float drift across many line items.
+    const plannedCents = active.reduce((s, i) => s + toCents(i.plannedAmount), 0);
+    const knownCents = active.reduce((s, i) => s + (i.knownAmount ? toCents(i.knownAmount) : COMMITTED_STATUSES.includes(i.status) ? toCents(i.plannedAmount) : 0), 0);
+    const acquiredCents = active.filter((i) => ['acquired', 'done'].includes(i.status)).reduce((s, i) => s + (i.knownAmount ? toCents(i.knownAmount) : toCents(i.plannedAmount)), 0);
+    return { plannedAmount: fromCents(plannedCents), knownAmount: fromCents(knownCents), acquiredAmount: fromCents(acquiredCents), openAmount: fromCents(plannedCents - acquiredCents), itemCount: active.length };
   }
-  private categoryBreakdown(items: any[]) { return Object.values(items.reduce((acc, i) => { acc[i.category] ??= { category: i.category, plannedAmount: 0, knownAmount: 0, acquiredAmount: 0 }; acc[i.category].plannedAmount += Number(i.plannedAmount || 0); acc[i.category].knownAmount += Number(i.knownAmount || 0); if (['acquired', 'done'].includes(i.status)) acc[i.category].acquiredAmount += Number(i.knownAmount || i.plannedAmount || 0); return acc; }, {} as any)).map((r: any) => ({ ...r, plannedAmount: r.plannedAmount.toFixed(2), knownAmount: r.knownAmount.toFixed(2), acquiredAmount: r.acquiredAmount.toFixed(2) })); }
+  private categoryBreakdown(items: any[]) { return Object.values(items.reduce((acc, i) => { acc[i.category] ??= { category: i.category, plannedAmountCents: 0, knownAmountCents: 0, acquiredAmountCents: 0 }; acc[i.category].plannedAmountCents += toCents(i.plannedAmount); acc[i.category].knownAmountCents += toCents(i.knownAmount); if (['acquired', 'done'].includes(i.status)) acc[i.category].acquiredAmountCents += (i.knownAmount ? toCents(i.knownAmount) : toCents(i.plannedAmount)); return acc; }, {} as any)).map((r: any) => ({ category: r.category, plannedAmount: fromCents(r.plannedAmountCents), knownAmount: fromCents(r.knownAmountCents), acquiredAmount: fromCents(r.acquiredAmountCents) })); }
   private csvEscape(value: any) { const text = String(value ?? ''); return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
 }
 

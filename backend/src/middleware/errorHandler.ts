@@ -57,6 +57,13 @@ export const errorHandler = (
   const isOperational = appError.name === 'AppError' && appError.isOperational !== false;
   const statusCode = appError.statusCode || 500;
 
+  // Per-account login lockout (S3): expose Retry-After so clients can back off
+  // without changing the generic error message.
+  const retryAfterSeconds = (err as { retryAfterSeconds?: number }).retryAfterSeconds;
+  if (typeof retryAfterSeconds === 'number' && retryAfterSeconds > 0) {
+    res.set('Retry-After', String(Math.ceil(retryAfterSeconds)));
+  }
+
   // Non-operational errors (unexpected failures) must never leak internal
   // details (stack, SQL, file paths, environment) to the client. Log the full
   // error server-side and return a generic message instead.

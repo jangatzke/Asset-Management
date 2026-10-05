@@ -180,6 +180,14 @@ export class SlaService {
     let failed = 0;
     const results = [];
 
+    // Load all existing escalation logs for the candidate tickets in ONE query
+    // and match in memory — avoids one findFirst per (ticket, breach, level) (N+1).
+    const existingLogs = await (prisma as any).slaEscalationLog.findMany({
+      where: { ticketId: { in: tickets.map((t: any) => t.id) } },
+      select: { ticketId: true, breachType: true, level: true },
+    });
+    const alreadyEscalated = new Set<string>(existingLogs.map((l: any) => `${l.ticketId}|${l.breachType}|${l.level}`));
+
     for (const ticket of tickets) {
       const breaches: Array<{ breachType: string; dueAt: Date | null }> = [];
       if (ticket.firstResponseAt == null && ticket.firstResponseDueAt != null) {
@@ -196,8 +204,7 @@ export class SlaService {
         if (maxLevel < 1) continue; // not overdue enough to trigger the first escalation
 
         for (let level = 1; level <= maxLevel; level++) {
-          const already = await (prisma as any).slaEscalationLog.findFirst({ where: { ticketId: ticket.id, breachType: breach.breachType, level } });
-          if (already) {
+          if (alreadyEscalated.has(`${ticket.id}|${breach.breachType}|${level}`)) {
             skipped += 1;
             continue;
           }

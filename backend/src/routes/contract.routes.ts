@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { validateBody } from '../middleware/validation';
+import { CreateContractSchema, UpdateContractSchema } from 'shared';
 import { contractService } from '../services/contract.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 
@@ -19,7 +21,7 @@ contractRouter.get('/', authenticate, requireAdminAccess, async (req, res, next)
 });
 
 // POST /api/v1/contracts - Create contract
-contractRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
+contractRouter.post('/', authenticate, validateBody(CreateContractSchema), async (req: AuthRequest, res, next) => {
   try {
     const contract = await contractService.create(req.body, req.userId);
     res.status(201).json(contract);
@@ -54,7 +56,7 @@ contractRouter.get('/:id/history', authenticate, requireAdminAccess, async (req,
 });
 
 // PATCH /api/v1/contracts/:id - Update contract
-contractRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
+contractRouter.patch('/:id', authenticate, validateBody(UpdateContractSchema), async (req: AuthRequest, res, next) => {
   try {
     const contract = await contractService.update(req.params.id, req.body, req.userId);
     res.json(contract);

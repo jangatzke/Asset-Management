@@ -10,6 +10,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Process {
   id: string;
@@ -161,8 +162,15 @@ const Processes = () => {
     setModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('processes.deleteConfirm'))) return;
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDelete = (id: string, name: string) => setPendingDelete({ id, name });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await processApi.delete(id);
       await loadProcesses();
@@ -272,7 +280,7 @@ const Processes = () => {
                     <button onClick={() => setHistoryProcess(p)} aria-label={`${t('history.viewHistory')}: ${p.name}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
                       <ClockIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
-                    <button onClick={() => handleDelete(p.id)} aria-label={`${t('common.delete')}: ${p.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                    <button onClick={() => handleDelete(p.id, p.name)} aria-label={`${t('common.delete')}: ${p.name}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
                       <TrashIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                   </div>
@@ -389,6 +397,15 @@ const Processes = () => {
       </Modal>
 
       <EntityHistoryModal isOpen={!!historyProcess} onClose={() => setHistoryProcess(null)} entityId={historyProcess?.id} entityName={historyProcess?.name} loadHistory={processApi.history} />
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        danger
+        titleKey="processes.deleteConfirm"
+        message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+      />
     </div>
   );
 };

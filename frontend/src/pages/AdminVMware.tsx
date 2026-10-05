@@ -31,7 +31,7 @@ import {
   Box,
 } from '@mui/material';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -44,7 +44,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { vmwareApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { useDarkMode } from '../context/DarkModeContext';
+import { getErrorMessage } from '../utils/statusHelpers';
 import { exportCsv } from '../utils/csvExport';
 
 interface VMwareCredential {
@@ -83,8 +83,6 @@ const syncStatusColors: Record<string, string> = {
 
 export default function AdminVMware() {
   const { t, language } = useI18n();
-  const { darkMode } = useDarkMode();
-  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' }, components: { MuiTableHead: { styleOverrides: { root: { backgroundColor: darkMode ? '#374151' : '#f9fafb' } } }, MuiTableCell: { styleOverrides: { head: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.025em', textTransform: 'uppercase' } } } } }), [darkMode]);
 
   // Credential state
   interface CredentialFormValues {
@@ -164,6 +162,9 @@ export default function AdminVMware() {
   const [importing, setImporting] = useState<Record<string, boolean>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // Deletion confirmations owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDeleteCredential, setPendingDeleteCredential] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDeleteServer, setPendingDeleteServer] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     loadCredentials();
@@ -177,7 +178,7 @@ export default function AdminVMware() {
       const res = await vmwareApi.getCredentials();
       setCredentials(res.data);
     } catch (e) {
-      console.error('Failed to load VMware credentials:', e);
+      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
     }
   };
 
@@ -248,8 +249,12 @@ export default function AdminVMware() {
     }
   };
 
-  const handleDeleteCredential = async (id: string) => {
-    if (!window.confirm(t('vmware.deleteCredentialConfirm'))) return;
+  const handleDeleteCredential = (id: string, name: string) => setPendingDeleteCredential({ id, name });
+
+  const confirmDeleteCredential = async () => {
+    if (!pendingDeleteCredential) return;
+    const { id } = pendingDeleteCredential;
+    setPendingDeleteCredential(null);
     try {
       await vmwareApi.deleteCredential(id);
       setAlert({ type: 'success', message: t('common.deleteSuccess') });
@@ -296,7 +301,7 @@ export default function AdminVMware() {
       const res = await vmwareApi.getServers();
       setServers(res.data);
     } catch (e) {
-      console.error('Failed to load vCenter servers:', e);
+      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
     }
   };
 
@@ -343,8 +348,12 @@ export default function AdminVMware() {
     }
   };
 
-  const handleDeleteServer = async (id: string) => {
-    if (!window.confirm(t('vmware.deleteServerConfirm'))) return;
+  const handleDeleteServer = (id: string, name: string) => setPendingDeleteServer({ id, name });
+
+  const confirmDeleteServer = async () => {
+    if (!pendingDeleteServer) return;
+    const { id } = pendingDeleteServer;
+    setPendingDeleteServer(null);
     try {
       await vmwareApi.deleteServer(id);
       setAlert({ type: 'success', message: t('common.deleteSuccess') });
@@ -405,7 +414,6 @@ export default function AdminVMware() {
   };
 
   return (
-    <ThemeProvider theme={muiTheme}>
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
         {t('vmware.title')}
@@ -462,7 +470,7 @@ export default function AdminVMware() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title={t('common.delete')}>
-                        <IconButton size="small" color="error" onClick={() => handleDeleteCredential(cred.id)}>
+                        <IconButton size="small" color="error" onClick={() => handleDeleteCredential(cred.id, cred.name)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -591,7 +599,7 @@ export default function AdminVMware() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title={t('common.delete')}>
-                        <IconButton size="small" color="error" onClick={() => handleDeleteServer(server.id)}>
+                        <IconButton size="small" color="error" onClick={() => handleDeleteServer(server.id, server.name)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -761,7 +769,24 @@ export default function AdminVMware() {
          titleKey="Discard Changes"
          messageKey="You have unsaved changes. Are you sure you want to discard them?"
        />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteCredential}
+        onClose={() => setPendingDeleteCredential(null)}
+        onConfirm={() => void confirmDeleteCredential()}
+        danger
+        titleKey="vmware.deleteCredentialConfirm"
+        message={pendingDeleteCredential ? t('common.confirmDeleteNamed', { name: pendingDeleteCredential.name }) : undefined}
+      />
+      <ConfirmDialog
+        isOpen={!!pendingDeleteServer}
+        onClose={() => setPendingDeleteServer(null)}
+        onConfirm={() => void confirmDeleteServer()}
+        danger
+        titleKey="vmware.deleteServerConfirm"
+        message={pendingDeleteServer ? t('common.confirmDeleteNamed', { name: pendingDeleteServer.name }) : undefined}
+      />
     </Box>
-    </ThemeProvider>
+
   );
 }

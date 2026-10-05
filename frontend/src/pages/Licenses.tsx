@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ClockIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { licenseApi } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -10,6 +10,8 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { useListQuery } from '../hooks/useListQuery';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface License {
   id: string;
@@ -83,11 +85,14 @@ const Licenses = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial licenses load only; loader uses current translation fallback for this mount.
   }, []);
 
-  const loadLicenses = async () => {
-    try {
-      setLoading(true);
-      const response = await licenseApi.list({ page: 1, limit: 100 });
-      const raw = response.data?.data ?? response.data ?? [];
+  // Guard against out-of-order responses: superseded/aborted loads are silent.
+  const { run: runLicenseListQuery } = useListQuery();
+
+  const loadLicenses = useCallback(async () => {
+    setLoading(true);
+    await runLicenseListQuery((signal) => licenseApi.list({ page: 1, limit: 100 }, { signal }), {
+      onSuccess: (response) => {
+        const raw = response.data?.data ?? response.data ?? [];
       // Normalize legacy field names to canonical ones
       const normalized: License[] = raw.map((l: any) => ({
         id: l.id,
@@ -108,11 +113,12 @@ const Licenses = () => {
         expiryDate: l.endDate ?? l.expiryDate,
         renewalDate: l.renewalDate,
       }));
-      setLicenses(normalized);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('licenses.loadError'));
-    } finally { setLoading(false); }
-  };
+        setLicenses(normalized);
+      },
+      onError: (err: any) => { setError(err.response?.data?.error?.message || t('licenses.loadError')); },
+      onSettled: () => setLoading(false),
+    });
+  }, [runLicenseListQuery, t]);
 
   const filtered = licenses.filter(l => {
     const matchesSearch = !searchTerm ||
@@ -225,8 +231,15 @@ const Licenses = () => {
     setModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('licenses.deleteConfirm'))) return;
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDelete = (id: string, name: string) => setPendingDelete({ id, name });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await licenseApi.delete(id);
       await loadLicenses();
@@ -332,7 +345,7 @@ const Licenses = () => {
                       <button onClick={() => setHistoryLicense(l)} aria-label={`${t('history.viewHistory')}: ${l.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => handleDelete(l.id)} aria-label={`${t('common.delete')}: ${l.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                      <button onClick={() => handleDelete(l.id, l.title)} aria-label={`${t('common.delete')}: ${l.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
                         <TrashIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -445,6 +458,15 @@ const Licenses = () => {
       </Modal>
 
       <EntityHistoryModal isOpen={!!historyLicense} onClose={() => setHistoryLicense(null)} entityId={historyLicense?.id} entityName={historyLicense?.title} loadHistory={licenseApi.history} />
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        danger
+        titleKey="licenses.deleteConfirm"
+        message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+      />
     </div>
   );
 };

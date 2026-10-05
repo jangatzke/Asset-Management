@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useDirtyForm } from '../hooks/useDirtyForm';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
   Box,
   Typography,
@@ -33,6 +32,7 @@ import {
   FormControlLabel,
 } from '@mui/material';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -45,7 +45,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { proxmoxApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { useDarkMode } from '../context/DarkModeContext';
+import { getErrorMessage } from '../utils/statusHelpers';
 import { exportCsv } from '../utils/csvExport';
 
 interface ProxmoxCredential {
@@ -87,8 +87,6 @@ const syncStatusColors: Record<string, string> = {
 
 export default function AdminProxmox() {
   const { t } = useI18n();
-  const { darkMode } = useDarkMode();
-  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' }, components: { MuiTableHead: { styleOverrides: { root: { backgroundColor: darkMode ? '#374151' : '#f9fafb' } } }, MuiTableCell: { styleOverrides: { head: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.025em', textTransform: 'uppercase' } } } } }), [darkMode]);
 
   // Credential state
   interface CredentialFormValues {
@@ -189,6 +187,9 @@ export default function AdminProxmox() {
   const [importing, setImporting] = useState<Record<string, boolean>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // Deletion confirmations owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDeleteCredential, setPendingDeleteCredential] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDeleteServer, setPendingDeleteServer] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     loadCredentials();
@@ -202,7 +203,7 @@ export default function AdminProxmox() {
       const res = await proxmoxApi.getCredentials();
       setCredentials(res.data);
     } catch (e) {
-      console.error('Failed to load Proxmox credentials:', e);
+      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
     }
   };
 
@@ -302,8 +303,12 @@ export default function AdminProxmox() {
     }
   }, [credentialForm]);
 
-  const handleDeleteCredential = async (id: string) => {
-    if (!window.confirm(t('proxmox.deleteCredentialConfirm'))) return;
+  const handleDeleteCredential = (id: string, name: string) => setPendingDeleteCredential({ id, name });
+
+  const confirmDeleteCredential = async () => {
+    if (!pendingDeleteCredential) return;
+    const { id } = pendingDeleteCredential;
+    setPendingDeleteCredential(null);
     try {
       await proxmoxApi.deleteCredential(id);
       setAlert({ type: 'success', message: 'Credential deleted successfully' });
@@ -320,7 +325,7 @@ export default function AdminProxmox() {
       const res = await proxmoxApi.getServers();
       setServers(res.data);
     } catch (e) {
-      console.error('Failed to load Proxmox servers:', e);
+      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
     }
   };
 
@@ -395,8 +400,12 @@ export default function AdminProxmox() {
     }
   }, [serverForm]);
 
-  const handleDeleteServer = async (id: string) => {
-    if (!window.confirm(t('proxmox.deleteServerConfirm'))) return;
+  const handleDeleteServer = (id: string, name: string) => setPendingDeleteServer({ id, name });
+
+  const confirmDeleteServer = async () => {
+    if (!pendingDeleteServer) return;
+    const { id } = pendingDeleteServer;
+    setPendingDeleteServer(null);
     try {
       await proxmoxApi.deleteServer(id);
       setAlert({ type: 'success', message: 'Proxmox server deleted successfully' });
@@ -457,7 +466,6 @@ export default function AdminProxmox() {
   };
 
   return (
-    <ThemeProvider theme={muiTheme}>
       <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
         Proxmox VE Integration
@@ -521,7 +529,7 @@ export default function AdminProxmox() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteCredential(cred.id)}>
+                        <IconButton size="small" color="error" onClick={() => handleDeleteCredential(cred.id, cred.name)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -654,7 +662,7 @@ export default function AdminProxmox() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteServer(server.id)}>
+                        <IconButton size="small" color="error" onClick={() => handleDeleteServer(server.id, server.name)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -848,7 +856,24 @@ export default function AdminProxmox() {
         titleKey="Discard Changes"
         messageKey="You have unsaved changes. Are you sure you want to discard them?"
       />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteCredential}
+        onClose={() => setPendingDeleteCredential(null)}
+        onConfirm={() => void confirmDeleteCredential()}
+        danger
+        titleKey="proxmox.deleteCredentialConfirm"
+        message={pendingDeleteCredential ? t('common.confirmDeleteNamed', { name: pendingDeleteCredential.name }) : undefined}
+      />
+      <ConfirmDialog
+        isOpen={!!pendingDeleteServer}
+        onClose={() => setPendingDeleteServer(null)}
+        onConfirm={() => void confirmDeleteServer()}
+        danger
+        titleKey="proxmox.deleteServerConfirm"
+        message={pendingDeleteServer ? t('common.confirmDeleteNamed', { name: pendingDeleteServer.name }) : undefined}
+      />
     </Box>
-  </ThemeProvider>
+
 );
 }

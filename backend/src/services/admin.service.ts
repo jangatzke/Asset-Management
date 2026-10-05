@@ -918,14 +918,14 @@ async deleteGroup(id: string, deletedBy?: string): Promise<{ message: string }> 
     // Remove existing assignments
     await prisma.userGroup.deleteMany({ where: { groupId } });
 
-    // Create new assignments
-    for (const userId of data.userIds) {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user) continue;
-      await prisma.userGroup.create({
-        data: { userId, groupId },
-      });
-    }
+    // Batch-validate users in one query and insert the links with one
+    // createMany — avoids a find + create round-trip per user (N+1).
+    const userIds = [...new Set(data.userIds)];
+    if (!userIds.length) return;
+    const existingUsers = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true } });
+    const validUserIds = existingUsers.map((u) => u.id);
+    if (!validUserIds.length) return;
+    await prisma.userGroup.createMany({ data: validUserIds.map((userId) => ({ userId, groupId })), skipDuplicates: true });
   }
 
   async assignRolesToGroup(groupId: string, data: AssignRolesToGroupDto): Promise<void> {

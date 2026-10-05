@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { adminApi, assetApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 
 interface AssetType {
@@ -68,6 +69,8 @@ const AdminAssetTypes = () => {
   const [assetTypes, setAssetTypes] = useState<AssetType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -210,9 +213,12 @@ const AdminAssetTypes = () => {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('assetTypes.deleteConfirm'))) return;
+  const handleDelete = (id: string, name: string) => setPendingDelete({ id, name });
 
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await adminApi.deleteAssetType(id);
       setSuccess(t('assetTypes.deleteSuccess'));
@@ -340,7 +346,7 @@ const AdminAssetTypes = () => {
                             {t('assetTypes.archive')}
                           </button>
                           <button
-                            onClick={() => handleDelete(type.id)}
+                            onClick={() => handleDelete(type.id, type.name)}
                             className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium"
                           >
                             {t('common.delete')}
@@ -432,6 +438,15 @@ const AdminAssetTypes = () => {
           <div className="flex justify-end gap-3"><button onClick={() => { if (subtypeForm.isDirty) { handleDiscardSubtype(); } else { handleSubtypeModalClose(); } }} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md">{t('common.cancel')}</button><button onClick={handleSaveSubtype} disabled={saving} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md disabled:opacity-50">{t('common.create')}</button></div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        danger
+        titleKey="common.confirmDelete"
+        message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+      />
     </div>
   );
 };

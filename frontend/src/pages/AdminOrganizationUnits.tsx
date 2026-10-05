@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface OrganizationUnit {
   id: string;
@@ -42,6 +43,8 @@ const AdminOrganizationUnits = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Archive confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingArchive, setPendingArchive] = useState<{ id: string; name: string } | null>(null);
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -127,10 +130,14 @@ const AdminOrganizationUnits = () => {
     }
   };
 
-  const handleArchive = async (unit: OrganizationUnit) => {
-    if (!confirm(t('organizationUnits.archiveConfirm'))) return;
+  const handleArchive = (unit: OrganizationUnit) => setPendingArchive({ id: unit.id, name: unit.name });
+
+  const confirmArchive = async () => {
+    if (!pendingArchive) return;
+    const { id } = pendingArchive;
+    setPendingArchive(null);
     try {
-      await adminApi.archiveOrganizationUnit(unit.id);
+      await adminApi.archiveOrganizationUnit(id);
       setSuccess(t('organizationUnits.archiveSuccess'));
       await loadUnits();
       setTimeout(() => setSuccess(''), 3000);
@@ -237,6 +244,15 @@ const AdminOrganizationUnits = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!pendingArchive}
+        onClose={() => setPendingArchive(null)}
+        onConfirm={() => void confirmArchive()}
+        danger
+        titleKey="organizationUnits.archiveConfirm"
+        message={pendingArchive ? t('common.archiveNamed', { name: pendingArchive.name }) : undefined}
+      />
     </div>
   );
 };

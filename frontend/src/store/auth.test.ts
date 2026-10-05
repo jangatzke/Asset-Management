@@ -36,11 +36,12 @@ beforeEach(() => {
 
 test('checkAuth skips refresh when an authenticated in-memory session already exists', async () => {
   const { authApi, refreshAccessToken } = installAuthApiMock();
+  const { setAccessToken } = await import('./accessToken');
+  setAccessToken('existing-token');
   const useAuthStore = await loadAuthStore();
 
   useAuthStore.setState({
     user: testUser,
-    token: 'existing-token',
     isAuthenticated: true,
     isLoading: false,
   });
@@ -51,7 +52,6 @@ test('checkAuth skips refresh when an authenticated in-memory session already ex
   expect(authApi.me).not.toHaveBeenCalled();
   expect(useAuthStore.getState()).toMatchObject({
     user: testUser,
-    token: 'existing-token',
     isAuthenticated: true,
     isLoading: false,
   });
@@ -72,8 +72,26 @@ test('checkAuth shares concurrent refresh work to avoid refresh-token reuse', as
   expect(authApi.me).toHaveBeenCalledTimes(1);
   expect(useAuthStore.getState()).toMatchObject({
     user: testUser,
-    token: 'fresh-token',
     isAuthenticated: true,
+    isLoading: false,
+  });
+});
+
+test('checkAuth treats a live user without an access token as unauthenticated', async () => {
+  const { refreshAccessToken } = installAuthApiMock();
+  refreshAccessToken.mockRejectedValue(new Error('refresh failed'));
+  const { setAccessToken } = await import('./accessToken');
+  setAccessToken(null);
+  const useAuthStore = await loadAuthStore();
+
+  useAuthStore.setState({ user: testUser, isAuthenticated: true, isLoading: false });
+
+  await useAuthStore.getState().checkAuth();
+
+  expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+  expect(useAuthStore.getState()).toMatchObject({
+    user: null,
+    isAuthenticated: false,
     isLoading: false,
   });
 });

@@ -65,7 +65,8 @@ jest.mock('../config/database', () => ({
   prisma: mockPrismaClient,
 }));
 
-import { AuthService } from '../services/auth.service';
+import { AuthService, LoginLockoutError, resetLoginAttemptTrackers } from '../services/auth.service';
+import { DEFAULT_AUTH_SETTINGS } from '../services/authSettings.service';
 import { AppError } from '../middleware/errorHandler';
 import { testUser, testAdminUser, testUserRole, testAdminUserRole, testUserPassword } from '../test/fixtures';
 
@@ -74,8 +75,11 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetLoginAttemptTrackers();
     authService = new AuthService();
-    process.env.JWT_SECRET = 'test-secret-key';
+    // Strong (>=32 chars) so the unified getJwtSecret() in middleware/auth uses
+    // it directly instead of generating a random development fallback.
+    process.env.JWT_SECRET = 'test-secret-key-that-is-long-enough-32chars!';
     process.env.ALLOW_SELF_REGISTRATION = 'true';
     // Mock displayIdCounter.upsert to return sequential IDs
     mockPrismaClient.displayIdCounter.upsert.mockResolvedValue({ entityType: 'User', sequence: 1 });
@@ -279,6 +283,97 @@ describe('AuthService', () => {
       mockPrismaClient.passwordHistory.findMany.mockResolvedValue([{ id: 'history-1', userId: testUser.id, passwordHash: 'old-hash' }]);
 
       await expect(authService.changeOwnPassword(testUser.id, testUserPassword, 'AnyPass123')).rejects.toThrow('Password was used recently');
+    });
+  });
+
+  describe('per-account login lockout (S3)', () => {
+    it('locks after 10 failures in the window with generic message, distinct code and Retry-After', async () => {
+      const credentials = { email: 'LockOut@Example.com', password: 'wrongpassword' };
+      mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(false);
+
+      for (let i = 0; i < 10; i++) {
+        await expect(authService.login(credentials)).rejects.toThrow('Invalid email or password');
+      }
+
+      // 11th attempt: locked — same generic message, but distinct error type/code.
+      let caught: any;
+      try {
+        await authService.login({ email: 'lockout@example.com', password: 'wrongpassword' });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(LoginLockoutError);
+      expect(caught.code).toBe('too_many_attempts');
+      expect(caught.retryAfterSeconds).toBeGreaterThan(0);
+      expect(caught.message).toBe('Invalid email or password');
+    });
+
+    it('resets the counter on successful login', async () => {
+      const credentials = { email: testUser.email, password: testUserPassword };
+      mockPrismaClient.user.findUnique.mockResolvedValue(testUser);
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(false);
+
+      for (let i = 0; i < 9; i++) {
+        await expect(authService.login(credentials)).rejects.toThrow('Invalid email or password');
+      }
+
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+      mockPrismaClient.user.update.mockResolvedValue(testUser);
+      await authService.login(credentials);
+
+      // Counter reset: nine more failures must not trip the lockout.
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(false);
+      for (let i = 0; i < 9; i++) {
+        await expect(authService.login(credentials)).rejects.toThrow('Invalid email or password');
+      }
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      const ok = await authService.login(credentials);
+      expect(ok.state).toBe('authenticated');
+    });
+  });
+
+  describe('refresh-token revocation on password change (S1)', () => {
+    it('changeOwnPassword revokes all non-revoked refresh tokens and logs an audit event', async () => {
+      (jest.spyOn(bcrypt, 'compare') as any).mockResolvedValue(true);
+      mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, oidcId: null });
+      mockPrismaClient.user.update.mockResolvedValue(testUser);
+      mockPrismaClient.refreshToken.updateMany.mockResolvedValue({ count: 2 });
+
+      await authService.changeOwnPassword(testUser.id, testUserPassword, 'NewStr0ng!Passw0rd');
+
+      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: testUser.id, revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      const auditActions = mockPrismaClient.auditLog.create.mock.calls.map((call: any[]) => call[0]?.data?.action);
+      expect(auditActions).toContain('PERMISSION_CHANGE');
+    });
+
+    it('changeExpiredPassword revokes all refresh tokens before issuing the new session', async () => {
+      // nosemgrep: javascript.jsonwebtoken.security.jwt-hardcode.hardcoded-jwt-secret
+      const token = jwt.sign({ userId: testUser.id, purpose: 'password_change', jti: 'challenge-jti', typ: 'pre_auth' }, process.env.JWT_SECRET!, { algorithm: 'HS256', expiresIn: '5m' });
+      mockPrismaClient.preAuthChallenge.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.user.findUnique.mockResolvedValue({ ...testUser, isActive: true, oidcId: null, mfaEnabled: false });
+      mockPrismaClient.user.update.mockResolvedValue({ ...testUser, mustChangePasswordOnNext: false });
+      mockPrismaClient.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
+
+      await authService.changeExpiredPassword(token, 'NewStr0ng!Passw0rd');
+
+      expect(mockPrismaClient.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: testUser.id, revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('default auth settings (S8)', () => {
+    it('ships secure-by-default password history and validity', () => {
+      expect(DEFAULT_AUTH_SETTINGS.passwordHistoryCount).toBe(5);
+      expect(DEFAULT_AUTH_SETTINGS.passwordValidityDays).toBe(365);
     });
   });
 
@@ -622,9 +717,9 @@ describe('AuthService', () => {
       expect(decoded).not.toHaveProperty('roles');
     });
 
-    it('should throw error if JWT_SECRET is not configured', async () => {
+    it('uses the unified development fallback when JWT_SECRET is missing (S5)', async () => {
       delete process.env.JWT_SECRET;
-      
+
       const credentials = {
         email: testUser.email,
         password: testUserPassword,
@@ -635,8 +730,11 @@ describe('AuthService', () => {
       mockPrismaClient.userRole.findMany.mockResolvedValue([testUserRole]);
       mockPrismaClient.user.update.mockResolvedValue({ ...testUser });
 
-      await expect(authService.login(credentials)).rejects.toThrow(AppError);
-      await expect(authService.login(credentials)).rejects.toThrow('JWT_SECRET is not configured');
+      // S5 unified behavior: outside production a secure random fallback is
+      // generated (fail-fast for weak secrets applies only to production).
+      const result = await authService.login(credentials);
+      if (result.state !== 'authenticated') throw new Error('Authenticated result was expected');
+      expect(result.token).toEqual(expect.any(String));
     });
   });
 });

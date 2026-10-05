@@ -135,14 +135,17 @@ export class RiskTreatmentService {
       const escalationThreshold = thresholds.inherentRisk ?? 16; // default: 4x4 matrix, threshold at 16
 
       return riskScore >= escalationThreshold;
-    } catch {
+    } catch (error) {
+      // Do not swallow malformed threshold configs silently — log and treat as "no escalation".
+      console.error('[RiskTreatment] Failed to parse escalation thresholds for risk:', riskId, error);
       return false;
     }
   }
 
   async list(query: ListRiskTreatmentsQuery) {
-    const page = parseInt(query.page as string) || 1;
-    const limit = parseInt(query.limit as string) || 20;
+    // Clamp pagination inputs: page >= 1, limit bounded to protect against unbounded scans.
+    const page = Math.max(1, parseInt(query.page as string, 10) || 1);
+    const limit = Math.min(Math.max(parseInt(query.limit as string, 10) || 20, 1), 100);
     const offset = (page - 1) * limit;
 
     const where: Prisma.RiskTreatmentWhereInput = {};
@@ -226,9 +229,10 @@ export class RiskTreatmentService {
     const needsEscalation = await this.checkEscalation(normalizedData.riskId);
     const requiredLevel = currentAssessment ? this.determineApprovalLevel(currentAssessment) : (needsEscalation ? 'management' : 'risk_owner');
 
-    const displayId = await displayIdService.nextDisplayIdStandalone(prisma, 'RiskTreatment');
-
     const treatment = await db.$transaction(async (tx: any) => {
+      // Generate the display id INSIDE the transaction so the counter increment is
+      // atomic with the row creation (a standalone counter would leak on rollback).
+      const displayId = await displayIdService.nextDisplayId(tx, 'RiskTreatment');
       const created = await tx.riskTreatment.create({
         data: {
           riskId: normalizedData.riskId,
@@ -565,7 +569,7 @@ export class RiskTreatmentService {
       });
       await tx.reviewTask.create({
         data: {
-          displayId: await displayIdService.nextDisplayIdStandalone(prisma, 'ReviewTask'),
+          displayId: await displayIdService.nextDisplayId(tx, 'ReviewTask'),
           riskId: treatment.riskId,
           scheduledDate: new Date(),
           dueDate: data.targetAssessment?.nextReviewDate ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),

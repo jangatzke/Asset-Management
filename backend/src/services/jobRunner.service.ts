@@ -10,7 +10,7 @@
  */
 
 import { prisma } from '../config/database';
-import { acquireJobLease, DEFAULT_JOB_LEASE_MS, getJobLeaseName, releaseJobLease } from './jobLock.service';
+import { acquireJobLease, DEFAULT_JOB_LEASE_MS, getJobLeaseName, heartbeatJobLease, releaseJobLease } from './jobLock.service';
 
 const db = prisma;
 
@@ -81,8 +81,29 @@ export async function executeTrackedJob(config: JobRunConfig): Promise<JobRunRes
       },
     });
 
-    // 4. Execute the handler
-    await config.handler();
+    // 4. Execute the handler, renewing the lease periodically so long-running
+    // jobs do not lose it while still working. A lost heartbeat is only
+    // logged (another worker may take over); the handler is never aborted.
+    const heartbeatIntervalMs = Math.max(1000, Math.floor(leaseMs / 3));
+    let leaseLost = false;
+    const heartbeatTimer = setInterval(() => {
+      void heartbeatJobLease(leaseName, workerId, leaseMs)
+        .then((renewed) => {
+          if (!renewed && !leaseLost) {
+            leaseLost = true;
+            console.warn('[JobRunner] Lost job lease during execution (another worker may take over):', config.jobId);
+          }
+        })
+        .catch((error: unknown) => {
+          console.warn('[JobRunner] Job lease heartbeat failed for:', config.jobId, error);
+        });
+    }, heartbeatIntervalMs);
+
+    try {
+      await config.handler();
+    } finally {
+      clearInterval(heartbeatTimer);
+    }
 
     // 5. Mark completed
     await db.jobRun.update({

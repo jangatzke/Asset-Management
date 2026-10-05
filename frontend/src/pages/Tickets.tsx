@@ -12,6 +12,8 @@ import { exportCsv } from '../utils/csvExport';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import { usePersistedView } from '../hooks/usePersistedView';
+import { useListQuery } from '../hooks/useListQuery';
+import { formatDateTime } from '../utils/formatDate';
 import { buttonPrimary, inputField, selectField } from '../styles/tokens';
 
 const ticketTypes = ['incident', 'service_request', 'problem', 'change'];
@@ -35,6 +37,8 @@ export default function Tickets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  // Debounce the search input before hitting the server (same pattern as Assets).
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ type: 'service_request', title: '', description: '', urgency: 'medium', impact: 'medium' });
@@ -44,19 +48,30 @@ export default function Tickets() {
   const statusGroup = filters.statusGroup ?? '';
   const scope = filters.scope ?? '';
 
+  const { run } = useListQuery();
+
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const response = await ticketApi.list({ page, limit: 20, search: query || undefined, type: type || undefined, statusGroup: statusGroup || undefined, scope: scope || undefined });
-      setTickets(response.data.data ?? []);
-      if (response.data.pagination) {
-        setPagination({ total: response.data.pagination.total ?? response.data.data?.length ?? 0, totalPages: response.data.pagination.totalPages ?? 1 });
-      }
-      setError(null);
-    } catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.loadError')); } finally { setLoading(false); }
-  }, [page, query, scope, statusGroup, t, type]);
+    await run((signal) => ticketApi.list({ page, limit: 20, search: debouncedQuery || undefined, type: type || undefined, statusGroup: statusGroup || undefined, scope: scope || undefined }, { signal }), {
+      onSuccess: (response) => {
+        setTickets(response.data.data ?? []);
+        if (response.data.pagination) {
+          setPagination({ total: response.data.pagination.total ?? response.data.data?.length ?? 0, totalPages: response.data.pagination.totalPages ?? 1 });
+        }
+        setError(null);
+      },
+      onError: (err: any) => { setError(err.response?.data?.error?.message ?? t('tickets.loadError')); },
+      onSettled: () => setLoading(false),
+    });
+  }, [page, debouncedQuery, run, scope, statusGroup, t, type]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Debounce the search input; typing no longer requires Enter to trigger a load.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Client-side sort of the already-loaded page. Sorting is a view preference
   // persisted in localStorage, so the direction survives reload/revisit.
@@ -84,7 +99,7 @@ export default function Tickets() {
   const exportVisibleTickets = () => exportCsv('tickets', [
     t('tickets.headings.ticket'), t('tickets.headings.type'), t('tickets.headings.priority'), t('tickets.headings.status'), t('tickets.headings.slaTarget'), t('tickets.headings.reportedBy'), t('tickets.headings.created'), t('tickets.headings.updated'),
   ], sortedTickets.map((ticket) => [
-    `${ticket.displayId} — ${ticket.title}`, t(`tickets.types.${ticket.type}`), t(`tickets.priorities.${ticket.priority}`), ticket.status, ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : '', ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '', ticket.openedAt ?? ticket.createdAt ?? '', ticket.updatedAt ?? '',
+    `${ticket.displayId} — ${ticket.title}`, t(`tickets.types.${ticket.type}`), t(`tickets.priorities.${ticket.priority}`), ticket.status, ticket.resolutionDueAt ? formatDateTime(ticket.resolutionDueAt) : '', ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '', ticket.openedAt ?? ticket.createdAt ?? '', ticket.updatedAt ?? '',
   ]));
 
   const handleClearView = useCallback(() => {
@@ -136,7 +151,7 @@ export default function Tickets() {
       compactLabel={t('dataTable.compact')}
       comfortableLabel={t('dataTable.comfortable')}
       filters={<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem_12rem_auto]">
-        <input aria-label={t('tickets.searchLabel')} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load()} placeholder={t('tickets.searchPlaceholder')} className={inputField} />
+        <input aria-label={t('tickets.searchLabel')} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('tickets.searchPlaceholder')} className={inputField} />
         <select aria-label={t('tickets.typeLabel')} value={type} onChange={(e) => setFilter('type', e.target.value)} className={selectField}>
           <option value="">{t('tickets.allTypes')}</option>
           {ticketTypes.map((value) => <option key={value} value={value}>{t(`tickets.types.${value}`)}</option>)}
@@ -197,10 +212,10 @@ export default function Tickets() {
                 <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{t(`tickets.types.${ticket.type}`)}</td>
                 <td className="px-4 py-3"><StatusBadge kind="priority" value={ticket.priority} label={t(`tickets.priorities.${ticket.priority}`)} ariaLabel={t('tickets.headings.priority')} /></td>
                 <td className="px-4 py-3"><StatusBadge kind="state" value={ticket.status} label={ticket.status.replace(/_/g, ' ')} ariaLabel={t('tickets.headings.status')} /></td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.resolutionDueAt ? formatDateTime(ticket.resolutionDueAt) : '—'}</td>
                 <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.openedAt ? new Date(ticket.openedAt).toLocaleString() : ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleString() : '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(ticket.openedAt ?? ticket.createdAt) || '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(ticket.updatedAt) || '—'}</td>
               </tr>
             ))}
           </tbody>

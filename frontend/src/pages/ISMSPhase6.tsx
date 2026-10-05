@@ -8,6 +8,7 @@ import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { useI18n } from '../context/I18nContext';
+import { formatDate as formatLocaleDate } from '../utils/formatDate';
 import { useNavigate } from 'react-router-dom';
 import { getGuidedRouteForPhase6Resource } from './ismsPhase6Routing';
 
@@ -362,12 +363,9 @@ const domainGroups = [
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatDate(value?: string): string {
+  // Locale-aware via utils/formatDate (no hardcoded 'de-DE'); keep '-' for empty input.
   if (!value) return '-';
-  try {
-    return new Date(value).toLocaleDateString('de-DE');
-  } catch {
-    return value;
-  }
+  return formatLocaleDate(value) || value;
 }
 
 function formatCellValue(value: unknown): string {

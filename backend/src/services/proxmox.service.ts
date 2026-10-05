@@ -8,6 +8,7 @@
 import { prisma } from '../config/database';
 import { proxmoxCredentialService } from './proxmox.credential';
 import { AppError } from '../middleware/errorHandler';
+import { validateHost, validatePort } from './hostValidator';
 
 export interface ProxmoxServerDto {
   id: string;
@@ -129,7 +130,14 @@ export class ProxmoxService {
       throw new AppError('Credential not found', 404);
     }
 
+    // SSRF hygiene: reject malformed hosts, link-local and metadata-style IPs
+    // before persisting the endpoint (see services/hostValidator.ts).
+    const hostCheck = validateHost(data.host);
+    if (!hostCheck.valid) throw new AppError(`Invalid Proxmox host: ${hostCheck.reason}`, 400);
+
     const port = data.port || 8006;
+    const portCheck = validatePort(port);
+    if (!portCheck.valid) throw new AppError(`Invalid Proxmox port: ${portCheck.reason}`, 400);
 
     // Check unique constraint
     const existing = await prisma.proxmoxServer.findFirst({
@@ -172,6 +180,16 @@ export class ProxmoxService {
       if (!cred) {
         throw new AppError('Credential not found', 404);
       }
+    }
+
+    // SSRF hygiene: validate host/port before saving changed values.
+    if (data.host !== undefined) {
+      const hostCheck = validateHost(data.host);
+      if (!hostCheck.valid) throw new AppError(`Invalid Proxmox host: ${hostCheck.reason}`, 400);
+    }
+    if (data.port !== undefined) {
+      const portCheck = validatePort(data.port);
+      if (!portCheck.valid) throw new AppError(`Invalid Proxmox port: ${portCheck.reason}`, 400);
     }
 
     // Check unique constraint for host+port+nodeId (excluding current server)
@@ -322,6 +340,16 @@ export class ProxmoxService {
         }
       }
 
+      // Preload all assets that could match this import in ONE query and index
+      // them by externalId — avoids one findFirst per VM (N+1).
+      const externalIds = allVms
+        .filter((vm) => vm.vmid && vm.name)
+        .map((vm) => `proxmox:${proxmoxId}:${vm.type}_${vm.vmid}`);
+      const existingAssets = externalIds.length
+        ? await prisma.asset.findMany({ where: { externalId: { in: externalIds } }, select: { id: true, externalId: true, status: true } })
+        : [];
+      const existingByExternalId = new Map(existingAssets.map((a) => [a.externalId as string, a]));
+
       // Process each VM/container
       for (const vm of allVms) {
         try {
@@ -329,10 +357,8 @@ export class ProxmoxService {
 
           const externalId = `proxmox:${proxmoxId}:${vm.type}_${vm.vmid}`;
 
-          // Check if asset already exists by external ID
-          let existingAsset = await prisma.asset.findFirst({
-            where: { externalId },
-          });
+          // Check if asset already exists by external ID (preloaded map lookup)
+          let existingAsset = existingByExternalId.get(externalId);
 
           if (existingAsset) {
             if (!options?.dryRun) {

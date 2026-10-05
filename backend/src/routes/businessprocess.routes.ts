@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { validateBody } from '../middleware/validation';
+import { CreateBusinessProcessSchema, UpdateBusinessProcessSchema } from 'shared';
 import { businessProcessService } from '../services/businessprocess.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 
@@ -19,7 +21,7 @@ businessProcessRouter.get('/', authenticate, async (req, res, next) => {
 });
 
 // POST /api/v1/processes - Create business process
-businessProcessRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
+businessProcessRouter.post('/', authenticate, validateBody(CreateBusinessProcessSchema), async (req: AuthRequest, res, next) => {
   try {
     const process = await businessProcessService.create(req.body, req.userId);
     res.status(201).json(process);
@@ -54,7 +56,7 @@ businessProcessRouter.get('/:id/history', authenticate, async (req, res, next) =
 });
 
 // PATCH /api/v1/processes/:id - Update business process
-businessProcessRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
+businessProcessRouter.patch('/:id', authenticate, validateBody(UpdateBusinessProcessSchema), async (req: AuthRequest, res, next) => {
   try {
     const process = await businessProcessService.update(req.params.id, req.body, req.userId);
     res.json(process);

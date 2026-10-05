@@ -3,6 +3,17 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
+/**
+ * Evidence Service.
+ *
+ * IMPORTANT (honesty about storage): this service manages evidence METADATA
+ * only — title, classification, retention, and a SHA-256 hash of the file.
+ * The evidence files themselves are NOT stored on this server; they are
+ * externally referenced (uploaded/hashed elsewhere, verified by fileHash).
+ * Every create/get response therefore carries `fileStoredServerSide: false`
+ * so API consumers never assume a downloadable file exists behind an ID.
+ */
+
 export interface EvidenceLinkInput {
   entityType: 'Control' | 'Risk' | 'Asset' | 'SoAItem' | 'Document' | 'RiskControlAssessment' | 'ControlTest';
   entityId: string;
@@ -76,11 +87,15 @@ export class EvidenceService {
       await auditService.logEventStandalone(prisma, { userId, action: 'EVIDENCE_CREATE', entityType: 'Evidence', entityId: evidence.id, details: `Created evidence: ${evidence.title}`, newValue: { fileHash: evidence.fileHash, classification: evidence.classification } });
     }
 
-    return evidence;
+    // Files are externally referenced (hashed elsewhere), never uploaded to this
+    // server; state that explicitly in the response instead of leaving it implicit.
+    return { ...evidence, fileStoredServerSide: false };
   }
 
   async list() {
-    return prisma.evidence.findMany({ where: { isArchived: false }, orderBy: { createdAt: 'desc' }, include: { links: true } });
+    const items = await prisma.evidence.findMany({ where: { isArchived: false }, orderBy: { createdAt: 'desc' }, include: { links: true } });
+    // Same honesty flag as create(): the underlying files are not stored server-side.
+    return items.map((item) => ({ ...item, fileStoredServerSide: false }));
   }
 
   async delete(id: string, userId?: string) {

@@ -9,6 +9,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface User {
   id: string;
@@ -73,6 +74,8 @@ const AdminUsers = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Create modal
@@ -182,9 +185,12 @@ const AdminUsers = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('adminUsers.messages.deleteConfirm'))) return;
+  const handleDelete = (user: User) => setPendingDelete({ id: user.id, name: `${user.firstName} ${user.lastName}`.trim() || user.email });
 
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await adminApi.deleteUser(id);
       setSuccess(t('adminUsers.messages.deleteSuccess'));
@@ -444,7 +450,7 @@ const AdminUsers = () => {
                       </button>
                       {currentUser?.id !== user.id && (
                         <button
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => handleDelete(user)}
                           aria-label={formatUserLabel('adminUsers.actions.deleteUser', user)}
                           title={t('common.delete')}
                           className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}
@@ -690,6 +696,14 @@ const AdminUsers = () => {
           </div>
         )}
       </Modal>
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        danger
+        titleKey="adminUsers.messages.deleteConfirm"
+        message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+      />
     </div>
   );
 };

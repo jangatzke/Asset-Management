@@ -9,6 +9,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Group {
   id: string;
@@ -42,6 +43,8 @@ const AdminGroups = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [assignmentError, setAssignmentError] = useState(false);
   const [savingUsers, setSavingUsers] = useState(false);
@@ -99,8 +102,12 @@ const AdminGroups = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('common.confirmDelete'))) return;
+  const handleDelete = (id: string, name: string) => setPendingDelete({ id, name });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await adminApi.deleteGroup(id);
       loadData();
@@ -260,7 +267,7 @@ const AdminGroups = () => {
                         {t('groups.assignRoles')}
                       </button>
                       <button
-                        onClick={() => handleDelete(group.id)}
+                        onClick={() => handleDelete(group.id, group.name)}
                         className="text-red-600 dark:text-red-400 hover:underline text-xs"
                       >
                         {t('common.delete')}
@@ -453,6 +460,14 @@ const AdminGroups = () => {
           </div>
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+        danger
+        titleKey="common.confirmDelete"
+        message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { authApi, refreshAccessToken } from '../services/api';
-import { setAccessToken } from './accessToken';
+import { getAccessToken, setAccessToken } from './accessToken';
 
 interface User {
   id: string;
@@ -18,7 +18,6 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, mfaToken?: string) => Promise<{ state?: string; preAuthToken?: string; expiresInSeconds?: number } | void>;
@@ -32,7 +31,6 @@ let checkAuthPromise: Promise<void> | null = null;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: null,
   isAuthenticated: false,
   isLoading: true, // Initial loading state - checkAuth will resolve this
   login: async (email: string, password: string, mfaToken?: string) => {
@@ -45,7 +43,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       const { user, token } = response.data;
       setAccessToken(token);
-      set({ user, token, isAuthenticated: true, isLoading: false });
+      set({ user, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -56,12 +54,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await authApi.logout();
     } finally {
       setAccessToken(null);
-      set({ user: null, token: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false });
     }
   },
   setUser: (user: User, token: string) => {
     setAccessToken(token);
-    set({ user, token, isAuthenticated: true, isLoading: false });
+    set({ user, isAuthenticated: true, isLoading: false });
   },
   updateUserPreferences: (preferences) => {
     set((state) => ({
@@ -69,8 +67,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }));
   },
   checkAuth: async () => {
-    const current = get();
-    if (current.user && current.token) {
+    // The in-memory access token (accessToken store) is the sole authority
+    // for whether a session is live; it is intentionally not mirrored here.
+    if (get().user && getAccessToken()) {
       set({ isAuthenticated: true, isLoading: false });
       return;
     }
@@ -83,10 +82,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const token = await refreshAccessToken();
         setAccessToken(token);
         const response = await authApi.me();
-        set({ user: response.data, token, isAuthenticated: true, isLoading: false });
+        set({ user: response.data, isAuthenticated: true, isLoading: false });
       } catch {
         setAccessToken(null);
-        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+        set({ user: null, isAuthenticated: false, isLoading: false });
       }
     })().finally(() => {
       checkAuthPromise = null;

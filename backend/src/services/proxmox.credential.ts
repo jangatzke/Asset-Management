@@ -90,6 +90,10 @@ function decrypt(encryptedText: string): string {
   }
 
   if (parts.length === 2) {
+    // LEGACY read path: values written before the AES-256-GCM migration used
+    // unauthenticated AES-256-CBC. Kept for backward compatibility only —
+    // encrypt() above never writes this format anymore.
+    console.warn('[proxmox.credential] decrypting legacy AES-256-CBC credential value; re-save the credential to migrate it to AES-256-GCM');
     const [ivHex, ciphertextHex] = parts;
     if (!ivHex || !ciphertextHex) {
       throw new AppError('Invalid encrypted data format', 500);

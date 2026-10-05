@@ -24,6 +24,13 @@ mockPrisma.serviceAccount = {
 
 jest.mock('../config/database', () => ({ prisma: mockPrisma }));
 
+// S4: authorize() now verifies CURRENT roles from the database instead of
+// trusting JWT token roles — provide the active admin user for 'test-user'.
+mockPrisma.user.findUnique.mockResolvedValue({
+  isActive: true,
+  userRoles: [{ roleName: 'admin' }],
+});
+
 import { authenticate, authorize } from '../middleware/auth';
 import { idempotency } from '../middleware/idempotency';
 import { authenticateServiceAccount } from '../middleware/serviceAccountAuth';

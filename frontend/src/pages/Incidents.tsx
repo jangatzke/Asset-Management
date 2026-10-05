@@ -15,6 +15,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { formatDate, formatDateTime } from '../utils/formatDate';
 
 interface HistoryEntry {
   id: string;
@@ -399,7 +400,7 @@ const Incidents = () => {
     incident.title,
     incident.status?.replace(/_/g, ' ').toUpperCase() || '',
     incident.severity?.toUpperCase() || '',
-    incident.detectionTime ? new Date(incident.detectionTime).toLocaleDateString() : '',
+    incident.detectionTime ? formatDate(incident.detectionTime) : '',
     incident.isSignificant ? t('incidents.significant') : t('incidents.notSignificant'),
   ]));
 
@@ -496,11 +497,11 @@ const Incidents = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                    {new Date(incident.detectionTime).toLocaleDateString()}
+                    {formatDate(incident.detectionTime)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
                     <div>{incident.isSignificant ? t('incidents.significant') : t('incidents.notSignificant')}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">{t('incidents.knowledge')}: {incident.knowledgeTime ? new Date(incident.knowledgeTime).toLocaleString() : '-'}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">{t('incidents.knowledge')}: {incident.knowledgeTime ? formatDateTime(incident.knowledgeTime) : '-'}</div>
                     {incident.significanceReasons?.length ? <div className="text-xs text-red-600 dark:text-red-400">{incident.significanceReasons.join(', ')}</div> : null}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
@@ -699,7 +700,7 @@ const Incidents = () => {
                             {t(`incidents.history.actions.${entry.action}`) || entry.action}
                           </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(entry.createdAt).toLocaleString()}
+                            {formatDateTime(entry.createdAt)}
                           </span>
                           <span className="text-xs text-gray-400 dark:text-gray-500 ml-2" title={actorDisplay}>
                             by {actorDisplay}

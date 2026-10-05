@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { validateBody } from '../middleware/validation';
+import { CreateLicenseSchema, UpdateLicenseSchema } from 'shared';
 import { licenseService } from '../services/license.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 
@@ -19,7 +21,7 @@ licenseRouter.get('/', authenticate, async (req, res, next) => {
 });
 
 // POST /api/v1/licenses - Create license
-licenseRouter.post('/', authenticate, async (req: AuthRequest, res, next) => {
+licenseRouter.post('/', authenticate, validateBody(CreateLicenseSchema), async (req: AuthRequest, res, next) => {
   try {
     const license = await licenseService.create(req.body, req.userId);
     res.status(201).json(license);
@@ -54,7 +56,7 @@ licenseRouter.get('/:id/history', authenticate, async (req, res, next) => {
 });
 
 // PATCH /api/v1/licenses/:id - Update license
-licenseRouter.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
+licenseRouter.patch('/:id', authenticate, validateBody(UpdateLicenseSchema), async (req: AuthRequest, res, next) => {
   try {
     const license = await licenseService.update(req.params.id, req.body, req.userId);
     res.json(license);

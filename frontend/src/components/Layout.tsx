@@ -24,6 +24,7 @@ import {
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { CommandPalette } from './CommandPalette';
+import { useToast } from './useToast';
 import type { CommandPaletteItem } from './CommandPalette';
 import { useKeyboardShortcuts, type KeyboardShortcutBinding } from '../hooks/useKeyboardShortcuts';
 
@@ -32,17 +33,29 @@ const Layout = () => {
   const navigate = useNavigate();
   const { user, isLoading, logout, checkAuth } = useAuthStore();
   const { t } = useI18n();
+  const { addToast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [moreNavigationOpen, setMoreNavigationOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // When the api layer fails to refresh the access token it clears the token
+  // and broadcasts this event; log out locally and send the user back to the
+  // login page with the current location preserved for a post-login redirect.
+  useEffect(() => {
+    const onSessionExpired = () => {
+      addToast('warning', t('auth.sessionExpired'));
+      logout();
+      navigate('/login', { replace: true, state: { next: location.pathname + location.search } });
+    };
+    window.addEventListener('auth:session-expired', onSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', onSessionExpired);
+  }, [addToast, t, logout, navigate, location]);
 
   useEffect(() => {
     if (!isLoading && user?.mustChangePasswordOnNext && location.pathname !== '/settings') {
@@ -54,13 +67,12 @@ const Layout = () => {
   useEffect(() => {
     const closeMenu = (event: MouseEvent) => {
       if (!userMenuRef.current?.contains(event.target as Node)) setUserMenuOpen(false);
-      if (!moreMenuRef.current?.contains(event.target as Node)) setMoreNavigationOpen(false);
     };
-    if (userMenuOpen || moreNavigationOpen) {
+    if (userMenuOpen) {
       document.addEventListener('click', closeMenu);
       return () => document.removeEventListener('click', closeMenu);
     }
-  }, [userMenuOpen, moreNavigationOpen]);
+  }, [userMenuOpen]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -72,7 +84,6 @@ const Layout = () => {
       if (event.key !== 'Escape') return;
       setMobileMenuOpen(false);
       setUserMenuOpen(false);
-      setMoreNavigationOpen(false);
     };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
@@ -160,7 +171,7 @@ const Layout = () => {
     { name: t('navigation.proxmoxConfig'), href: '/admin/proxmox' },
     { name: t('navigation.reminderSettings'), href: '/admin/reminders' },
     { name: t('slaEscalation.title'), href: '/admin/sla-escalation' },
-    { name: t('navigation.emailGateway'), href: '/admin/email-gateway' },
+    { name: t('emailGateway.title'), href: '/admin/email-gateway' },
     { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
     { name: t('navigation.databaseBackup'), href: '/admin/database' },
     { name: t('navigation.ticketSlaSettings'), href: '/admin/ticket-slas' },
@@ -228,7 +239,7 @@ const Layout = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-sm text-gray-600 dark:text-gray-300">Loading...</div>
+        <div className="text-sm text-gray-600 dark:text-gray-300">{t('common.loading')}</div>
       </div>
     );
   }
@@ -244,9 +255,9 @@ const Layout = () => {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded shadow-md"
       >
-        Skip to main content
+        {t('common.skipToContent')}
       </a>
-      <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label="Main navigation">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label={t('navigation.mainNavigation')}>
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between min-h-16 gap-3 py-2 lg:py-0">
             <div className="flex items-center flex-1 min-w-0 overflow-hidden">
@@ -257,7 +268,7 @@ const Layout = () => {
                 </span>
               </div>
                <div className="hidden lg:ml-6 lg:flex lg:items-center lg:gap-1 min-w-0 overflow-visible">
-                 {navigation.slice(0, 8).map((item) => (
+                 {navigation.map((item) => (
                   <Link
                     key={item.name}
                     to={item.href}
@@ -283,7 +294,7 @@ const Layout = () => {
                   <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
                   <span className="hidden sm:inline">{t('shortcuts.commandPalette')}</span>
                 </button>
-               <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 ${isActive('/action-center') ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label="Open Action Center">
+               <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 ${isActive('/action-center') ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label={t('navigation.actionCenter')}>
                   <BellAlertIcon className="h-5 w-5" aria-hidden="true" />
                </Link>
                <button
@@ -291,7 +302,7 @@ const Layout = () => {
                  className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 mr-2"
                  aria-expanded={mobileMenuOpen}
                  aria-controls="mobile-navigation-menu"
-                 aria-label="Toggle navigation menu"
+                 aria-label={t('navigation.toggleMenu')}
                >
                  {mobileMenuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
                </button>
@@ -307,7 +318,7 @@ const Layout = () => {
                    aria-haspopup="menu"
                    aria-controls="user-menu"
                    aria-expanded={userMenuOpen}
-                   aria-label="User menu"
+                   aria-label={t('navigation.userMenu')}
                  >
                    <UserIcon className="h-5 w-5" aria-hidden="true" />
                    <span className="hidden max-w-36 truncate font-medium sm:inline">
@@ -363,7 +374,7 @@ const Layout = () => {
              </div>
            </div>
            {mobileMenuOpen && (
-             <div id="mobile-navigation-menu" className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-3" role="navigation" aria-label="Mobile navigation">
+             <div id="mobile-navigation-menu" className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-3" role="navigation" aria-label={t('navigation.mobileNavigation')}>
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                  {navigation.map((item) => (
                    <Link
@@ -380,39 +391,6 @@ const Layout = () => {
                      {item.name}
                    </Link>
                  ))}
-                 {navigation.length > 8 && (
-                   <div ref={moreMenuRef} className="relative">
-                     <button
-                       type="button"
-                       onClick={() => setMoreNavigationOpen((open) => !open)}
-                       aria-expanded={moreNavigationOpen}
-                       aria-controls="more-navigation-menu"
-                       aria-haspopup="menu"
-                       aria-label={t('navigation.moreNavigation')}
-                       className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-                     >
-                       {t('navigation.moreNavigation')}
-                       <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
-                     </button>
-                     {moreNavigationOpen && (
-                       <div id="more-navigation-menu" role="menu" className="absolute left-0 z-50 mt-2 w-64 grid-cols-1 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 p-1">
-                         {navigation.slice(8).map((item) => (
-                           <Link
-                             key={item.name}
-                             to={item.href}
-                             role="menuitem"
-                             aria-current={isActive(item.href) ? 'page' : undefined}
-                             onClick={() => setMoreNavigationOpen(false)}
-                             className={`flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${isActive(item.href) ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                           >
-                             <item.icon className="inline h-4 w-4" aria-hidden="true" />
-                             {item.name}
-                           </Link>
-                         ))}
-                       </div>
-                     )}
-                   </div>
-                 )}
                </div>
              </div>
            )}
@@ -467,7 +445,7 @@ const Layout = () => {
                  type="button"
                  onClick={() => setHelpOpen(false)}
                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                 aria-label="Close"
+                 aria-label={t('common.close')}
                >
                  <XMarkIcon className="h-5 w-5" />
                </button>

@@ -14,6 +14,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { useListQuery } from '../hooks/useListQuery';
 
 interface Control {
   id: string;
@@ -169,10 +170,13 @@ const Controls = () => {
     }
   };
 
-  const loadControls = async () => {
-    try {
-      setLoading(true);
-      const response = await controlApi.list({ page: 1, limit: 50 });
+  // Guard against out-of-order responses: superseded/aborted loads are silent.
+  const { run: runControlListQuery } = useListQuery();
+
+  const loadControls = useCallback(async () => {
+    setLoading(true);
+    await runControlListQuery(async (signal) => {
+      const response = await controlApi.list({ page: 1, limit: 50 }, { signal });
       const listedControls = response.data.data || [];
       const implementations = listedControls.flatMap((control: Control) => control.implementations ?? []);
       const riskResults = await Promise.allSettled(implementations.map((impl: ControlImplementation) => controlApi.listImplementationRisks(impl.id)));
@@ -180,28 +184,30 @@ const Controls = () => {
       riskResults.forEach((result, index) => {
         if (result.status === 'fulfilled') risksByImplementation[implementations[index].id] = result.value.data?.risks ?? [];
       });
-      setControls(listedControls.map((control: Control) => ({
-        ...control,
-        implementations: (control.implementations ?? []).map((impl) => ({ ...impl, linkedRisks: risksByImplementation[impl.id] ?? [] })),
-      })));
       const [frameworks, soa, evidence] = await Promise.allSettled([
         frameworkApi.list(),
         controlApi.listSoA(),
         evidenceApi.list(),
       ]);
-      if (frameworks.status === 'fulfilled') setFrameworkCount(frameworks.value.data?.length ?? 0);
-      if (soa.status === 'fulfilled') {
-        const soaItems = soa.value.data ?? [];
-        setSoaCount(soaItems.length);
-        setSoaList(soaItems);
-      }
-      if (evidence.status === 'fulfilled') setEvidenceCount(evidence.value.data?.length ?? 0);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('common.saveError'));
-    } finally {
-      setLoading(false);
-    }
-  };
+      return { listedControls, risksByImplementation, frameworks, soa, evidence };
+    }, {
+      onSuccess: ({ listedControls, risksByImplementation, frameworks, soa, evidence }) => {
+        setControls(listedControls.map((control: Control) => ({
+          ...control,
+          implementations: (control.implementations ?? []).map((impl) => ({ ...impl, linkedRisks: risksByImplementation[impl.id] ?? [] })),
+        })));
+        if (frameworks.status === 'fulfilled') setFrameworkCount(frameworks.value.data?.length ?? 0);
+        if (soa.status === 'fulfilled') {
+          const soaItems = soa.value.data ?? [];
+          setSoaCount(soaItems.length);
+          setSoaList(soaItems);
+        }
+        if (evidence.status === 'fulfilled') setEvidenceCount(evidence.value.data?.length ?? 0);
+      },
+      onError: (err: unknown) => { setError(getErrorMessage(err) || t('common.saveError')); },
+      onSettled: () => setLoading(false),
+    });
+  }, [runControlListQuery, t]);
 
   const filteredControls = controls.filter((control) =>
     control.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

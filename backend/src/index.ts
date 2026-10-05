@@ -189,10 +189,6 @@ app.use(jsonLogger);
 
 // 7. Rate limiting — strict for auth routes, generous for general API
 app.use('/api/v1/auth', authLimiter);
-// SECURITY FIX (Problem 6 / Issue #6): Apply authLimiter only to specific
-// user routes that need protection instead of the entire `/api/v1/users`
-// prefix. The user router is mounted below, after the general API limiter.
-app.use('/api/v1/users/reset', authLimiter);
 app.use(apiLimiter);
 
 // 8. Metrics collection (Phase 8)

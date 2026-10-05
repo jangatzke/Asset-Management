@@ -70,7 +70,14 @@ export async function acquireJobLease(
 
     const lease = rows[0] ?? null;
     return lease?.ownerId === ownerId && lease.leaseUntil > now ? lease : null;
-  } catch {
+  } catch (error: any) {
+    // Distinguish an expected lease conflict from unexpected DB failures: a
+    // unique-constraint violation (P2002) means another worker holds the lease,
+    // which is a normal "not acquired" outcome. Anything else must be visible.
+    if (error?.code === 'P2002') {
+      return null;
+    }
+    console.error('[JobLock] Unexpected error while acquiring lease for:', jobName, error);
     return null;
   }
 }

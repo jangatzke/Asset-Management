@@ -5,7 +5,7 @@ const mockPrismaClient = createMockPrismaClient();
 jest.mock('../config/database', () => ({ prisma: mockPrismaClient }));
 jest.mock('../services/audit.service', () => ({ auditService: { logEventStandalone: jest.fn(), logEvent: jest.fn() } }));
 jest.mock('../services/displayId.service', () => ({
-  displayIdService: { nextDisplayIdStandalone: jest.fn().mockResolvedValue('ID-0001') },
+  displayIdService: { nextDisplayIdStandalone: jest.fn().mockResolvedValue('ID-0001'), nextDisplayId: jest.fn().mockResolvedValue('ID-0001') },
   nextDisplayId: jest.fn().mockResolvedValue('AST-0001'),
 }));
 jest.mock('../services/authorization.service', () => ({

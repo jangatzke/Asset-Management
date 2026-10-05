@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { useI18n } from './context/I18nContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Assets = lazy(() => import('./pages/Assets'));
@@ -46,22 +48,29 @@ const NIS2 = lazy(() => import('./pages/NIS2'));
 const OperationsWorkspace = lazy(() => import('./pages/OperationsWorkspace'));
 const ISMSProcessWorkspace = lazy(() => import('./pages/ismsProcessWorkspace'));
 
-const LoadingSpinner = (
-  <div className="min-h-[60vh] flex items-center justify-center" role="status" aria-live="polite">
-    <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 border-4 border-primary-200 dark:border-primary-800 border-t-primary-600 dark:border-t-primary-400 rounded-full animate-spin" aria-hidden="true" />
-      <span className="text-sm text-gray-600 dark:text-gray-400">Loading…</span>
+const LoadingSpinner = () => {
+  const { t } = useI18n();
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center" role="status" aria-live="polite">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary-200 dark:border-primary-800 border-t-primary-600 dark:border-t-primary-400 rounded-full animate-spin" aria-hidden="true" />
+        <span className="text-sm text-gray-600 dark:text-gray-400">{t('common.loading')}</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function App() {
   return (
     <ErrorBoundary>
-      <Suspense fallback={LoadingSpinner}>
+      <Suspense fallback={<LoadingSpinner />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout />}>
+            {/* All routes under Layout require an authenticated session; the
+                guard stores the attempted URL in navigation state so Login can
+                deep-link back to it (e.g. /assets/42) after re-login. */}
+            <Route element={<ProtectedRoute />}>
             <Route index element={<Dashboard />} />
             <Route path="assets" element={<Assets />} />
             <Route path="assets/:assetId" element={<AssetDetail />} />
@@ -104,6 +113,7 @@ function App() {
             <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
             <Route path="admin/database" element={<AdminDatabase />} />
             <Route path="admin/ticket-slas" element={<AdminTicketSla />} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

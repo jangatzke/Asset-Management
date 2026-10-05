@@ -27,6 +27,7 @@ const mockPrismaClient: any = {
   userGroup: {
     findMany: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
     deleteMany: jest.fn(),
   },
   group: {
@@ -641,17 +642,13 @@ describe('AdminService', () => {
   describe('assignUsersToGroup', () => {
     it('should assign users to group', async () => {
       mockPrismaClient.group.findUnique.mockResolvedValue(testGroup);
-      // findUnique is called for each user in userIds
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        ...testUser,
-        userRoles: [],
-        userGroups: [],
-      });
-      mockPrismaClient.userGroup.create.mockResolvedValue(testUserGroup);
+      // Users are batch-validated with one findMany, links inserted via createMany (N+1 fix).
+      mockPrismaClient.user.findMany.mockResolvedValue([{ id: 'user-1' }]);
+      mockPrismaClient.userGroup.createMany.mockResolvedValue({ count: 1 });
 
       await adminService.assignUsersToGroup(testGroup.id, { userIds: ['user-1'] });
 
-      expect(mockPrismaClient.userGroup.create).toHaveBeenCalled();
+      expect(mockPrismaClient.userGroup.createMany).toHaveBeenCalled();
     });
 
     it('should throw an error if group not found', async () => {

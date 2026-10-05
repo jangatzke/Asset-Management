@@ -1,7 +1,8 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api';
+import { useI18n } from '../context/I18nContext';
 
 type Mode = 'login' | 'register';
 type PreAuthState = 'mfa_required' | 'mfa_enrollment_required' | 'password_change_required' | 'disabled' | null;
@@ -29,7 +30,18 @@ const Login = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [needsFirstAdmin, setNeedsFirstAdmin] = useState(false);
+  const { t } = useI18n();
+  const location = useLocation();
   const navigate = useNavigate();
+
+  // Deep-link support: Layout/ProtectedRoute store the intended destination in
+  // navigation state (`next` or `from`); after a successful login we return
+  // there instead of always going to the dashboard.
+  const redirectAfterLogin = () => {
+    const state = (location.state ?? {}) as { next?: string; from?: { pathname?: string } };
+    const target = state.next || state.from?.pathname || '/';
+    navigate(target, { replace: true });
+  };
   const login = useAuthStore((state) => state.login);
   const setUser = useAuthStore((state) => state.setUser);
 
@@ -57,7 +69,7 @@ const Login = () => {
         // Create first admin
         await authApi.createFirstAdmin({ email, password, firstName, lastName });
         await login(email, password);
-        navigate('/');
+        redirectAfterLogin();
       } else if (mode === 'login') {
         if (preAuthState === 'mfa_required' && preAuthToken) {
           const response = await authApi.verifyMfaLogin(preAuthToken, mfaToken);
@@ -82,7 +94,7 @@ const Login = () => {
           const result = await login(email, password);
           if (result?.state && result.state !== 'authenticated') {
             if (result.state === 'disabled') {
-              setError('Account is disabled');
+              setError(t('login.accountDisabled'));
               return;
             }
             setPreAuthState(result.state as PreAuthState);
@@ -94,15 +106,15 @@ const Login = () => {
             return;
           }
         }
-        navigate('/');
+        redirectAfterLogin();
       } else {
         await authApi.register({ email, password, firstName, lastName });
         await login(email, password);
-        navigate('/');
+        redirectAfterLogin();
       }
     } catch (err: unknown) {
       const maybeError = err as { response?: { data?: { error?: { message?: string }; message?: string } } };
-      setError(maybeError.response?.data?.error?.message || maybeError.response?.data?.message || 'Request failed');
+      setError(maybeError.response?.data?.error?.message || maybeError.response?.data?.message || t('login.requestFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -113,7 +125,7 @@ const Login = () => {
       <div className={loginShellClass}>
           <div className="text-center" role="status" aria-live="polite">
            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" aria-hidden="true"></div>
-          <p className={`mt-4 ${loginTextClass}`}>Loading...</p>
+          <p className={`mt-4 ${loginTextClass}`}>{t('common.loading')}</p>
         </div>
       </div>
     );

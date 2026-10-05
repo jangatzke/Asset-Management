@@ -30,8 +30,13 @@ export class BcmService {
     if (data.processId && !await prisma.businessProcess.findUnique({ where: { id: data.processId } })) throw new AppError('Referenced business process not found', 400);
     if (data.serviceId && !await prisma.businessService.findUnique({ where: { id: data.serviceId } })) throw new AppError('Referenced business service not found', 400);
     if (data.ownerId && !await prisma.user.findUnique({ where: { id: data.ownerId } })) throw new AppError('Referenced owner not found', 400);
-    for (const link of data.assetLinks ?? []) {
-      if (!await prisma.asset.findUnique({ where: { id: link.assetId } })) throw new AppError(`Referenced asset ${link.assetId} not found`, 400);
+    // Batch-validate asset links in one query — avoids a find per link (N+1).
+    const assetIds: string[] = [...new Set<string>((data.assetLinks ?? []).map((link: AnyObject) => link.assetId).filter((id: unknown): id is string => typeof id === 'string' && id.length > 0))];
+    if (assetIds.length) {
+      const found = await prisma.asset.findMany({ where: { id: { in: assetIds } }, select: { id: true } });
+      const foundIds = new Set(found.map((a) => a.id));
+      const missing = assetIds.filter((id: string) => !foundIds.has(id));
+      if (missing.length) throw new AppError(`Referenced asset ${missing[0]} not found`, 400);
     }
   }
 

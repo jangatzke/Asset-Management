@@ -4,6 +4,7 @@ import { useI18n } from '../context/I18nContext';
 import { assetApi, controlApi, costPlanningApi, incidentApi, riskApi, ticketApi, type TicketWorkloadEntry } from '../services/api';
 import { DashboardMetrics, emptyDashboardMetrics, paginatedTotal } from './dashboardHelpers';
 import { metricCard } from '../styles/tokens';
+import { formatDateTime } from '../utils/formatDate';
 
 const money = (value: string | number | undefined) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR' }).format(Number(value || 0));
 
@@ -164,7 +165,7 @@ const Dashboard = () => {
                 <Link to={`/tickets/${ticket.id}`} className="flex items-center justify-between gap-3 rounded-md bg-gray-50 px-3 py-3 transition hover:bg-gray-100 dark:bg-gray-900/40 dark:hover:bg-gray-700/70">
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{ticket.displayId} – {ticket.title}</span>
-                    <span className="mt-1 block text-xs text-gray-500">{new Date(ticket.updatedAt).toLocaleString()}</span>
+                    <span className="mt-1 block text-xs text-gray-500">{formatDateTime(ticket.updatedAt)}</span>
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${ticketPriorityClasses[ticket.priority] ?? ticketPriorityClasses.medium}`}>{t(`tickets.priorities.${ticket.priority}`)}</span>

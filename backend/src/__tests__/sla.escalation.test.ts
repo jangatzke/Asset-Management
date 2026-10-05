@@ -41,7 +41,7 @@ describe('SLA escalation breach scan', () => {
     mockPrisma.slaConfig.create.mockResolvedValue(configBase);
     mockPrisma.ticket.findMany.mockResolvedValue([breachedTicket]);
     mockPrisma.slaEscalationLog.create.mockResolvedValue({ id: 'log-1' });
-    mockPrisma.slaEscalationLog.findFirst.mockResolvedValue(null);
+    mockPrisma.slaEscalationLog.findMany.mockResolvedValue([]);
     mockPrisma.ticketEscalation.create.mockResolvedValue({});
     mockPrisma.ticketHistoryEntry.create.mockResolvedValue({});
     mockPrisma.slaConfig.update.mockResolvedValue({});
@@ -70,14 +70,14 @@ describe('SLA escalation breach scan', () => {
       createdLogs.push(record);
       return record;
     });
-    mockPrisma.slaEscalationLog.findFirst.mockImplementation(async (args: any) => createdLogs.find((l) => l.ticketId === args.where.ticketId && l.breachType === args.where.breachType && l.level === args.where.level) ?? null);
+    mockPrisma.slaEscalationLog.findMany.mockImplementation(async (args: any) => createdLogs.filter((l) => args.where.ticketId.in.includes(l.ticketId)));
 
     await slaService.scanBreach('system');
     await slaService.scanBreach('system');
 
     // Two breaches per scan, one level each => 2 records created on the first scan, none on the second.
     expect(mockPrisma.slaEscalationLog.create).toHaveBeenCalledTimes(2);
-    expect(mockPrisma.slaEscalationLog.findFirst).toHaveBeenCalled();
+    expect(mockPrisma.slaEscalationLog.findMany).toHaveBeenCalled();
   });
 
   it('escalates to the manager at level 2 while notifying the assignee at level 1', async () => {

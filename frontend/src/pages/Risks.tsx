@@ -16,6 +16,8 @@ import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.ut
 import { getRiskColor, getErrorMessage } from '../utils/statusHelpers';
 import { normalizeRiskStatusFilter, matchesRiskStatusFilter } from './riskStatusHelpers';
 import { exportCsv } from '../utils/csvExport';
+import { useListQuery } from '../hooks/useListQuery';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Risk {
   id: string;
@@ -201,30 +203,38 @@ const Risks = () => {
     }
   }, [formState]);
 
-  useEffect(() => { loadRisks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial risks load only; loader uses current translation fallback for this mount.
-  }, []);
+  // Guard against out-of-order responses: superseded/aborted loads are silent.
+  const { run: runRiskListQuery } = useListQuery();
 
-  const loadRisks = async () => {
-    try {
-      setLoading(true);
+  const loadRisks = useCallback(async () => {
+    setLoading(true);
+    await runRiskListQuery(async (signal) => {
       const params: { page: number; limit: number; status?: string } = { page: 1, limit: 50 };
       if (statusFilter && statusFilter !== 'open') params.status = statusFilter;
-      const response = await riskApi.list(params);
+      const response = await riskApi.list(params, { signal });
       const list = response.data?.data || [];
-      setRisks(list);
-      setDensity(list.length > 10 ? 'compact' : 'comfortable');
+      // Enrich the first page with details; aborted follow-ups are discarded by the guard.
       const detailPairs = await Promise.allSettled(list.slice(0, 20).map((risk: Risk) => riskApi.getById(risk.id)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API responses have dynamic shape
       const details: Record<string, any> = {};
       detailPairs.forEach((result, index) => {
         if (result.status === 'fulfilled') details[list[index].id] = result.value.data;
       });
-      setRiskDetails(details);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('common.saveError'));
-    } finally { setLoading(false); }
-  };
+      return { list, details };
+    }, {
+      onSuccess: ({ list, details }) => {
+        setRisks(list);
+        setDensity(list.length > 10 ? 'compact' : 'comfortable');
+        setRiskDetails(details);
+      },
+      onError: (err: unknown) => { setError(getErrorMessage(err) || t('common.saveError')); },
+      onSettled: () => setLoading(false),
+    });
+  }, [runRiskListQuery, statusFilter, t]);
+
+  // Re-runs whenever the status filter changes; useListQuery aborts the
+  // superseded request so out-of-order responses cannot overwrite newer data.
+  useEffect(() => { void loadRisks(); }, [loadRisks]);
 
   // Search endpoints for EntitySearchSelect
   const searchAssets = async (q: string) => {
@@ -318,10 +328,21 @@ const Risks = () => {
     } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.updateError')); }
   };
 
-  const handleRemoveRiskControl = async (link: RiskControlLink) => {
-    if (!selectedRiskForControls || !confirm(t('risks.controls.removeConfirm'))) return;
+  // Deletion confirmations owned by styled ConfirmDialogs (replaces the native browser dialog).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRemoveControl, setPendingRemoveControl] = useState<RiskControlLink | null>(null);
+
+  const handleRemoveRiskControl = (link: RiskControlLink) => {
+    if (!selectedRiskForControls) return;
+    setPendingRemoveControl(link);
+  };
+
+  const confirmRemoveRiskControl = async () => {
+    if (!selectedRiskForControls || !pendingRemoveControl) return;
+    const linkId = pendingRemoveControl.id;
+    setPendingRemoveControl(null);
     try {
-      await riskApi.removeControl(selectedRiskForControls.id, link.id);
+      await riskApi.removeControl(selectedRiskForControls.id, linkId);
       await refreshSelectedRiskControls();
     } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.removeError')); }
   };
@@ -470,8 +491,12 @@ const Risks = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('risks.deleteConfirm'))) return;
+  const handleDelete = (id: string, name: string) => setPendingDelete({ id, name });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       await riskApi.delete(id);
       await loadRisks();
@@ -623,7 +648,7 @@ const Risks = () => {
                     <button onClick={() => setHistoryRisk(risk)} aria-label={`${t('history.viewHistory')}: ${risk.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
                       <ClockIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
-                    <button onClick={() => handleDelete(risk.id)} aria-label={`${t('common.delete')}: ${risk.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                    <button onClick={() => handleDelete(risk.id, risk.title)} aria-label={`${t('common.delete')}: ${risk.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
                       <TrashIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                   </div>
@@ -859,6 +884,24 @@ const Risks = () => {
        onDiscard={() => { if (pendingTreatmentClose.current) { pendingTreatmentClose.current(); pendingTreatmentClose.current = null; } setTreatmentDiscardConfirmOpen(false); }}
        titleKey="Discard Changes"
        messageKey="You have unsaved changes. Are you sure you want to discard them?"
+     />
+
+     <ConfirmDialog
+       isOpen={!!pendingDelete}
+       onClose={() => setPendingDelete(null)}
+       onConfirm={() => void confirmDelete()}
+       danger
+       titleKey="risks.deleteConfirm"
+       message={pendingDelete ? t('common.confirmDeleteNamed', { name: pendingDelete.name }) : undefined}
+     />
+
+     <ConfirmDialog
+       isOpen={!!pendingRemoveControl}
+       onClose={() => setPendingRemoveControl(null)}
+       onConfirm={() => void confirmRemoveRiskControl()}
+       danger
+       titleKey="risks.controls.removeConfirm"
+       message={pendingRemoveControl?.controlImplementation?.control?.title ? t('common.confirmDeleteNamed', { name: pendingRemoveControl.controlImplementation.control.title }) : undefined}
      />
    </div>
  );

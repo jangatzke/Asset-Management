@@ -22,8 +22,9 @@ export interface PasswordValidationResult {
 export const DEFAULT_AUTH_SETTINGS: Omit<AuthSettingsDto, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'> = {
   passwordComplexityEnabled: true,
   minPasswordLength: 12,
-  passwordHistoryCount: 0,
-  passwordValidityDays: 0,
+  // S8: secure-by-default password policy (history reuse prevention + annual rotation).
+  passwordHistoryCount: 5,
+  passwordValidityDays: 365,
   forceMfa: false,
 };
 

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { validateBody } from '../middleware/validation';
+import { CreateRiskMethodSchema, UpdateRiskMethodSchema } from 'shared';
 import { riskMethodService } from '../services/riskmethod.service';
 
 
@@ -22,7 +24,7 @@ riskMethodRouter.get('/', authenticate, async (req, res, next) => {
 });
 
 // POST /api/v1/methods - Create risk method
-riskMethodRouter.post('/', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+riskMethodRouter.post('/', authenticate, requireAdminAccess, validateBody(CreateRiskMethodSchema), async (req: AuthRequest, res, next) => {
   try {
     const method = await riskMethodService.create(req.body, req.userId);
     res.status(201).json(method);
@@ -167,7 +169,7 @@ riskMethodRouter.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // PATCH /api/v1/methods/:id - Update risk method
-riskMethodRouter.patch('/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+riskMethodRouter.patch('/:id', authenticate, requireAdminAccess, validateBody(UpdateRiskMethodSchema), async (req: AuthRequest, res, next) => {
   try {
     const method = await riskMethodService.update(req.params.id, req.body, req.userId);
     res.json(method);

@@ -3071,6 +3071,9 @@ model IntuneSyncStatus {
 
 model IntuneSyncConfig {
   id                             String    @id @default(uuid())
+  // Stable singleton key: exactly one row with configKey "singleton" holds the
+  // sync configuration; upserts target this key instead of findFirst races.
+  configKey                      String    @unique @default("singleton")
   enabled                        Boolean   @default(false)
   fullSyncIntervalHours          Int       @default(24)
   incrementalSyncIntervalMinutes Int       @default(120)

@@ -6,8 +6,111 @@ import { Prisma } from '@prisma/client';
 import QRCode from 'qrcode';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { getJwtSecret } from '../middleware/auth';
 import { auditService } from './audit.service';
 import { authSettingsService } from './authSettings.service';
+
+// ==================== Per-account login lockout (S3) ====================
+
+/**
+ * In-memory failed-login tracker keyed by normalized (lowercased, trimmed)
+ * email. After MAX_FAILED_LOGIN_ATTEMPTS failures within FAILED_LOGIN_WINDOW_MS
+ * the account is temporarily locked: logins are rejected with the SAME generic
+ * message as bad credentials (no user enumeration), but with a distinct error
+ * code and Retry-After hint so clients can back off. State is per process —
+ * this complements, not replaces, the global rate limiter in index.ts.
+ */
+const MAX_FAILED_LOGIN_ATTEMPTS = 10;
+const FAILED_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+interface FailedLoginEntry {
+  count: number;
+  firstFailureAt: number;
+  lastFailureAt: number;
+}
+
+const failedLoginAttempts = new Map<string, FailedLoginEntry>();
+
+function normalizeEmailForLockout(email: string): string {
+  return String(email ?? '').trim().toLowerCase();
+}
+
+function pruneExpiredFailedLogins(now: number): void {
+  for (const [key, entry] of failedLoginAttempts) {
+    if (now - entry.firstFailureAt >= FAILED_LOGIN_WINDOW_MS) {
+      failedLoginAttempts.delete(key);
+    }
+  }
+}
+
+function isLoginTemporarilyLocked(normalizedEmail: string, now: number): boolean {
+  const entry = failedLoginAttempts.get(normalizedEmail);
+  if (!entry) return false;
+  if (now - entry.firstFailureAt >= FAILED_LOGIN_WINDOW_MS) {
+    // Rolling window expired — start fresh.
+    failedLoginAttempts.delete(normalizedEmail);
+    return false;
+  }
+  return entry.count >= MAX_FAILED_LOGIN_ATTEMPTS;
+}
+
+function recordFailedLoginAttempt(normalizedEmail: string, now: number): void {
+  // Bound memory growth of the tracker.
+  if (failedLoginAttempts.size > 10_000) pruneExpiredFailedLogins(now);
+  const entry = failedLoginAttempts.get(normalizedEmail);
+  if (!entry || now - entry.firstFailureAt >= FAILED_LOGIN_WINDOW_MS) {
+    failedLoginAttempts.set(normalizedEmail, { count: 1, firstFailureAt: now, lastFailureAt: now });
+    return;
+  }
+  entry.count += 1;
+  entry.lastFailureAt = now;
+}
+
+function clearFailedLoginAttempts(normalizedEmail: string): void {
+  failedLoginAttempts.delete(normalizedEmail);
+}
+
+/** Test/admin helper: reset the per-account login lockout state. */
+export function resetLoginAttemptTrackers(email?: string): void {
+  if (email === undefined) {
+    failedLoginAttempts.clear();
+  } else {
+    clearFailedLoginAttempts(normalizeEmailForLockout(email));
+  }
+}
+
+/**
+ * S1 helper: revoke all non-revoked refresh tokens of a user (sets
+ * revokedAt), optionally keeping one token family — e.g. the family that is
+ * about to continue the current session. Mirrors the family-revocation update
+ * used in refreshToken() on token reuse.
+ */
+async function revokeAllUserRefreshTokens(userId: string, exceptFamilyId?: string): Promise<number> {
+  const db = prisma as any;
+  const where: Record<string, unknown> = { userId, revokedAt: null };
+  if (exceptFamilyId) {
+    where.familyId = { not: exceptFamilyId };
+  }
+  const result = await db.refreshToken.updateMany({ where, data: { revokedAt: new Date() } });
+  return result?.count ?? 0;
+}
+
+/**
+ * AppError variant for the per-account login lockout (S3). Carries the
+ * distinct machine-readable code and a Retry-After hint; `errorHandler`
+ * turns `retryAfterSeconds` into an actual Retry-After header. The message
+ * stays identical to the generic bad-credentials error on purpose.
+ */
+export class LoginLockoutError extends AppError {
+  public readonly code = 'too_many_attempts';
+  public readonly retryAfterSeconds: number;
+
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message, 401);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 
 /**
  * Expected GCM authentication tag length in bytes.
@@ -136,14 +239,9 @@ export class AuthService {
   private readonly refreshTokenBytes = 32;
 
   private getJwtSecret(): string {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new AppError('JWT_SECRET is not configured', 500);
-    }
-    if (process.env.NODE_ENV !== 'test' && (secret === 'secret' || secret.length < 32)) {
-      throw new AppError('JWT secret is not securely configured', 500);
-    }
-    return secret;
+    // S5: single source of truth for JWT secret handling lives in
+    // middleware/auth.ts — no duplicated weak-secret logic here.
+    return getJwtSecret();
   }
 
   private getMfaEncryptionKey(): Buffer {
@@ -416,6 +514,19 @@ export class AuthService {
   }
 
   async login(credentials: LoginCredentials, context: SessionContext = {}): Promise<AuthFlowResult> {
+    const now = Date.now();
+    const lockoutKey = normalizeEmailForLockout(credentials.email);
+
+    // S3: per-account lockout. Checked BEFORE the user lookup so a locked
+    // account is rejected without any additional information disclosure.
+    if (isLoginTemporarilyLocked(lockoutKey, now)) {
+      const entry = failedLoginAttempts.get(lockoutKey)!;
+      const retryAfterSeconds = Math.max(1, Math.ceil((entry.firstFailureAt + FAILED_LOGIN_WINDOW_MS - now) / 1000));
+      // Same generic message as bad credentials (no user enumeration); the
+      // distinct code + Retry-After semantics let clients back off correctly.
+      throw new LoginLockoutError('Invalid email or password', retryAfterSeconds);
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
     }) as LocalAuthUser | null;
@@ -428,8 +539,12 @@ export class AuthService {
     );
 
     if (!user || !isValid) {
+      recordFailedLoginAttempt(lockoutKey, Date.now());
       throw new AppError('Invalid email or password', 401);
     }
+
+    // Successful password: reset the failed-attempt counter for this account.
+    clearFailedLoginAttempts(lockoutKey);
 
     if (!user.isActive) {
       return { state: 'disabled' };
@@ -531,6 +646,22 @@ export class AuthService {
       },
     });
     await authSettingsService.recordPasswordHash(userId, passwordHash);
+
+    // S1: a password change invalidates every existing session. Revoke all
+    // non-revoked refresh tokens of this user (mirrors the family-revocation
+    // pattern used on refresh-token reuse). changeOwnPassword() has no refresh
+    // token in hand, so there is no "current family" to keep alive — the
+    // client re-authenticates with the new password.
+    await revokeAllUserRefreshTokens(userId);
+
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      action: 'PERMISSION_CHANGE',
+      entityType: 'RefreshToken',
+      entityId: user.id,
+      details: `All refresh tokens revoked after password change for ${user.email}`,
+    });
   }
 
   async refreshToken(refreshToken: string, context: SessionContext = {}) {
@@ -653,6 +784,21 @@ export class AuthService {
       });
       return changedUser;
     });
+
+    // S1: a password change invalidates every existing session. Revoke all
+    // non-revoked refresh tokens of this user before the new session is
+    // issued below (the pre-auth flow has no existing refresh-token family to
+    // preserve — the freshly issued session is created after revocation).
+    await revokeAllUserRefreshTokens(user.id);
+    await auditService.logEventStandalone(prisma, {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      action: 'PERMISSION_CHANGE',
+      entityType: 'RefreshToken',
+      entityId: user.id,
+      details: `All refresh tokens revoked after password change for ${user.email}`,
+    });
+
     return this.nextStateAfterPassword(updated, context);
   }
 

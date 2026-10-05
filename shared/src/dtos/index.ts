@@ -871,6 +871,12 @@ export const CreateContractSchema = z.object({
 
 export type CreateContractDTO = z.infer<typeof CreateContractSchema>;
 
+// PATCH bodies reuse the create shape with everything optional (mirrors the
+// service's Update*Data = Partial<Create*Data> interfaces).
+export const UpdateContractSchema = CreateContractSchema.partial();
+
+export type UpdateContractDTO = z.input<typeof UpdateContractSchema>;
+
 // ==========================================
 // License DTOs
 // ==========================================
@@ -893,6 +899,11 @@ export const CreateLicenseSchema = z.object({
 
 export type CreateLicenseDTO = z.infer<typeof CreateLicenseSchema>;
 
+// PATCH body: create shape with everything optional (mirrors UpdateLicenseData).
+export const UpdateLicenseSchema = CreateLicenseSchema.partial();
+
+export type UpdateLicenseDTO = z.input<typeof UpdateLicenseSchema>;
+
 // ==========================================
 // Business Process DTOs
 // ==========================================
@@ -908,6 +919,11 @@ export const CreateBusinessProcessSchema = z.object({
 });
 
 export type CreateBusinessProcessDTO = z.infer<typeof CreateBusinessProcessSchema>;
+
+// PATCH body: create shape with everything optional (mirrors UpdateBusinessProcessData).
+export const UpdateBusinessProcessSchema = CreateBusinessProcessSchema.partial();
+
+export type UpdateBusinessProcessDTO = z.input<typeof UpdateBusinessProcessSchema>;
 
 // ==========================================
 // Risk Treatment DTOs

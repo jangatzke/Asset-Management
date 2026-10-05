@@ -77,7 +77,10 @@ const WORKLOAD_WEEKLY_CAPACITY_UNITS = 160;
 
 function parseIsoWeek(value?: unknown): { key: string; start: Date; end: Date } {
   const match = typeof value === 'string' ? /^(\d{4})-W(\d{2})$/.exec(value) : null;
-  const date = match ? new Date(Date.UTC(Number(match[1]), 0, 4)) : new Date();
+  // Anchor on the UTC calendar date of "now" (drop the time-of-day component)
+  // so week boundaries are stable regardless of when during the day this runs.
+  const now = new Date();
+  const date = match ? new Date(Date.UTC(Number(match[1]), 0, 4)) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const day = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() - day + 1);
   date.setUTCHours(0, 0, 0, 0);
@@ -183,9 +186,16 @@ export class TicketService {
 
   async update(id: string, data: Data, actorId: string) {
     const current = await this.getById(id);
+    // Optimistic locking: the caller must send the `version` it read; the update
+    // only applies while that version is still current. A mismatch (or a
+    // concurrent writer winning the race) is a 409 conflict, not a silent overwrite.
+    const expectedVersion = Number(data.version);
+    if (!Number.isInteger(expectedVersion)) {
+      throw new AppError('A ticket update must include the current ticket `version` for optimistic locking', 400);
+    }
     // SECURITY FIX (Problem 2 / Issue #2): Explicitly exclude `assetIds` from `changes`
     // to prevent Prisma throwing "Unknown arg `assetIds`".  Asset links are handled
-    // separately below (lines 183-186) — if the Zod schema strips `assetIds` the block
+    // separately below — if the Zod schema strips `assetIds` the block
     // becomes dead code, but we keep it for safety in case a caller passes it directly.
     const changes: Data = Object.fromEntries(
       Object.entries(data).filter(([k, value]) => value !== undefined && k !== 'version' && k !== 'isArchived' && k !== 'assetIds'),
@@ -202,7 +212,11 @@ export class TicketService {
       if ('managerId' in data) pendingUserRefs.managerId = data.managerId;
       await validateUserReferences(tx, pendingUserRefs);
       await validateAssetReferences(tx, data.assetIds);
-      await tx.ticket.update({ where: { id }, data: { ...changes, updatedBy: actorId, version: { increment: 1 } } });
+      const updated = await tx.ticket.updateMany({ where: { id, version: expectedVersion }, data: { ...changes, updatedBy: actorId, version: { increment: 1 } } });
+      if (updated.count === 0) {
+        // The ticket exists (checked above) but the version moved on — someone else wrote first.
+        throw new AppError('Ticket was modified by another user; reload and retry', 409);
+      }
       if (data.assetIds) {
         await tx.ticketAsset.deleteMany({ where: { ticketId: id } });
         if (data.assetIds.length) await tx.ticketAsset.createMany({ data: data.assetIds.map((assetId: string) => ({ ticketId: id, assetId })), skipDuplicates: true });
@@ -251,6 +265,8 @@ export class TicketService {
       await authorizationService.can(user.id, 'tickets.write') ? user : null
     )))).filter(Boolean) as Array<typeof users[number]>;
     const editorIds = editors.map((user: any) => user.id);
+    // Hard take-limit: workload views are bounded aggregates; cap the scan so a
+    // pathological query cannot pull an unbounded ticket set into memory.
     const tickets = editorIds.length ? await (prisma as any).ticket.findMany({
       where: {
         AND: [authzWhere, {
@@ -261,6 +277,7 @@ export class TicketService {
         }],
       },
       select: { id: true, displayId: true, title: true, assigneeId: true, resolutionDueAt: true, estimatedEffortUnits: true },
+      take: 500,
     }) : [];
     const totals = new Map<string, { ticketCount: number; effortUnits: number; unestimatedTicketCount: number }>();
     for (const ticket of tickets) {

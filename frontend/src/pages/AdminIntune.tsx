@@ -27,7 +27,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { ChipProps } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -35,7 +35,7 @@ import HealthIcon from '@mui/icons-material/Favorite';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { useDarkMode } from '../context/DarkModeContext';
+import { getErrorMessage } from '../utils/statusHelpers';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { exportCsv } from '../utils/csvExport';
@@ -117,8 +117,6 @@ const configTextFieldSx = {
 
 export default function IntuneAdmin() {
   const { t, language } = useI18n();
-  const { darkMode } = useDarkMode();
-  const muiTheme = useMemo(() => createTheme({ palette: { mode: darkMode ? 'dark' : 'light' }, components: { MuiTableHead: { styleOverrides: { root: { backgroundColor: darkMode ? '#374151' : '#f9fafb' } } }, MuiTableCell: { styleOverrides: { head: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.025em', textTransform: 'uppercase' } } } } }), [darkMode]);
   const [config, setConfig] = useState<IntuneConfig | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [devices, setDevices] = useState<DeviceSync[]>([]);
@@ -162,6 +160,10 @@ export default function IntuneAdmin() {
   }
 
   const [credentials, setCredentials] = useState<any | null>(null);
+  // Surface genuine failures to the user via an inline Alert instead of only logging them.
+  const [error, setError] = useState('');
+  // Deletion confirmation owned by the styled ConfirmDialog (replaces the native browser dialog).
+  const [pendingDeleteCredentials, setPendingDeleteCredentials] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const pendingClose = useRef<(() => void) | null>(null);
@@ -181,6 +183,7 @@ export default function IntuneAdmin() {
       setConfig(res.data);
     } catch (e) {
       console.error('Failed to load Intune config:', e);
+      setError(getErrorMessage(e) || t('common.loadError'));
     }
   };
 
@@ -190,6 +193,7 @@ export default function IntuneAdmin() {
       setSyncStatus(res.data);
     } catch (e) {
       console.error('Failed to load sync status:', e);
+      setError(getErrorMessage(e) || t('common.loadError'));
     }
   };
 
@@ -261,17 +265,21 @@ export default function IntuneAdmin() {
       loadCredentials();
     } catch (e) {
       console.error('Failed to save credentials:', e);
+      setError(getErrorMessage(e) || t('common.saveError'));
     }
   };
 
-  const handleDeleteCredentials = async () => {
-    if (!window.confirm(t('intune.deleteCredentialsConfirm'))) return;
+  const handleDeleteCredentials = () => setPendingDeleteCredentials(true);
+
+  const confirmDeleteCredentials = async () => {
+    setPendingDeleteCredentials(false);
     try {
       await api.delete('/intune/credentials');
       setCredentials(null);
       setCredentialsOpen(false);
     } catch (e) {
       console.error('Failed to delete credentials:', e);
+      setError(getErrorMessage(e) || t('common.deleteError'));
     }
   };
 
@@ -325,6 +333,7 @@ export default function IntuneAdmin() {
       setDeviceTotal(res.data.pagination.total);
     } catch (e) {
       console.error('Failed to load devices:', e);
+      setError(getErrorMessage(e) || t('common.loadError'));
     } finally {
       setLoading(false);
     }
@@ -337,6 +346,7 @@ export default function IntuneAdmin() {
       setConfig(res.data);
     } catch (e) {
       console.error('Failed to update config:', e);
+      setError(getErrorMessage(e) || t('common.saveError'));
     }
   };
 
@@ -346,6 +356,7 @@ export default function IntuneAdmin() {
       loadSyncStatus();
     } catch (e) {
       console.error('Failed to trigger full sync:', e);
+      setError(getErrorMessage(e) || t('intune.syncFailed'));
     }
   };
 
@@ -355,6 +366,7 @@ export default function IntuneAdmin() {
       loadSyncStatus();
     } catch (e) {
       console.error('Failed to trigger incremental sync:', e);
+      setError(getErrorMessage(e) || t('intune.syncFailed'));
     }
   };
 
@@ -363,6 +375,7 @@ export default function IntuneAdmin() {
       await api.post('/intune/scheduler/start');
     } catch (e) {
       console.error('Failed to start scheduler:', e);
+      setError(getErrorMessage(e) || t('common.saveError'));
     }
   };
 
@@ -371,6 +384,7 @@ export default function IntuneAdmin() {
       await api.post('/intune/scheduler/stop');
     } catch (e) {
       console.error('Failed to stop scheduler:', e);
+      setError(getErrorMessage(e) || t('common.saveError'));
     }
   };
 
@@ -390,11 +404,16 @@ export default function IntuneAdmin() {
   };
 
   return (
-    <ThemeProvider theme={muiTheme}>
     <Box>
       <Typography variant="h4" gutterBottom>
         {t('intune.title')}
       </Typography>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
 
       {/* Health Status */}
       <Card sx={{ mb: 3 }}>
@@ -662,6 +681,15 @@ export default function IntuneAdmin() {
         </DialogActions>
       </Dialog>
 
+      <ConfirmDialog
+        isOpen={pendingDeleteCredentials}
+        onClose={() => setPendingDeleteCredentials(false)}
+        onConfirm={() => void confirmDeleteCredentials()}
+        danger
+        titleKey="intune.deleteCredentialsConfirm"
+        message={credentials?.name ? t('common.confirmDeleteNamed', { name: credentials.name }) : undefined}
+      />
+
       <DiscardConfirmationDialog
         open={discardConfirmOpen}
         onClose={() => {
@@ -762,6 +790,6 @@ export default function IntuneAdmin() {
         )}
       </Paper>
     </Box>
-    </ThemeProvider>
+
   );
 }
