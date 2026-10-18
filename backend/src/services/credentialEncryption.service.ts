@@ -125,8 +125,12 @@ function plaintextPassthroughAllowed(): boolean {
  * Tries all configured keys (starting with the active key) to support key
  * rotation.  Returns the original plaintext on first successful decryption.
  *
- * Falls back to plaintext if decryption fails (backward compatibility with
- * pre-encryption storage).
+ * Backward compatibility: values that are too short to be ciphertext or that
+ * lack the version byte are returned as-is (pre-encryption plaintext storage).
+ * However, a value that carries the current version byte but cannot be
+ * decrypted with any configured key is treated as an error — it cannot be
+ * plaintext, so silently returning it would hide corrupted data or a broken
+ * key rotation.
  */
 export function decrypt(base64Data: string): string {
   if (!base64Data) return '';
@@ -175,6 +179,15 @@ export function decrypt(base64Data: string): string {
   // production instead. Plaintext passthrough remains available only outside
   // production or when an operator explicitly opts in via
   // ALLOW_LEGACY_PLAINTEXT_SECRETS=true (migration aid for pre-encryption data).
+  if (isVersioned) {
+    // A versioned payload cannot be plaintext: failing every key means the
+    // data is corrupted or CREDENTIAL_ENCRYPTION_KEYS lost the required key.
+    // Never return it as-is, even with the plaintext passthrough opt-in.
+    throw new Error(
+      'Stored credential could not be decrypted with any configured key. ' +
+        'Check CREDENTIAL_ENCRYPTION_KEY(S) for a completed key rotation.'
+    );
+  }
   const allowPlaintext = plaintextPassthroughAllowed();
   if (!allowPlaintext) {
     console.error(
