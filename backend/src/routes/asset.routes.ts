@@ -6,7 +6,7 @@ import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
-import { ArchiveAssetSchema, AssetQuerySchema, AssetRelationCreateSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, IdParamSchema, LifecycleTransitionSchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
+import { ArchiveAssetSchema, AssetQuerySchema, AssetRelationCreateSchema, BulkArchiveAssetsSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, IdParamSchema, LifecycleTransitionSchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
 
 
 
@@ -85,6 +85,39 @@ assetRouter.get('/incomplete', authenticate, requireAdminAccess, async (_req, re
   try {
     const result = await assetService.findIncompleteAssets();
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk archive (soft-delete) — per-item entity permission checks.
+// Placed before the parametric /:id routes so the static path is matched first.
+assetRouter.post('/bulk-archive', authenticate, requirePermission('assets.read'), validateBody(BulkArchiveAssetsSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const { ids, reason } = req.body as { ids: string[]; reason?: string };
+    const succeeded: Array<{ id: string; status: number }> = [];
+    const failed: Array<{ id: string; error: string; status: number }> = [];
+
+    for (const id of ids) {
+      try {
+        // Mirror the single-archive guard: the user must hold assets.archive
+        // for this specific asset (scoped by org unit / legal entity).
+        await authorizationService.requireForEntity(req.userId!, 'assets.archive', 'assets', id);
+        await assetService.archive(id, req.userId, reason);
+        succeeded.push({ id, status: 200 });
+      } catch (error: any) {
+        const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+        failed.push({ id, error: error?.message ?? 'Archive failed', status });
+      }
+    }
+
+    res.status(failed.length === 0 ? 200 : 207).json({
+      succeeded,
+      failed,
+      total: ids.length,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    });
   } catch (error) {
     next(error);
   }

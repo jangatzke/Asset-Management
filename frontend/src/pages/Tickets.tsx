@@ -8,9 +8,15 @@ import { ActiveFilters } from '../components/ActiveFilters';
 import { StatusBadge } from '../components/StatusBadge';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
+import { SkeletonTable } from '../components/SkeletonTable';
+import { PaginationControls } from '../components/PaginationControls';
+import { SavedViewsBar } from '../components/SavedViewsBar';
+import { useSavedViews } from '../hooks/useSavedViews';
 import { exportCsv } from '../utils/csvExport';
+import { extractApiError } from '../utils/apiError';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
+import { useToast } from '../components/useToast';
 import { usePersistedView } from '../hooks/usePersistedView';
 import { useListQuery } from '../hooks/useListQuery';
 import { formatDateTime } from '../utils/formatDate';
@@ -20,6 +26,7 @@ const ticketTypes = ['incident', 'service_request', 'problem', 'change'];
 
 export default function Tickets() {
   const { t } = useI18n();
+  const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const canWrite = Boolean(user?.roles?.some((role) => ['system_admin', 'ism_manager', 'service_desk_agent', 'it_manager'].includes(role)));
 
@@ -50,6 +57,24 @@ export default function Tickets() {
 
   const { run } = useListQuery();
 
+  const { views, saveView, deleteView } = useSavedViews('tickets');
+  const hasActiveFilters = Boolean(type || statusGroup || scope);
+  const applySavedView = useCallback((viewFilters: Record<string, string>) => {
+    // setFilter composes via the pending URL ref, so applying several filters
+    // in one click is safe and resets to page 1 as usual.
+    setFilter('type', viewFilters.type ?? '');
+    setFilter('statusGroup', viewFilters.statusGroup ?? '');
+    setFilter('scope', viewFilters.scope ?? '');
+    addToast('success', t('savedViews.applied'));
+  }, [setFilter, addToast, t]);
+  const saveCurrentView = useCallback((name: string): boolean => {
+    const snapshot: Record<string, string> = {};
+    if (type) snapshot.type = type;
+    if (statusGroup) snapshot.statusGroup = statusGroup;
+    if (scope) snapshot.scope = scope;
+    return saveView(name, snapshot);
+  }, [type, statusGroup, scope, saveView]);
+
   const load = useCallback(async () => {
     setLoading(true);
     await run((signal) => ticketApi.list({ page, limit: 20, search: debouncedQuery || undefined, type: type || undefined, statusGroup: statusGroup || undefined, scope: scope || undefined }, { signal }), {
@@ -60,7 +85,7 @@ export default function Tickets() {
         }
         setError(null);
       },
-      onError: (err: any) => { setError(err.response?.data?.error?.message ?? t('tickets.loadError')); },
+      onError: (err: any) => { setError(extractApiError(err, t('tickets.loadError')).message); },
       onSettled: () => setLoading(false),
     });
   }, [page, debouncedQuery, run, scope, statusGroup, t, type]);
@@ -124,7 +149,7 @@ export default function Tickets() {
       if (form.type === 'service_request') data.serviceRequest = {};
       if (form.type === 'incident') { setError(t('tickets.incidentCreateError')); return; }
       await ticketApi.create(data); setModalOpen(false); setForm({ type: 'service_request', title: '', description: '', urgency: 'medium', impact: 'medium' }); await load();
-    } catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.createError')); } finally { setSaving(false); }
+    } catch (err) { setError(extractApiError(err, t('tickets.createError')).message); } finally { setSaving(false); }
   };
 
   const chips = [
@@ -170,6 +195,13 @@ export default function Tickets() {
         <button onClick={() => void load()} className="rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">{t('tickets.filter')}</button>
       </div>}
     >
+      <SavedViewsBar
+        views={views}
+        onSave={saveCurrentView}
+        onApply={applySavedView}
+        onDelete={deleteView}
+        hasActiveFilters={hasActiveFilters}
+      />
       {chips.length > 0 && (
         <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-5">
           <ActiveFilters labelKey="tickets.filterTitle" clearAllKey="common.clearAll" onClearView={handleClearView} chips={chips} />
@@ -188,10 +220,11 @@ export default function Tickets() {
               <SortableTh column="updated" label={t('tickets.headings.updated')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
             </tr>
           </thead>
+          {loading ? (
+            <SkeletonTable columns={8} rows={8} />
+          ) : (
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {loading ? (
-              <tr><td colSpan={8} className="p-8 text-center text-gray-500 dark:text-gray-400">{t('tickets.loading')}</td></tr>
-            ) : tickets.length === 0 ? (
+            {tickets.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8">
                   <EmptyState
@@ -219,20 +252,9 @@ export default function Tickets() {
               </tr>
             ))}
           </tbody>
+          )}
         </table>
-      {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between gap-4 border-t border-gray-200 p-4 dark:border-gray-700">
-          <button onClick={() => setPage(page - 1)} disabled={page <= 1}
-            className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-            {t('common.back')}
-          </button>
-          <span className="text-sm text-gray-500 dark:text-gray-400">{page} / {pagination.totalPages}</span>
-          <button onClick={() => setPage(page + 1)} disabled={page >= pagination.totalPages}
-            className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-            {t('common.next')}
-          </button>
-        </div>
-      )}
+      <PaginationControls page={page} totalPages={pagination.totalPages} onPageChange={setPage} />
     </DataTableShell>
     <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={t('tickets.newTicket')}>
       <form onSubmit={submit} className="space-y-4">

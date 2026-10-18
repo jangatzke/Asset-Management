@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { ToastContext, type Toast, type ToastPosition, type ToastType } from './ToastContext';
+import { ToastContext, type Toast, type ToastAction, type ToastPosition, type ToastType } from './ToastContext';
 
 const ICONS: Record<ToastType, string> = {
   success: '✓',
@@ -34,9 +34,9 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
 }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((type: ToastType, message: string, duration?: number, toastPosition?: ToastPosition) => {
+  const addToast = useCallback((type: ToastType, message: string, duration?: number, toastPosition?: ToastPosition, action?: ToastAction) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const toast: Toast = { id, type, message, duration, position: toastPosition };
+    const toast: Toast = { id, type, message, duration, position: toastPosition, action };
     setToasts((prev) => [...prev, toast]);
     return id;
   }, []);
@@ -104,6 +104,18 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
               >
                 <span className="text-lg flex-shrink-0">{ICONS[toast.type]}</span>
                 <p className="text-sm flex-1">{toast.message}</p>
+                {toast.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.action?.onClick();
+                      removeToast(toast.id);
+                    }}
+                    className="flex-shrink-0 rounded border border-current px-2 py-0.5 text-xs font-semibold opacity-90 hover:opacity-100"
+                  >
+                    {toast.action.label}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => removeToast(toast.id)}

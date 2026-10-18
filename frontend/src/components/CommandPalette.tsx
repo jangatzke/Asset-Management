@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export interface CommandPaletteItem {
@@ -12,6 +12,13 @@ export interface CommandPaletteItem {
   icon?: React.ComponentType<{ className?: string }>;
   /** Invoked when the item is selected. */
   onSelect: () => void;
+  /** Optional group heading rendered above this item. */
+  section?: string;
+  /**
+   * When false the item is NOT filtered by the local free-text matcher.
+   * Used for server-side search results that already match the query.
+   */
+  filterable?: boolean;
 }
 
 export interface CommandPaletteProps {
@@ -22,6 +29,8 @@ export interface CommandPaletteProps {
   placeholder?: string;
   /** Optional title shown at the top of the palette. */
   title?: string;
+  /** Notified on every query change so callers can run server-side searches. */
+  onQueryChange?: (query: string) => void;
 }
 
 /**
@@ -40,6 +49,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   items,
   placeholder = 'Type a command or search…',
   title,
+  onQueryChange,
 }) => {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -52,6 +62,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     if (!needle) return items;
     return items.filter(
       (item) =>
+        item.filterable === false ||
         item.label.toLowerCase().includes(needle) ||
         (item.description ?? '').toLowerCase().includes(needle) ||
         item.id.toLowerCase().includes(needle),
@@ -137,7 +148,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             autoCorrect="off"
             spellCheck={false}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              onQueryChange?.(e.target.value);
+            }}
             placeholder={placeholder}
             className="h-12 w-full bg-transparent py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white"
           />
@@ -165,27 +179,34 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             filtered.map((item, index) => {
               const isActive = index === activeIndex;
               const Icon = item.icon;
+              const showSection = Boolean(item.section) && filtered[index - 1]?.section !== item.section;
               return (
-                <li
-                  key={item.id}
-                  role="option"
-                  aria-selected={isActive}
-                  className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 ${
-                    isActive
-                      ? 'bg-primary-600 text-white'
-                      : 'text-gray-900 dark:text-gray-100'
-                  }`}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => selectItem(item)}
-                >
-                  {Icon && <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`} aria-hidden="true" />}
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {item.description && (
-                    <span className={`truncate text-xs ${isActive ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}`}>
-                      {item.description}
-                    </span>
+                <Fragment key={item.id}>
+                  {showSection && (
+                    <li aria-hidden="true" className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      {item.section}
+                    </li>
                   )}
-                </li>
+                  <li
+                    role="option"
+                    aria-selected={isActive}
+                    className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 ${
+                      isActive
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => selectItem(item)}
+                  >
+                    {Icon && <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`} aria-hidden="true" />}
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.description && (
+                      <span className={`truncate text-xs ${isActive ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}`}>
+                        {item.description}
+                      </span>
+                    )}
+                  </li>
+                </Fragment>
               );
             })
           )}

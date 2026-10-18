@@ -27,6 +27,7 @@ import { CommandPalette } from './CommandPalette';
 import { useToast } from './useToast';
 import type { CommandPaletteItem } from './CommandPalette';
 import { useKeyboardShortcuts, type KeyboardShortcutBinding } from '../hooks/useKeyboardShortcuts';
+import { assetApi, ticketApi, incidentApi } from '../services/api';
 
 const Layout = () => {
   const location = useLocation();
@@ -205,6 +206,84 @@ const Layout = () => {
 
   useKeyboardShortcuts(shortcuts);
 
+  // Global entity search across assets, tickets and incidents. Results are
+  // fetched server-side (each list endpoint already supports ?search=),
+  // marked filterable:false so the palette does not re-filter them, and
+  // rendered under section headings below the static navigation commands.
+  const [entityResults, setEntityResults] = useState<CommandPaletteItem[]>([]);
+  const entitySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entitySearchSeq = useRef(0);
+
+  const runEntitySearch = useCallback((rawQuery: string) => {
+    const query = rawQuery.trim();
+    const sequence = ++entitySearchSeq.current;
+    if (query.length < 2) {
+      setEntityResults([]);
+      return;
+    }
+    void (async () => {
+      const results: CommandPaletteItem[] = [];
+      const [assetRes, ticketRes, incidentRes] = await Promise.allSettled([
+        assetApi.list({ search: query, limit: 5, page: 1 }),
+        ticketApi.list({ search: query, limit: 5, page: 1 }),
+        incidentApi.list({ search: query, limit: 5, page: 1 }),
+      ]);
+      if (assetRes.status === 'fulfilled') {
+        const rows: any[] = (assetRes.value as any)?.data?.data ?? (Array.isArray((assetRes.value as any)?.data) ? (assetRes.value as any).data : []);
+        rows.slice(0, 5).forEach((row: any) => results.push({
+          id: `entity-asset-${row.id}`,
+          label: row.name ?? row.displayId ?? row.id,
+          description: row.displayId ? `${t('navigation.assets')} · ${row.displayId}` : t('navigation.assets'),
+          icon: CubeIcon,
+          section: t('navigation.assets'),
+          filterable: false,
+          onSelect: () => { navigate(`/assets/${row.id}`); setPaletteOpen(false); },
+        }));
+      }
+      if (ticketRes.status === 'fulfilled') {
+        const rows: any[] = (ticketRes.value as any)?.data?.data ?? [];
+        rows.slice(0, 5).forEach((row: any) => results.push({
+          id: `entity-ticket-${row.id}`,
+          label: row.title ?? row.displayId ?? row.id,
+          description: row.displayId ? `${t('navigation.tickets')} · ${row.displayId}` : t('navigation.tickets'),
+          icon: ClipboardDocumentListIcon,
+          section: t('navigation.tickets'),
+          filterable: false,
+          onSelect: () => { navigate(`/tickets/${row.id}`); setPaletteOpen(false); },
+        }));
+      }
+      if (incidentRes.status === 'fulfilled') {
+        const rows: any[] = (incidentRes.value as any)?.data?.data ?? (Array.isArray((incidentRes.value as any)?.data) ? (incidentRes.value as any).data : []);
+        rows.slice(0, 5).forEach((row: any) => results.push({
+          id: `entity-incident-${row.id}`,
+          label: row.title ?? row.id,
+          description: t('navigation.incidents'),
+          icon: ExclamationTriangleIcon,
+          section: t('navigation.incidents'),
+          filterable: false,
+          onSelect: () => { navigate(`/incidents/${row.id}`); setPaletteOpen(false); },
+        }));
+      }
+      if (sequence === entitySearchSeq.current) {
+        setEntityResults(results);
+      }
+    })();
+  }, [navigate, t]);
+
+  const handlePaletteQueryChange = useCallback((query: string) => {
+    if (entitySearchTimer.current) clearTimeout(entitySearchTimer.current);
+    entitySearchTimer.current = setTimeout(() => runEntitySearch(query), 250);
+  }, [runEntitySearch]);
+
+  // Clear pending searches and results whenever the palette closes.
+  useEffect(() => {
+    if (!paletteOpen) {
+      if (entitySearchTimer.current) clearTimeout(entitySearchTimer.current);
+      entitySearchSeq.current += 1;
+      setEntityResults([]);
+    }
+  }, [paletteOpen]);
+
   const paletteItems = useMemo<CommandPaletteItem[]>(() => {
     const items: CommandPaletteItem[] = navigation.map((item) => ({
       id: item.href,
@@ -217,8 +296,8 @@ const Layout = () => {
       { id: 'action-center', label: t('navigation.actionCenter'), description: t('navigation.actionCenter'), icon: BellAlertIcon, onSelect: () => { navigate('/action-center'); setPaletteOpen(false); } },
       { id: 'settings', label: t('settings.title'), description: t('settings.title'), icon: CogIcon, onSelect: () => { navigate('/settings'); setPaletteOpen(false); } },
     ];
-    return [...items, ...extras];
-  }, [navigation, t, navigate]);
+    return [...items, ...extras, ...entityResults];
+  }, [navigation, t, navigate, entityResults]);
 
   const helpEntries = useMemo(() => {
     const entries: { keys: string[]; description: string }[] = [
@@ -425,6 +504,7 @@ const Layout = () => {
          items={paletteItems}
          placeholder={t('shortcuts.commandPalettePlaceholder')}
          title={t('shortcuts.commandPalette')}
+         onQueryChange={handlePaletteQueryChange}
        />
 
        {helpOpen && (

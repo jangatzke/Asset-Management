@@ -45,9 +45,11 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
   const [loading, setLoading] = useState(false);
   const [, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -133,6 +135,64 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
     ? options.filter(o => !values.some(v => v.id === o.id))
     : options;
 
+  // Keyboard navigation: keep the highlighted index in range and reset it
+  // whenever the option list or open state changes.
+  useEffect(() => {
+    setActiveIndex((current) => (current >= availableOptions.length ? availableOptions.length - 1 : current));
+  }, [availableOptions.length]);
+
+  useEffect(() => {
+    if (!isOpen) setActiveIndex(-1);
+  }, [isOpen]);
+
+  const keepActiveVisible = useCallback((nextIndex: number) => {
+    const optionEl = listRef.current?.querySelector(`[data-option-index="${nextIndex}"]`) as HTMLElement | null;
+    optionEl?.scrollIntoView({ block: 'nearest' });
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      setIsOpen(true);
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        if (availableOptions.length === 0) return;
+        const next = activeIndex < 0 ? 0 : (activeIndex + 1) % availableOptions.length;
+        setActiveIndex(next);
+        keepActiveVisible(next);
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        if (availableOptions.length === 0) return;
+        const next = activeIndex <= 0 ? availableOptions.length - 1 : activeIndex - 1;
+        setActiveIndex(next);
+        keepActiveVisible(next);
+        break;
+      }
+      case 'Enter': {
+        if (isOpen && activeIndex >= 0 && availableOptions[activeIndex]) {
+          e.preventDefault();
+          handleSelect(availableOptions[activeIndex]);
+          setActiveIndex(-1);
+        }
+        break;
+      }
+      case 'Escape': {
+        if (isOpen) {
+          e.stopPropagation();
+          setIsOpen(false);
+          setActiveIndex(-1);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }, [activeIndex, availableOptions, handleSelect, isOpen, keepActiveVisible]);
+
   const resolvedLabel = label ?? t(labelKey);
   const placeholder = placeholderKey ? t(placeholderKey) : t('entityPicker.searchPlaceholder');
 
@@ -168,11 +228,17 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
       {/* Search input */}
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={handleSearch}
+          onKeyDown={handleKeyDown}
           onFocus={() => setIsOpen(true)}
           placeholder={multiple ? placeholder : (value?.label || placeholder)}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
+          aria-activedescendant={activeIndex >= 0 && availableOptions[activeIndex] ? `entity-picker-option-${availableOptions[activeIndex].id}` : undefined}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
           disabled={disabled}
         />
@@ -188,16 +254,25 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
       {/* Dropdown */}
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-hidden">
-          <div ref={listRef} onScroll={handleScroll} className="overflow-y-auto max-h-52">
+          <div ref={listRef} onScroll={handleScroll} role="listbox" className="overflow-y-auto max-h-52">
             {availableOptions.length === 0 && !loading ? (
               <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">{t('entityPicker.empty')}</div>
             ) : (
-              availableOptions.map(option => (
+              availableOptions.map((option, index) => (
                 <button
                   key={option.id}
+                  id={`entity-picker-option-${option.id}`}
+                  data-option-index={index}
                   type="button"
+                  role="option"
+                  aria-selected={index === activeIndex}
                   onClick={() => handleSelect(option)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={`w-full text-left px-3 py-2 text-sm ${
+                    index === activeIndex
+                      ? 'bg-gray-100 dark:bg-gray-700'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  } ${
                     (!multiple && value?.id === option.id) || (multiple && values.some(v => v.id === option.id))
                       ? 'bg-blue-50 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                       : 'text-gray-900 dark:text-white'

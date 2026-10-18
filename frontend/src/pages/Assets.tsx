@@ -17,9 +17,15 @@ import AssetImpactAnalysis from '../components/AssetImpactAnalysis';
 import { StatusBadge } from '../components/StatusBadge';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
+import { SkeletonTable } from '../components/SkeletonTable';
+import { PaginationControls } from '../components/PaginationControls';
+import { SavedViewsBar } from '../components/SavedViewsBar';
+import { useSavedViews } from '../hooks/useSavedViews';
 import { exportCsv } from '../utils/csvExport';
+import { extractApiError } from '../utils/apiError';
 import { useI18n } from '../context/I18nContext';
 import { useToast } from '../components/useToast';
+import { useAuthStore } from '../store/auth';
 import {
   iconButtonEdit,
   iconButtonView,
@@ -72,8 +78,7 @@ interface AssetRelation {
 
 const actionIconClassName = 'h-4 w-4';
 const PAGE_SIZE = 50;
-const messageFrom = (error: any, fallback: string) =>
-  error?.response?.data?.error?.message ?? error?.response?.data?.error ?? error?.message ?? fallback;
+const messageFrom = (error: unknown, fallback: string) => extractApiError(error, fallback).message;
 
 interface CreateAssetForm {
   name: string;
@@ -139,6 +144,27 @@ const Assets = () => {
   const filterType = filters.type ?? '';
   const filterCriticality = filters.criticality ?? '';
   const filterStatus = filters.status ?? '';
+  // Restore (undo of delete) is admin-only on the backend, so the Undo action
+  // in the toast is only offered to users who can actually perform it.
+  const { user } = useAuthStore();
+  const isAdmin = Boolean(user?.roles?.includes('system_admin'));
+  const { views, saveView, deleteView } = useSavedViews('assets');
+  const hasActiveFilters = Boolean(filterType || filterCriticality || filterStatus);
+  const applySavedView = useCallback((viewFilters: Record<string, string>) => {
+    // setFilter composes via the pending URL ref, so applying several filters
+    // in one click is safe and resets to page 1 as usual.
+    setFilter('type', viewFilters.type ?? '');
+    setFilter('criticality', viewFilters.criticality ?? '');
+    setFilter('status', viewFilters.status ?? '');
+    addToast('success', t('savedViews.applied'));
+  }, [setFilter, addToast, t]);
+  const saveCurrentView = useCallback((name: string): boolean => {
+    const snapshot: Record<string, string> = {};
+    if (filterType) snapshot.type = filterType;
+    if (filterCriticality) snapshot.criticality = filterCriticality;
+    if (filterStatus) snapshot.status = filterStatus;
+    return saveView(name, snapshot);
+  }, [filterType, filterCriticality, filterStatus, saveView]);
   const [pagination, setPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 1 });
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -164,6 +190,16 @@ const Assets = () => {
   const [newRelationTarget, setNewRelationTarget] = useState<EntityOption | null>(null);
   const [newRelationType, setNewRelationType] = useState('depends_on');
   const [existingRelations, setExistingRelations] = useState<AssetRelation[]>([]);
+
+  // Bulk selection (archive several assets at once). The selection is
+  // page-scoped and cleared whenever the visible page or filters change.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, filterType, filterCriticality, filterStatus]);
 
   useEffect(() => { loadAssetTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial asset-type load only; the fetch effect handles the initial asset page load.
@@ -507,8 +543,23 @@ const Assets = () => {
     setPendingDeleteId(null);
     try {
       await assetApi.delete(id);
-      addToast('success', t('assets.deleteSuccess'));
       await refreshCurrentQuery();
+      if (isAdmin) {
+        // Delete is a soft-delete (archive); offer undo for users allowed to restore.
+        addToast('success', t('assets.deleteSuccess'), 6000, undefined, {
+          label: t('undo.label'),
+          onClick: () => {
+            assetApi.restore(id, {})
+              .then(async () => {
+                addToast('success', t('undo.done'));
+                await refreshCurrentQuery();
+              })
+              .catch((err: unknown) => addToast('error', messageFrom(err, t('common.deleteError'))));
+          },
+        });
+      } else {
+        addToast('success', t('assets.deleteSuccess'));
+      }
     } catch (err: any) {
       const message = messageFrom(err, t('common.deleteError'));
       setError(message);
@@ -519,6 +570,57 @@ const Assets = () => {
   const handleViewDetails = (asset: Asset) => {
     setSelectedAsset(asset);
     setDetailTab('graph');
+  };
+
+  const toggleAssetSelection = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((current) => {
+      const pageIds = sortedAssets.map((asset) => asset.id);
+      const allSelected = pageIds.length > 0 && pageIds.every((id) => current.has(id));
+      const next = new Set(current);
+      pageIds.forEach((id) => {
+        if (allSelected) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = [...selectedIds];
+    setBulkConfirmOpen(false);
+    setBulkArchiving(true);
+    try {
+      const response = await assetApi.bulkArchive({ ids });
+      const result = response.data;
+      if (result.failedCount === 0) {
+        addToast('success', t('bulk.success', { count: result.succeededCount }));
+      } else if (result.succeededCount > 0) {
+        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
+      } else {
+        addToast('error', t('bulk.failed'));
+      }
+    } catch (err: unknown) {
+      addToast('error', messageFrom(err, t('bulk.failed')));
+    } finally {
+      setBulkArchiving(false);
+      setSelectedIds(new Set());
+      await refreshCurrentQuery();
+    }
   };
 
   // Relation management
@@ -541,17 +643,6 @@ const Assets = () => {
     });
     setNewRelationTarget(null);
   };
-
-  if (loading && !selectedAsset) {
-    return (
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('assets.title')}</h1>
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -641,6 +732,13 @@ const Assets = () => {
               </select>
             </div>}
           >
+            <SavedViewsBar
+              views={views}
+              onSave={saveCurrentView}
+              onApply={applySavedView}
+              onDelete={deleteView}
+              hasActiveFilters={hasActiveFilters}
+            />
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
               <ActiveFilters
                 labelKey="common.filters"
@@ -655,9 +753,28 @@ const Assets = () => {
               <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{pagination.total} {t('assets.results')}</p>
             </div>
 
+            {selectedIds.size > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+                <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+                  <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
+                </div>
+              </div>
+            )}
+
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
+                  <th className="px-6 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label={t('bulk.selectAll')}
+                      checked={sortedAssets.length > 0 && sortedAssets.every((asset) => selectedIds.has(asset.id))}
+                      onChange={toggleSelectAllOnPage}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                  </th>
                   <SortableTh column="id" label={t('assets.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
                   <SortableTh column="name" label={t('assets.columns.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
                   <SortableTh column="inventoryNumber" label={t('assets.columns.inventoryNumber')} activeColumn={sort.column} direction={sort.column === 'inventoryNumber' ? sort.direction : ''} onSort={toggleSort} />
@@ -668,10 +785,13 @@ const Assets = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
                 </tr>
               </thead>
+              {loading ? (
+                <SkeletonTable columns={9} rows={8} />
+              ) : (
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {sortedAssets.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8">
+                    <td colSpan={9} className="px-6 py-8">
                       <EmptyState
                         titleKey="assets.emptyTitle"
                         descriptionKey="assets.emptyDescription"
@@ -685,6 +805,15 @@ const Assets = () => {
                   </tr>
                 ) : sortedAssets.map((asset) => (
                   <tr key={asset.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        aria-label={`${t('bulk.select')}: ${asset.name}`}
+                        checked={selectedIds.has(asset.id)}
+                        onChange={() => toggleAssetSelection(asset.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{asset.displayId}</td>
                     <td className="px-6 py-4 text-sm font-medium text-primary-600 dark:text-primary-300 cursor-pointer" onClick={() => handleViewDetails(asset)}>{asset.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{asset.inventoryNumber || '-'}</td>
@@ -715,45 +844,11 @@ const Assets = () => {
                   </tr>
                 ))}
               </tbody>
+              )}
             </table>
           </DataTableShell>
 
-          {pagination.totalPages > 1 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-              <button onClick={() => setPage(page - 1)} disabled={page <= 1}
-                aria-label={t('common.back')}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
-                {t('common.back')}
-              </button>
-              <nav aria-label={t('pagination.title')} className="flex items-center gap-1">
-                <ul className="flex flex-wrap items-center gap-1">
-                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((p) => (
-                    <li key={p}>
-                      <button
-                        type="button"
-                        onClick={() => setPage(p)}
-                        aria-current={p === page ? 'page' : undefined}
-                        aria-label={t('pagination.pageNumber', { page: String(p) })}
-                        className={`min-w-[2rem] px-3 py-1 text-sm rounded-md border focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-                          p === page
-                            ? 'bg-primary-600 text-white border-primary-600 font-medium'
-                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <span className="text-sm text-gray-500 dark:text-gray-400 px-2" aria-hidden="true">{page} / {pagination.totalPages}</span>
-              </nav>
-              <button onClick={() => setPage(page + 1)} disabled={page >= pagination.totalPages}
-                aria-label={t('common.next')}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
-                {t('common.next')}
-              </button>
-            </div>
-          )}
+          <PaginationControls page={page} totalPages={pagination.totalPages} onPageChange={setPage} />
         </>
       )}
 
@@ -1020,6 +1115,16 @@ const Assets = () => {
         onConfirm={() => pendingDeleteId && handleDeleteConfirm(pendingDeleteId)}
         danger
         titleKey="assets.deleteConfirm"
+      />
+
+      <ConfirmDialog
+        isOpen={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={handleBulkArchive}
+        danger
+        title={t('bulk.confirmTitle')}
+        message={t('bulk.confirmMessage', { count: selectedIds.size })}
+        confirmLabel={t('bulk.archive')}
       />
     </div>
   );

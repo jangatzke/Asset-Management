@@ -1432,7 +1432,9 @@
   },
   "pagination": {
     "pageNumber": "Seite {page}",
-    "title": "Seitennavigation"
+    "title": "Seitennavigation",
+    "goTo": "Gehe zu",
+    "jumpAriaLabel": "Zu Seite springen"
   },
   "permissions": {
     "none": "Keine",
@@ -2147,5 +2149,27 @@
     "vcenterServers": "vCenter-Server",
     "verifyCertificate": "TLS-Zertifikat prüfen",
     "vmCount": "VM-Anzahl"
+  },
+  "savedViews": {
+    "title": "Gespeicherte Ansichten",
+    "save": "Ansicht speichern",
+    "namePlaceholder": "Name der Ansicht",
+    "nameRequired": "Bitte einen Namen für die Ansicht eingeben",
+    "applied": "Ansicht angewendet"
+  },
+  "undo": {
+    "label": "Rückgängig",
+    "done": "Aktion rückgängig gemacht"
+  },
+  "bulk": {
+    "select": "Auswählen",
+    "selectAll": "Alle auf dieser Seite auswählen",
+    "selectedCount": "{count} ausgewählt",
+    "archive": "Ausgewählte archivieren",
+    "confirmTitle": "Ausgewählte Assets archivieren?",
+    "confirmMessage": "Dadurch werden {count} Asset(s) archiviert. Archivierte Assets können von einem Administrator wiederhergestellt werden.",
+    "success": "{count} Asset(s) archiviert",
+    "partial": "{succeeded} archiviert, {failed} fehlgeschlagen",
+    "failed": "Stapeloperation fehlgeschlagen"
   }
 }

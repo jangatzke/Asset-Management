@@ -1432,7 +1432,9 @@
   },
   "pagination": {
     "pageNumber": "Page {page}",
-    "title": "Pagination"
+    "title": "Pagination",
+    "goTo": "Aller à",
+    "jumpAriaLabel": "Aller à la page"
   },
   "permissions": {
     "none": "Aucune",
@@ -2147,5 +2149,27 @@
     "vcenterServers": "Serveurs vCenter",
     "verifyCertificate": "Vérifier le certificat TLS",
     "vmCount": "Nombre de VM"
+  },
+  "savedViews": {
+    "title": "Vues enregistrées",
+    "save": "Enregistrer la vue",
+    "namePlaceholder": "Nom de la vue",
+    "nameRequired": "Veuillez saisir un nom pour la vue",
+    "applied": "Vue appliquée"
+  },
+  "undo": {
+    "label": "Annuler",
+    "done": "Action annulée"
+  },
+  "bulk": {
+    "select": "Sélectionner",
+    "selectAll": "Tout sélectionner sur cette page",
+    "selectedCount": "{count} sélectionné(s)",
+    "archive": "Archiver la sélection",
+    "confirmTitle": "Archiver les actifs sélectionnés ?",
+    "confirmMessage": "Cela archivera {count} actif(s). Les actifs archivés peuvent être restaurés par un administrateur.",
+    "success": "{count} actif(s) archivé(s)",
+    "partial": "{succeeded} archivé(s), {failed} échoué(s)",
+    "failed": "L'opération par lots a échoué"
   }
 }

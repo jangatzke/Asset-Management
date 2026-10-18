@@ -204,6 +204,14 @@ export const ArchiveAssetSchema = z.object({
 
 export type ArchiveAssetDTO = z.infer<typeof ArchiveAssetSchema>;
 
+// Bulk archive DTO (list bulk operations)
+export const BulkArchiveAssetsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'At least one asset id is required').max(100, 'Maximum 100 assets per bulk operation'),
+  reason: z.string().max(500).optional(),
+});
+
+export type BulkArchiveAssetsDTO = z.infer<typeof BulkArchiveAssetsSchema>;
+
 // Disposal proof DTO (AST-031)
 export const DisposalProofSchema = z.object({
   disposalDate: z.coerce.date(),

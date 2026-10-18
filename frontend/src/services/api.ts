@@ -4,6 +4,7 @@ import type {
   ArchiveAssetDTO,
   AssetQueryDTO,
   AssessIncidentDTO,
+  BulkArchiveAssetsDTO,
   ChangeIncidentStatusDTO,
   ChangeKnowledgeTimeDTO,
   CloseIncidentDTO,
@@ -262,6 +263,15 @@ export interface PaginatedResponse<T> {
   };
 }
 
+/** Result envelope for bulk operations (per-item success/failure). */
+export interface BulkOperationResult {
+  succeeded: Array<{ id: string; status: number }>;
+  failed: Array<{ id?: string; error: string; status: number }>;
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
   withCredentials: true,
@@ -373,6 +383,7 @@ export const assetApi = {
   confirmResponsibility: (id: string, data: { role?: string }) => api.post(`/assets/${id}/confirm-responsibility`, data),
   archive: (id: string, data: ArchiveAssetDTO) => api.post(`/assets/${id}/archive`, data),
   restore: (id: string, data: ArchiveAssetDTO) => api.post(`/assets/${id}/restore`, data),
+  bulkArchive: (data: BulkArchiveAssetsDTO) => api.post<BulkOperationResult>('/assets/bulk-archive', data),
   transitionLifecycle: (id: string, data: LifecycleTransitionDTO) => api.post(`/assets/${id}/lifecycle-transition`, data),
   setDisposalProof: (id: string, data: DisposalProofDTO) => api.post(`/assets/${id}/disposal-proof`, data),
   history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/assets/${id}/history`, { params }),

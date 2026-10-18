@@ -112,6 +112,25 @@ test('ticket workflow and SLA locale keys resolve in both locales', () => {
   }
 });
 
+test('list-view enhancement keys resolve in all locales', () => {
+  const keys = [
+    'pagination.goTo', 'pagination.jumpAriaLabel',
+    'savedViews.title', 'savedViews.save', 'savedViews.namePlaceholder', 'savedViews.nameRequired', 'savedViews.applied',
+    'undo.label', 'undo.done',
+    'bulk.select', 'bulk.selectAll', 'bulk.selectedCount', 'bulk.archive', 'bulk.confirmTitle', 'bulk.confirmMessage',
+    'bulk.success', 'bulk.partial', 'bulk.failed',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
 test('operations and administration locale catalogs remain complete in both locales', () => {
   const keys = [
     'operationsWorkspace.title', 'operationsWorkspace.workspaces.training', 'operationsWorkspace.actions.runReport',

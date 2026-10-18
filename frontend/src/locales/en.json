@@ -1432,7 +1432,9 @@
   },
   "pagination": {
     "pageNumber": "Page {page}",
-    "title": "Pagination"
+    "title": "Pagination",
+    "goTo": "Go to",
+    "jumpAriaLabel": "Jump to page"
   },
   "permissions": {
     "none": "None",
@@ -2147,5 +2149,27 @@
     "vcenterServers": "vCenter Servers",
     "verifyCertificate": "Verify TLS certificate",
     "vmCount": "VM Count"
+  },
+  "savedViews": {
+    "title": "Saved views",
+    "save": "Save view",
+    "namePlaceholder": "View name",
+    "nameRequired": "Please enter a name for the view",
+    "applied": "View applied"
+  },
+  "undo": {
+    "label": "Undo",
+    "done": "Action reverted"
+  },
+  "bulk": {
+    "select": "Select",
+    "selectAll": "Select all on this page",
+    "selectedCount": "{count} selected",
+    "archive": "Archive selected",
+    "confirmTitle": "Archive selected assets?",
+    "confirmMessage": "This will archive {count} asset(s). Archived assets can be restored by an administrator.",
+    "success": "{count} asset(s) archived",
+    "partial": "{succeeded} archived, {failed} failed",
+    "failed": "Bulk operation failed"
   }
 }
