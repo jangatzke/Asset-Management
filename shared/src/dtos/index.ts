@@ -1834,3 +1834,19 @@ export const UpdateKnowledgeArticleSchema = CreateKnowledgeArticleSchema.partial
   status: z.enum(['draft', 'published', 'archived']).optional(),
 }).strict();
 export type UpdateKnowledgeArticleDTO = z.input<typeof UpdateKnowledgeArticleSchema>;
+
+// ---- AI assistant (OpenAI-compatible API) configuration ----
+
+export const AiConfigUpdateSchema = z.object({
+  enabled: z.boolean().optional(),
+  baseUrl: z.string().trim().url('Base URL must be a valid URL').max(500).nullable().optional(),
+  model: z.string().trim().min(1).max(200).nullable().optional(),
+  apiKey: z.string().trim().max(500).nullable().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().min(64).max(8000).optional(),
+  requestTimeoutSeconds: z.number().int().min(5).max(300).optional(),
+  intervalMinutes: z.number().int().min(5).max(10080).optional(),
+  summarizeTickets: z.boolean().optional(),
+  knowledgeDrafts: z.boolean().optional(),
+}).strict();
+export type AiConfigUpdateDTO = z.input<typeof AiConfigUpdateSchema>;

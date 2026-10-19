@@ -29,6 +29,7 @@ const AdminProxmox = lazy(() => import('./pages/AdminProxmox'));
 const AdminReminders = lazy(() => import('./pages/AdminReminders'));
 const AdminSlaEscalation = lazy(() => import('./pages/AdminSlaEscalation'));
 const AdminEmailGateway = lazy(() => import('./pages/AdminEmailGateway'));
+const AdminAI = lazy(() => import('./pages/AdminAI'));
 const AdminFiscalYear = lazy(() => import('./pages/AdminFiscalYear'));
 const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
 const AdminDatabase = lazy(() => import('./pages/AdminDatabase'));
@@ -120,6 +121,7 @@ function App() {
             <Route path="admin/reminders" element={<AdminReminders />} />
             <Route path="admin/sla-escalation" element={<AdminSlaEscalation />} />
             <Route path="admin/email-gateway" element={<AdminEmailGateway />} />
+            <Route path="admin/ai" element={<AdminAI />} />
             <Route path="admin/fiscal-year" element={<AdminFiscalYear />} />
             <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
             <Route path="admin/database" element={<AdminDatabase />} />

@@ -256,3 +256,22 @@ test('KRI dashboard locale keys resolve in all locales', () => {
     }
   }
 });
+
+test('AI assistant admin locale keys resolve in all locales', () => {
+  const keys = [
+    'aiAssistant.title', 'aiAssistant.subtitle', 'aiAssistant.connection',
+    'aiAssistant.baseUrl', 'aiAssistant.model', 'aiAssistant.apiKey',
+    'aiAssistant.automation', 'aiAssistant.taskTriage', 'aiAssistant.taskKnowledge',
+    'aiAssistant.testConnection', 'aiAssistant.runNow', 'aiAssistant.activityLog',
+    'aiAssistant.noEntries', 'aiAssistant.loading',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});

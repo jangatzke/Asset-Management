@@ -43,6 +43,7 @@ import { initializeScheduler } from './services/intune.scheduler';
 import { initializeReminderScheduler } from './services/reminder.scheduler';
 import { initializeEmailGatewayScheduler } from './services/emailGateway.scheduler';
 import { initializeSlaScheduler } from './services/sla.scheduler';
+import { initializeAiAssistantScheduler } from './services/ai.scheduler';
 import { startWebhookQueueWorker } from './services/webhookQueue.service';
 import { vmwareRouter } from './routes/vmware.routes';
 import { proxmoxRouter } from './routes/proxmox.routes';
@@ -331,6 +332,8 @@ async function startServer(): Promise<void> {
       await emailGatewayScheduler.start();
       const slaScheduler = initializeSlaScheduler();
       await slaScheduler.start();
+      const aiAssistantScheduler = initializeAiAssistantScheduler();
+      await aiAssistantScheduler.start();
       startWebhookQueueWorker();
       console.log('Background services initialized');
     } catch (error) {

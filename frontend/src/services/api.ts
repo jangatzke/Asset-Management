@@ -1152,6 +1152,14 @@ export const emailGatewayAdminApi = {
   messages: (limit = 50) => api.get('/admin/email-gateway/messages', { params: { limit } }),
 };
 
+export const aiAdminApi = {
+  getConfig: () => api.get('/admin/ai/config'),
+  updateConfig: (data: any) => api.put('/admin/ai/config', data),
+  testConnection: () => api.post('/admin/ai/test'),
+  runNow: () => api.post('/admin/ai/run-now'),
+  activity: (limit = 50) => api.get('/admin/ai/activity', { params: { limit } }),
+};
+
 // Proxmox API
 export const proxmoxApi = {
   getCredentials: () => api.get('/admin/proxmox/credentials'),

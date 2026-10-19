@@ -374,6 +374,7 @@ const Layout = () => {
     { name: t('navigation.reminderSettings'), href: '/admin/reminders' },
     { name: t('slaEscalation.title'), href: '/admin/sla-escalation' },
     { name: t('emailGateway.title'), href: '/admin/email-gateway' },
+    { name: t('aiAssistant.title'), href: '/admin/ai' },
     { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
     { name: t('navigation.databaseBackup'), href: '/admin/database' },
     { name: t('navigation.ticketSlaSettings'), href: '/admin/ticket-slas' },

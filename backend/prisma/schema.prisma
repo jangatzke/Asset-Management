@@ -55,11 +55,11 @@ model User {
   mfaEnabledAt     DateTime?
 
   // User preferences
-  language        String?  @default("en")
-  darkMode        Boolean?
-  navigationOrder Json? // per-user override of the global top-navigation order (array of hrefs)
+  language                String?  @default("en")
+  darkMode                Boolean?
+  navigationOrder         Json? // per-user override of the global top-navigation order (array of hrefs)
   hiddenNavigationEntries Json? // per-user override of the globally hidden top-navigation entries (array of hrefs)
-  activeNavigationViewId String? // id of the navigation view currently active for this user
+  activeNavigationViewId  String? // id of the navigation view currently active for this user
 
   organizationUnit       OrganizationUnit?  @relation("UserOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
   userRoles              UserRole[]         @relation("UserRoles")
@@ -79,8 +79,8 @@ model User {
   managerTickets   Ticket[] @relation("TicketManager")
 
   // Navigation views
-  navigationViews        NavigationView[] @relation("UserOwnedNavigationViews")
-  activeNavigationView   NavigationView?  @relation("UserActiveNavigationView", fields: [activeNavigationViewId], references: [id], onDelete: SetNull)
+  navigationViews      NavigationView[] @relation("UserOwnedNavigationViews")
+  activeNavigationView NavigationView?  @relation("UserActiveNavigationView", fields: [activeNavigationViewId], references: [id], onDelete: SetNull)
 
   @@index([oidcId, oidcProvider])
   @@index([activeNavigationViewId])
@@ -207,8 +207,8 @@ model NavigationView {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  owner                User?  @relation("UserOwnedNavigationViews", fields: [ownerId], references: [id], onDelete: Cascade)
-  activeForUsers       User[] @relation("UserActiveNavigationView")
+  owner          User?  @relation("UserOwnedNavigationViews", fields: [ownerId], references: [id], onDelete: Cascade)
+  activeForUsers User[] @relation("UserActiveNavigationView")
 
   @@index([ownerId])
   @@map("navigation_views")
@@ -4144,8 +4144,8 @@ model Change {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  ticket     Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  riskLinks  ChangeRiskLink[]
+  ticket    Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  riskLinks ChangeRiskLink[]
 
   @@map("changes")
 }
@@ -4206,4 +4206,54 @@ model ServiceRequest {
 
   @@index([catalogItemId])
   @@map("service_requests")
+}
+
+// ---- AI assistant configuration (OpenAI-compatible chat-completions API) ----
+model AiConfig {
+  id                    String  @id @default(uuid())
+  configKey             String  @unique @default("singleton")
+  enabled               Boolean @default(false)
+  // OpenAI-compatible endpoint, e.g. https://api.openai.com/v1 or a local gateway
+  baseUrl               String?
+  model                 String?
+  // SECURITY: Encrypted at application layer (AES-256-GCM) before storage
+  apiKey                String?
+  temperature           Float   @default(0.2)
+  maxTokens             Int     @default(1200)
+  requestTimeoutSeconds Int     @default(60)
+
+  // Assisted routine tasks (background job)
+  intervalMinutes  Int     @default(1440)
+  summarizeTickets Boolean @default(true) // triage notes on recently opened tickets
+  knowledgeDrafts  Boolean @default(true) // draft KB articles from resolved incidents
+
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  lastRunStatus  String?
+  lastRunMessage String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  updatedBy      String?
+
+  @@map("ai_config")
+}
+
+// ---- Audit protocol of AI-assisted activity (admin view) ---------------------
+model AiActivityLog {
+  id           String   @id @default(uuid())
+  runId        String // groups all entries of one background-job execution
+  taskType     String // 'ticket_triage_note' | 'knowledge_draft' | ...
+  entityType   String? // entity the assistant acted on (Ticket, KnowledgeArticle)
+  entityId     String?
+  entityLabel  String? // human-readable reference, e.g. ticket display id / KB title
+  status       String // success | skipped | error
+  summary      String? // short description of what the AI did or why it was skipped
+  errorMessage String?
+  model        String? // model that produced the result
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+
+  @@index([runId, createdAt])
+  @@index([taskType, createdAt])
+  @@map("ai_activity_log")
 }

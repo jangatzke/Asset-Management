@@ -21,6 +21,10 @@ import { slaService } from '../services/sla.service';
 import { getSlaScheduler } from '../services/sla.scheduler';
 import { navigationConfigService } from '../services/navigationConfig.service';
 import { navigationViewService } from '../services/navigationView.service';
+import { aiService } from '../services/ai.service';
+import { getAiAssistantScheduler } from '../services/ai.scheduler';
+import { validateBody } from '../middleware/validation';
+import { AiConfigUpdateSchema } from 'shared';
  
 export const adminRouter = Router();
 
@@ -370,6 +374,50 @@ adminRouter.get('/email-gateway/status', authenticate, requireAdminAccess, async
 adminRouter.get('/email-gateway/messages', authenticate, requireAdminAccess, async (req, res, next) => {
   try {
     res.json(await emailGatewayService.listMessages(Number(req.query.limit ?? 50)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- AI Assistant (OpenAI-compatible API) ----
+
+adminRouter.get('/ai/config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await aiService.getConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/ai/config', authenticate, requireAdminAccess, validateBody(AiConfigUpdateSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const config = await aiService.updateConfig(req.body, req.userId ?? 'system');
+    await getAiAssistantScheduler()?.restart();
+    res.json(config);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/ai/test', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await aiService.testConnection(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/ai/run-now', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await aiService.runAssistedTasks(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/ai/activity', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    res.json(await aiService.listActivity(Number(req.query.limit ?? 50)));
   } catch (error) {
     next(error);
   }
