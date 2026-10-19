@@ -1654,6 +1654,50 @@ export const UpdateTicketSchema = z.object({
 }).strict();
 export type UpdateTicketDTO = z.input<typeof UpdateTicketSchema>;
 
+// ---- Extension editing (Problem / Change) -------------------------------------
+// The generic UpdateTicketSchema deliberately excludes extension payloads;
+// these dedicated schemas back the PUT /tickets/:id/problem and
+// /tickets/:id/change routes so root-cause / change-management data can be
+// maintained after creation (ITIL problem management & change enablement).
+
+export const UpdateProblemExtensionSchema = z.object({
+  rootCause: z.string().max(4000).nullable().optional(),
+  workaround: z.string().max(4000).nullable().optional(),
+  permanentFix: z.string().max(4000).nullable().optional(),
+  relatedIncidentIds: z.array(EntityIdSchema).optional(),
+}).strict();
+export type UpdateProblemExtensionDTO = z.input<typeof UpdateProblemExtensionSchema>;
+
+export const UpdateChangeExtensionSchema = z.object({
+  changeType: z.enum(['standard', 'normal', 'emergency']).optional(),
+  riskLevel: TicketLevelSchema.optional(),
+  cabApproved: z.boolean().optional(),
+  cabApprovedBy: EntityIdSchema.nullable().optional(),
+  cabApprovedAt: z.coerce.date().nullable().optional(),
+  implementationPlan: z.string().max(4000).nullable().optional(),
+  rollbackPlan: z.string().max(4000).nullable().optional(),
+  backoutDate: z.coerce.date().nullable().optional(),
+}).strict();
+export type UpdateChangeExtensionDTO = z.input<typeof UpdateChangeExtensionSchema>;
+
+// ---- Guided Incident → Problem / Change conversion ---------------------------
+// changeType() refuses incidents; this dedicated flow creates a NEW problem or
+// change ticket derived from the incident and records the ITIL relationship via
+// a TicketLink ('caused_by_problem' / 'resolved_by_change').
+
+export const ConvertTicketSchema = z.object({
+  targetType: z.enum(['problem', 'change']),
+  title: z.string().min(1).max(300).optional(),
+}).strict();
+export type ConvertTicketDTO = z.infer<typeof ConvertTicketSchema>;
+
+// ---- Change → Risk link (ISO 27001 A.8.32 change management) ---------------
+
+export const LinkChangeRiskSchema = z.object({
+  riskId: EntityIdSchema,
+}).strict();
+export type LinkChangeRiskDTO = z.infer<typeof LinkChangeRiskSchema>;
+
 // ---- Status transition ----
 
 export const ChangeTicketStatusSchema = z.object({
@@ -1768,3 +1812,25 @@ export type CreateServiceCatalogItemDTO = z.infer<typeof CreateServiceCatalogIte
 
 export const UpdateServiceCatalogItemSchema = CreateServiceCatalogItemSchema.partial().omit({ code: true }).strict();
 export type UpdateServiceCatalogItemDTO = z.input<typeof UpdateServiceCatalogItemSchema>;
+
+// ---- Knowledge base articles (ISO 27001 A.7.5) ----
+
+export const KnowledgeArticleCategorySchema = z.enum(['general', 'incident', 'risk', 'control', 'supplier', 'nis2', 'service']);
+export type KnowledgeArticleCategoryDTO = z.infer<typeof KnowledgeArticleCategorySchema>;
+
+export const CreateKnowledgeArticleSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(250),
+  summary: z.string().trim().max(500).optional(),
+  content: z.string().min(1, 'Content is required'),
+  category: KnowledgeArticleCategorySchema.default('general'),
+  tags: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
+  status: z.enum(['draft', 'published']).default('draft'),
+  relatedEntityType: z.string().trim().max(60).optional(),
+  relatedEntityId: z.string().trim().max(120).optional(),
+});
+export type CreateKnowledgeArticleDTO = z.infer<typeof CreateKnowledgeArticleSchema>;
+
+export const UpdateKnowledgeArticleSchema = CreateKnowledgeArticleSchema.partial().extend({
+  status: z.enum(['draft', 'published', 'archived']).optional(),
+}).strict();
+export type UpdateKnowledgeArticleDTO = z.input<typeof UpdateKnowledgeArticleSchema>;

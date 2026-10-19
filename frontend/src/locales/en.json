@@ -246,6 +246,7 @@
     "effectivenessLabel": "effectiveness:",
     "evidence": "Evidence",
     "evidenceNotVisible": "Evidence is no longer visible",
+    "exportKit": "Export audit kit",
     "findingDescription": "Finding description",
     "findingOwner": "Finding owner",
     "findingTitle": "Finding title",
@@ -508,6 +509,28 @@
     "selectCatalog": "Select catalog",
     "selectVersion": "Select version",
     "showLinkedRisks": "Show linked risks ({count})",
+    "soaDiff": {
+      "changeColumn": "Change",
+      "compareButton": "Compare versions",
+      "comparing": "Comparing…",
+      "controlColumn": "Control",
+      "description": "Compares two statements of applicability for the same scope and framework item by item (applicability, justification, implementation status).",
+      "error": "The statement of applicability comparison could not be performed",
+      "fieldApplicability": "Applicability",
+      "fieldImplementationStatus": "Implementation status",
+      "fieldJustification": "Justification",
+      "fromLabel": "Old version",
+      "fromPlaceholder": "Select base version",
+      "noChanges": "No differences between the two versions.",
+      "notComparable": "The two SoA versions do not belong to the same scope and framework version; the comparison is limited.",
+      "sectionAdded": "Added",
+      "sectionChanged": "Changed",
+      "sectionRemoved": "Removed",
+      "summary": "{added} added, {removed} removed, {changed} changed, {unchanged} unchanged",
+      "title": "Compare versions (diff)",
+      "toLabel": "New version",
+      "toPlaceholder": "Select target version"
+    },
     "soaGenerator": {
       "description": "Creates a new editable draft containing all 93 Annex A controls. Applicability is intentionally set to under review; complete the scope-specific decision and rationale for every item before submitting.",
       "exportCsv": "Export CSV",
@@ -535,6 +558,40 @@
       "effectiveTested": "effective/tested",
       "notVerified": "implemented, not verified"
     }
+  },
+  "controlCoverage": {
+    "title": "Control Coverage",
+    "description": "ISO 27001 controls per configuration item: which assets are covered by active controls and where are the gaps?",
+    "loadError": "Could not load the coverage matrix",
+    "searchLabel": "Search",
+    "searchPlaceholder": "Asset name or display ID",
+    "empty": "No assets found for the current filters.",
+    "summaryLabel": "Coverage summary",
+    "summary": {
+      "total": "Total assets",
+      "covered": "Covered by controls",
+      "uncovered": "Without controls",
+      "criticalUncovered": "Critical without controls"
+    },
+    "filters": {
+      "uncoveredOnly": "Uncovered assets only"
+    },
+    "columns": {
+      "asset": "Asset",
+      "coverage": "Controls",
+      "effective": "Effectively implemented"
+    },
+    "fields": {
+      "criticality": "Criticality",
+      "complianceRelevance": "Compliance relevance",
+      "dataProtection": "Data protection relevance"
+    },
+    "sections": {
+      "controls": "Linked controls"
+    },
+    "noControls": "No active control is assigned to this asset – coverage gap.",
+    "uncoveredBadge": "not covered",
+    "openAsset": "Open asset"
   },
   "costPlanning": {
     "acquired": "Acquired",
@@ -1162,6 +1219,75 @@
     "saveError": "Could not save.",
     "title": "ISMS Process Workspace"
   },
+  "kri": {
+    "title": "Key Risk Indicators (KRI)",
+    "description": "Monitor ISMS metrics per ISO 27001 Clause 9.1. Thresholds are evaluated against the latest measured values.",
+    "typeLabel": "Metric type",
+    "types": {
+      "KRI": "Key Risk Indicators (KRI)",
+      "KPI": "Key Performance Indicators (KPI)",
+      "KCI": "Key Capability Indicators (KCI)"
+    },
+    "refresh": "Refresh",
+    "manageMetrics": "Manage metrics",
+    "loadError": "Could not load metrics.",
+    "loading": "Loading…",
+    "noIndicators": "No active metrics of this type are defined.",
+    "summaryLabel": "Summary",
+    "status": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "none": "Within limits",
+      "noData": "No data"
+    },
+    "columns": {
+      "name": "Metric",
+      "latest": "Latest value",
+      "thresholds": "Thresholds",
+      "trend": "Trend",
+      "history": "History",
+      "measuredAt": "Measured at"
+    },
+    "trend": {
+      "up": "Rising",
+      "down": "Falling",
+      "stable": "Stable",
+      "none": "No trend"
+    }
+  },
+  "knowledge": {
+    "title": "Knowledge Base",
+    "newArticle": "New Article",
+    "editArticle": "Edit Article",
+    "searchPlaceholder": "Search titles, content or tags...",
+    "empty": "No articles found.",
+    "saved": "Article saved.",
+    "archived": "Article archived.",
+    "loadError": "Articles could not be loaded.",
+    "saveError": "Save failed.",
+    "viewCount": "{count} views",
+    "tagsPlaceholder": "tag1, tag2",
+    "categories": {
+      "general": "General",
+      "incident": "Incidents",
+      "risk": "Risks",
+      "control": "Controls",
+      "supplier": "Suppliers",
+      "nis2": "NIS2",
+      "service": "Services"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "fields": {
+      "category": "Category",
+      "summary": "Summary",
+      "content": "Content",
+      "tags": "Tags"
+    }
+  },
   "licenses": {
     "basis": {
       "device": "Device",
@@ -1227,6 +1353,7 @@
     "authSettings": "Authentication",
     "contracts": "Contracts",
     "controls": "Controls",
+    "controlCoverage": "Control Coverage",
     "costPlanning": "Cost Planning",
     "dashboard": "Dashboard",
     "databaseBackup": "Database Backup",
@@ -1235,11 +1362,14 @@
     "incidents": "Incidents",
     "ismsOperations": "ISMS Operations",
     "ismsProcessWorkspace": "ISMS Process",
+    "kriDashboard": "KRI Dashboard",
+    "knowledgeBase": "Knowledge Base",
     "licenses": "Licenses",
     "logout": "Logout",
     "mainNavigation": "Main navigation",
     "mobileNavigation": "Mobile navigation",
     "moreNavigation": "More",
+    "navigationOrder": "Navigation Order",
     "oidcConfig": "OIDC Configuration",
     "organizationUnits": "Organization Units",
     "processes": "Processes",
@@ -1248,13 +1378,59 @@
     "riskAggregation": "Risk Aggregation",
     "risks": "Risks",
     "roleManagement": "Role Management",
+    "serviceCatalog": "Service Catalog",
     "settings": "Settings",
+    "supplyChain": "Supply Chain Overview",
     "ticketSlaSettings": "Ticket SLAs",
     "tickets": "Tickets",
     "toggleMenu": "Toggle navigation menu",
     "userManagement": "User Management",
     "userMenu": "User menu",
+    "views": {
+      "default": "Default view",
+      "globalBadge": "Global",
+      "switchFailed": "Failed to switch view",
+      "switchTooltip": "Switch view"
+    },
     "vmwareConfig": "VMware vCenter"
+  },
+  "navigationOrder": {
+    "description": "Define the global default order of the menu items. Entries at the top appear first in the main menu; only when there is not enough space do trailing entries move into the \"More\" dropdown.",
+    "hide": "Hide",
+    "hideEntry": "Hide {name}",
+    "hint": "The order determines which menu items are directly visible and which are reachable via the \"More\" dropdown. Users can customize this order in their personal settings.",
+    "listLabel": "Menu item order",
+    "loadError": "Could not load navigation",
+    "moveDown": "Move {name} down",
+    "moveUp": "Move {name} up",
+    "overrideActive": "Personal order active",
+    "reset": "Restore default",
+    "resetDone": "Default order restored",
+    "saveError": "Saving navigation failed",
+    "saved": "Order saved",
+    "show": "Show",
+    "showEntry": "Show {name}",
+    "title": "Navigation Order",
+    "unsavedChanges": "Unsaved changes",
+    "useGlobal": "Use global default",
+    "usingGlobal": "Global default order is used"
+  },
+  "navViews": {
+    "create": "Save view",
+    "created": "View created",
+    "defaultBadge": "Default",
+    "defaultScope": "Default (no view)",
+    "defaultSet": "Set as default view",
+    "delete": "Delete",
+    "deleted": "View deleted",
+    "globalDescription": "Global views are available to all users. The view marked as default is used as long as a user has not made their own active selection.",
+    "globalTitle": "Global views",
+    "newViewPlaceholder": "Name of the new view",
+    "personalDescription": "Personal views are only visible to you. The view marked as default is used automatically unless you switch views manually.",
+    "personalTitle": "Personal views",
+    "saveError": "Saving view failed",
+    "scopeLabel": "View to edit",
+    "setDefault": "Set as default"
   },
   "nis2": {
     "answersFillableOncePresent": "Answers are fillable once a questionnaire version is selected or loaded.",
@@ -1312,6 +1488,7 @@
       "criticalService": "Provides essential or important service",
       "crossBorderService": "Provides cross-border services",
       "employeeCount": "Number of employees",
+      "jurisdiction": "Legal model for threshold evaluation",
       "sector": "Sector"
     },
     "recordChange": "Record change",
@@ -1341,7 +1518,13 @@
     "enableLocalLogin": "Enable Local Login",
     "enableOidc": "Enable OIDC Authentication",
     "enableOidcDescription": "Enable or disable OIDC authentication",
+    "issuerUrl": "Issuer URL (OpenID Connect)",
+    "issuerUrlDescription": "Base URL of the OIDC provider where .well-known/openid-configuration is reachable (e.g. Authentik or Keycloak).",
     "noConfig": "No OIDC configuration found",
+    "provider": "Provider type",
+    "providerAuthentik": "Authentik",
+    "providerEntra": "Microsoft Entra ID",
+    "providerGeneric": "Other OIDC provider (generic)",
     "providerSettings": "Provider Settings",
     "redirectUri": "Redirect URI",
     "saved": "Configuration saved successfully",
@@ -1850,6 +2033,34 @@
     },
     "title": "Security Requirements"
   },
+  "serviceCatalog": {
+    "adminMode": "Manage catalog",
+    "availableServices": "Available services",
+    "browseMode": "Order services",
+    "code": "Code",
+    "createItem": "Create service",
+    "disable": "Disable",
+    "disabled": "Disabled",
+    "editItem": "Edit service",
+    "enabled": "Enabled",
+    "itemDisabled": "Service disabled.",
+    "itemSaved": "Service saved.",
+    "loadError": "Could not load the service catalog.",
+    "manageItems": "Manage service catalog",
+    "name": "Name",
+    "newItem": "New service",
+    "noItems": "No services in the catalog.",
+    "order": "Order",
+    "orderCreated": "Service request was created as a ticket.",
+    "orderError": "Could not create the service request.",
+    "orderTitle": "Order service",
+    "saveError": "Save failed.",
+    "slaHours": "SLA (hours)",
+    "submitOrder": "Create request",
+    "ticketType": "Ticket type",
+    "title": "Service Catalog",
+    "urgency": "Urgency"
+  },
   "settings": {
     "accountInfo": "Account Information",
     "accountType": "Account Type",
@@ -1872,6 +2083,8 @@
     "mfaTitle": "Multi-factor authentication",
     "mustChangeTemporaryPassword": "You must change your temporary password before continuing.",
     "name": "Name",
+    "navigationOrderDescription": "Customize the menu order for your account. Without a personal setting, the admin-defined global default applies.",
+    "navigationOrderTitle": "Navigation order",
     "newPassword": "New Password",
     "oidcLinked": "OIDC Linked",
     "passwordRequirements": "Minimum 12 characters with uppercase, lowercase, digit, and special character.",
@@ -1933,6 +2146,49 @@
     "useImplicitTLS": "Use implicit TLS",
     "validateTLS": "Validate TLS certificate",
     "via": "Sent via"
+  },
+  "supplyChain": {
+    "title": "Supply Chain Overview",
+    "description": "NIS2 Art. 21(2)(d): supply-chain dependencies, risks and exit strategies at a glance.",
+    "loadError": "The supply chain overview could not be loaded.",
+    "searchLabel": "Search",
+    "searchPlaceholder": "Search name or service...",
+    "empty": "No suppliers found.",
+    "summaryLabel": "Summary metrics",
+    "summary": {
+      "total": "Total suppliers",
+      "nis2Relevant": "NIS2-relevant",
+      "criticalHigh": "High/critical",
+      "missingExitStrategy": "Missing exit strategy",
+      "reviewOverdue": "Review overdue"
+    },
+    "filters": {
+      "nis2Only": "NIS2-relevant only"
+    },
+    "columns": {
+      "supplier": "Supplier",
+      "contracts": "Contracts",
+      "openRisks": "Open risks",
+      "latestAssessment": "Latest assessment",
+      "nextReview": "Next review"
+    },
+    "fields": {
+      "criticality": "Criticality",
+      "exitStrategy": "Exit strategy",
+      "dataProtection": "Data protection relevant"
+    },
+    "sections": {
+      "contracts": "Contracts",
+      "risks": "Risks"
+    },
+    "noContracts": "No linked contracts.",
+    "noRisks": "No linked risks.",
+    "noAssessment": "No assessment",
+    "noServices": "No services provided",
+    "missingExitStrategy": "Exit strategy missing",
+    "nis2Badge": "NIS2-relevant",
+    "renewsOn": "Renews on",
+    "openSupplier": "Open supplier"
   },
   "suppliers": {
     "assessment": "Assessment",
@@ -2010,15 +2266,28 @@
       "attachAssets": "Attach asset(s)",
       "attachError": "Asset could not be attached.",
       "by": "by",
+      "cabApprovedField": "CAB approved",
+      "changeDetailsTitle": "Change details (change enablement)",
+      "changeTypeField": "Change type",
+      "changeTypes": {
+        "standard": "Standard",
+        "normal": "Normal",
+        "emergency": "Emergency"
+      },
       "closeError": "Ticket could not be closed.",
       "closeTicket": "Close ticket",
       "closurePrompt": "Closure summary (required for the audit trail):",
       "commentError": "Comment could not be added.",
       "commentsTitle": "Comments and work notes",
+      "convertConfirm": "Create a derived ticket from this incident and link it automatically?",
+      "convertError": "Conversion failed.",
+      "convertToChange": "Derive as change",
+      "convertToProblem": "Derive as problem",
       "detach": "Detach",
       "detachError": "Asset could not be detached.",
       "estimatedEffort": "Effort (×15 min.)",
       "estimatedEffortHint": "Estimated effort in work units of 15 minutes each.",
+      "extensionSaveError": "The extension details could not be saved.",
       "historyButton": "History",
       "historyTitle": "Auditable ticket history",
       "internalWorkNote": "Internal work note",
@@ -2031,7 +2300,17 @@
       "noHistory": "No history entries.",
       "noManufacturer": "No manufacturer",
       "notConfigured": "Not configured",
+      "implementationPlanLabel": "Implementation plan",
+      "linkRisk": "Link risk",
+      "noRiskLinks": "No linked risks.",
+      "permanentFixLabel": "Permanent fix",
+      "problemDetailsTitle": "Problem details (root-cause analysis)",
       "priority": "Priority",
+      "riskLevelField": "Change risk assessment",
+      "riskLinksTitle": "Linked risks (ISO 27001 A.8.32)",
+      "rollbackPlanLabel": "Rollback plan",
+      "rootCauseLabel": "Root cause",
+      "saveExtension": "Save",
       "reopenTicket": "Reopen ticket",
       "requesterComment": "Requester-visible comment",
       "requesterCommentPlaceholder": "Add a comment as the requester…",
@@ -2043,7 +2322,9 @@
       "typeError": "Ticket type could not be changed.",
       "unassign": "Unassign",
       "unassigned": "Unassigned",
-      "updatePlaceholder": "Record an update."
+      "unlinkRisk": "Remove",
+      "updatePlaceholder": "Record an update.",
+      "workaroundLabel": "Workaround"
     },
     "empty": "No tickets found.",
     "emptyAction": "Create new ticket",

@@ -7,6 +7,7 @@ interface OidcConfig {
   id: string;
   enabled: boolean;
   providerName: string;
+  issuerUrl?: string;
   tenantId?: string;
   clientId?: string;
   clientSecret?: string;
@@ -127,15 +128,47 @@ const AdminOIDC = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('oidc.tenantId')}
+                      {t('oidc.provider')}
                     </label>
-                    <input
-                      type="text"
-                      value={config.tenantId || ''}
-                      onChange={(e) => handleChange('tenantId', e.target.value)}
+                    <select
+                      value={config.providerName || 'entra_id'}
+                      onChange={(e) => handleChange('providerName', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
+                    >
+                      <option value="entra_id">{t('oidc.providerEntra')}</option>
+                      <option value="authentik">{t('oidc.providerAuthentik')}</option>
+                      <option value="generic_oidc">{t('oidc.providerGeneric')}</option>
+                    </select>
                   </div>
+                  {config.providerName === 'entra_id' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('oidc.tenantId')}
+                      </label>
+                      <input
+                        type="text"
+                        value={config.tenantId || ''}
+                        onChange={(e) => handleChange('tenantId', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('oidc.issuerUrl')}
+                      </label>
+                      <input
+                        type="text"
+                        value={config.issuerUrl || ''}
+                        onChange={(e) => handleChange('issuerUrl', e.target.value)}
+                        placeholder="https://auth.example.com/application/o/asset-management/"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {t('oidc.issuerUrlDescription')}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       {t('oidc.clientId')}

@@ -6,7 +6,7 @@ export const ACTION_CENTER_SOURCE_TYPES = [
   'trainingAssignment', 'auditFinding', 'managementReviewAction', 'documentReview',
   'supplier', 'supplierAssessment', 'businessImpactAnalysis', 'businessContinuityPlan',
   'bcpExercise', 'auditPlan', 'managementReview',
-  'incidentNonReportableApproval',
+  'incidentNonReportableApproval', 'ticket', 'nis2Registration',
 ] as const;
 export type ActionCenterSourceType = typeof ACTION_CENTER_SOURCE_TYPES[number];
 export type ActionCenterScope = 'mine' | 'authorized' | 'all';
@@ -41,6 +41,13 @@ export interface ActionCenterResponse {
 
 const OPEN_STATUSES = ['open', 'pending', 'assigned', 'in_progress', 'planned', 'running', 'active', 'draft'];
 const closed = (status: string) => ['completed', 'closed', 'cancelled', 'resolved', 'sent', 'withdrawn', 'archived'].includes(status.toLowerCase());
+// Ticket statuses that mean "no work left in the inbox" (close targets + terminal
+// statuses from shared/ticketTransitions). Reopenable states like resolved are
+// treated as done because the ITIL close flow already handed them off.
+const DONE_TICKET_STATUSES = ['resolved', 'fulfilled', 'closed', 'cancelled', 'rejected'];
+/** Best available SLA deadline for a ticket inbox entry. */
+const ticketDueDate = (ticket: any): Date | null =>
+  ticket.resolutionDueAt ?? ticket.slaTargetAt ?? ticket.firstResponseDueAt ?? null;
 const urgencyFor = (dueDate: Date, now: Date): ActionCenterUrgency => {
   const hours = (dueDate.getTime() - now.getTime()) / 3_600_000;
   if (hours < 0) return 'overdue';
@@ -51,6 +58,13 @@ const urgencyFor = (dueDate: Date, now: Date): ActionCenterUrgency => {
 const NIS2_APPROVAL_SLA_MS = 24 * 3_600_000;
 /** Pending NIS2 decisions do not have a persisted deadline, so derive their temporary SLA from creation. */
 const nis2ApprovalDueDate = (createdAt: Date): Date => new Date(createdAt.getTime() + NIS2_APPROVAL_SLA_MS);
+const NIS2_REVIEW_INTERVAL_MS = 365 * 24 * 3_600_000;
+/** Periodic review deadline mirrors the reminder rule in reminder.service.ts: lastReviewDate + 1 year, else registration deadline. */
+const nis2RegistrationReviewDueDate = (record: any): Date | null => {
+  if (record.lastReviewDate) return new Date(new Date(record.lastReviewDate).getTime() + NIS2_REVIEW_INTERVAL_MS);
+  if (record.deadline) return new Date(record.deadline);
+  return null;
+};
 const item = (sourceType: ActionCenterSourceType, record: any, title: string, dueDate: Date, assignment: 'mine' | 'authorized', href?: string, now = new Date()): ActionCenterItem => ({
   id: record.id, sourceType, title, status: record.status, dueDate: dueDate.toISOString(), urgency: urgencyFor(dueDate, now), assignment, href,
 });
@@ -97,11 +111,34 @@ export class ActionCenterService {
         include: { incident: { select: { title: true } } },
       });
       pendingApprovals.forEach((r: any) => items.push(item('incidentNonReportableApproval', r, `Approve non-reportable decision: ${r.incident.title}`, nis2ApprovalDueDate(r.createdAt), 'mine', `/incidents/${r.incidentId}`, now)));
+      // ITIL tickets assigned to me (My Work inbox); due date falls back through
+      // resolution SLA, overall SLA target and first-response SLA.
+      const assignedTickets = await db.ticket.findMany({
+        where: { assigneeId: userId, isArchived: false, status: { notIn: DONE_TICKET_STATUSES } },
+      });
+      assignedTickets.forEach((r: any) => {
+        const dueDate = ticketDueDate(r);
+        if (dueDate && !DONE_TICKET_STATUSES.includes(r.status)) items.push(item('ticket', r, `${r.displayId}: ${r.title}`, dueDate, 'mine', `/tickets/${r.id}`, now));
+      });
     }
 
     if (await can('incidents.read')) {
       const deadlines = await db.notificationDeadline.findMany({ where: { ...openWhere, incident: await authorizationService.buildReadFilter(userId, 'incidents') }, include: { incident: { select: { title: true } } } });
       deadlines.forEach((r: any) => items.push(item('notificationDeadline', r, `Notification: ${r.incident.title}`, r.deadlineDate, 'authorized', '/incidents', now)));
+    }
+    if (await can('tickets.read')) {
+      const visibleTickets = await db.ticket.findMany({
+        where: {
+          AND: [
+            await authorizationService.buildReadFilter(userId, 'tickets'),
+            { isArchived: false, status: { notIn: DONE_TICKET_STATUSES }, OR: [{ resolutionDueAt: { not: null } }, { slaTargetAt: { not: null } }, { firstResponseDueAt: { not: null } }] },
+          ],
+        },
+      });
+      visibleTickets.forEach((r: any) => {
+        const dueDate = ticketDueDate(r);
+        if (dueDate && !DONE_TICKET_STATUSES.includes(r.status)) items.push(item('ticket', r, `${r.displayId}: ${r.title}`, dueDate, 'authorized', `/tickets/${r.id}`, now));
+      });
     }
     const authorizedSources: Array<[any, any, ActionCenterSourceType, string, string]> = [
       ['correctiveAction', 'correctiveActions.read', 'correctiveAction', 'title', '/isms-operations'],
@@ -131,6 +168,15 @@ export class ActionCenterService {
       if (!(await can(permission))) continue;
       const rows = await db[delegate].findMany({ where: { ...openWhere, [dueField]: { not: null } } });
       rows.forEach((r: any) => r[dueField] && items.push(item(sourceType, r, r[titleField] ?? sourceType, r[dueField], 'authorized', '/isms-operations', now)));
+    }
+    // NIS2 registration reviews are derived from lastReviewDate/deadline and cannot be
+    // filtered by a Prisma due-field; guarded by controls.read like the nis2 routes.
+    if (await can('controls.read')) {
+      const registrations = await db.nis2Registration.findMany({ where: { isArchived: false, status: { notIn: ['completed', 'closed', 'cancelled', 'approved'] } } });
+      registrations.forEach((r: any) => {
+        const dueDate = nis2RegistrationReviewDueDate(r);
+        if (dueDate && !closed(r.status)) items.push(item('nis2Registration', r, `NIS2 registration review (${r.entityType ?? r.id})`, dueDate, 'authorized', '/nis2', now));
+      });
     }
 
     const unique = [...new Map(items.map((entry) => [`${entry.sourceType}:${entry.id}`, entry])).values()];

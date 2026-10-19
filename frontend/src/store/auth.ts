@@ -8,11 +8,16 @@ interface User {
   firstName: string;
   lastName: string;
   roles: string[];
+  // Effective granular permissions unioned from active role assignments.
+  // Returned by /auth/me and login; used to render role-based navigation.
+  permissions?: string[];
   mustChangePasswordOnNext?: boolean;
   isOidcLinked?: boolean;
   oidcProvider?: string | null;
   language?: string | null;
   darkMode?: boolean | null;
+  navigationOrder?: string[] | null;
+  hiddenNavigationEntries?: string[] | null;
   mfaEnabled?: boolean;
 }
 
@@ -23,7 +28,7 @@ interface AuthState {
   login: (email: string, password: string, mfaToken?: string) => Promise<{ state?: string; preAuthToken?: string; expiresInSeconds?: number } | void>;
   logout: () => Promise<void>;
   setUser: (user: User, token: string) => void;
-  updateUserPreferences: (preferences: Pick<User, 'language' | 'darkMode'>) => void;
+  updateUserPreferences: (preferences: Partial<Pick<User, 'language' | 'darkMode' | 'navigationOrder' | 'hiddenNavigationEntries'>>) => void;
   checkAuth: () => Promise<void>;
 }
 

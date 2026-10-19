@@ -68,4 +68,44 @@ describe('Phase6Service', () => {
 
     await expect(phase6Service.getWorkflowActions('instance-1')).resolves.toEqual([{ key: 'approve', label: 'Approve' }, { key: 'reject', label: 'Reject' }]);
   });
+
+  it('falls back to KRI and aggregates only active definitions in the KRI board', async () => {
+    (prisma as any).metricDefinition.findMany.mockResolvedValue([]);
+    const board = await phase6Service.kriBoard('bogus');
+    expect(board.metricType).toBe('KRI');
+    expect((prisma as any).metricDefinition.findMany).toHaveBeenCalledWith({ where: { metricType: 'KRI', status: 'active' }, orderBy: { name: 'asc' } });
+    expect(board.summary).toEqual({ critical: 0, warning: 0, none: 0, noData: 0 });
+    expect(board.items).toEqual([]);
+  });
+
+  it('recomputes breaches from current thresholds and derives trend, sparkline and summary in the KRI board', async () => {
+    (prisma as any).metricDefinition.findMany.mockResolvedValue([
+      { id: 'm-1', displayId: 'MET-1', name: 'Patch latency', metricType: 'KRI', unit: '%', aggregation: 'latest', thresholds: { warningMax: 80, criticalMax: 90 }, objectiveId: null },
+      { id: 'm-2', displayId: 'MET-2', name: 'Open findings', metricType: 'KRI', unit: null, aggregation: 'latest', thresholds: {}, objectiveId: null },
+    ]);
+    (prisma as any).metricValue.findMany.mockImplementation(async ({ where }: any) =>
+      where.metricId === 'm-1'
+        ? [
+            { id: 'v-2', value: 95, measuredAt: new Date('2026-10-01'), source: 'manual' },
+            { id: 'v-1', value: 70, measuredAt: new Date('2026-09-01'), source: null },
+          ]
+        : []);
+
+    const board = await phase6Service.kriBoard('KRI');
+    expect(board.metricType).toBe('KRI');
+    expect(board.items[0]).toMatchObject({ id: 'm-1', displayId: 'MET-1', breachStatus: 'critical', trend: 'up' });
+    expect(board.items[0].latestValue).toMatchObject({ value: 95, source: 'manual' });
+    // Sparkline is ordered oldest -> newest for chart rendering.
+    expect(board.items[0].sparkline.map((row: any) => row.value)).toEqual([70, 95]);
+    // No measurements at all -> no breach evaluation, counted as noData in the summary.
+    expect(board.items[1].latestValue).toBeNull();
+    expect(board.summary).toEqual({ critical: 1, warning: 0, none: 0, noData: 1 });
+  });
+
+  it('honors an explicit KPI type for the KRI board', async () => {
+    (prisma as any).metricDefinition.findMany.mockResolvedValue([]);
+    const board = await phase6Service.kriBoard('KPI');
+    expect(board.metricType).toBe('KPI');
+    expect((prisma as any).metricDefinition.findMany).toHaveBeenCalledWith({ where: { metricType: 'KPI', status: 'active' }, orderBy: { name: 'asc' } });
+  });
 });

@@ -94,6 +94,7 @@ export async function nextDisplayIdStandalone(prisma: PrismaClient, entityType: 
    License: 'LIC',
    BusinessProcess: 'PROC',
    Document: 'DOC',
+   KnowledgeArticle: 'KB',
    CostPlan: 'CPLAN',
    CostPlanItem: 'CPI',
    Ticket: 'TCKT',

@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { authService } from '../services/auth.service';
 import { oidcService } from '../services/oidc.service';
 import { validateBody } from '../middleware/validation';
+import { NAVIGATION_HREFS } from 'shared';
 import { z } from 'zod';
 
 export const authRouter = Router();
@@ -30,7 +31,11 @@ const preAuthTokenOnlySchema = z.object({ preAuthToken: preAuthTokenSchema }).st
 const preAuthMfaConfirmSchema = z.object({ preAuthToken: preAuthTokenSchema, token: mfaTokenSchema }).strict();
 const preAuthPasswordChangeSchema = z.object({ preAuthToken: preAuthTokenSchema, newPassword: passwordSchema }).strict();
 const oidcCallbackSchema = z.object({ code: z.string().min(1).max(8_192), state: z.string().min(1).max(4_096) }).strict();
-const preferencesSchema = z.object({ language: z.enum(['de', 'en']).optional(), darkMode: z.boolean().optional() }).strict().refine((data) => data.language !== undefined || data.darkMode !== undefined, { message: 'At least one preference is required' });
+// navigationOrder is the per-user override of the global top-navigation order;
+// hiddenNavigationEntries is the per-user override of the globally hidden entries;
+// null clears each override (fall back to the global default).
+const navigationOrderSchema = z.array(z.enum(NAVIGATION_HREFS as [string, ...string[]])).max(NAVIGATION_HREFS.length);
+const preferencesSchema = z.object({ language: z.enum(['de', 'en']).optional(), darkMode: z.boolean().optional(), navigationOrder: navigationOrderSchema.nullable().optional(), hiddenNavigationEntries: navigationOrderSchema.nullable().optional() }).strict().refine((data) => data.language !== undefined || data.darkMode !== undefined || data.navigationOrder !== undefined || data.hiddenNavigationEntries !== undefined, { message: 'At least one preference is required' });
 const changePasswordSchema = z.object({ currentPassword: passwordSchema, newPassword: passwordSchema }).strict();
 const mfaTokenOnlySchema = z.object({ token: mfaTokenSchema }).strict();
 
@@ -241,8 +246,8 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
 
 authRouter.patch('/me/preferences', authenticate, validateBody(preferencesSchema), async (req: AuthRequest, res, next) => {
   try {
-    const { language, darkMode } = req.body;
-    const user = await authService.updatePreferences(req.userId!, { language, darkMode });
+    const { language, darkMode, navigationOrder, hiddenNavigationEntries } = req.body;
+    const user = await authService.updatePreferences(req.userId!, { language, darkMode, navigationOrder, hiddenNavigationEntries });
     res.json(user);
   } catch (error) {
     next(error);

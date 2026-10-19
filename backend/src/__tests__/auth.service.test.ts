@@ -39,7 +39,10 @@ const mockPrismaClient: any = {
     deleteMany: jest.fn(),
   },
   userGroup: {
-    findMany: jest.fn(),
+    // authorizationService.getUserRoles unions direct + group role assignments;
+    // default to "no group memberships" so the effective-permission lookup in
+    // login/getCurrentUser works with these unit-test mocks.
+    findMany: jest.fn().mockResolvedValue([]),
   },
   refreshToken: {
     create: jest.fn(),

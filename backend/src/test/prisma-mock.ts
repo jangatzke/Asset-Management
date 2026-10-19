@@ -93,6 +93,7 @@ export const createMockPrismaClient = (): MockPrismaClient => {
     slaEscalationLog: createMockModel(),
     problem: createMockModel(),
     change: createMockModel(),
+    changeRiskLink: createMockModel(),
     serviceRequest: createMockModel(),
     emailGatewayConfig: createMockModel(),
     emailMessage: createMockModel(),

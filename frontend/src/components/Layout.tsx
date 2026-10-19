@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { Outlet, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
@@ -22,28 +22,95 @@ import {
   Bars3Icon,
   XMarkIcon,
   MagnifyingGlassIcon,
+  BuildingStorefrontIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 import { CommandPalette } from './CommandPalette';
 import { useToast } from './useToast';
 import type { CommandPaletteItem } from './CommandPalette';
 import { useKeyboardShortcuts, type KeyboardShortcutBinding } from '../hooks/useKeyboardShortcuts';
-import { assetApi, ticketApi, incidentApi } from '../services/api';
+import { assetApi, ticketApi, incidentApi, authApi, type NavigationViewResponse } from '../services/api';
+import { NAVIGATION_CATALOG, applyNavigationView } from '@shared/navigation';
+
+// Icons live in the frontend; the shared catalog owns hrefs/labels/permissions.
+const NAV_ICONS: Record<string, typeof HomeIcon> = {
+  '/': HomeIcon,
+  '/assets': CubeIcon,
+  '/risks': ExclamationTriangleIcon,
+  '/controls': ShieldCheckIcon,
+  '/incidents': FireIcon,
+  '/tickets': ClipboardDocumentListIcon,
+  '/service-catalog': ClipboardDocumentListIcon,
+  '/nis2': ShieldCheckIcon,
+  '/contracts': DocumentTextIcon,
+  '/licenses': ClipboardDocumentListIcon,
+  '/processes': ServerIcon,
+  '/cost-planning': BanknotesIcon,
+  '/isms-operations': ChartBarIcon,
+  '/kri-dashboard': ChartBarIcon,
+  '/knowledge-base': DocumentTextIcon,
+  '/supply-chain': BuildingStorefrontIcon,
+  '/control-coverage': ShieldCheckIcon,
+  '/isms-operations/process': ClipboardDocumentCheckIcon,
+  '/risk-aggregation': ChartBarIcon,
+  '/admin/users': Cog6ToothIcon,
+};
 
 const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isLoading, logout, checkAuth } = useAuthStore();
+  // Global default navigation config (admin-configured); per-user overrides and
+  // saved views take precedence over it.
+  const [globalNavConfig, setGlobalNavConfig] = useState<{ navOrder: string[]; hiddenEntries: string[] }>({ navOrder: [], hiddenEntries: [] });
+  const [navViews, setNavViews] = useState<NavigationViewResponse[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
+  const viewsMenuRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
   const { addToast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const navContainerRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const navMeasureRef = useRef<HTMLDivElement>(null);
+  // null until the first measurement runs, then the number of desktop nav items
+  // that fit in the header; the rest are collapsed into a "More" dropdown.
+  const [visibleNavCount, setVisibleNavCount] = useState<number | null>(null);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    authApi.getNavigationConfig()
+      .then((response) => {
+        if (cancelled) return;
+        setGlobalNavConfig({
+          navOrder: Array.isArray(response.data?.navOrder) ? response.data.navOrder : [],
+          hiddenEntries: Array.isArray(response.data?.hiddenEntries) ? response.data.hiddenEntries : [],
+        });
+      })
+      .catch(() => undefined); // fall back to the built-in catalog order
+    authApi.getNavigationViews()
+      .then((response) => {
+        if (!cancelled && Array.isArray(response.data)) setNavViews(response.data);
+      })
+      .catch(() => undefined);
+    authApi.getActiveNavigationView()
+      .then((response) => {
+        if (!cancelled) setActiveViewId(response.data?.view?.id ?? null);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [user]);
 
   // When the api layer fails to refresh the access token it clears the token
   // and broadcasts this event; log out locally and send the user back to the
@@ -75,9 +142,33 @@ const Layout = () => {
     }
   }, [userMenuOpen]);
 
+  // Same outside-click handling for the overflow ("More") navigation dropdown.
+  useEffect(() => {
+    const closeMenu = (event: MouseEvent) => {
+      if (!moreMenuRef.current?.contains(event.target as Node)) setMoreMenuOpen(false);
+    };
+    if (moreMenuOpen) {
+      document.addEventListener('click', closeMenu);
+      return () => document.removeEventListener('click', closeMenu);
+    }
+  }, [moreMenuOpen]);
+
+  // Same outside-click handling for the navigation-view switcher dropdown.
+  useEffect(() => {
+    const closeMenu = (event: MouseEvent) => {
+      if (!viewsMenuRef.current?.contains(event.target as Node)) setViewsMenuOpen(false);
+    };
+    if (viewsMenuOpen) {
+      document.addEventListener('click', closeMenu);
+      return () => document.removeEventListener('click', closeMenu);
+    }
+  }, [viewsMenuOpen]);
+
   useEffect(() => {
     setMobileMenuOpen(false);
     setUserMenuOpen(false);
+    setMoreMenuOpen(false);
+    setViewsMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -85,6 +176,7 @@ const Layout = () => {
       if (event.key !== 'Escape') return;
       setMobileMenuOpen(false);
       setUserMenuOpen(false);
+      setMoreMenuOpen(false);
     };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
@@ -128,25 +220,65 @@ const Layout = () => {
   // NOTE: All React hooks below must run on every render (unconditionally),
   // so the early returns for loading / unauthenticated states are placed after
   // the hook block, not before it.
-  const navigation = useMemo(() => [
-    { name: t('navigation.dashboard'), href: '/', icon: HomeIcon },
-    { name: t('navigation.assets'), href: '/assets', icon: CubeIcon },
-    { name: t('navigation.risks'), href: '/risks', icon: ExclamationTriangleIcon },
-    { name: t('navigation.controls'), href: '/controls', icon: ShieldCheckIcon },
-    { name: t('navigation.incidents'), href: '/incidents', icon: FireIcon },
-    { name: t('navigation.tickets'), href: '/tickets', icon: ClipboardDocumentListIcon },
-    { name: 'NIS2', href: '/nis2', icon: ShieldCheckIcon },
-    { name: t('navigation.contracts'), href: '/contracts', icon: DocumentTextIcon },
-    { name: t('navigation.licenses'), href: '/licenses', icon: ClipboardDocumentListIcon },
-    { name: t('navigation.processes'), href: '/processes', icon: ServerIcon },
-    { name: t('navigation.costPlanning'), href: '/cost-planning', icon: BanknotesIcon },
-    { name: t('navigation.ismsOperations'), href: '/isms-operations', icon: ChartBarIcon },
-    { name: t('navigation.ismsProcessWorkspace'), href: '/isms-operations/process', icon: ClipboardDocumentCheckIcon },
-    ...(isAdmin ? [
-      { name: t('navigation.riskAggregation'), href: '/risk-aggregation', icon: ChartBarIcon },
-      { name: t('navigation.admin'), href: '/admin/users', icon: Cog6ToothIcon },
-    ] : []),
-  ], [t, isAdmin]);
+  // Required permission per nav entry, mirroring the guards enforced by the
+  // backend routes (requirePermission / authorizeEntityRead / requireAdminAccess).
+  // Entries without a requirement are open to every authenticated user.
+  const hasRequiredPermission = useCallback((required?: string | string[]): boolean => {
+    if (!required) return true;
+    // Sessions issued before permissions were added to /auth/me carry no list;
+    // fall back to showing everything so navigation keeps working until the
+    // session is refreshed.
+    if (!user?.permissions) return true;
+    const granted = new Set(user.permissions);
+    const requiredList = Array.isArray(required) ? required : [required];
+    return requiredList.some((permission) => granted.has(permission));
+  }, [user]);
+
+  const navigation = useMemo(() => {
+    const items = NAVIGATION_CATALOG
+      .filter((entry) => !entry.adminOnly || isAdmin)
+      .map((entry) => ({
+        name: entry.nameKey ? t(entry.nameKey) : (entry.label ?? entry.href),
+        href: entry.href,
+        icon: NAV_ICONS[entry.href] ?? CogIcon,
+        permission: entry.permission,
+      }));
+    const permitted = items.filter((item) => hasRequiredPermission(item.permission));
+    // Resolve the effective view: an explicitly selected saved view wins, then
+    // the legacy per-user order override, then the global default config.
+    // In both default-scope branches the personal hidden list (when set) replaces
+    // the globally hidden entries; null falls back to the global configuration.
+    const activeView = navViews.find((view) => view.id === activeViewId);
+    if (activeView) {
+      return applyNavigationView(permitted, activeView);
+    }
+    const effectiveHiddenEntries = Array.isArray(user?.hiddenNavigationEntries)
+      ? user.hiddenNavigationEntries
+      : globalNavConfig.hiddenEntries;
+    if (Array.isArray(user?.navigationOrder) && user.navigationOrder.length > 0) {
+      return applyNavigationView(permitted, {
+        navOrder: user.navigationOrder,
+        hiddenEntries: effectiveHiddenEntries,
+      });
+    }
+    return applyNavigationView(permitted, { ...globalNavConfig, hiddenEntries: effectiveHiddenEntries });
+  }, [t, isAdmin, hasRequiredPermission, user?.navigationOrder, user?.hiddenNavigationEntries, globalNavConfig, navViews, activeViewId]);
+
+  const switchView = useCallback((viewId: string | null) => {
+    setViewsMenuOpen(false);
+    authApi.setActiveNavigationView(viewId)
+      .then((response) => setActiveViewId(response.data?.view?.id ?? null))
+      .catch(() => addToast('error', t('navigation.views.switchFailed')));
+  }, [addToast, t]);
+
+  const availableNavViews = useMemo(
+    () => navViews.filter((view) => view.ownerId === null || view.ownerId === user?.id),
+    [navViews, user?.id],
+  );
+  const activeViewName = useMemo(() => {
+    const view = availableNavViews.find((entry) => entry.id === activeViewId);
+    return view ? view.name : t('navigation.views.default');
+  }, [availableNavViews, activeViewId, t]);
 
   const isActive = (href: string) => {
     if (href === '/admin/users' && location.pathname.startsWith('/admin')) {
@@ -159,6 +291,74 @@ const Layout = () => {
     return location.pathname === href || location.pathname.startsWith(href + '/');
   };
 
+  // Responsive navigation: measure how many desktop entries fit in the header
+  // and collapse the rest into a "More" dropdown instead of scrolling/clipping.
+  useLayoutEffect(() => {
+    const container = navContainerRef.current;
+    const logo = logoRef.current;
+    const measure = navMeasureRef.current;
+    if (!container || !logo || !measure) return;
+
+    const NAV_GAP = 4; // matches lg:gap-1 on the strip
+    const LOGO_NAV_MARGIN = 24; // matches lg:ml-6 between logo and nav strip
+    const MORE_BUTTON_RESERVE = 110; // width reserved for the "More" trigger
+
+    const countFitting = (widths: number[], available: number) => {
+      let used = 0;
+      let count = 0;
+      for (const width of widths) {
+        if (used + (count > 0 ? NAV_GAP : 0) + width > available) break;
+        used += width + (count > 0 ? NAV_GAP : 0);
+        count++;
+      }
+      return count;
+    };
+
+    const computeVisibleCount = () => {
+      const items = Array.from(measure.children) as HTMLElement[];
+      if (items.length === 0) {
+        setVisibleNavCount(0);
+        return;
+      }
+      // The container is a flex-1 element, so its width reflects the space that
+      // is actually available for navigation regardless of its content.
+      const available = container.clientWidth - logo.getBoundingClientRect().width - LOGO_NAV_MARGIN;
+      const widths = items.map((el) => el.getBoundingClientRect().width);
+      let count = countFitting(widths, available);
+      if (count < items.length) {
+        // Not everything fits: reserve space for the "More" trigger and recount.
+        count = countFitting(widths, available - MORE_BUTTON_RESERVE);
+      }
+      setVisibleNavCount(count);
+    };
+
+    computeVisibleCount();
+    const observer = new ResizeObserver(computeVisibleCount);
+    // Observe both the container (window resizes) and the offscreen clone
+    // (webfont loading can change item widths without any resize event).
+    observer.observe(container);
+    observer.observe(measure);
+    return () => observer.disconnect();
+  }, [navigation]);
+
+  const visibleCount = visibleNavCount ?? 0;
+  const primaryNavItems = navigation.slice(0, visibleCount);
+  const overflowNavItems = navigation.slice(visibleCount);
+  const moreMenuActive = overflowNavItems.some((item) => isActive(item.href));
+
+  const navLinkClass = (href: string) => `px-2 xl:px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${
+    isActive(href)
+      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
+  }`;
+
+  const renderNavLink = (item: { name: string; href: string; icon: typeof HomeIcon }) => (
+    <Link key={item.href} to={item.href} className={navLinkClass(item.href)}>
+      <item.icon className="h-5 w-5 inline mr-1" />
+      {item.name}
+    </Link>
+  );
+
   const adminSubPages = [
     { name: t('navigation.userManagement'), href: '/admin/users' },
     { name: t('navigation.roleManagement'), href: '/admin/roles' },
@@ -167,6 +367,7 @@ const Layout = () => {
     { name: t('navigation.organizationUnits'), href: '/admin/organization-units' },
     { name: t('navigation.oidcConfig'), href: '/admin/oidc' },
     { name: t('navigation.authSettings'), href: '/admin/auth-settings' },
+    { name: t('navigation.navigationOrder'), href: '/admin/navigation' },
     { name: t('intune.title'), href: '/admin/intune' },
     { name: t('navigation.vmwareConfig'), href: '/admin/vmware' },
     { name: t('navigation.proxmoxConfig'), href: '/admin/proxmox' },
@@ -339,31 +540,135 @@ const Layout = () => {
       <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label={t('navigation.mainNavigation')}>
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between min-h-16 gap-3 py-2 lg:py-0">
-            <div className="flex items-center flex-1 min-w-0 overflow-hidden">
-                <div className="flex-shrink-0 flex items-center min-w-0">
+            {/* No overflow-hidden here: the responsive collapse keeps the nav
+                within bounds, and clipping would also cut off the "More"
+                dropdown panel. */}
+            <div ref={navContainerRef} className="flex items-center flex-1 min-w-0">
+                <div ref={logoRef} className="flex-shrink-0 flex items-center min-w-0">
                   <ShieldCheckIcon className="h-8 w-8 text-primary-600 dark:text-primary-400" aria-hidden="true" />
                 <span className="ml-2 text-lg font-bold text-gray-900 dark:text-white truncate">
                   {t('navigation.applicationName')}
                 </span>
               </div>
-               <div className="hidden lg:ml-6 lg:flex lg:items-center lg:gap-1 min-w-0 overflow-visible">
-                 {navigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`px-2 xl:px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${
-                      isActive(item.href)
-                        ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <item.icon className="h-5 w-5 inline mr-1" />
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
+               {/* Responsive nav strip: entries that fit are rendered inline and
+                   the rest collapse into a "More" dropdown. This avoids both the
+                   old clipping (overflow-hidden) and an ugly scrollbar. */}
+               <div className="hidden lg:ml-6 lg:flex lg:items-center lg:gap-1 min-w-0">
+                 {primaryNavItems.map(renderNavLink)}
+                 {visibleNavCount !== null && overflowNavItems.length > 0 && (
+                   <div ref={moreMenuRef} className="relative">
+                     <button
+                       type="button"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setMoreMenuOpen((open) => !open);
+                       }}
+                       aria-haspopup="menu"
+                       aria-controls="overflow-navigation-menu"
+                       aria-expanded={moreMenuOpen}
+                       className={`px-2 xl:px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap inline-flex items-center gap-1 ${
+                         moreMenuActive
+                           ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                           : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
+                       }`}
+                     >
+                       {t('navigation.moreNavigation')}
+                       <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+                     </button>
+                     {moreMenuOpen && (
+                       <div
+                         id="overflow-navigation-menu"
+                         role="menu"
+                         className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+                       >
+                         {overflowNavItems.map((item) => (
+                           <Link
+                             key={item.href}
+                             to={item.href}
+                             role="menuitem"
+                             onClick={() => setMoreMenuOpen(false)}
+                             className={`block px-4 py-2 text-sm ${
+                               isActive(item.href)
+                                 ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                             }`}
+                           >
+                             <item.icon className="h-4 w-4 inline mr-2" />
+                             {item.name}
+                           </Link>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                 )}
+               </div>
+               {/* Offscreen clone used only to measure each entry's width for the
+                   responsive calculation above; invisible and non-interactive. */}
+               <div ref={navMeasureRef} aria-hidden="true" className="hidden lg:flex absolute left-[-9999px] top-[-9999px] items-center gap-1 whitespace-nowrap pointer-events-none select-none">
+                 {navigation.map(renderNavLink)}
+               </div>
             </div>
               <div className="flex items-center flex-shrink-0">
+                {availableNavViews.length > 0 && (
+                  <div ref={viewsMenuRef} className="relative mr-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewsMenuOpen((open) => !open);
+                      }}
+                      aria-haspopup="menu"
+                      aria-controls="navigation-view-menu"
+                      aria-expanded={viewsMenuOpen}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+                      title={t('navigation.views.switchTooltip')}
+                    >
+                      <Squares2X2Icon className="h-5 w-5" aria-hidden="true" />
+                      <span className="hidden max-w-32 truncate sm:inline">{activeViewName}</span>
+                      <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    {viewsMenuOpen && (
+                      <div
+                        id="navigation-view-menu"
+                        role="menu"
+                        className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => switchView(null)}
+                          className={`block w-full text-left px-4 py-2 text-sm ${
+                            activeViewId === null
+                              ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {t('navigation.views.default')}
+                        </button>
+                        {availableNavViews.map((view) => (
+                          <button
+                            key={view.id}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => switchView(view.id)}
+                            className={`block w-full text-left px-4 py-2 text-sm ${
+                              view.id === activeViewId
+                                ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {view.name}
+                            {view.ownerId === null && (
+                              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                                {t('navigation.views.globalBadge')}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setPaletteOpen(true)}

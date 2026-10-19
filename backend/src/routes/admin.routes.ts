@@ -4,6 +4,7 @@ import os from 'os';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { AppError } from '../middleware/errorHandler';
 import { adminService } from '../services/admin.service';
 import { reminderService } from '../services/reminder.service';
 import { getReminderScheduler } from '../services/reminder.scheduler';
@@ -18,6 +19,8 @@ import { databaseBackupService, PortableBackupPayload } from '../services/databa
 import { ticketService } from '../services/ticket.service';
 import { slaService } from '../services/sla.service';
 import { getSlaScheduler } from '../services/sla.scheduler';
+import { navigationConfigService } from '../services/navigationConfig.service';
+import { navigationViewService } from '../services/navigationView.service';
  
 export const adminRouter = Router();
 
@@ -100,6 +103,79 @@ adminRouter.get('/auth-settings', authenticate, requireAdminAccess, async (_req,
 adminRouter.put('/auth-settings', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     res.json(await adminService.updateAuthSettings(req.body, req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/navigation/config', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await navigationConfigService.getConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/navigation/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const { navOrder, hiddenEntries } = req.body ?? {};
+    res.json(await navigationConfigService.updateConfig(navOrder, req.userId ?? 'system', hiddenEntries));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.delete('/navigation/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await navigationConfigService.resetConfig(req.userId ?? 'system'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- Global navigation views (ownerId null; visible to every user) ----
+adminRouter.get('/navigation/views', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    res.json(await navigationViewService.listGlobalViews());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/navigation/views', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    res.status(201).json(await navigationViewService.createView(req.body ?? {}, null));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/navigation/views/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const view = await navigationViewService.getView(req.params.id);
+    if (!view || view.ownerId !== null) throw new AppError('Navigation view not found', 404);
+    res.json(await navigationViewService.updateView(req.params.id, req.body ?? {}));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/navigation/views/:id/default', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const view = await navigationViewService.getView(req.params.id);
+    if (!view || view.ownerId !== null) throw new AppError('Navigation view not found', 404);
+    res.json(await navigationViewService.setDefault(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.delete('/navigation/views/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+  try {
+    const view = await navigationViewService.getView(req.params.id);
+    if (!view || view.ownerId !== null) throw new AppError('Navigation view not found', 404);
+    await navigationViewService.deleteView(req.params.id);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

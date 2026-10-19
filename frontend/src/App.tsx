@@ -33,6 +33,7 @@ const AdminFiscalYear = lazy(() => import('./pages/AdminFiscalYear'));
 const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
 const AdminDatabase = lazy(() => import('./pages/AdminDatabase'));
 const AdminTicketSla = lazy(() => import('./pages/AdminTicketSla'));
+const AdminNavigation = lazy(() => import('./pages/AdminNavigation'));
 const Contracts = lazy(() => import('./pages/Contracts'));
 const Licenses = lazy(() => import('./pages/Licenses'));
 const Processes = lazy(() => import('./pages/Processes'));
@@ -44,7 +45,12 @@ const SupplierDetail = lazy(() => import('./pages/SupplierDetail'));
 const RiskDetail = lazy(() => import('./pages/RiskDetail'));
 const CostPlanning = lazy(() => import('./pages/CostPlanning'));
 const ActionCenter = lazy(() => import('./pages/ActionCenter'));
+const ServiceCatalog = lazy(() => import('./pages/ServiceCatalog'));
 const NIS2 = lazy(() => import('./pages/NIS2'));
+const KriDashboard = lazy(() => import('./pages/KriDashboard'));
+const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'));
+const SupplyChainOverview = lazy(() => import('./pages/SupplyChainOverview'));
+const ControlCoverageMatrix = lazy(() => import('./pages/ControlCoverageMatrix'));
 const OperationsWorkspace = lazy(() => import('./pages/OperationsWorkspace'));
 const ISMSProcessWorkspace = lazy(() => import('./pages/ismsProcessWorkspace'));
 
@@ -87,7 +93,12 @@ function App() {
             <Route path="processes" element={<Processes />} />
             <Route path="cost-planning" element={<CostPlanning />} />
             <Route path="action-center" element={<ActionCenter />} />
+            <Route path="service-catalog" element={<ServiceCatalog />} />
             <Route path="nis2" element={<NIS2 />} />
+            <Route path="kri-dashboard" element={<KriDashboard />} />
+            <Route path="knowledge-base" element={<KnowledgeBase />} />
+            <Route path="supply-chain" element={<SupplyChainOverview />} />
+            <Route path="control-coverage" element={<ControlCoverageMatrix />} />
             <Route path="risk-aggregation" element={<RiskAggregation />} />
             <Route path="isms-operations" element={<ISMSPhase6 />} />
             <Route path="isms-operations/workspace" element={<OperationsWorkspace />} />
@@ -113,6 +124,7 @@ function App() {
             <Route path="admin/auth-settings" element={<AdminAuthSettings />} />
             <Route path="admin/database" element={<AdminDatabase />} />
             <Route path="admin/ticket-slas" element={<AdminTicketSla />} />
+            <Route path="admin/navigation" element={<AdminNavigation />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

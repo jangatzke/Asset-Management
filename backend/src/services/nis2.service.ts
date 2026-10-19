@@ -157,15 +157,26 @@ export const NIS2_APPLICABILITY_QUESTIONNAIRE = {
       labelEn: 'Balance sheet total in Mio. €',
       required: true,
     },
+    {
+      id: 'jurisdiction',
+      type: 'select',
+      labelDe: 'Rechtsmodell für die Schwellenwertprüfung',
+      labelEn: 'Legal model for threshold evaluation',
+      options: [
+        { value: 'eu', labelDe: 'EU-Modell (NIS-2-Richtlinie, große/mittlere Unternehmen)', labelEn: 'EU model (NIS-2 Directive, large/medium undertakings)' },
+        { value: 'de', labelDe: 'Deutschland (§ 28 BSIG — Einrichtungsarten Anlagen 1 und 2)', labelEn: 'Germany (§ 28 BSIG — entity types in Annexes 1 and 2)' },
+      ],
+      required: true,
+    },
   ],
   scoringRules: {
     essential_entity: {
-      condition: 'employeeCount >= 250 OR (annualRevenue >= 50 AND balanceSheetTotal >= 43)',
+      condition: 'employeeCount >= 250 OR (annualRevenue > 50 AND balanceSheetTotal > 43)',
       labelDe: 'Besonders wichtige Einrichtung (bwE)',
       labelEn: 'Essential Entity',
     },
     important_entity: {
-      condition: 'employeeCount >= 50 OR (annualRevenue >= 10 AND balanceSheetTotal >= 10)',
+      condition: 'employeeCount >= 50 OR (annualRevenue > 10 AND balanceSheetTotal > 10)',
       labelDe: 'Wichtige Einrichtung (wE)',
       labelEn: 'Important Entity',
     },
@@ -191,9 +202,18 @@ export const NIS2_TOPICS = [
 ];
 
 /**
- * NIS2-Anwendbarkeits-Prüfung nach NIS2UmsuCG:
- * - bwE (essential): ≥ 250 MA ODER (≥ 50 Mio. € Umsatz UND ≥ 43 Mio. € Bilanzsumme)
- * - wE (important): ≥ 50 MA ODER (≥ 10 Mio. € Umsatz UND ≥ 10 Mio. € Bilanzsumme)
+ * NIS2-Anwendbarkeits-Prüfung.
+ *
+ * EU-Modell (NIS-2-Richtlinie Art. 2 Abs. 1 Buchst. a/b i.V.m. Anhang der
+ * Empfehlung 2003/361/EG): bwE ab 250 MA, wE ab 50 MA; finanziell "über"
+ * 50 Mio. € Umsatz UND über 43 Mio. € Bilanzsumme bzw. über 10 Mio. €/10 Mio. €.
+ *
+ * Deutsches Modell (§ 28 Abs. 1 Nr. 4, Abs. 2 Nr. 3 BSIG): dieselben
+ * Schwellenwerte für Einrichtungen der Einrichtungsarten nach Anlagen 1 und 2;
+ * Mitarbeiterzahl "mindestens" (≥), Umsatz/Bilanzsumme jedoch streng "über" (>).
+ * § 28 Abs. 1 Nr. 3 BSIG stellt Telekommunikationsanbieter bereits ab 50 MA
+ * bzw. über 10 Mio. € als bwE gleich (Sonderregel, hier über criticalService
+ * bzw. Sektor-Selectoren abgebildet).
  */
 const NIS2_SCORING_RULES = {
   essentialEntity: {
@@ -307,9 +327,13 @@ export class Nis2Service {
   }
 
   /**
-   * Evaluates NIS2 applicability based on NIS2UmsuCG thresholds:
-   * - bwE (essential_entity): ≥ 250 employees OR (≥ €50M revenue AND ≥ €43M balance sheet)
-   * - wE (important_entity): ≥ 50 employees OR (≥ €10M revenue AND ≥ €10M balance sheet)
+   * Evaluates NIS2 applicability. Supports two legal models:
+   * - EU model (default): thresholds of the NIS-2 Directive size-cap model.
+   * - German model (`jurisdiction: "de"`): § 28 Abs. 1 Nr. 4 / Abs. 2 Nr. 3 BSIG —
+   *   employee count uses "mindestens" (≥), financial thresholds use strict
+   *   "über" (>), matching the statutory wording.
+   * - bwE (essential_entity): ≥ 250 employees OR (> €50M revenue AND > €43M balance sheet)
+   * - wE (important_entity): ≥ 50 employees OR (> €10M revenue AND > €10M balance sheet)
    */
   private evaluateApplicability(answers: Record<string, any>) {
     const employees = Number(answers.employeeCount ?? 0);
@@ -319,11 +343,15 @@ export class Nis2Service {
     const balanceSheet = Number(answers.balanceSheetTotal ?? answers.balanceSheetMillionEur ?? 0);
     const criticalService = answers.criticalService === true || answers.critical === true;
     const sector = answers.sector ?? 'unknown';
+    // German BSIG wording: financial thresholds are "über" (strictly greater),
+    // employee thresholds remain "mindestens" (>=). EU mode keeps >= for both.
+    const bsigMode = answers.jurisdiction === 'de' || answers.jurisdiction === 'DE';
+    const meetsRevenue = (value: number, threshold: number) => (bsigMode ? value > threshold : value >= threshold);
 
     // Check essential entity (bwE) thresholds
     const meetsEssentialEmployee = employees >= NIS2_SCORING_RULES.essentialEntity.employeeThreshold;
-    const meetsEssentialFinancial = revenue >= NIS2_SCORING_RULES.essentialEntity.revenueThresholdEurMillion
-      && balanceSheet >= NIS2_SCORING_RULES.essentialEntity.balanceSheetThresholdEurMillion;
+    const meetsEssentialFinancial = meetsRevenue(revenue, NIS2_SCORING_RULES.essentialEntity.revenueThresholdEurMillion)
+      && meetsRevenue(balanceSheet, NIS2_SCORING_RULES.essentialEntity.balanceSheetThresholdEurMillion);
     if (criticalService && (meetsEssentialEmployee || meetsEssentialFinancial)) {
       const reasons: string[] = [];
       if (meetsEssentialEmployee) reasons.push(`${employees} employees (≥ ${NIS2_SCORING_RULES.essentialEntity.employeeThreshold})`);
@@ -340,8 +368,8 @@ export class Nis2Service {
 
     // Check important entity (wE) thresholds
     const meetsImportantEmployee = employees >= NIS2_SCORING_RULES.importantEntity.employeeThreshold;
-    const meetsImportantFinancial = revenue >= NIS2_SCORING_RULES.importantEntity.revenueThresholdEurMillion
-      && balanceSheet >= NIS2_SCORING_RULES.importantEntity.balanceSheetThresholdEurMillion;
+    const meetsImportantFinancial = meetsRevenue(revenue, NIS2_SCORING_RULES.importantEntity.revenueThresholdEurMillion)
+      && meetsRevenue(balanceSheet, NIS2_SCORING_RULES.importantEntity.balanceSheetThresholdEurMillion);
     if (criticalService || meetsImportantEmployee || meetsImportantFinancial) {
       const reasons: string[] = [];
       if (criticalService) reasons.push('critical service provider');
@@ -482,13 +510,15 @@ export class Nis2Service {
    *
    * Only fields present in the Nis2QuestionnaireVersion model are passed to
    * Prisma; the questionnaire `description` is intentionally excluded because
-   * it is not a stored column.
+   * it is not a stored column. The update branch also refreshes questions,
+   * title and scoring rules so seed changes (e.g. the BSIG jurisdiction
+   * selector) reach existing installations on startup.
    */
  async ensureV2Questionnaire(createdBy?: string) {
    const { description: _description, ...persistable } = NIS2_APPLICABILITY_QUESTIONNAIRE;
    return (prisma as any).nis2QuestionnaireVersion.upsert({
      where: { version: NIS2_APPLICABILITY_QUESTIONNAIRE.version },
-     update: { status: 'active' },
+     update: { status: 'active', questions: persistable.questions as any, title: persistable.title, scoringRules: persistable.scoringRules as any },
      create: { ...persistable, createdBy },
    });
  }

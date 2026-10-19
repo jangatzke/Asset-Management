@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
-import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi, type SoADiffResponse } from '../services/api';
 import { getAccessToken } from '../store/accessToken';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
@@ -128,6 +128,10 @@ const Controls = () => {
   const [selectedSoAScopeId, setSelectedSoAScopeId] = useState('');
   const [generatingSoA, setGeneratingSoA] = useState(false);
   const [soaSuccessMessage, setSoaSuccessMessage] = useState('');
+  const [soaDiffFromId, setSoaDiffFromId] = useState('');
+  const [soaDiffToId, setSoaDiffToId] = useState('');
+  const [soaDiffResult, setSoaDiffResult] = useState<SoADiffResponse | null>(null);
+  const [diffingSoA, setDiffingSoA] = useState(false);
   const [catalogOptions, setCatalogOptions] = useState<CatalogOption[]>([]);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
   const [implementationModalOpen, setImplementationModalOpen] = useState(false);
@@ -319,6 +323,27 @@ const Controls = () => {
     } finally {
       setExportingSoA(false);
     }
+  };
+
+  const handleDiffSoA = async () => {
+    if (!soaDiffFromId || !soaDiffToId || soaDiffFromId === soaDiffToId || diffingSoA) return;
+    try {
+      setDiffingSoA(true);
+      setError('');
+      const response = await controlApi.diffSoA(soaDiffFromId, soaDiffToId);
+      setSoaDiffResult(response.data);
+    } catch (err: unknown) {
+      setSoaDiffResult(null);
+      setError(getErrorMessage(err) || t('controls.soaDiff.error'));
+    } finally {
+      setDiffingSoA(false);
+    }
+  };
+
+  const soaDiffFieldLabel = (field: string) => {
+    if (field === 'applicability') return t('controls.soaDiff.fieldApplicability');
+    if (field === 'implementationStatus') return t('controls.soaDiff.fieldImplementationStatus');
+    return t('controls.soaDiff.fieldJustification');
   };
 
   const resetControlForm = () => {
@@ -546,6 +571,72 @@ const Controls = () => {
             >
               {exportingSoA ? t('controls.soaGenerator.exportInProgress') : t('controls.soaGenerator.exportPdf')}
             </button>
+          </div>
+        )}
+        {soaList.length > 1 && (
+          <div className="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('controls.soaDiff.title')}</h3>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('controls.soaDiff.description')}</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="sr-only" htmlFor="soa-diff-from">{t('controls.soaDiff.fromLabel')}</label>
+              <select id="soa-diff-from" value={soaDiffFromId} onChange={(event) => setSoaDiffFromId(event.target.value)} className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md">
+                <option value="">{t('controls.soaDiff.fromPlaceholder')}</option>
+                {soaList.map((soa) => (<option key={soa.id} value={soa.id}>{soa.frameworkId} v{soa.frameworkVersion} · SoA v{soa.version} · {soa.approvalStatus}</option>))}
+              </select>
+              <label className="sr-only" htmlFor="soa-diff-to">{t('controls.soaDiff.toLabel')}</label>
+              <select id="soa-diff-to" value={soaDiffToId} onChange={(event) => setSoaDiffToId(event.target.value)} className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md">
+                <option value="">{t('controls.soaDiff.toPlaceholder')}</option>
+                {soaList.map((soa) => (<option key={soa.id} value={soa.id}>{soa.frameworkId} v{soa.frameworkVersion} · SoA v{soa.version} · {soa.approvalStatus}</option>))}
+              </select>
+              <button type="button" onClick={handleDiffSoA} disabled={!soaDiffFromId || !soaDiffToId || soaDiffFromId === soaDiffToId || diffingSoA} className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50">
+                {diffingSoA ? t('controls.soaDiff.comparing') : t('controls.soaDiff.compareButton')}
+              </button>
+            </div>
+            {soaDiffResult && (
+              <div className="mt-3 space-y-3 text-sm">
+                {!soaDiffResult.comparable && <p className="rounded-md bg-amber-100 dark:bg-amber-900 text-amber-900 dark:text-amber-100 px-3 py-2">{t('controls.soaDiff.notComparable')}</p>}
+                <p className="font-medium">{t('controls.soaDiff.summary').replace('{added}', String(soaDiffResult.summary.addedCount)).replace('{removed}', String(soaDiffResult.summary.removedCount)).replace('{changed}', String(soaDiffResult.summary.changedCount)).replace('{unchanged}', String(soaDiffResult.summary.unchangedCount))}</p>
+                {soaDiffResult.added.length === 0 && soaDiffResult.removed.length === 0 && soaDiffResult.changed.length === 0 && (
+                  <p className="text-gray-600 dark:text-gray-400">{t('controls.soaDiff.noChanges')}</p>
+                )}
+                {soaDiffResult.added.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-emerald-700 dark:text-emerald-300">{t('controls.soaDiff.sectionAdded')} ({soaDiffResult.added.length})</h4>
+                    <ul className="mt-1 space-y-1 list-disc pl-5">
+                      {soaDiffResult.added.map((row) => (<li key={row.key}>{row.controlTitle ?? row.controlId ?? row.key} · {row.applicability}</li>))}
+                    </ul>
+                  </div>
+                )}
+                {soaDiffResult.removed.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-red-700 dark:text-red-300">{t('controls.soaDiff.sectionRemoved')} ({soaDiffResult.removed.length})</h4>
+                    <ul className="mt-1 space-y-1 list-disc pl-5">
+                      {soaDiffResult.removed.map((row) => (<li key={row.key}>{row.controlTitle ?? row.controlId ?? row.key} · {row.applicability}</li>))}
+                    </ul>
+                  </div>
+                )}
+                {soaDiffResult.changed.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-amber-700 dark:text-amber-300">{t('controls.soaDiff.sectionChanged')} ({soaDiffResult.changed.length})</h4>
+                    <table className="mt-1 w-full text-left border-collapse">
+                      <thead><tr><th className="py-1 pr-2">{t('controls.soaDiff.controlColumn')}</th><th className="py-1">{t('controls.soaDiff.changeColumn')}</th></tr></thead>
+                      <tbody>
+                        {soaDiffResult.changed.map((row) => (
+                          <tr key={row.key} className="border-t border-gray-200 dark:border-gray-700 align-top">
+                            <td className="py-1 pr-2">{row.controlTitle ?? row.controlId ?? row.key}</td>
+                            <td className="py-1 space-y-1">
+                              {Object.entries(row.fields).map(([field, change]) => (
+                                <div key={field}>{soaDiffFieldLabel(field)}: <span className="line-through opacity-70">{change.from || '—'}</span> → <span>{change.to || '—'}</span></div>
+                              ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>

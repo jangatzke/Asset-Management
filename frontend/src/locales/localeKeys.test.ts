@@ -158,3 +158,101 @@ test('operations and administration locale catalogs remain complete in both loca
     }
   }
 });
+
+test('knowledge base locale keys resolve in all locales', () => {
+  const keys = [
+    'navigation.knowledgeBase',
+    'knowledge.title', 'knowledge.newArticle', 'knowledge.editArticle',
+    'knowledge.searchPlaceholder', 'knowledge.empty', 'knowledge.saved', 'knowledge.archived',
+    'knowledge.loadError', 'knowledge.saveError', 'knowledge.viewCount', 'knowledge.tagsPlaceholder',
+    'knowledge.categories.general', 'knowledge.categories.incident', 'knowledge.categories.risk',
+    'knowledge.categories.control', 'knowledge.categories.supplier', 'knowledge.categories.nis2', 'knowledge.categories.service',
+    'knowledge.statuses.draft', 'knowledge.statuses.published', 'knowledge.statuses.archived',
+    'knowledge.fields.category', 'knowledge.fields.summary', 'knowledge.fields.content', 'knowledge.fields.tags',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
+test('supply chain overview locale keys resolve in all locales', () => {
+  const keys = [
+    'navigation.supplyChain',
+    'supplyChain.title', 'supplyChain.description', 'supplyChain.loadError',
+    'supplyChain.searchLabel', 'supplyChain.searchPlaceholder', 'supplyChain.empty',
+    'supplyChain.summaryLabel', 'supplyChain.summary.total', 'supplyChain.summary.nis2Relevant',
+    'supplyChain.summary.criticalHigh', 'supplyChain.summary.missingExitStrategy', 'supplyChain.summary.reviewOverdue',
+    'supplyChain.filters.nis2Only',
+    'supplyChain.columns.supplier', 'supplyChain.columns.contracts', 'supplyChain.columns.openRisks',
+    'supplyChain.columns.latestAssessment', 'supplyChain.columns.nextReview',
+    'supplyChain.fields.criticality', 'supplyChain.fields.exitStrategy', 'supplyChain.fields.dataProtection',
+    'supplyChain.sections.contracts', 'supplyChain.sections.risks',
+    'supplyChain.noContracts', 'supplyChain.noRisks', 'supplyChain.noAssessment', 'supplyChain.noServices',
+    'supplyChain.missingExitStrategy', 'supplyChain.nis2Badge', 'supplyChain.renewsOn', 'supplyChain.openSupplier',
+    // Labels rendered by the page from existing catalogs.
+    'assets.criticality.low', 'assets.criticality.medium', 'assets.criticality.high', 'assets.criticality.critical',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
+test('control coverage matrix locale keys resolve in all locales', () => {
+  const keys = [
+    'navigation.controlCoverage',
+    'controlCoverage.title', 'controlCoverage.description', 'controlCoverage.loadError',
+    'controlCoverage.searchLabel', 'controlCoverage.searchPlaceholder', 'controlCoverage.empty',
+    'controlCoverage.summaryLabel', 'controlCoverage.summary.total', 'controlCoverage.summary.covered',
+    'controlCoverage.summary.uncovered', 'controlCoverage.summary.criticalUncovered',
+    'controlCoverage.filters.uncoveredOnly',
+    'controlCoverage.columns.asset', 'controlCoverage.columns.coverage', 'controlCoverage.columns.effective',
+    'controlCoverage.fields.criticality', 'controlCoverage.fields.complianceRelevance', 'controlCoverage.fields.dataProtection',
+    'controlCoverage.sections.controls', 'controlCoverage.noControls', 'controlCoverage.uncoveredBadge', 'controlCoverage.openAsset',
+    // Labels rendered by the page from existing catalogs.
+    'assets.criticality.low', 'assets.criticality.medium', 'assets.criticality.high', 'assets.criticality.critical',
+    'assets.lifecycleStatus.planned', 'assets.lifecycleStatus.active',
+    'controls.implementationStatus.planned', 'controls.implementationStatus.implemented', 'controls.implementationStatus.effective',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
+test('KRI dashboard locale keys resolve in all locales', () => {
+  const keys = [
+    'navigation.kriDashboard',
+    'kri.title', 'kri.description', 'kri.typeLabel',
+    'kri.types.KRI', 'kri.types.KPI', 'kri.types.KCI',
+    'kri.refresh', 'kri.manageMetrics', 'kri.loadError', 'kri.loading', 'kri.noIndicators', 'kri.summaryLabel',
+    'kri.status.critical', 'kri.status.warning', 'kri.status.none', 'kri.status.noData',
+    'kri.columns.name', 'kri.columns.latest', 'kri.columns.thresholds', 'kri.columns.trend', 'kri.columns.history', 'kri.columns.measuredAt',
+    'kri.trend.up', 'kri.trend.down', 'kri.trend.stable', 'kri.trend.none',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});

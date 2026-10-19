@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 export type DatabaseProvider = 'postgresql' | 'sqlserver';
 
@@ -113,7 +113,11 @@ function serializeJsonBackedFields(value: unknown, fieldNames: Set<string> | und
   if (Array.isArray(value)) return value.map((entry) => serializeJsonBackedFields(entry, fieldNames));
   const record = value as Record<string, unknown>;
   for (const [key, fieldValue] of Object.entries(record)) {
-    if (fieldNames.has(key) && fieldValue !== null && fieldValue !== undefined && typeof fieldValue !== 'string') {
+    if (fieldNames.has(key) && (fieldValue === Prisma.DbNull || fieldValue === Prisma.JsonNull || fieldValue === Prisma.AnyNull)) {
+      // Prisma DbNull/JsonNull/AnyNull sentinels map to a plain SQL NULL in the
+      // string-backed column.
+      record[key] = null;
+    } else if (fieldNames.has(key) && fieldValue !== null && fieldValue !== undefined && typeof fieldValue !== 'string') {
       record[key] = JSON.stringify(fieldValue);
     } else if (key === 'create' || key === 'update' || key === 'upsert' || key === 'createMany' || key === 'updateMany') {
       serializeJsonBackedFields(fieldValue, fieldNames);

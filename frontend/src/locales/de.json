@@ -246,6 +246,7 @@
     "effectivenessLabel": "Wirksamkeit:",
     "evidence": "Nachweise",
     "evidenceNotVisible": "Nachweis ist nicht mehr sichtbar",
+    "exportKit": "Audit-Kit exportieren",
     "findingDescription": "Bundbeschreibung",
     "findingOwner": "Bundverantwortlicher",
     "findingTitle": "Befundtitel",
@@ -508,6 +509,28 @@
     "selectCatalog": "Katalog auswählen",
     "selectVersion": "Version auswählen",
     "showLinkedRisks": "Verknüpfte Risiken anzeigen ({count})",
+    "soaDiff": {
+      "changeColumn": "Änderung",
+      "compareButton": "Versionen vergleichen",
+      "comparing": "Wird verglichen…",
+      "controlColumn": "Kontrolle",
+      "description": "Vergleicht zwei Anwendbarkeitserklärungen desselben Scopes und Frameworks punktweise (Anwendbarkeit, Begründung, Umsetzungsstatus).",
+      "error": "Der Vergleich der Anwendbarkeitserklärungen konnte nicht durchgeführt werden",
+      "fieldApplicability": "Anwendbarkeit",
+      "fieldImplementationStatus": "Umsetzungsstatus",
+      "fieldJustification": "Begründung",
+      "fromLabel": "Alte Version",
+      "fromPlaceholder": "Ausgangsversion auswählen",
+      "noChanges": "Keine Unterschiede zwischen den beiden Versionen.",
+      "notComparable": "Die beiden SoA-Versionen gehören nicht zu Scope und Framework derselben Version; der Vergleich ist eingeschränkt.",
+      "sectionAdded": "Hinzugefügt",
+      "sectionChanged": "Geändert",
+      "sectionRemoved": "Entfernt",
+      "summary": "{added} hinzugefügt, {removed} entfernt, {changed} geändert, {unchanged} unverändert",
+      "title": "Versionen vergleichen (Diff)",
+      "toLabel": "Neue Version",
+      "toPlaceholder": "Zielversion auswählen"
+    },
     "soaGenerator": {
       "description": "Erstellt einen neuen, editierbaren Entwurf mit allen 93 Annex-A-Kontrollen. Die Anwendbarkeit ist bewusst auf „In Prüfung“ gesetzt; ergänzen Sie für jeden Punkt die standortbezogene Entscheidung und Begründung vor der Einreichung.",
       "exportCsv": "Als CSV exportieren",
@@ -535,6 +558,40 @@
       "effectiveTested": "wirksam/getestet",
       "notVerified": "umgesetzt, nicht verifiziert"
     }
+  },
+  "controlCoverage": {
+    "title": "Kontrollen-Abdeckung",
+    "description": "ISO-27001-Kontrollen je Konfigurationsitem: Welche Assets sind durch aktive Kontrollen abgedeckt und wo bestehen Lücken?",
+    "loadError": "Abdeckungsmatrix konnte nicht geladen werden",
+    "searchLabel": "Suche",
+    "searchPlaceholder": "Name oder Anzeigename des Assets",
+    "empty": "Keine Assets für die aktuellen Filter gefunden.",
+    "summaryLabel": "Abdeckungsübersicht",
+    "summary": {
+      "total": "Assets gesamt",
+      "covered": "Mit Kontrollen abgedeckt",
+      "uncovered": "Ohne Kontrollen",
+      "criticalUncovered": "Kritische ohne Kontrollen"
+    },
+    "filters": {
+      "uncoveredOnly": "Nicht abgedeckte Assets"
+    },
+    "columns": {
+      "asset": "Asset",
+      "coverage": "Kontrollen",
+      "effective": "Wirksam umgesetzt"
+    },
+    "fields": {
+      "criticality": "Kritikalität",
+      "complianceRelevance": "Compliance-Relevanz",
+      "dataProtection": "Datenschutz-Relevanz"
+    },
+    "sections": {
+      "controls": "Zugeordnete Kontrollen"
+    },
+    "noControls": "Für dieses Asset ist keine aktive Kontrolle zuständig – Abdeckungslücke.",
+    "uncoveredBadge": "nicht abgedeckt",
+    "openAsset": "Asset öffnen"
   },
   "costPlanning": {
     "acquired": "Beschafft",
@@ -1162,6 +1219,75 @@
     "saveError": "Speichern fehlgeschlagen.",
     "title": "ISMS-Prozess-Workspace"
   },
+  "kri": {
+    "title": "Key Risk Indicators (KRI)",
+    "description": "Überwachung der ISMS-Kennzahlen nach ISO 27001 Kapitel 9.1. Schwellwerte werden gegen die zuletzt gemessenen Werte geprüft.",
+    "typeLabel": "Kennzahlentyp",
+    "types": {
+      "KRI": "Risikokennzahlen (KRI)",
+      "KPI": "Leistungsindikatoren (KPI)",
+      "KCI": "Kritische Erfolgsfaktoren (KCI)"
+    },
+    "refresh": "Aktualisieren",
+    "manageMetrics": "Kennzahlen verwalten",
+    "loadError": "Kennzahlen konnten nicht geladen werden.",
+    "loading": "Wird geladen…",
+    "noIndicators": "Keine aktiven Kennzahlen dieses Typs definiert.",
+    "summaryLabel": "Übersicht",
+    "status": {
+      "critical": "Kritisch",
+      "warning": "Warnung",
+      "none": "Im Zielbereich",
+      "noData": "Keine Daten"
+    },
+    "columns": {
+      "name": "Kennzahl",
+      "latest": "Letzter Wert",
+      "thresholds": "Schwellwerte",
+      "trend": "Trend",
+      "history": "Verlauf",
+      "measuredAt": "Gemessen am"
+    },
+    "trend": {
+      "up": "Steigend",
+      "down": "Fallend",
+      "stable": "Stabil",
+      "none": "Kein Trend"
+    }
+  },
+  "knowledge": {
+    "title": "Wissensdatenbank",
+    "newArticle": "Neuer Artikel",
+    "editArticle": "Artikel bearbeiten",
+    "searchPlaceholder": "Titel, Inhalt oder Tags durchsuchen...",
+    "empty": "Keine Artikel gefunden.",
+    "saved": "Artikel gespeichert.",
+    "archived": "Artikel archiviert.",
+    "loadError": "Artikel konnten nicht geladen werden.",
+    "saveError": "Speichern fehlgeschlagen.",
+    "viewCount": "{count} Aufrufe",
+    "tagsPlaceholder": "tag1, tag2",
+    "categories": {
+      "general": "Allgemein",
+      "incident": "Vorfälle",
+      "risk": "Risiken",
+      "control": "Kontrollen",
+      "supplier": "Lieferanten",
+      "nis2": "NIS2",
+      "service": "Services"
+    },
+    "statuses": {
+      "draft": "Entwurf",
+      "published": "Veröffentlicht",
+      "archived": "Archiviert"
+    },
+    "fields": {
+      "category": "Kategorie",
+      "summary": "Zusammenfassung",
+      "content": "Inhalt",
+      "tags": "Tags"
+    }
+  },
   "licenses": {
     "basis": {
       "device": "Gerät",
@@ -1227,6 +1353,7 @@
     "authSettings": "Authentifizierung",
     "contracts": "Verträge",
     "controls": "Kontrollen",
+    "controlCoverage": "Kontrollen-Abdeckung",
     "costPlanning": "Kostenplanung",
     "dashboard": "Dashboard",
     "databaseBackup": "Datenbank-Backup",
@@ -1235,11 +1362,14 @@
     "incidents": "Vorfälle",
     "ismsOperations": "ISMS-Betrieb",
     "ismsProcessWorkspace": "ISMS-Prozess",
+    "kriDashboard": "KRI-Dashboard",
+    "knowledgeBase": "Wissensdatenbank",
     "licenses": "Lizenzen",
     "logout": "Abmelden",
     "mainNavigation": "Hauptnavigation",
     "mobileNavigation": "Mobile Navigation",
     "moreNavigation": "Weitere",
+    "navigationOrder": "Navigations-Reihenfolge",
     "oidcConfig": "OIDC-Konfiguration",
     "organizationUnits": "Organisationseinheiten",
     "processes": "Prozesse",
@@ -1248,13 +1378,59 @@
     "riskAggregation": "Risikoaggregation",
     "risks": "Risiken",
     "roleManagement": "Rollenverwaltung",
+    "serviceCatalog": "Service-Katalog",
     "settings": "Einstellungen",
+    "supplyChain": "Lieferantenübersicht",
     "ticketSlaSettings": "Ticket-SLAs",
     "tickets": "Tickets",
     "toggleMenu": "Navigationsmenü umschalten",
     "userManagement": "Benutzerverwaltung",
     "userMenu": "Benutzermenü",
+    "views": {
+      "default": "Standardansicht",
+      "globalBadge": "Global",
+      "switchFailed": "Ansichtswechsel fehlgeschlagen",
+      "switchTooltip": "Ansicht wechseln"
+    },
     "vmwareConfig": "VMware vCenter"
+  },
+  "navigationOrder": {
+    "description": "Legen Sie die globale Standard-Reihenfolge der Menüpunkte fest. Weiter oben stehende Einträge erscheinen zuerst im Hauptmenü; erst bei zu wenig Platz rutschen Einträge am Ende in das Dropdown „Weitere“.",
+    "hide": "Ausblenden",
+    "hideEntry": "{name} ausblenden",
+    "hint": "Die Reihenfolge bestimmt, welche Menüpunkte direkt sichtbar sind und welche über das Dropdown „Weitere“ erreichbar sind. Benutzer können diese Reihenfolge in ihren persönlichen Einstellungen individualisieren.",
+    "listLabel": "Reihenfolge der Menüpunkte",
+    "loadError": "Navigation konnte nicht geladen werden",
+    "moveDown": "{name} nach unten verschieben",
+    "moveUp": "{name} nach oben verschieben",
+    "overrideActive": "Eigene Reihenfolge aktiv",
+    "reset": "Standard wiederherstellen",
+    "resetDone": "Standard-Reihenfolge wiederhergestellt",
+    "saveError": "Speichern der Navigation fehlgeschlagen",
+    "saved": "Reihenfolge gespeichert",
+    "show": "Einblenden",
+    "showEntry": "{name} einblenden",
+    "title": "Navigations-Reihenfolge",
+    "unsavedChanges": "Nicht gespeicherte Änderungen",
+    "useGlobal": "Globale Vorgabe verwenden",
+    "usingGlobal": "Globale Standard-Reihenfolge wird verwendet"
+  },
+  "navViews": {
+    "create": "Ansicht speichern",
+    "created": "Ansicht erstellt",
+    "defaultBadge": "Standard",
+    "defaultScope": "Standard (ohne Ansicht)",
+    "defaultSet": "Als Standardansicht festgelegt",
+    "delete": "Löschen",
+    "deleted": "Ansicht gelöscht",
+    "globalDescription": "Globale Ansichten stehen allen Benutzern zur Verfügung. Die als Standard markierte Ansicht wird verwendet, solange ein Benutzer keine eigene aktive Auswahl trifft.",
+    "globalTitle": "Globale Ansichten",
+    "newViewPlaceholder": "Name der neuen Ansicht",
+    "personalDescription": "Eigene Ansichten sind nur für Sie sichtbar. Die als Standard markierte Ansicht wird automatisch verwendet, wenn Sie die Ansicht nicht manuell wechseln.",
+    "personalTitle": "Eigene Ansichten",
+    "saveError": "Speichern der Ansicht fehlgeschlagen",
+    "scopeLabel": "Zu bearbeitende Ansicht",
+    "setDefault": "Als Standard festlegen"
   },
   "nis2": {
     "answersFillableOncePresent": "Antworten sind ausfüllbar, sobald eine Fragebogenversion ausgewählt oder geladen wurde.",
@@ -1312,6 +1488,7 @@
       "criticalService": "Bietet wesentliche oder wichtige Dienste an",
       "crossBorderService": "Bietet grenüberschreitende Dienste an",
       "employeeCount": "Anzahl der Beschäftigten",
+      "jurisdiction": "Rechtsmodell für die Schwellenwertprüfung",
       "sector": "NIS-2-Sektor oder Untersektor"
     },
     "recordChange": "Änderung protokollieren",
@@ -1341,7 +1518,13 @@
     "enableLocalLogin": "Lokale Anmeldung aktivieren",
     "enableOidc": "OIDC-Authentifizierung aktivieren",
     "enableOidcDescription": "OIDC-Authentifizierung aktivieren oder deaktivieren",
+    "issuerUrl": "Issuer-URL (OpenID Connect)",
+    "issuerUrlDescription": "Basis-URL des OIDC-Providers, unter der .well-known/openid-configuration erreichbar ist (z. B. Authentik oder Keycloak).",
     "noConfig": "Keine OIDC-Konfiguration gefunden",
+    "provider": "Provider-Typ",
+    "providerAuthentik": "Authentik",
+    "providerEntra": "Microsoft Entra ID",
+    "providerGeneric": "Anderer OIDC-Provider (generisch)",
     "providerSettings": "Provider-Einstellungen",
     "redirectUri": "Redirect-URI",
     "saved": "Konfiguration erfolgreich gespeichert",
@@ -1850,6 +2033,34 @@
     },
     "title": "Sicherheitsanforderungen"
   },
+  "serviceCatalog": {
+    "adminMode": "Katalog verwalten",
+    "availableServices": "Verfügbare Services",
+    "browseMode": "Services bestellen",
+    "code": "Code",
+    "createItem": "Service anlegen",
+    "disable": "Deaktivieren",
+    "disabled": "Deaktiviert",
+    "editItem": "Service bearbeiten",
+    "enabled": "Aktiv",
+    "itemDisabled": "Service deaktiviert.",
+    "itemSaved": "Service gespeichert.",
+    "loadError": "Service-Katalog konnte nicht geladen werden.",
+    "manageItems": "Service-Katalog verwalten",
+    "name": "Name",
+    "newItem": "Neuer Service",
+    "noItems": "Keine Services im Katalog.",
+    "order": "Bestellen",
+    "orderCreated": "Serviceanfrage wurde als Ticket angelegt.",
+    "orderError": "Serviceanfrage konnte nicht erstellt werden.",
+    "orderTitle": "Service bestellen",
+    "saveError": "Speichern fehlgeschlagen.",
+    "slaHours": "SLA (Stunden)",
+    "submitOrder": "Anfrage erstellen",
+    "ticketType": "Tickettyp",
+    "title": "Service-Katalog",
+    "urgency": "Dringlichkeit"
+  },
   "settings": {
     "accountInfo": "Kontoinformationen",
     "accountType": "Kontotyp",
@@ -1872,6 +2083,8 @@
     "mfaTitle": "Mehrfaktor-Authentifizierung",
     "mustChangeTemporaryPassword": "Sie müssen Ihr temporäres Passwort ändern, bevor Sie fortfahren.",
     "name": "Name",
+    "navigationOrderDescription": "Individualisieren Sie die Reihenfolge der Menüpunkte für Ihr Konto. Ohne eigene Einstellung gilt die globale Vorgabe der Administration.",
+    "navigationOrderTitle": "Navigation-Reihenfolge",
     "newPassword": "Neues Passwort",
     "oidcLinked": "OIDC verknüpft",
     "passwordRequirements": "Mindestens 12 Zeichen mit Großbuchstaben, Kleinbuchstaben, Ziffer und Sonderzeichen.",
@@ -1933,6 +2146,49 @@
     "useImplicitTLS": "Implizites TLS verwenden",
     "validateTLS": "Zertifikat prüfen",
     "via": "Gesendet über"
+  },
+  "supplyChain": {
+    "title": "Lieferantenübersicht",
+    "description": "NIS2 Art. 21(2)(d): Abhängigkeiten der Lieferkette, Risiken und Exit-Strategien auf einen Blick.",
+    "loadError": "Die Lieferantenübersicht konnte nicht geladen werden.",
+    "searchLabel": "Suche",
+    "searchPlaceholder": "Name oder Leistung suchen...",
+    "empty": "Keine Lieferanten gefunden.",
+    "summaryLabel": "Übersicht Kennzahlen",
+    "summary": {
+      "total": "Lieferanten gesamt",
+      "nis2Relevant": "NIS2-relevant",
+      "criticalHigh": "Hoch/kritisch",
+      "missingExitStrategy": "Ohne Exit-Strategie",
+      "reviewOverdue": "Review überfällig"
+    },
+    "filters": {
+      "nis2Only": "Nur NIS2-relevant"
+    },
+    "columns": {
+      "supplier": "Lieferant",
+      "contracts": "Verträge",
+      "openRisks": "Offene Risiken",
+      "latestAssessment": "Letzte Bewertung",
+      "nextReview": "Nächstes Review"
+    },
+    "fields": {
+      "criticality": "Kritikalität",
+      "exitStrategy": "Exit-Strategie",
+      "dataProtection": "Datenschutzrelevant"
+    },
+    "sections": {
+      "contracts": "Verträge",
+      "risks": "Risiken"
+    },
+    "noContracts": "Keine Verträge verknüpft.",
+    "noRisks": "Keine Risiken verknüpft.",
+    "noAssessment": "Keine Bewertung",
+    "noServices": "Keine Leistungen hinterlegt",
+    "missingExitStrategy": "Exit-Strategie fehlt",
+    "nis2Badge": "NIS2-relevant",
+    "renewsOn": "Verlängert sich am",
+    "openSupplier": "Lieferant öffnen"
   },
   "suppliers": {
     "assessment": "Bewertung",
@@ -2010,15 +2266,28 @@
       "attachAssets": "Asset(s) anhängen",
       "attachError": "Asset konnte nicht angehängt werden.",
       "by": "von",
+      "cabApprovedField": "CAB genehmigt",
+      "changeDetailsTitle": "Änderungsdaten (Change Management)",
+      "changeTypeField": "Änderungstyp",
+      "changeTypes": {
+        "standard": "Standard",
+        "normal": "Normal",
+        "emergency": "Dringlich"
+      },
       "closeError": "Ticket konnte nicht geschlossen werden.",
       "closeTicket": "Ticket schließen",
       "closurePrompt": "Abschlusszusammenfassung (für den Audit-Trail erforderlich):",
       "commentError": "Kommentar konnte nicht hinzugefügt werden.",
       "commentsTitle": "Kommentare und Arbeitsnotizen",
+      "convertConfirm": "Abgeleitetes Ticket aus diesem Vorfall erstellen und automatisch verknüpfen?",
+      "convertError": "Umwandlung fehlgeschlagen.",
+      "convertToChange": "Als Änderung übernehmen",
+      "convertToProblem": "Als Problem übernehmen",
       "detach": "Lösen",
       "detachError": "Asset konnte nicht gelöst werden.",
       "estimatedEffort": "Aufwand (×15 Min.)",
       "estimatedEffortHint": "Geschätzter Aufwand in Arbeitseinheiten zu je 15 Minuten.",
+      "extensionSaveError": "Die Erweiterungsdaten konnten nicht gespeichert werden.",
       "historyButton": "Historie",
       "historyTitle": "Revisionssichere Tickethistorie",
       "internalWorkNote": "Interne Arbeitsnotiz",
@@ -2031,7 +2300,17 @@
       "noHistory": "Keine Historeneinträge.",
       "noManufacturer": "Kein Hersteller",
       "notConfigured": "Nicht konfiguriert",
+      "implementationPlanLabel": "Implementierungsplan",
+      "linkRisk": "Risiko verknüpfen",
+      "noRiskLinks": "Keine Risiken verknüpft.",
+      "permanentFixLabel": "Dauerhafte Lösung",
+      "problemDetailsTitle": "Problemdaten (Ursachenanalyse)",
       "priority": "Priorität",
+      "riskLevelField": "Risikobewertung der Änderung",
+      "riskLinksTitle": "Verknüpfte Risiken (ISO 27001 A.8.32)",
+      "rollbackPlanLabel": "Rückrollenplan",
+      "rootCauseLabel": "Grundursache",
+      "saveExtension": "Speichern",
       "reopenTicket": "Ticket wiedereröffnen",
       "requesterComment": "Für Anfragende sichtbarer Kommentar",
       "requesterCommentPlaceholder": "Kommentar als Anfragender hinzufügen…",
@@ -2043,7 +2322,9 @@
       "typeError": "Tickettyp konnte nicht geändert werden.",
       "unassign": "Aufheben",
       "unassigned": "Nicht zugewiesen",
-      "updatePlaceholder": "Aktualisierung dokumentieren."
+      "unlinkRisk": "Entfernen",
+      "updatePlaceholder": "Aktualisierung dokumentieren.",
+      "workaroundLabel": "Workaround"
     },
     "empty": "Keine Tickets gefunden.",
     "emptyAction": "Neues Ticket erstellen",

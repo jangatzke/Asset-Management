@@ -9,6 +9,7 @@ import { AppError } from '../middleware/errorHandler';
 import { getJwtSecret } from '../middleware/auth';
 import { auditService } from './audit.service';
 import { authSettingsService } from './authSettings.service';
+import { authorizationService } from './authorization.service';
 
 // ==================== Per-account login lockout (S3) ====================
 
@@ -173,6 +174,7 @@ export interface AuthSessionResult {
     firstName: string;
     lastName: string;
     roles: string[];
+    permissions?: string[];
     mustChangePasswordOnNext?: boolean;
   };
   token: string;
@@ -453,9 +455,24 @@ export class AuthService {
     return { state, preAuthToken: await this.generatePreAuthToken(userId, purpose), expiresInSeconds: this.getPreAuthLifetimeSeconds() };
   }
 
+  /**
+   * Union of all granular permissions granted by the user's ACTIVE role
+   * assignments (direct or via groups). Used to let the frontend render a
+   * role-based navigation without probing every endpoint.
+   */
+  private async getEffectivePermissionNames(userId: string): Promise<string[]> {
+    const activeRoles = await authorizationService.getActiveRoles(userId);
+    const permissions = new Set<string>();
+    for (const role of activeRoles) {
+      for (const permission of role.permissions) permissions.add(permission);
+    }
+    return [...permissions];
+  }
+
   private async issueAuthenticatedSession(user: LocalAuthUser, context: SessionContext, action: 'LOGIN' | 'MFA_LOGIN' | 'OIDC_LOGIN' = 'LOGIN'): Promise<AuthLoginResult> {
     const userRoles = await prisma.userRole.findMany({ where: { userId: user.id } });
     const roles = userRoles.map((ur) => ur.roleName);
+    const permissions = await this.getEffectivePermissionNames(user.id);
 
     await auditService.logEventStandalone(prisma, {
       userId: user.id,
@@ -470,7 +487,7 @@ export class AuthService {
     const session = await this.createRefreshSession(user.id, context);
     return {
       state: 'authenticated',
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, roles, mustChangePasswordOnNext: user.mustChangePasswordOnNext },
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, roles, permissions, mustChangePasswordOnNext: user.mustChangePasswordOnNext },
       token: this.generateToken({ userId: user.id, email: user.email }),
       refreshToken: session.refreshToken,
       refreshTokenExpiresAt: session.expiresAt,
@@ -569,6 +586,8 @@ export class AuthService {
         oidcProvider: true,
         language: true,
         darkMode: true,
+        navigationOrder: true,
+        hiddenNavigationEntries: true,
         mustChangePasswordOnNext: true,
         mfaEnabled: true,
       },
@@ -597,11 +616,13 @@ export class AuthService {
     }
 
     const allRoles = [...new Set([...userRoles.map((ur) => ur.roleName), ...groupRoles])];
+    const permissions = await this.getEffectivePermissionNames(userId);
 
     return {
       ...user,
       isOidcLinked: !!user.oidcId,
       roles: allRoles,
+      permissions,
     };
   }
 
@@ -936,7 +957,7 @@ export class AuthService {
     });
   }
 
-  async updatePreferences(userId: string, data: { language?: string; darkMode?: boolean }) {
+  async updatePreferences(userId: string, data: { language?: string; darkMode?: boolean; navigationOrder?: string[] | null; hiddenNavigationEntries?: string[] | null }) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -947,7 +968,13 @@ export class AuthService {
 
     const updated = await prisma.user.update({
       where: { id: userId },
-      data,
+      data: {
+        ...(data.language !== undefined ? { language: data.language } : {}),
+        ...(data.darkMode !== undefined ? { darkMode: data.darkMode } : {}),
+        // null clears the per-user override so the global default applies again.
+        ...(data.navigationOrder !== undefined ? { navigationOrder: data.navigationOrder ?? Prisma.DbNull } : {}),
+        ...(data.hiddenNavigationEntries !== undefined ? { hiddenNavigationEntries: data.hiddenNavigationEntries ?? Prisma.DbNull } : {}),
+      },
       select: {
         id: true,
         email: true,
@@ -955,6 +982,8 @@ export class AuthService {
         lastName: true,
         language: true,
         darkMode: true,
+        navigationOrder: true,
+        hiddenNavigationEntries: true,
       },
     });
 

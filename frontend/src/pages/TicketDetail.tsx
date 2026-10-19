@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ticketApi, type AssetContextResponse, type TicketResponse } from '../services/api';
 import { getAllowedTicketTransitions, isTerminalTicketStatus, REOPEN_TARGET_STATUS } from '../../../shared/src/ticketTransitions';
 import { useAuthStore } from '../store/auth';
@@ -36,6 +36,10 @@ export default function TicketDetail() {
   const [assetPickerValues, setAssetPickerValues] = useState<EntityPickerResult[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [problemForm, setProblemForm] = useState<{ rootCause: string; workaround: string; permanentFix: string } | null>(null);
+  const [changeForm, setChangeForm] = useState<{ changeType: string; riskLevel: string; cabApproved: boolean; implementationPlan: string; rollbackPlan: string } | null>(null);
+  const [riskPicker, setRiskPicker] = useState<EntityPickerResult | null>(null);
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -46,6 +50,10 @@ export default function TicketDetail() {
       ]);
       setTicket(ticketResponse.data);
       setAssetContext(assetContextResponse.data);
+      // Pre-fill the type-specific extension forms (ITIL problem/change data).
+      const data = ticketResponse.data;
+      setProblemForm(data.type === 'problem' ? { rootCause: data.problem?.rootCause ?? '', workaround: data.problem?.workaround ?? '', permanentFix: data.problem?.permanentFix ?? '' } : null);
+      setChangeForm(data.type === 'change' ? { changeType: data.change?.changeType ?? 'standard', riskLevel: data.change?.riskLevel ?? 'low', cabApproved: Boolean(data.change?.cabApproved), implementationPlan: data.change?.implementationPlan ?? '', rollbackPlan: data.change?.rollbackPlan ?? '' } : null);
       setAssetPickerValues([]);
       const assignee = ticketResponse.data.assignee;
       setAssignee(assignee ?? null);
@@ -102,6 +110,52 @@ export default function TicketDetail() {
     setWorking(true);
     try { await ticketApi.changeType(ticketId, { type }); await load(); }
     catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.typeError')); }
+    finally { setWorking(false); }
+  };
+
+  const saveProblem = async () => {
+    if (!ticketId || !problemForm) return;
+    setWorking(true);
+    try { await ticketApi.updateProblem(ticketId, problemForm); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    finally { setWorking(false); }
+  };
+
+  const saveChange = async () => {
+    if (!ticketId || !changeForm) return;
+    setWorking(true);
+    try { await ticketApi.updateChange(ticketId, changeForm); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    finally { setWorking(false); }
+  };
+
+  // Guided Incident → Problem / Change conversion: creates a linked follow-up
+  // ticket (the incident itself stays untouched) and opens it.
+  const convertTo = async (targetType: 'problem' | 'change') => {
+    if (!ticketId || !window.confirm(t('tickets.detail.convertConfirm'))) return;
+    setWorking(true);
+    try {
+      const response = await ticketApi.convertFromIncident(ticketId, { targetType });
+      navigate(`/tickets/${response.data.id}`);
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message ?? t('tickets.detail.convertError'));
+      setWorking(false);
+    }
+  };
+
+  const linkRisk = async () => {
+    if (!ticketId || !riskPicker) return;
+    setWorking(true);
+    try { await ticketApi.linkRisk(ticketId, riskPicker.id); setRiskPicker(null); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    finally { setWorking(false); }
+  };
+
+  const unlinkRisk = async (riskId: string) => {
+    if (!ticketId) return;
+    setWorking(true);
+    try { await ticketApi.unlinkRisk(ticketId, riskId); await load(); }
+    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
     finally { setWorking(false); }
   };
 const addComment = async (event: FormEvent) => {
@@ -190,6 +244,8 @@ const addComment = async (event: FormEvent) => {
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
         <button onClick={() => void openHistory()} className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200">{t('tickets.detail.historyButton')}</button>
+        {canWrite && ticket.type === 'incident' && <button disabled={working} onClick={() => void convertTo('problem')} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">{t('tickets.detail.convertToProblem')}</button>}
+        {canWrite && ticket.type === 'incident' && <button disabled={working} onClick={() => void convertTo('change')} className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-100">{t('tickets.detail.convertToChange')}</button>}
         {canClose && !isTerminalTicketStatus(ticket.type as any, ticket.status) && <button disabled={working} onClick={() => void close()} className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">{t('tickets.detail.closeTicket')}</button>}
       </div>
     </header>
@@ -235,6 +291,52 @@ const addComment = async (event: FormEvent) => {
         </div>
       </div>
     </section>
+    {canWrite && ticket.type === 'problem' && problemForm && <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
+      <h2 className="text-lg font-bold">{t('tickets.detail.problemDetailsTitle')}</h2>
+      <div className="mt-3 grid gap-4">
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="problem-root-cause">{t('tickets.detail.rootCauseLabel')}</label>
+          <textarea id="problem-root-cause" rows={3} value={problemForm.rootCause} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, rootCause: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="problem-workaround">{t('tickets.detail.workaroundLabel')}</label>
+          <textarea id="problem-workaround" rows={3} value={problemForm.workaround} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, workaround: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="problem-permanent-fix">{t('tickets.detail.permanentFixLabel')}</label>
+          <textarea id="problem-permanent-fix" rows={3} value={problemForm.permanentFix} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, permanentFix: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
+      </div>
+      <button disabled={working} onClick={() => void saveProblem()} className="mt-4 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.saveExtension')}</button>
+    </section>}
+    {canWrite && ticket.type === 'change' && changeForm && <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
+      <h2 className="text-lg font-bold">{t('tickets.detail.changeDetailsTitle')}</h2>
+      <div className="mt-3 grid gap-4 md:grid-cols-2">
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-type">{t('tickets.detail.changeTypeField')}</label>
+          <select id="change-type" value={changeForm.changeType} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, changeType: event.target.value })} className="mt-1 w-full rounded-md border px-2 py-2 dark:bg-gray-700">{(['standard', 'normal', 'emergency'] as const).map((type) => <option key={type} value={type}>{t(`tickets.detail.changeTypes.${type}`)}</option>)}</select></div>
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-risk-level">{t('tickets.detail.riskLevelField')}</label>
+          <select id="change-risk-level" value={changeForm.riskLevel} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, riskLevel: event.target.value })} className="mt-1 w-full rounded-md border px-2 py-2 dark:bg-gray-700">{(['low', 'medium', 'high', 'critical'] as const).map((level) => <option key={level} value={level}>{t(`tickets.priorities.${level}`)}</option>)}</select></div>
+        <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={changeForm.cabApproved} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, cabApproved: event.target.checked })} /> {t('tickets.detail.cabApprovedField')}</label>
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-implementation-plan">{t('tickets.detail.implementationPlanLabel')}</label>
+          <textarea id="change-implementation-plan" rows={3} value={changeForm.implementationPlan} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, implementationPlan: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-rollback-plan">{t('tickets.detail.rollbackPlanLabel')}</label>
+          <textarea id="change-rollback-plan" rows={3} value={changeForm.rollbackPlan} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, rollbackPlan: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
+      </div>
+      <button disabled={working} onClick={() => void saveChange()} className="mt-4 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.saveExtension')}</button>
+      <div className="mt-5 border-t pt-4 dark:border-gray-700">
+        <h3 className="text-base font-bold">{t('tickets.detail.riskLinksTitle')}</h3>
+        {ticket.change?.riskLinks?.length ? (
+          <ul className="mt-2 space-y-2">
+            {ticket.change.riskLinks.map((link) => (
+              <li key={link.id} className="flex items-center justify-between rounded border p-2 dark:border-gray-700">
+                <Link to={`/risks/${link.risk.id}`} className="group flex flex-1 items-center gap-2 text-primary-700 hover:underline dark:text-primary-300">
+                  <span className="font-semibold">{link.risk.displayId}</span> · {link.risk.title}
+                </Link>
+                <button disabled={working} onClick={() => void unlinkRisk(link.risk.id)} className="text-sm text-red-700 hover:underline dark:text-red-300">{t('tickets.detail.unlinkRisk')}</button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="mt-2 text-sm text-gray-500">{t('tickets.detail.noRiskLinks')}</p>}
+        <div className="mt-3">
+          <EntityPicker labelKey="tickets.detail.linkRisk" entityType="risk" value={riskPicker} onChange={setRiskPicker} />
+          <button disabled={working || !riskPicker} onClick={() => void linkRisk()} className="mt-2 rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.linkRisk')}</button>
+        </div>
+      </div>
+    </section>}
     <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
         <h2 className="text-lg font-bold">{t('tickets.detail.commentsTitle')}</h2>
         <div className="mt-4 space-y-3">

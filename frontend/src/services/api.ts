@@ -56,7 +56,7 @@ export type ActionCenterSourceType =
   | 'workflowTask' | 'notificationDeadline' | 'correctiveAction' | 'riskReviewTask'
   | 'trainingAssignment' | 'auditFinding' | 'managementReviewAction' | 'documentReview'
   | 'supplier' | 'supplierAssessment' | 'businessImpactAnalysis' | 'businessContinuityPlan'
-  | 'bcpExercise' | 'auditPlan' | 'managementReview' | 'incidentNonReportableApproval';
+  | 'bcpExercise' | 'auditPlan' | 'managementReview' | 'incidentNonReportableApproval' | 'ticket' | 'nis2Registration';
 
 export interface ActionCenterItem {
   id: string;
@@ -334,6 +334,24 @@ api.interceptors.response.use(
 
 export default api;
 
+export interface NavigationViewInput {
+  name: string;
+  navOrder: string[];
+  hiddenEntries: string[];
+  isDefault?: boolean;
+}
+
+export interface NavigationViewResponse {
+  id: string;
+  name: string;
+  ownerId: string | null; // null = global view managed by admins
+  navOrder: string[];
+  hiddenEntries: string[];
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export const authApi = {
   login: (email: string, password: string, mfaToken?: string) => api.post('/auth/login', { email, password, mfaToken }),
   verifyMfaLogin: (preAuthToken: string, token: string) => api.post('/auth/login/mfa', { preAuthToken, token }),
@@ -353,9 +371,17 @@ export const authApi = {
   beginMfaSetup: () => api.post('/auth/me/mfa/setup'),
   confirmMfaSetup: (token: string) => api.post('/auth/me/mfa/confirm', { token }),
   disableMfa: (token: string) => api.post('/auth/me/mfa/disable', { token }),
-  updatePreferences: (data: { language?: string; darkMode?: boolean }) =>
+  updatePreferences: (data: { language?: string; darkMode?: boolean; navigationOrder?: string[] | null; hiddenNavigationEntries?: string[] | null }) =>
     api.patch('/auth/me/preferences', data),
   oidcAuthorize: () => api.get('/oidc/authorize'),
+  getNavigationConfig: () => api.get<{ navOrder: string[]; hiddenEntries: string[] }>('/navigation/config'),
+  getNavigationViews: () => api.get<NavigationViewResponse[]>('/navigation/views'),
+  createNavigationView: (data: NavigationViewInput) => api.post<NavigationViewResponse>('/navigation/views', data),
+  updateNavigationView: (id: string, data: Partial<NavigationViewInput>) => api.put<NavigationViewResponse>(`/navigation/views/${id}`, data),
+  deleteNavigationView: (id: string) => api.delete(`/navigation/views/${id}`),
+  setDefaultNavigationView: (id: string) => api.post<NavigationViewResponse>(`/navigation/views/${id}/default`),
+  getActiveNavigationView: () => api.get<{ view: NavigationViewResponse | null }>('/navigation/views/active'),
+  setActiveNavigationView: (viewId: string | null) => api.put<{ view: NavigationViewResponse | null }>('/navigation/views/active', { viewId }),
   oidcConfig: () => api.get('/auth/oidc/config'),
 };
 
@@ -412,7 +438,62 @@ export const riskApi = {
   history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/risks/${id}/history`, { params }),
 };
 
+export interface SoADiffEntry {
+  key: string;
+  controlId: string | null;
+  requirementId: string | null;
+  controlTitle: string | null;
+  applicability: string | null;
+  justification: string | null;
+  implementationStatus: string | null;
+}
+
+export interface SoADiffFieldChange {
+  from: string | null;
+  to: string | null;
+}
+
+export interface SoADiffResponse {
+  from: { id: string; version: number; frameworkId: string; frameworkVersion: string; scopeId: string | null; approvalStatus: string };
+  to: { id: string; version: number; frameworkId: string; frameworkVersion: string; scopeId: string | null; approvalStatus: string };
+  comparable: boolean;
+  added: SoADiffEntry[];
+  removed: SoADiffEntry[];
+  changed: Array<{ key: string; controlId: string | null; requirementId: string | null; controlTitle: string | null; fields: Record<string, SoADiffFieldChange> }>;
+  summary: { addedCount: number; removedCount: number; changedCount: number; unchangedCount: number };
+}
+
+export interface CoverageMatrixControl {
+  id: string;
+  title: string;
+  catalogId: string;
+  catalogVersion: string;
+  implementationStatus: string;
+  applicability: string;
+}
+
+export interface CoverageMatrixRow {
+  id: string;
+  displayId: string;
+  name: string;
+  criticality: string;
+  lifecycleStatus: string;
+  complianceRelevance: boolean;
+  dataProtectionRelevance: boolean;
+  controls: CoverageMatrixControl[];
+  coverageCount: number;
+  effectiveCoverageCount: number;
+  uncovered: boolean;
+}
+
+export interface CoverageMatrixResponse {
+  generatedAt: string;
+  summary: { totalAssets: number; coveredAssets: number; uncoveredAssets: number; criticalUncovered: number };
+  rows: CoverageMatrixRow[];
+}
+
 export const controlApi = {
+  coverageMatrix: (params?: { search?: string; criticality?: string }, config?: { signal?: AbortSignal }) => api.get<CoverageMatrixResponse>('/controls/coverage-matrix', { params, signal: config?.signal }),
   list: (params?: { page?: number; limit?: number; search?: string; status?: string; implementationStatus?: string; catalogId?: string }, config?: { signal?: AbortSignal }) => api.get('/controls', { params, signal: config?.signal }),
   getById: (id: string) => api.get(`/controls/${id}`),
   create: (data: CreateControlDTO | { catalogId: string; catalogVersion: string; title: string; description: string; controlGoal: string; applicability?: string }) => api.post('/controls', data),
@@ -428,6 +509,7 @@ export const controlApi = {
   submitSoA: (id: string) => api.post(`/controls/soa/${id}/submit`),
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
   exportSoA: (id: string, format: 'csv' | 'html') => api.get(`/controls/soa/${id}/export`, { params: { format } }),
+  diffSoA: (from: string, to: string) => api.get<SoADiffResponse>('/controls/soa/diff', { params: { from, to } }),
   history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/controls/${id}/history`, { params }),
 };
 
@@ -524,7 +606,33 @@ export interface TicketResponse {
   openedAt?: string | null;
   createdAt?: string;
   comments?: Array<{ id: string; body: string; isInternal: boolean; createdAt: string; authorId?: string | null; authorName?: string | null }>;
-  change?: { cabApproved?: boolean } | null;
+  problem?: TicketProblemExtension | null;
+  change?: TicketChangeExtension | null;
+  linksFrom?: Array<{ id: string; linkType: string; toTicket: { id: string; displayId: string; title: string; type: string; status: string } }>;
+  linksTo?: Array<{ id: string; linkType: string; fromTicket: { id: string; displayId: string; title: string; type: string; status: string } }>;
+}
+
+export interface TicketProblemExtension {
+  id?: string;
+  ticketId?: string;
+  rootCause?: string | null;
+  workaround?: string | null;
+  permanentFix?: string | null;
+  relatedIncidentIds?: string[];
+}
+
+export interface TicketChangeExtension {
+  id?: string;
+  ticketId?: string;
+  changeType?: string;
+  riskLevel?: string;
+  cabApproved?: boolean;
+  cabApprovedBy?: string | null;
+  cabApprovedAt?: string | null;
+  implementationPlan?: string | null;
+  rollbackPlan?: string | null;
+  backoutDate?: string | null;
+  riskLinks?: Array<{ id: string; risk: { id: string; displayId: string; title: string; status: string } }>;
 }
 
 export interface TicketWorkloadEntry {
@@ -568,6 +676,11 @@ export const ticketApi = {
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
   changeType: (id: string, data: { type: 'service_request' | 'problem' | 'change' }) => api.post<TicketResponse>(`/tickets/${id}/type`, data),
+  convertFromIncident: (id: string, data: { targetType: 'problem' | 'change'; title?: string }) => api.post<TicketResponse>(`/tickets/${id}/convert`, data),
+  updateProblem: (id: string, data: TicketProblemExtension) => api.put<TicketResponse>(`/tickets/${id}/problem`, data),
+  updateChange: (id: string, data: TicketChangeExtension) => api.put<TicketResponse>(`/tickets/${id}/change`, data),
+  linkRisk: (id: string, riskId: string) => api.post<TicketResponse>(`/tickets/${id}/risks`, { riskId }),
+  unlinkRisk: (id: string, riskId: string) => api.delete<TicketResponse>(`/tickets/${id}/risks/${riskId}`),
   changeStatus: (id: string, data: { status: string; justification?: string }) => api.post<TicketResponse>(`/tickets/${id}/status`, data),
   comment: (id: string, data: { body: string; isInternal?: boolean }) => api.post<TicketResponse>(`/tickets/${id}/comments`, data),
   requesterComment: (id: string, data: { body: string }) => api.post<TicketResponse>(`/tickets/${id}/requester-comment`, data),
@@ -577,6 +690,35 @@ export const ticketApi = {
   addAssets: (id: string, data: { assetIds: string[] }) => api.post<TicketResponse>(`/tickets/${id}/assets`, data),
   removeAssets: (id: string, data: { assetIds: string[] }) => api.delete<TicketResponse>(`/tickets/${id}/assets`, { data }),
   getAssets: (id: string) => api.get<AssetContextResponse>(`/tickets/${id}/assets`),
+};
+
+export interface ServiceCatalogItem {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  ticketType: 'service_request' | 'problem' | 'change';
+  fulfillment?: { requestedBy?: 'employee' | 'it'; approverRole?: string; slaHours?: number } | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceCatalogItemInput {
+  code: string;
+  name: string;
+  description?: string;
+  ticketType: 'service_request' | 'problem' | 'change';
+  fulfillment?: { requestedBy?: 'employee' | 'it'; approverRole?: string; slaHours?: number };
+  enabled?: boolean;
+}
+
+export const serviceCatalogApi = {
+  list: () => api.get<ServiceCatalogItem[]>('/tickets/service-catalog'),
+  listAll: () => api.get<ServiceCatalogItem[]>('/tickets/service-catalog/all'),
+  create: (data: ServiceCatalogItemInput) => api.post<ServiceCatalogItem>('/tickets/service-catalog', data),
+  update: (id: string, data: Partial<Omit<ServiceCatalogItemInput, 'code'>>) => api.put<ServiceCatalogItem>(`/tickets/service-catalog/${id}`, data),
+  disable: (id: string) => api.delete<ServiceCatalogItem>(`/tickets/service-catalog/${id}`),
 };
 
 export const incidentApi = {
@@ -683,6 +825,15 @@ export const adminApi = {
   updateFiscalYearConfig: (data: { startMonth: number; startDay: number; timezone?: string }) =>
     api.put('/admin/fiscal-year-config', data),
   getAuthSettings: () => api.get('/admin/auth-settings'),
+  getNavigationConfig: () => api.get<{ navOrder: string[]; hiddenEntries: string[] }>('/admin/navigation/config'),
+  updateNavigationConfig: (navOrder: string[], hiddenEntries?: string[]) =>
+    api.put<{ navOrder: string[]; hiddenEntries: string[] }>('/admin/navigation/config', { navOrder, hiddenEntries }),
+  resetNavigationConfig: () => api.delete<{ navOrder: string[] }>('/admin/navigation/config'),
+  getGlobalNavigationViews: () => api.get<NavigationViewResponse[]>('/admin/navigation/views'),
+  createGlobalNavigationView: (data: NavigationViewInput) => api.post<NavigationViewResponse>('/admin/navigation/views', data),
+  updateGlobalNavigationView: (id: string, data: Partial<NavigationViewInput>) => api.put<NavigationViewResponse>(`/admin/navigation/views/${id}`, data),
+  deleteGlobalNavigationView: (id: string) => api.delete(`/admin/navigation/views/${id}`),
+  setDefaultGlobalNavigationView: (id: string) => api.post<NavigationViewResponse>(`/admin/navigation/views/${id}/default`),
   updateAuthSettings: (data: any) => api.put('/admin/auth-settings', data),
   getTicketTypes: () => api.get<TicketTypeConfig[]>('/admin/ticket-types'),
   updateTicketType: (type: string, data: TicketTypeConfigUpdate) => api.put<TicketTypeConfig>(`/admin/ticket-types/${type}`, data),
@@ -808,6 +959,44 @@ export const riskAggregationApi = {
   dashboardSummary: (params?: RiskAggregationQueryDTO) => api.get('/risks/dashboard-summary', { params }),
 };
 
+// KRI/KPI dashboard board types (ISO 27001 Clause 9.1 measurement).
+export interface KriBoardThresholds {
+  warningMin?: number;
+  criticalMin?: number;
+  warningMax?: number;
+  criticalMax?: number;
+}
+
+export interface KriBoardLatestValue {
+  id: string;
+  value: number;
+  measuredAt: string;
+  source: string | null;
+}
+
+export interface KriBoardItem {
+  id: string;
+  displayId: string;
+  name: string;
+  metricType: 'KPI' | 'KRI' | 'KCI';
+  unit: string | null;
+  aggregation: string;
+  thresholds: KriBoardThresholds;
+  objectiveId: string | null;
+  breachStatus: 'none' | 'warning' | 'critical';
+  breaches: string[];
+  trend: 'none' | 'up' | 'down' | 'stable';
+  latestValue: KriBoardLatestValue | null;
+  sparkline: Array<{ measuredAt: string; value: number }>;
+}
+
+export interface KriBoardResponse {
+  metricType: 'KPI' | 'KRI' | 'KCI';
+  generatedAt: string;
+  summary: { critical: number; warning: number; none: number; noData: number };
+  items: KriBoardItem[];
+}
+
 // ISMS operations API; /phase6 remains a backend compatibility alias.
 export const phase6Api = {
   resources: () => api.get('/isms-operations/resources'),
@@ -828,6 +1017,7 @@ export const phase6Api = {
   acknowledgeTraining: (data: { courseId: string; comment?: string }) => api.post('/isms-operations/training-acknowledgements', data),
   createMetricDefinition: (data: Record<string, unknown>) => api.post('/isms-operations/metric-definitions', data),
   enterMetricValue: (data: { metricId: string; value: number; measuredAt?: string; source?: string; comment?: string }) => api.post('/isms-operations/metric-values', data),
+  kriBoard: (type: 'KPI' | 'KRI' | 'KCI' = 'KRI') => api.get<KriBoardResponse>('/isms-operations/kri-board', { params: { type } }),
   createManagementReview: (data: Record<string, unknown>) => api.post('/isms-operations/management-reviews', data),
   addManagementReviewAction: (data: Record<string, unknown>) => api.post('/isms-operations/management-review-actions', data),
   approveManagementReview: (id: string, approved: boolean) => api.post(`/isms-operations/management-reviews/${id}/approval`, { approved }),
@@ -858,6 +1048,7 @@ export const auditWorkflowApi = {
   getProgramDetail: (id: string) => api.get<AuditProgramDetail>(`/isms-operations/audit-programs/${id}/detail`),
   createAudit: (programId: string, data: Omit<AuditPlan, 'id' | 'displayId' | 'programId'>) => api.post<AuditPlan>(`/isms-operations/audit-programs/${programId}/audits`, data),
   getAuditDetail: (id: string) => api.get<AuditDetail>(`/isms-operations/audits/${id}/detail`),
+  exportAuditKit: (id: string) => api.get<Record<string, unknown>>(`/isms-operations/audits/${id}/audit-kit`),
   createFinding: (auditId: string, data: Omit<AuditFinding, 'id' | 'displayId' | 'auditPlanId' | 'correctiveActionId'>) => api.post<AuditFinding>(`/isms-operations/audits/${auditId}/findings`, data),
   updateFinding: (id: string, data: Partial<Omit<AuditFinding, 'id' | 'displayId' | 'auditPlanId' | 'correctiveActionId'>>) => api.patch<AuditFinding>(`/isms-operations/audit-findings/${id}`, data),
   getFindingDetail: (id: string) => api.get<AuditFindingDetail>(`/isms-operations/audit-findings/${id}/detail`),
@@ -870,7 +1061,60 @@ export const auditWorkflowApi = {
   reopenCapa: (id: string, justification: string) => api.post<CorrectiveAction>(`/isms-operations/corrective-actions/${id}/reopen`, { justification }),
 };
 
+export interface SupplyChainOverviewContract {
+  id: string;
+  displayId: string;
+  title: string;
+  contractType: string;
+  renewalDate: string | null;
+  endDate: string | null;
+  status: string;
+}
+
+export interface SupplyChainOverviewRisk {
+  id: string;
+  displayId: string;
+  title: string;
+  residualRisk: string;
+  status: string;
+}
+
+export interface SupplyChainOverviewSupplier {
+  id: string;
+  displayId: string;
+  legalName: string;
+  servicesProvided: string | null;
+  criticality: string;
+  nis2Relevant: boolean;
+  dataProtectionRelevant: boolean;
+  status: string;
+  exitStrategy: string | null;
+  nextReviewDate: string | null;
+  assessmentScore: number | null;
+  assessmentRating: string | null;
+  contracts: SupplyChainOverviewContract[];
+  risks: SupplyChainOverviewRisk[];
+  contractCount: number;
+  openRiskCount: number;
+  latestAssessment: { supplierId: string; assessmentDate: string; rating: string; score: number | null; status: string } | null;
+  reviewOverdue: boolean;
+  missingExitStrategy: boolean;
+}
+
+export interface SupplyChainOverviewResponse {
+  generatedAt: string;
+  summary: {
+    totalSuppliers: number;
+    nis2Relevant: number;
+    criticalHigh: number;
+    missingExitStrategy: number;
+    reviewOverdue: number;
+  };
+  suppliers: SupplyChainOverviewSupplier[];
+}
+
 export const supplierApi = {
+  overview: (params?: { search?: string; criticality?: string; nis2Relevant?: 'true' }) => api.get<SupplyChainOverviewResponse>('/isms-operations/suppliers/overview', { params }),
   getDetail: (id: string) => api.get<SupplierDetail>(`/isms-operations/suppliers/${id}/detail`),
   getAssessment: (id: string) => api.get<SupplierAssessment>(`/isms-operations/supplier-assessments/${id}`),
   createAssessment: (supplierId: string, data: Omit<Partial<SupplierAssessment>, 'id' | 'supplierId' | 'createdAt' | 'updatedAt'> & { assessorId: string }) => api.post<SupplierAssessment>(`/isms-operations/suppliers/${supplierId}/assessments`, data),
@@ -920,4 +1164,49 @@ export const proxmoxApi = {
   deleteServer: (id: string) => api.delete(`/admin/proxmox/servers/${id}`),
   testConnection: (id: string) => api.post(`/admin/proxmox/servers/${id}/test-connection`),
   importVMs: (id: string, dryRun?: boolean) => api.post(`/admin/proxmox/servers/${id}/import`, { dryRun }),
+};
+
+// Knowledge base API (internal how-to / lessons-learned articles).
+export type KnowledgeArticleCategory = 'general' | 'incident' | 'risk' | 'control' | 'supplier' | 'nis2' | 'service';
+export type KnowledgeArticleStatus = 'draft' | 'published' | 'archived';
+
+export interface KnowledgeArticleSummary {
+  id: string;
+  displayId: string;
+  title: string;
+  summary: string | null;
+  category: KnowledgeArticleCategory;
+  tags: string[];
+  status: KnowledgeArticleStatus;
+  authorId: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  viewCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface KnowledgeArticleDetail extends KnowledgeArticleSummary {
+  content: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+}
+
+export interface KnowledgeArticleInput {
+  title: string;
+  summary?: string;
+  content: string;
+  category: KnowledgeArticleCategory;
+  tags: string[];
+  status: 'draft' | 'published';
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+}
+
+export const knowledgeApi = {
+  list: (params?: { search?: string; category?: string; status?: string; tag?: string }) => api.get<KnowledgeArticleSummary[]>('/knowledge', { params }),
+  getById: (id: string) => api.get<KnowledgeArticleDetail>(`/knowledge/${id}`),
+  create: (data: KnowledgeArticleInput) => api.post<KnowledgeArticleDetail>('/knowledge', data),
+  update: (id: string, data: Partial<KnowledgeArticleInput> & { status?: KnowledgeArticleStatus }) => api.patch<KnowledgeArticleDetail>(`/knowledge/${id}`, data),
+  delete: (id: string) => api.delete(`/knowledge/${id}`),
 };

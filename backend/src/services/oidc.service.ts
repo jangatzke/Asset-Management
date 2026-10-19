@@ -11,6 +11,7 @@ type OpenIdClientModule = typeof import('openid-client', { with: { 'resolution-m
 export interface OidcConfigData {
   enabled?: boolean;
   providerName?: string;
+  issuerUrl?: string;
   tenantId?: string;
   clientId?: string;
   clientSecretRef?: string;
@@ -39,6 +40,7 @@ type OidcRuntimeConfig = {
   id: string;
   enabled: boolean;
   providerName: string;
+  issuerUrl?: string | null;
   tenantId: string | null;
   clientId: string | null;
   clientSecretRef?: string | null;
@@ -97,7 +99,15 @@ export class OidcService {
     return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   }
 
+  private hasIssuer(config: Pick<OidcRuntimeConfig, 'issuerUrl' | 'tenantId'>): boolean {
+    return Boolean(config.issuerUrl || config.tenantId);
+  }
+
   private issuerUrl(config: OidcRuntimeConfig): URL {
+    // Generic OIDC providers (Authentik, Keycloak, Google, …) publish their
+    // endpoints via /.well-known/openid-configuration below an explicit issuer.
+    if (config.issuerUrl) return new URL(config.issuerUrl);
+    // Legacy Entra ID configuration: the tenantId doubles as the issuer hint.
     if (!config.tenantId) throw new AppError('OIDC not configured', 400);
     if (config.tenantId.startsWith('https://')) return new URL(config.tenantId);
     return new URL(`https://login.microsoftonline.com/${config.tenantId}/v2.0`);
@@ -164,6 +174,7 @@ export class OidcService {
     const updateData: Record<string, unknown> = {};
     if (data.enabled !== undefined) updateData.enabled = data.enabled;
     if (data.providerName) updateData.providerName = data.providerName;
+    if (data.issuerUrl !== undefined) updateData.issuerUrl = data.issuerUrl || null;
     if (data.tenantId !== undefined) updateData.tenantId = data.tenantId;
     if (data.clientId !== undefined) updateData.clientId = data.clientId;
     if (data.clientSecretRef !== undefined) updateData.clientSecretRef = data.clientSecretRef;
@@ -199,7 +210,7 @@ export class OidcService {
 
   async getAuthorizationUrl(_legacyState?: string): Promise<AuthorizationResult> {
     const config = await this.getConfig() as OidcRuntimeConfig;
-    if (!config.enabled || !config.tenantId || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
+    if (!config.enabled || !this.hasIssuer(config) || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
     // Validate the redirect URI by exact path, not by substring, so that a
     // different origin or path cannot be accepted merely because it contains a
     // fragment of the expected callback path.
@@ -274,6 +285,10 @@ export class OidcService {
   }
 
   private enforceTenant(config: OidcRuntimeConfig, userInfo: OidcUserInfo): void {
+    // The `tid` claim is specific to Microsoft Entra ID. Generic OIDC providers
+    // (Authentik, Keycloak, …) do not emit it, so tenant enforcement only
+    // applies to the entra_id provider.
+    if (config.providerName !== 'entra_id') return;
     // SECURITY FIX: A tenant configured as a full URL (e.g. an Entra ID
     // tenant UUID) must still be enforced. The previous
     // `!config.tenantId.startsWith('https://')` exception let any tenantId
@@ -373,7 +388,7 @@ export class OidcService {
   async handleCallback(code: string, state: string, _legacyCodeVerifier?: string, context: SessionContext = {}): Promise<AuthSessionResult & { state: 'authenticated' }> {
     if (!code || !state) throw new AppError('OIDC callback missing code or state', 400);
     const config = await this.getConfig() as OidcRuntimeConfig;
-    if (!config.enabled || !config.tenantId || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
+    if (!config.enabled || !this.hasIssuer(config) || !config.clientId || !config.redirectUri) throw new AppError('OIDC not configured', 400);
 
     const stored = await this.consumeState(config.id, state);
     const oidcConfig = await this.clientConfiguration(config);

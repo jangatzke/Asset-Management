@@ -650,6 +650,69 @@ async getSOA(scopeId?: string) {
   }
 
   /**
+   * Compare two SoA versions item-by-item, keyed by control or requirement id.
+   * Read-only review helper: shows which applicability decisions, justifications,
+   * or implementation statuses changed between two versions of an SoA.
+   */
+  async diffSoA(fromId: string, toId: string) {
+    if (!fromId || !toId) throw new AppError('Both "from" and "to" SoA ids are required', 400);
+    if (fromId === toId) throw new AppError('Cannot compare a Statement of Applicability with itself', 400);
+    const [fromSoa, toSoa] = await Promise.all([this.loadSoAForExport(fromId), this.loadSoAForExport(toId)]);
+
+    type DiffEntry = {
+      key: string;
+      controlId: string | null;
+      requirementId: string | null;
+      controlTitle: string | null;
+      applicability: string | null;
+      justification: string | null;
+      implementationStatus: string | null;
+    };
+    const itemKey = (item: any): string => item.controlId ?? item.requirementId ?? item.id;
+    const toEntry = (item: any): DiffEntry => ({
+      key: itemKey(item),
+      controlId: item.controlId ?? null,
+      requirementId: item.requirementId ?? null,
+      controlTitle: item.control?.title ?? null,
+      applicability: item.applicability ?? null,
+      justification: item.justification ?? null,
+      implementationStatus: item.implementationStatus ?? null,
+    });
+
+    const fromMap = new Map<string, DiffEntry>(fromSoa.items.map((item: any) => [itemKey(item), toEntry(item)]));
+    const toMap = new Map<string, DiffEntry>(toSoa.items.map((item: any) => [itemKey(item), toEntry(item)]));
+
+    const added: DiffEntry[] = [];
+    const removed: DiffEntry[] = [];
+    const changed: Array<{ key: string; controlId: string | null; requirementId: string | null; controlTitle: string | null; fields: Record<string, { from: string | null; to: string | null }> }> = [];
+    let unchangedCount = 0;
+
+    for (const [key, target] of toMap) {
+      const source = fromMap.get(key);
+      if (!source) { added.push(target); continue; }
+      const fields: Record<string, { from: string | null; to: string | null }> = {};
+      for (const field of ['applicability', 'justification', 'implementationStatus'] as const) {
+        if ((source[field] ?? '') !== (target[field] ?? '')) fields[field] = { from: source[field], to: target[field] };
+      }
+      if (Object.keys(fields).length > 0) changed.push({ key, controlId: target.controlId, requirementId: target.requirementId, controlTitle: target.controlTitle, fields });
+      else unchangedCount += 1;
+    }
+    for (const [key, source] of fromMap) {
+      if (!toMap.has(key)) removed.push(source);
+    }
+
+    return {
+      from: { id: fromSoa.id, version: fromSoa.version, frameworkId: fromSoa.frameworkId, frameworkVersion: fromSoa.frameworkVersion, scopeId: fromSoa.scopeId, approvalStatus: fromSoa.approvalStatus },
+      to: { id: toSoa.id, version: toSoa.version, frameworkId: toSoa.frameworkId, frameworkVersion: toSoa.frameworkVersion, scopeId: toSoa.scopeId, approvalStatus: toSoa.approvalStatus },
+      comparable: fromSoa.scopeId === toSoa.scopeId && fromSoa.frameworkId === toSoa.frameworkId && fromSoa.frameworkVersion === toSoa.frameworkVersion,
+      added,
+      removed,
+      changed,
+      summary: { addedCount: added.length, removedCount: removed.length, changedCount: changed.length, unchangedCount },
+    };
+  }
+
+  /**
    * Export a SoA as CSV. Includes all items with control ID, title, applicability,
    * justification, implementation status, and version.
    */
@@ -888,6 +951,78 @@ async getSOA(scopeId?: string) {
       }
       return tx.controlTest.findUnique({ where: { id: test.id }, include: { evidenceLinks: true } });
     });
+  }
+
+  /**
+   * ISO 27001 / NIS2 control-to-configuration-item coverage matrix: aggregates every active
+   * asset with the active controls linked via the ControlAsset junction table, so that
+   * uncovered configuration items (especially critical ones) become visible as gaps.
+   */
+  async coverageMatrix(query: Record<string, any> = {}) {
+    const where: Record<string, any> = { isArchived: false };
+    if (query.criticality) where.criticality = String(query.criticality);
+    if (query.search) {
+      where.OR = [
+        { name: { contains: String(query.search), mode: 'insensitive' } },
+        { displayId: { contains: String(query.search), mode: 'insensitive' } },
+      ];
+    }
+
+    const CRITICALITY_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+    const EFFECTIVE_STATUSES = ['implemented', 'tested', 'effective'];
+
+    const assets = await db.asset.findMany({
+      where,
+      orderBy: [{ name: 'asc' }],
+      select: {
+        id: true, displayId: true, name: true, criticality: true, lifecycleStatus: true,
+        complianceRelevance: true, dataProtectionRelevance: true,
+      },
+    });
+
+    const assetIds = assets.map((asset: any) => asset.id);
+    const links = await db.controlAsset.findMany({ where: { assetId: { in: assetIds } } });
+
+    const controls = await db.control.findMany({
+      where: { id: { in: links.map((link: any) => link.controlId) }, isArchived: false, status: 'active' },
+      select: { id: true, title: true, catalogId: true, catalogVersion: true, implementationStatus: true, applicability: true },
+    });
+
+    const controlsById = new Map<string, any>(controls.map((control: any) => [control.id, control]));
+    const controlsByAsset = new Map<string, any[]>();
+    for (const link of links) {
+      const control = controlsById.get(link.controlId);
+      if (!control) continue;
+      const list = controlsByAsset.get(link.assetId) ?? [];
+      list.push(control);
+      controlsByAsset.set(link.assetId, list);
+    }
+
+    const rows = assets.map((asset: any) => {
+      const linkedControls = (controlsByAsset.get(asset.id) ?? [])
+        .slice()
+        .sort((a, b) => String(a.title).localeCompare(String(b.title)));
+      return {
+        ...asset,
+        controls: linkedControls,
+        coverageCount: linkedControls.length,
+        effectiveCoverageCount: linkedControls.filter((control) => EFFECTIVE_STATUSES.includes(String(control.implementationStatus))).length,
+        uncovered: linkedControls.length === 0,
+      };
+    });
+
+    rows.sort((a: any, b: any) => (CRITICALITY_RANK[String(b.criticality)] ?? 0) - (CRITICALITY_RANK[String(a.criticality)] ?? 0) || String(a.name).localeCompare(String(b.name)));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalAssets: rows.length,
+        coveredAssets: rows.filter((row: any) => !row.uncovered).length,
+        uncoveredAssets: rows.filter((row: any) => row.uncovered).length,
+        criticalUncovered: rows.filter((row: any) => row.uncovered && (row.criticality === 'high' || row.criticality === 'critical')).length,
+      },
+      rows,
+    };
   }
 }
 

@@ -246,6 +246,7 @@
     "effectivenessLabel": "efficacité :",
     "evidence": "Preuve",
     "evidenceNotVisible": "La preuve n’est plus visible",
+    "exportKit": "Exporter le kit d'audit",
     "findingDescription": "Description de la non-conformité",
     "findingOwner": "Responsable de la non-conformité",
     "findingTitle": "Titre de la non-conformité",
@@ -508,6 +509,28 @@
     "selectCatalog": "Sélectionner le catalogue",
     "selectVersion": "Sélectionner la version",
     "showLinkedRisks": "Afficher les risques liés ({count})",
+    "soaDiff": {
+      "changeColumn": "Modification",
+      "compareButton": "Comparer les versions",
+      "comparing": "Comparaison…",
+      "controlColumn": "Mesure",
+      "description": "Compare deux déclarations d'applicabilité du même périmètre et cadre, point par point (applicabilité, justification, statut de mise en œuvre).",
+      "error": "La comparaison des déclarations d'applicabilité n'a pas pu être effectuée",
+      "fieldApplicability": "Applicabilité",
+      "fieldImplementationStatus": "Statut de mise en œuvre",
+      "fieldJustification": "Justification",
+      "fromLabel": "Ancienne version",
+      "fromPlaceholder": "Sélectionner la version de base",
+      "noChanges": "Aucune différence entre les deux versions.",
+      "notComparable": "Les deux versions de la SoA n'appartiennent pas au même périmètre et à la même version de cadre ; la comparaison est limitée.",
+      "sectionAdded": "Ajouté",
+      "sectionChanged": "Modifié",
+      "sectionRemoved": "Supprimé",
+      "summary": "{added} ajoutés, {removed} supprimés, {changed} modifiés, {unchanged} inchangés",
+      "title": "Comparer les versions (diff)",
+      "toLabel": "Nouvelle version",
+      "toPlaceholder": "Sélectionner la version cible"
+    },
     "soaGenerator": {
       "description": "Crée un nouveau brouillon modifiable contenant les 93 contrôles de l'Annexe A. L'applicabilité est volontairement fixée à « en revue » ; complétez la décision et la justification spécifiques à la portée pour chaque élément avant de soumettre.",
       "exportCsv": "Exporter CSV",
@@ -535,6 +558,40 @@
       "effectiveTested": "efficace/testé",
       "notVerified": "implémenté, non vérifié"
     }
+  },
+  "controlCoverage": {
+    "title": "Couverture des contrôles",
+    "description": "Contrôles ISO 27001 par élément de configuration : quels actifs sont couverts par des contrôles actifs et où sont les lacunes ?",
+    "loadError": "Impossible de charger la matrice de couverture",
+    "searchLabel": "Recherche",
+    "searchPlaceholder": "Nom ou identifiant d'affichage de l'actif",
+    "empty": "Aucun actif trouvé pour les filtres actuels.",
+    "summaryLabel": "Synthèse de la couverture",
+    "summary": {
+      "total": "Actifs au total",
+      "covered": "Couverts par des contrôles",
+      "uncovered": "Sans contrôles",
+      "criticalUncovered": "Critiques sans contrôles"
+    },
+    "filters": {
+      "uncoveredOnly": "Actifs non couverts uniquement"
+    },
+    "columns": {
+      "asset": "Actif",
+      "coverage": "Contrôles",
+      "effective": "Mis en œuvre efficacement"
+    },
+    "fields": {
+      "criticality": "Criticité",
+      "complianceRelevance": "Pertinance conformité",
+      "dataProtection": "Pertinance protection des données"
+    },
+    "sections": {
+      "controls": "Contrôles assignés"
+    },
+    "noControls": "Aucun contrôle actif n'est assigné à cet actif : lacune de couverture.",
+    "uncoveredBadge": "non couvert",
+    "openAsset": "Ouvrir l'actif"
   },
   "costPlanning": {
     "acquired": "Acquis",
@@ -1162,6 +1219,75 @@
     "saveError": "Impossible d'enregistrer.",
     "title": "Espace de travail du processus ISMS"
   },
+  "kri": {
+    "title": "Indicateurs clés de risque (KRI)",
+    "description": "Surveillez les indicateurs du SMSI conformément à l'article 9.1 de l'ISO 27001. Les seuils sont évalués par rapport aux dernières valeurs mesurées.",
+    "typeLabel": "Type d'indicateur",
+    "types": {
+      "KRI": "Indicateurs clés de risque (KRI)",
+      "KPI": "Indicateurs clés de performance (KPI)",
+      "KCI": "Indicateurs clés de capacité (KCI)"
+    },
+    "refresh": "Actualiser",
+    "manageMetrics": "Gérer les indicateurs",
+    "loadError": "Impossible de charger les indicateurs.",
+    "loading": "Chargement…",
+    "noIndicators": "Aucun indicateur actif de ce type n'est défini.",
+    "summaryLabel": "Synthèse",
+    "status": {
+      "critical": "Critique",
+      "warning": "Avertissement",
+      "none": "Dans les limites",
+      "noData": "Aucune donnée"
+    },
+    "columns": {
+      "name": "Indicateur",
+      "latest": "Dernière valeur",
+      "thresholds": "Seuils",
+      "trend": "Tendance",
+      "history": "Historique",
+      "measuredAt": "Mesuré le"
+    },
+    "trend": {
+      "up": "En hausse",
+      "down": "En baisse",
+      "stable": "Stable",
+      "none": "Pas de tendance"
+    }
+  },
+  "knowledge": {
+    "title": "Base de connaissances",
+    "newArticle": "Nouvel article",
+    "editArticle": "Modifier l'article",
+    "searchPlaceholder": "Rechercher titres, contenu ou étiquettes...",
+    "empty": "Aucun article trouvé.",
+    "saved": "Article enregistré.",
+    "archived": "Article archivé.",
+    "loadError": "Les articles n'ont pas pu être chargés.",
+    "saveError": "Échec de l'enregistrement.",
+    "viewCount": "{count} vues",
+    "tagsPlaceholder": "étiquette1, étiquette2",
+    "categories": {
+      "general": "Général",
+      "incident": "Incidents",
+      "risk": "Risques",
+      "control": "Mesures de contrôle",
+      "supplier": "Fournisseurs",
+      "nis2": "NIS2",
+      "service": "Services"
+    },
+    "statuses": {
+      "draft": "Brouillon",
+      "published": "Publié",
+      "archived": "Archivé"
+    },
+    "fields": {
+      "category": "Catégorie",
+      "summary": "Résumé",
+      "content": "Contenu",
+      "tags": "Étiquettes"
+    }
+  },
   "licenses": {
     "basis": {
       "device": "Appareil",
@@ -1227,6 +1353,7 @@
     "authSettings": "Authentification",
     "contracts": "Contrats",
     "controls": "Contrôles",
+    "controlCoverage": "Couverture des contrôles",
     "costPlanning": "Planification des coûts",
     "dashboard": "Tableau de bord",
     "databaseBackup": "Sauvegarde de la base de données",
@@ -1235,11 +1362,14 @@
     "incidents": "Incidents",
     "ismsOperations": "Opérations ISMS",
     "ismsProcessWorkspace": "Processus ISMS",
+    "kriDashboard": "Tableau de bord KRI",
+    "knowledgeBase": "Base de connaissances",
     "licenses": "Licences",
     "logout": "Déconnexion",
     "mainNavigation": "Navigation principale",
     "mobileNavigation": "Navigation mobile",
     "moreNavigation": "Plus",
+    "navigationOrder": "Ordre de navigation",
     "oidcConfig": "Configuration OIDC",
     "organizationUnits": "Unités organisationnelles",
     "processes": "Processus",
@@ -1248,13 +1378,59 @@
     "riskAggregation": "Agrégation des risques",
     "risks": "Risques",
     "roleManagement": "Gestion des rôles",
+    "serviceCatalog": "Catalogue de services",
     "settings": "Paramètres",
+    "supplyChain": "Vue d'ensemble des fournisseurs",
     "ticketSlaSettings": "SLA des tickets",
     "tickets": "Tickets",
     "toggleMenu": "Basculer le menu de navigation",
     "userManagement": "Gestion des utilisateurs",
     "userMenu": "Menu utilisateur",
+    "views": {
+      "default": "Vue par défaut",
+      "globalBadge": "Global",
+      "switchFailed": "Échec du changement de vue",
+      "switchTooltip": "Changer de vue"
+    },
     "vmwareConfig": "VMware vCenter"
+  },
+  "navigationOrder": {
+    "description": "Définissez l'ordre par défaut global des éléments du menu. Les éléments situés en haut apparaissent d'abord dans le menu principal ; ce n'est que lorsque l'espace manque que les éléments de fin basculent dans le menu déroulant « Plus ».",
+    "hide": "Masquer",
+    "hideEntry": "Masquer {name}",
+    "hint": "L'ordre détermine quels éléments du menu sont directement visibles et lesquels sont accessibles via le menu déroulant « Plus ». Les utilisateurs peuvent personnaliser cet ordre dans leurs paramètres personnels.",
+    "listLabel": "Ordre des éléments du menu",
+    "loadError": "Impossible de charger la navigation",
+    "moveDown": "Déplacer {name} vers le bas",
+    "moveUp": "Déplacer {name} vers le haut",
+    "overrideActive": "Ordre personnel actif",
+    "reset": "Restaurer la valeur par défaut",
+    "resetDone": "Ordre par défaut restauré",
+    "saveError": "Échec de l'enregistrement de la navigation",
+    "saved": "Ordre enregistré",
+    "show": "Afficher",
+    "showEntry": "Afficher {name}",
+    "title": "Ordre de navigation",
+    "unsavedChanges": "Modifications non enregistrées",
+    "useGlobal": "Utiliser la valeur globale",
+    "usingGlobal": "L'ordre par défaut global est utilisé"
+  },
+  "navViews": {
+    "create": "Enregistrer la vue",
+    "created": "Vue créée",
+    "defaultBadge": "Par défaut",
+    "defaultScope": "Par défaut (aucune vue)",
+    "defaultSet": "Définie comme vue par défaut",
+    "delete": "Supprimer",
+    "deleted": "Vue supprimée",
+    "globalDescription": "Les vues globales sont disponibles pour tous les utilisateurs. La vue marquée comme par défaut est utilisée tant que l'utilisateur n'a pas effectué sa propre sélection active.",
+    "globalTitle": "Vues globales",
+    "newViewPlaceholder": "Nom de la nouvelle vue",
+    "personalDescription": "Les vues personnelles ne sont visibles que pour vous. La vue marquée comme par défaut est utilisée automatiquement sauf si vous changez de vue manuellement.",
+    "personalTitle": "Vues personnelles",
+    "saveError": "Échec de l'enregistrement de la vue",
+    "scopeLabel": "Vue à modifier",
+    "setDefault": "Définir par défaut"
   },
   "nis2": {
     "answersFillableOncePresent": "Les réponses sont remplissables dès qu'une version de questionnaire est sélectionnée ou chargée.",
@@ -1312,6 +1488,7 @@
       "criticalService": "Fournit un service essentiel ou important",
       "crossBorderService": "Fournit des services transfrontaliers",
       "employeeCount": "Nombre d'employés",
+      "jurisdiction": "Modèle juridique pour l'évaluation des seuils",
       "sector": "Secteur"
     },
     "recordChange": "Consigner la modification",
@@ -1341,7 +1518,13 @@
     "enableLocalLogin": "Activer la connexion locale",
     "enableOidc": "Activer l'authentification OIDC",
     "enableOidcDescription": "Activer ou désactiver l'authentification OIDC",
+    "issuerUrl": "URL de l'émetteur (OpenID Connect)",
+    "issuerUrlDescription": "URL de base du fournisseur OIDC où .well-known/openid-configuration est accessible (par ex. Authentik ou Keycloak).",
     "noConfig": "Aucune configuration OIDC trouvée",
+    "provider": "Type de fournisseur",
+    "providerAuthentik": "Authentik",
+    "providerEntra": "Microsoft Entra ID",
+    "providerGeneric": "Autre fournisseur OIDC (générique)",
     "providerSettings": "Paramètres du fournisseur",
     "redirectUri": "URI de redirection",
     "saved": "Configuration enregistrée avec succès",
@@ -1850,6 +2033,34 @@
     },
     "title": "Exigences de sécurité"
   },
+  "serviceCatalog": {
+    "adminMode": "Gérer le catalogue",
+    "availableServices": "Services disponibles",
+    "browseMode": "Commander des services",
+    "code": "Code",
+    "createItem": "Créer un service",
+    "disable": "Désactiver",
+    "disabled": "Désactivé",
+    "editItem": "Modifier le service",
+    "enabled": "Activé",
+    "itemDisabled": "Service désactivé.",
+    "itemSaved": "Service enregistré.",
+    "loadError": "Impossible de charger le catalogue de services.",
+    "manageItems": "Gérer le catalogue de services",
+    "name": "Nom",
+    "newItem": "Nouveau service",
+    "noItems": "Aucun service dans le catalogue.",
+    "order": "Commander",
+    "orderCreated": "La demande de service a été créée sous forme de ticket.",
+    "orderError": "Impossible de créer la demande de service.",
+    "orderTitle": "Commander un service",
+    "saveError": "Échec de l'enregistrement.",
+    "slaHours": "SLA (heures)",
+    "submitOrder": "Créer la demande",
+    "ticketType": "Type de ticket",
+    "title": "Catalogue de services",
+    "urgency": "Urgence"
+  },
   "settings": {
     "accountInfo": "Informations du compte",
     "accountType": "Type de compte",
@@ -1872,6 +2083,8 @@
     "mfaTitle": "Authentification multifacteur",
     "mustChangeTemporaryPassword": "Vous devez changer votre mot de passe temporaire avant de continuer.",
     "name": "Nom",
+    "navigationOrderDescription": "Personnalisez l'ordre des éléments du menu pour votre compte. Sans configuration personnelle, la valeur globale définie par l'administration s'applique.",
+    "navigationOrderTitle": "Ordre de navigation",
     "newPassword": "Nouveau mot de passe",
     "oidcLinked": "Lié à OIDC",
     "passwordRequirements": "Minimum 12 caractères avec majuscules, minuscules, chiffre et caractère spécial.",
@@ -1933,6 +2146,49 @@
     "useImplicitTLS": "Utiliser TLS implicite",
     "validateTLS": "Valider le certificat TLS",
     "via": "Envoyé via"
+  },
+  "supplyChain": {
+    "title": "Vue d'ensemble des fournisseurs",
+    "description": "NIS2 Art. 21(2)(d) : dépendances de la chaîne d'approvisionnement, risques et stratégies de sortie en un coup d'œil.",
+    "loadError": "La vue d'ensemble des fournisseurs n'a pas pu être chargée.",
+    "searchLabel": "Rechercher",
+    "searchPlaceholder": "Rechercher un nom ou un service...",
+    "empty": "Aucun fournisseur trouvé.",
+    "summaryLabel": "Indicateurs récapitulatifs",
+    "summary": {
+      "total": "Fournisseurs au total",
+      "nis2Relevant": "Pertinents NIS2",
+      "criticalHigh": "Élevé/critique",
+      "missingExitStrategy": "Sans stratégie de sortie",
+      "reviewOverdue": "Révision en retard"
+    },
+    "filters": {
+      "nis2Only": "Pertinents NIS2 uniquement"
+    },
+    "columns": {
+      "supplier": "Fournisseur",
+      "contracts": "Contrats",
+      "openRisks": "Risques ouverts",
+      "latestAssessment": "Dernière évaluation",
+      "nextReview": "Prochaine révision"
+    },
+    "fields": {
+      "criticality": "Criticité",
+      "exitStrategy": "Stratégie de sortie",
+      "dataProtection": "Pertinent pour la protection des données"
+    },
+    "sections": {
+      "contracts": "Contrats",
+      "risks": "Risques"
+    },
+    "noContracts": "Aucun contrat lié.",
+    "noRisks": "Aucun risque lié.",
+    "noAssessment": "Aucune évaluation",
+    "noServices": "Aucun service enregistré",
+    "missingExitStrategy": "Stratégie de sortie manquante",
+    "nis2Badge": "Pertinent NIS2",
+    "renewsOn": "Renouvellement le",
+    "openSupplier": "Ouvrir le fournisseur"
   },
   "suppliers": {
     "assessment": "Évaluation",
@@ -2010,15 +2266,28 @@
       "attachAssets": "Joindre des actifs",
       "attachError": "L'actif n'a pas pu être joint.",
       "by": "par",
+      "cabApprovedField": "Approuvé par le CAB",
+      "changeDetailsTitle": "Données de changement (gestion des changements)",
+      "changeTypeField": "Type de changement",
+      "changeTypes": {
+        "standard": "Standard",
+        "normal": "Normal",
+        "emergency": "Urgent"
+      },
       "closeError": "Le ticket n'a pas pu être fermé.",
       "closeTicket": "Fermer le ticket",
       "closurePrompt": "Résumé de clôture (obligatoire pour la piste d'audit) :",
       "commentError": "Le commentaire n'a pas pu être ajouté.",
       "commentsTitle": "Commentaires et notes de travail",
+      "convertConfirm": "Créer un ticket dérivé à partir de cet incident et le lier automatiquement ?",
+      "convertError": "La conversion a échoué.",
+      "convertToChange": "Dériver comme changement",
+      "convertToProblem": "Dériver comme problème",
       "detach": "Détacher",
       "detachError": "L'actif n'a pas pu être détaché.",
       "estimatedEffort": "Effort (×15 min.)",
       "estimatedEffortHint": "Effort estimé en unités de travail de 15 minutes chacune.",
+      "extensionSaveError": "Les données d'extension n'ont pas pu être enregistrées.",
       "historyButton": "Historique",
       "historyTitle": "Historique auditable du ticket",
       "internalWorkNote": "Note de travail interne",
@@ -2031,7 +2300,17 @@
       "noHistory": "Aucune entrée d'historique.",
       "noManufacturer": "Aucun fabricant",
       "notConfigured": "Non configuré",
+      "implementationPlanLabel": "Plan de mise en œuvre",
+      "linkRisk": "Lier un risque",
+      "noRiskLinks": "Aucun risque lié.",
+      "permanentFixLabel": "Correctif permanent",
+      "problemDetailsTitle": "Données du problème (analyse des causes racines)",
       "priority": "Priorité",
+      "riskLevelField": "Évaluation des risques du changement",
+      "riskLinksTitle": "Risques liés (ISO 27001 A.8.32)",
+      "rollbackPlanLabel": "Plan de retour arrière",
+      "rootCauseLabel": "Cause racine",
+      "saveExtension": "Enregistrer",
       "reopenTicket": "Rouvrir le ticket",
       "requesterComment": "Commentaire visible par le demandeur",
       "requesterCommentPlaceholder": "Ajoutez un commentaire en tant que demandeur…",
@@ -2043,7 +2322,9 @@
       "typeError": "Le type de ticket n'a pas pu être modifié.",
       "unassign": "Retirer l'affectation",
       "unassigned": "Non affecté",
-      "updatePlaceholder": "Consignez une mise à jour."
+      "unlinkRisk": "Retirer",
+      "updatePlaceholder": "Consignez une mise à jour.",
+      "workaroundLabel": "Solution de contournement"
     },
     "empty": "Aucun ticket trouvé.",
     "emptyAction": "Créer un nouveau ticket",

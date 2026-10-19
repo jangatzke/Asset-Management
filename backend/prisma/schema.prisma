@@ -55,8 +55,11 @@ model User {
   mfaEnabledAt     DateTime?
 
   // User preferences
-  language String?  @default("en")
-  darkMode Boolean?
+  language        String?  @default("en")
+  darkMode        Boolean?
+  navigationOrder Json? // per-user override of the global top-navigation order (array of hrefs)
+  hiddenNavigationEntries Json? // per-user override of the globally hidden top-navigation entries (array of hrefs)
+  activeNavigationViewId String? // id of the navigation view currently active for this user
 
   organizationUnit       OrganizationUnit?  @relation("UserOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
   userRoles              UserRole[]         @relation("UserRoles")
@@ -75,7 +78,12 @@ model User {
   assigneeTickets  Ticket[] @relation("TicketAssignee")
   managerTickets   Ticket[] @relation("TicketManager")
 
+  // Navigation views
+  navigationViews        NavigationView[] @relation("UserOwnedNavigationViews")
+  activeNavigationView   NavigationView?  @relation("UserActiveNavigationView", fields: [activeNavigationViewId], references: [id], onDelete: SetNull)
+
   @@index([oidcId, oidcProvider])
+  @@index([activeNavigationViewId])
   @@map("users")
 }
 
@@ -172,6 +180,38 @@ model AuthSettings {
   updatedBy                 String?
 
   @@map("auth_settings")
+}
+
+// Global default order for the top navigation (admin-configurable singleton).
+model NavigationConfig {
+  id            String   @id @default(uuid())
+  navOrder      Json     @default("[]") // ordered list of known navigation hrefs; empty = built-in default
+  hiddenEntries Json     @default("[]") // hrefs hidden in the global default view
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  updatedBy     String?
+
+  @@map("navigation_config")
+}
+
+// Saved navigation configuration (order + hidden entries). ownerId null =
+// global view managed by admins; otherwise a personal view of that user.
+// Exactly one view per scope may be flagged isDefault (enforced in the service).
+model NavigationView {
+  id            String   @id @default(uuid())
+  name          String
+  ownerId       String?
+  navOrder      Json     @default("[]")
+  hiddenEntries Json     @default("[]")
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner                User?  @relation("UserOwnedNavigationViews", fields: [ownerId], references: [id], onDelete: Cascade)
+  activeForUsers       User[] @relation("UserActiveNavigationView")
+
+  @@index([ownerId])
+  @@map("navigation_views")
 }
 
 model PasswordHistory {
@@ -318,6 +358,7 @@ model OidcConfig {
   id                               String   @id @default(uuid())
   enabled                          Boolean  @default(false)
   providerName                     String   @default("entra_id")
+  issuerUrl                        String?
   tenantId                         String?
   clientId                         String?
   clientSecretRef                  String?
@@ -953,6 +994,7 @@ model Risk {
   processLinks           RiskProcess[]
   serviceLinks           RiskService[]
   riskAssessmentVersions RiskAssessmentVersion[]
+  changeLinks            ChangeRiskLink[]
 
   @@index([riskMethodVersionId])
   @@index([scenarioId])
@@ -4102,9 +4144,51 @@ model Change {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket     Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  riskLinks  ChangeRiskLink[]
 
   @@map("changes")
+}
+
+// ---- Change → Risk link (ISO 27001 A.8.32: changes assessed against risks) --
+model ChangeRiskLink {
+  id        String   @id @default(uuid())
+  changeId  String
+  riskId    String
+  createdAt DateTime @default(now())
+
+  change Change @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  risk   Risk   @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@unique([changeId, riskId])
+  @@index([riskId])
+  @@map("change_risk_links")
+}
+
+// ---- Knowledge base articles (ISO 27001 A.7.5 knowledge management) ---------
+model KnowledgeArticle {
+  id                String   @id @default(uuid())
+  displayId         String   @unique
+  title             String
+  summary           String?
+  content           String
+  category          String   @default("general") // general | incident | risk | control | supplier | nis2 | service
+  tags              String[] @default([])
+  status            String   @default("draft") // draft | published | archived
+  authorId          String?
+  relatedEntityType String? // optional soft link, e.g. "incident", "risk", "control"
+  relatedEntityId   String?
+  viewCount         Int      @default(0)
+  isArchived        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  @@index([category])
+  @@index([status])
+  @@index([relatedEntityId])
+  @@map("knowledge_articles")
 }
 
 // ---- Service request extension (ITIL request fulfillment) -------------------

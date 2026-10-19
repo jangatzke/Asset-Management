@@ -37,6 +37,7 @@ import { incidentRouter } from './routes/incident.routes';
 import { ticketRouter } from './routes/ticket.routes';
 import { auditLogRouter } from './routes/auditLog.routes';
 import { adminRouter } from './routes/admin.routes';
+import { navigationRouter } from './routes/navigation.routes';
 import { intuneRouter } from './routes/intune.routes';
 import { initializeScheduler } from './services/intune.scheduler';
 import { initializeReminderScheduler } from './services/reminder.scheduler';
@@ -55,6 +56,7 @@ import { importRouter } from './routes/import.routes';
 import { frameworkRouter } from './routes/framework.routes';
 import { evidenceRouter } from './routes/evidence.routes';
 import { documentRouter } from './routes/document.routes';
+import { knowledgeRouter } from './routes/knowledge.routes';
 import { nis2Router } from './routes/nis2.routes';
 import { nis2Service } from './services/nis2.service';
 import { phase6Router } from './routes/phase6.routes';
@@ -231,6 +233,7 @@ app.use('/api/v1/tickets', etag(), ticketRouter);
 // Organization & Admin
 app.use('/api/v1/organization', orgRouter);
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/navigation', navigationRouter);
 
 // Audit & Monitoring
 app.use('/api/v1/audit-logs', auditLogRouter);
@@ -250,6 +253,7 @@ app.use('/api/v1/imports', importRouter);
 app.use('/api/v1/frameworks', frameworkRouter);
 app.use('/api/v1/evidence', evidenceRouter);
 app.use('/api/v1/documents', documentRouter);
+app.use('/api/v1/knowledge', knowledgeRouter);
 app.use('/api/v1/nis2', nis2Router);
 app.use('/api/v1/phase6', phase6Router);
 app.use('/api/v1/isms-operations', phase6Router);

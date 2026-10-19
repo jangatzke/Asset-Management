@@ -161,6 +161,101 @@ export class SupplierService {
   }
 
   /**
+   * NIS2 Art. 21(2)(d) supply-chain overview: aggregates every active supplier with its
+   * linked contracts, supplier-related risks, latest assessment and review status so that
+   * supply-chain dependencies can be reviewed in one view.
+   */
+  async supplyChainOverview(query: AnyObject = {}): Promise<AnyObject> {
+    const where: AnyObject = { isArchived: false };
+    if (query.criticality) where.criticality = String(query.criticality);
+    if (query.nis2Relevant === 'true') where.nis2Relevant = true;
+    if (query.search) {
+      where.OR = [
+        { legalName: { contains: String(query.search), mode: 'insensitive' } },
+        { servicesProvided: { contains: String(query.search), mode: 'insensitive' } },
+      ];
+    }
+
+    const CRITICALITY_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+    const suppliers = await prisma.supplier.findMany({
+      where,
+      orderBy: [{ legalName: 'asc' }],
+      select: {
+        id: true, displayId: true, legalName: true, servicesProvided: true, criticality: true,
+        nis2Relevant: true, dataProtectionRelevant: true, status: true, exitStrategy: true,
+        nextReviewDate: true, assessmentScore: true, assessmentRating: true, certifications: true,
+      },
+    });
+
+    const supplierIds = suppliers.map((supplier) => supplier.id);
+    const [contractRelations, riskRelations, assessments] = await Promise.all([
+      prisma.supplierContractRelation.findMany({ where: { supplierId: { in: supplierIds } } }),
+      prisma.supplierRiskRelation.findMany({ where: { supplierId: { in: supplierIds } } }),
+      prisma.supplierAssessment.findMany({
+        where: { supplierId: { in: supplierIds } },
+        orderBy: { assessmentDate: 'desc' },
+        select: { supplierId: true, assessmentDate: true, rating: true, score: true, status: true },
+      }),
+    ]);
+
+    const [contracts, risks] = await Promise.all([
+      prisma.contract.findMany({
+        where: { id: { in: contractRelations.map((relation) => relation.contractId) } },
+        select: { id: true, displayId: true, title: true, contractType: true, renewalDate: true, endDate: true, status: true, isArchived: true },
+      }),
+      prisma.risk.findMany({
+        where: { id: { in: riskRelations.map((relation) => relation.riskId) } },
+        select: { id: true, displayId: true, title: true, residualRisk: true, status: true, isArchived: true },
+      }),
+    ]);
+
+    const contractsById = new Map(contracts.map((contract) => [contract.id, contract]));
+    const risksById = new Map(risks.map((risk) => [risk.id, risk]));
+    const latestAssessmentBySupplier = new Map<string, AnyObject>();
+    for (const assessment of assessments) {
+      if (!latestAssessmentBySupplier.has(assessment.supplierId)) {
+        latestAssessmentBySupplier.set(assessment.supplierId, assessment);
+      }
+    }
+
+    const now = new Date();
+    const items = suppliers.map((supplier) => {
+      const linkedContracts = contractRelations
+        .filter((relation) => relation.supplierId === supplier.id)
+        .map((relation) => contractsById.get(relation.contractId) as AnyObject | undefined)
+        .filter((contract): contract is AnyObject => Boolean(contract && !contract.isArchived));
+      const linkedRisks = riskRelations
+        .filter((relation) => relation.supplierId === supplier.id)
+        .map((relation) => risksById.get(relation.riskId) as AnyObject | undefined)
+        .filter((risk): risk is AnyObject => Boolean(risk && !risk.isArchived));
+      return {
+        ...supplier,
+        contracts: linkedContracts,
+        risks: linkedRisks,
+        contractCount: linkedContracts.length,
+        openRiskCount: linkedRisks.filter((risk) => risk.status !== 'closed' && risk.status !== 'treated').length,
+        latestAssessment: latestAssessmentBySupplier.get(supplier.id) ?? null,
+        reviewOverdue: supplier.nextReviewDate ? new Date(supplier.nextReviewDate) < now : false,
+        missingExitStrategy: !supplier.exitStrategy,
+      };
+    });
+
+    items.sort((a, b) => (CRITICALITY_RANK[String(b.criticality)] ?? 0) - (CRITICALITY_RANK[String(a.criticality)] ?? 0) || a.legalName.localeCompare(b.legalName));
+
+    return {
+      generatedAt: now.toISOString(),
+      summary: {
+        totalSuppliers: items.length,
+        nis2Relevant: items.filter((item) => item.nis2Relevant).length,
+        criticalHigh: items.filter((item) => item.criticality === 'high' || item.criticality === 'critical').length,
+        missingExitStrategy: items.filter((item) => item.missingExitStrategy).length,
+        reviewOverdue: items.filter((item) => item.reviewOverdue).length,
+      },
+      suppliers: items,
+    };
+  }
+
+  /**
    * Archive a supplier — validates no active assessments exist.
    */
   async archive(id: string, userId: string): Promise<AnyObject> {

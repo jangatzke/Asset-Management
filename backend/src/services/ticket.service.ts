@@ -33,7 +33,7 @@ const include = {
   linksTo: { include: { fromTicket: { select: { id: true, displayId: true, title: true, type: true, status: true } } } },
   incident: true,
   problem: true,
-  change: true,
+  change: { include: { riskLinks: { include: { risk: { select: { id: true, displayId: true, title: true, status: true } } } } } },
   serviceRequest: { include: { catalogItem: true } },
   escalations: { orderBy: { createdAt: 'desc' } },
   requester: { select: userSelect },
@@ -244,6 +244,121 @@ export class TicketService {
       await tx.ticket.update({ where: { id }, data: { type, status, resolvedAt: null, closedAt: null, closedBy: null, ...extension, updatedBy: actorId, version: { increment: 1 } } });
       await this.history(tx, id, 'TYPE_CHANGE', `Changed ticket type from ${ticket.type} to ${type}`, { type: { old: ticket.type, new: type }, status: { old: ticket.status, new: status } }, actorId);
       await this.audit(tx, actorId, 'TICKET_TYPE_CHANGE', id, `Ticket type ${ticket.type} → ${type}`);
+    });
+    return this.getById(id);
+  }
+
+  /**
+   * Edit the Problem extension (root cause / workaround / permanent fix).
+   * The generic update() deliberately excludes extension payloads, so this
+   * dedicated endpoint keeps ITIL problem-management data maintainable.
+   */
+  async updateProblem(id: string, data: Data, actorId: string) {
+    const ticket = await this.getById(id);
+    if (ticket.type !== 'problem') throw new AppError('Only problem tickets have a problem extension', 409);
+    const payload = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+    await prisma.$transaction(async (tx: any) => {
+      if (ticket.problem) await tx.problem.update({ where: { ticketId: id }, data: payload });
+      else await tx.problem.create({ data: { ticketId: id, ...payload } });
+      await this.history(tx, id, 'UPDATE', `Updated problem details of ${ticket.displayId}`, { fields: Object.keys(payload) }, actorId);
+      await this.audit(tx, actorId, 'TICKET_UPDATE', id, `Updated problem details of ${ticket.displayId}`);
+    });
+    return this.getById(id);
+  }
+
+  /** Edit the Change extension (change type, risk level, CAB, plans). */
+  async updateChange(id: string, data: Data, actorId: string) {
+    const ticket = await this.getById(id);
+    if (ticket.type !== 'change') throw new AppError('Only change tickets have a change extension', 409);
+    const payload = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+    await prisma.$transaction(async (tx: any) => {
+      if (payload.cabApprovedBy) {
+        const user = await tx.user.findUnique({ where: { id: payload.cabApprovedBy }, select: { id: true, isActive: true } });
+        if (!user) throw new AppError('cabApprovedBy references a user that does not exist', 400);
+        if (!user.isActive) throw new AppError('cabApprovedBy references an inactive user', 409);
+      }
+      if (ticket.change) await tx.change.update({ where: { ticketId: id }, data: payload });
+      else await tx.change.create({ data: { ticketId: id, ...payload } });
+      await this.history(tx, id, 'UPDATE', `Updated change details of ${ticket.displayId}`, { fields: Object.keys(payload) }, actorId);
+      await this.audit(tx, actorId, 'TICKET_UPDATE', id, `Updated change details of ${ticket.displayId}`);
+    });
+    return this.getById(id);
+  }
+
+  /**
+   * Guided Incident → Problem / Change conversion (ITIL: problems are derived
+   * from incidents; changes resolve incidents). changeType() refuses incidents,
+   * so this creates a NEW ticket of the target type, copies the shared context
+   * (title, description, urgency/impact, assets) and records the relationship
+   * via a TicketLink ('caused_by_problem' / 'resolved_by_change').
+   */
+  async convertFromIncident(id: string, targetType: 'problem' | 'change', title: string | undefined, actorId: string) {
+    const incident = await this.getById(id);
+    if (incident.type !== 'incident') throw new AppError('Only incident tickets can be converted through this flow', 409);
+    const status = INITIAL_TICKET_STATUS[targetType];
+    if (!status) throw new AppError('Unsupported ticket type', 400);
+    const config = await (prisma as any).ticketTypeConfig.findUnique({ where: { type: targetType } });
+    if (config && !config.enabled) throw new AppError('This ticket type is disabled', 409);
+    const priority = incident.priority;
+    const sla = (config?.slaPolicy as any)?.byPriority?.[priority] ?? DEFAULT_SLA_POLICY.byPriority[priority as keyof typeof DEFAULT_SLA_POLICY.byPriority];
+    const now = new Date();
+    const created = await prisma.$transaction(async (tx: any) => {
+      const ticket = await tx.ticket.create({
+        data: {
+          displayId: await nextDisplayId(tx, 'Ticket'), type: targetType,
+          title: title?.trim() || incident.title, description: incident.description,
+          status, priority, urgency: incident.urgency, impact: incident.impact,
+          requesterId: incident.requesterId, assigneeId: incident.assigneeId, managerId: incident.managerId,
+          firstResponseDueAt: sla && new Date(now.getTime() + sla.firstResponseHours * 3600000),
+          resolutionDueAt: sla && new Date(now.getTime() + sla.resolutionHours * 3600000),
+          slaTargetAt: sla && new Date(now.getTime() + sla.resolutionHours * 3600000),
+          createdBy: actorId, updatedBy: actorId,
+          assets: incident.assets?.length ? { create: incident.assets.map((link: any) => ({ assetId: link.assetId })) } : undefined,
+          ...(targetType === 'problem'
+            ? { problem: { create: { relatedIncidentIds: [id] } } }
+            : { change: { create: {} } }),
+        },
+      });
+      await tx.ticketLink.create({ data: { fromTicketId: id, toTicketId: ticket.id, linkType: targetType === 'problem' ? 'caused_by_problem' : 'resolved_by_change' } });
+      await this.history(tx, id, 'CONVERT', `Converted incident to ${targetType} ${ticket.displayId}`, { targetType, newTicketId: ticket.id }, actorId);
+      await this.history(tx, ticket.id, 'CREATE', `Created from incident ${incident.displayId}`, { sourceTicketId: id }, actorId);
+      await this.audit(tx, actorId, 'TICKET_CREATE', ticket.id, `Created ${targetType} ${ticket.displayId} from incident ${incident.displayId}`);
+      return ticket;
+    });
+    return this.getById(created.id);
+  }
+
+  /**
+   * Link a change ticket to a risk (ISO 27001 A.8.32: changes affecting the
+   * ISMS are assessed against the risk register). The link targets the Change
+   * extension row, mirroring how riskControls reference controls.
+   */
+  async linkRisk(id: string, riskId: string, actorId: string) {
+    const ticket = await this.getById(id);
+    if (ticket.type !== 'change') throw new AppError('Only change tickets can be linked to risks', 409);
+    if (!ticket.change) throw new AppError('Change extension is missing', 409);
+    const risk = await prisma.risk.findUnique({ where: { id: riskId }, select: { id: true, displayId: true, isArchived: true } });
+    if (!risk || risk.isArchived) throw new AppError('Risk not found', 404);
+    await prisma.$transaction(async (tx: any) => {
+      await tx.changeRiskLink.upsert({
+        where: { changeId_riskId: { changeId: ticket.change.id, riskId } },
+        create: { changeId: ticket.change.id, riskId },
+        update: {},
+      });
+      await this.history(tx, id, 'LINK', `Linked risk ${risk.displayId} to ${ticket.displayId}`, { riskId }, actorId);
+      await this.audit(tx, actorId, 'TICKET_LINK', id, `Linked risk ${risk.displayId}`);
+    });
+    return this.getById(id);
+  }
+
+  /** Remove a change-to-risk link. */
+  async unlinkRisk(id: string, riskId: string, actorId: string) {
+    const ticket = await this.getById(id);
+    if (ticket.type !== 'change' || !ticket.change) throw new AppError('Only change tickets have risk links', 409);
+    await prisma.$transaction(async (tx: any) => {
+      await tx.changeRiskLink.deleteMany({ where: { changeId: ticket.change.id, riskId } });
+      await this.history(tx, id, 'UNLINK', `Removed risk link from ${ticket.displayId}`, { riskId }, actorId);
+      await this.audit(tx, actorId, 'TICKET_LINK', id, 'Removed risk link');
     });
     return this.getById(id);
   }
@@ -461,7 +576,38 @@ export class TicketService {
     return { data, total };
   }
 
-  async listCatalog() { return (prisma as any).serviceCatalogItem.findMany({ where: { enabled: true }, orderBy: { name: 'asc' } }); }
+  async listCatalog(includeDisabled = false) {
+    return (prisma as any).serviceCatalogItem.findMany({
+      where: includeDisabled ? {} : { enabled: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createCatalogItem(data: Data, actorId: string) {
+    const existing = await (prisma as any).serviceCatalogItem.findUnique({ where: { code: data.code } });
+    if (existing) throw new AppError(`Service catalog item with code '${data.code}' already exists`, 409);
+    const item = await (prisma as any).serviceCatalogItem.create({ data });
+    await this.audit(prisma as any, actorId, 'SERVICE_CATALOG_CREATE', item.id, `Created service catalog item ${item.code}`);
+    return item;
+  }
+
+  async updateCatalogItem(id: string, data: Data, actorId: string) {
+    const existing = await (prisma as any).serviceCatalogItem.findUnique({ where: { id } });
+    if (!existing) throw new AppError('Service catalog item not found', 404);
+    const updated = await (prisma as any).serviceCatalogItem.update({ where: { id }, data });
+    await this.audit(prisma as any, actorId, 'SERVICE_CATALOG_UPDATE', id, `Updated service catalog item ${updated.code}`);
+    return updated;
+  }
+
+  async deleteCatalogItem(id: string, actorId: string) {
+    const existing = await (prisma as any).serviceCatalogItem.findUnique({ where: { id } });
+    if (!existing) throw new AppError('Service catalog item not found', 404);
+    // Soft-disable rather than hard-delete to preserve referential integrity with ServiceRequest links.
+    const updated = await (prisma as any).serviceCatalogItem.update({ where: { id }, data: { enabled: false } });
+    await this.audit(prisma as any, actorId, 'SERVICE_CATALOG_DISABLE', id, `Disabled service catalog item ${updated.code}`);
+    return updated;
+  }
+
   async listTypes() { return (prisma as any).ticketTypeConfig.findMany({ where: { enabled: true }, orderBy: { type: 'asc' } }); }
 
   async listTypeConfigs() {

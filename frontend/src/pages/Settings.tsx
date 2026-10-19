@@ -1,13 +1,20 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useAuthStore } from '../store/auth';
-import { authApi } from '../services/api';
+import { authApi, type NavigationViewResponse } from '../services/api';
+import NavigationOrderEditor, { type NavigationOrderEntry } from '../components/NavigationOrderEditor';
+import { NAVIGATION_CATALOG, applyNavigationOrder } from '@shared/navigation';
+import { useToast } from '../components/useToast';
+import { PlusIcon, StarIcon, TrashIcon } from '@heroicons/react/24/outline';
+
+const DEFAULT_SCOPE = '__default__';
 
 const Settings = () => {
   const { language, setLanguage, t } = useI18n();
   const { darkMode, toggleDarkMode } = useDarkMode();
-  const { user, checkAuth } = useAuthStore();
+  const { user, checkAuth, updateUserPreferences } = useAuthStore();
+  const { addToast } = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,6 +25,16 @@ const Settings = () => {
   const [mfaToken, setMfaToken] = useState('');
   const [mfaMessage, setMfaMessage] = useState<string | null>(null);
   const [mfaError, setMfaError] = useState<string | null>(null);
+  const [navEntries, setNavEntries] = useState<NavigationOrderEntry[]>([]);
+  const [navOrder, setNavOrder] = useState<string[]>([]);
+  const [navSavedOrder, setNavSavedOrder] = useState<string[]>([]);
+  const [navHidden, setNavHidden] = useState<string[]>([]);
+  const [navSavedHidden, setNavSavedHidden] = useState<string[]>([]);
+  const [navLoading, setNavLoading] = useState(true);
+  const [navSaving, setNavSaving] = useState(false);
+  const [navViews, setNavViews] = useState<NavigationViewResponse[]>([]);
+  const [navScope, setNavScope] = useState<string>(DEFAULT_SCOPE); // DEFAULT_SCOPE or a personal view id
+  const [newViewName, setNewViewName] = useState('');
 
   const beginMfaSetup = async () => {
     setMfaError(null);
@@ -80,6 +97,203 @@ const Settings = () => {
       setIsChangingPassword(false);
     }
   };
+
+  // Per-user override of the global top-navigation order. The effective order is
+  // personal ?? global default; saving an override stores it in the user's
+  // preferences, clearing it (null) falls back to the admin-defined default.
+  const isAdminUser = Boolean(user?.roles?.includes('system_admin'));
+  const canSeeEntry = useCallback((required?: string | string[]) => {
+    if (!required) return true;
+    if (!user?.permissions) return true;
+    const granted = new Set(user.permissions);
+    const requiredList = Array.isArray(required) ? required : [required];
+    return requiredList.some((permission) => granted.has(permission));
+  }, [user]);
+
+  const navCatalogEntries = useMemo<NavigationOrderEntry[]>(() => (
+    NAVIGATION_CATALOG
+      .filter((entry) => !entry.adminOnly || isAdminUser)
+      .filter((entry) => canSeeEntry(entry.permission))
+      .map((entry) => ({ href: entry.href, label: entry.nameKey ? t(entry.nameKey) : (entry.label ?? entry.href) }))
+  ), [t, isAdminUser, canSeeEntry]);
+
+  const catalogHrefs = useMemo(() => new Set(navCatalogEntries.map((entry) => entry.href)), [navCatalogEntries]);
+
+  const effectiveOrderFor = useCallback((stored: string[]) => applyNavigationOrder(
+    navCatalogEntries.map((entry) => ({ ...entry })),
+    stored.filter((href) => catalogHrefs.has(href)),
+  ).map((entry) => entry.href), [navCatalogEntries, catalogHrefs]);
+
+  // Loads the personal default scope: effective order and hidden entries come
+  // from the personal overrides (when present) otherwise from the global
+  // default configuration. Explicit null arguments force the global fallback.
+  const loadDefaultScope = useCallback(async (personalOverride?: string[] | null, personalHidden?: string[] | null) => {
+    const response = await authApi.getNavigationConfig();
+    const stored = Array.isArray(response.data?.navOrder) ? response.data.navOrder : [];
+    const globalHidden = Array.isArray(response.data?.hiddenEntries) ? response.data.hiddenEntries : [];
+    const personalRaw = personalOverride !== undefined ? personalOverride : user?.navigationOrder;
+    const personal = Array.isArray(personalRaw) && personalRaw.length > 0 ? personalRaw : null;
+    const effectiveOrder = effectiveOrderFor(personal ?? stored);
+    setNavOrder(effectiveOrder);
+    setNavSavedOrder(effectiveOrder);
+    const hiddenRaw = personalHidden !== undefined ? personalHidden : user?.hiddenNavigationEntries;
+    const effectiveHidden = (Array.isArray(hiddenRaw) ? hiddenRaw : globalHidden).filter((href) => catalogHrefs.has(href));
+    setNavHidden(effectiveHidden);
+    setNavSavedHidden(effectiveHidden);
+  }, [effectiveOrderFor, catalogHrefs, user?.navigationOrder, user?.hiddenNavigationEntries]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const viewsResponse = await authApi.getNavigationViews().catch(() => ({ data: [] as NavigationViewResponse[] }));
+        if (cancelled) return;
+        setNavViews(Array.isArray(viewsResponse.data) ? viewsResponse.data : []);
+        await loadDefaultScope();
+      } catch {
+        if (!cancelled) addToast('error', t('navigationOrder.loadError'));
+      } finally {
+        if (!cancelled) {
+          setNavEntries(navCatalogEntries);
+          setNavLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [navCatalogEntries, loadDefaultScope, addToast, t]);
+
+  const hasPersonalNavOverride = Array.isArray(user?.navigationOrder) && (user?.navigationOrder?.length ?? 0) > 0;
+  const hasPersonalHiddenOverride = Array.isArray(user?.hiddenNavigationEntries);
+  const navDirty = navOrder.join('|') !== navSavedOrder.join('|') || navHidden.join('|') !== navSavedHidden.join('|');
+
+  const selectNavScope = (nextScope: string) => {
+    if (navScope === nextScope) return;
+    if (nextScope === DEFAULT_SCOPE) {
+      setNavScope(DEFAULT_SCOPE);
+      void loadDefaultScope().catch(() => addToast('error', t('navigationOrder.loadError')));
+      return;
+    }
+    const view = navViews.find((entry) => entry.id === nextScope);
+    if (!view) return;
+    const effectiveOrder = effectiveOrderFor(view.navOrder);
+    setNavScope(nextScope);
+    setNavOrder(effectiveOrder);
+    setNavSavedOrder(effectiveOrder);
+    setNavHidden(view.hiddenEntries.filter((href) => catalogHrefs.has(href)));
+    setNavSavedHidden(view.hiddenEntries.filter((href) => catalogHrefs.has(href)));
+  };
+
+  const refreshNavViews = async () => {
+    try {
+      const response = await authApi.getNavigationViews();
+      setNavViews(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      // keep the previous list if a refresh fails
+    }
+  };
+
+  const saveNavOrder = async () => {
+    setNavSaving(true);
+    try {
+      if (navScope === DEFAULT_SCOPE) {
+        // Only send the fields that actually changed so hiding entries never
+        // creates an unwanted order override (and vice versa).
+        const orderChanged = navOrder.join('|') !== navSavedOrder.join('|');
+        const hiddenChanged = navHidden.join('|') !== navSavedHidden.join('|');
+        await authApi.updatePreferences({
+          ...(orderChanged ? { navigationOrder: navOrder } : {}),
+          ...(hiddenChanged ? { hiddenNavigationEntries: navHidden } : {}),
+        });
+        if (orderChanged) updateUserPreferences({ navigationOrder: navOrder });
+        if (hiddenChanged) updateUserPreferences({ hiddenNavigationEntries: navHidden });
+        setNavSavedOrder(navOrder);
+        setNavSavedHidden(navHidden);
+      } else {
+        await authApi.updateNavigationView(navScope, { navOrder, hiddenEntries: navHidden });
+        setNavSavedOrder(navOrder);
+        setNavSavedHidden(navHidden);
+        await refreshNavViews();
+      }
+      addToast('success', t('navigationOrder.saved'));
+    } catch {
+      addToast('error', t('navigationOrder.saveError'));
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const clearNavOverride = async () => {
+    setNavSaving(true);
+    try {
+      // Clears both personal overrides so the global defaults apply again.
+      await authApi.updatePreferences({ navigationOrder: null, hiddenNavigationEntries: null });
+      updateUserPreferences({ navigationOrder: null, hiddenNavigationEntries: null });
+      await loadDefaultScope(null, null);
+      addToast('success', t('navigationOrder.resetDone'));
+    } catch {
+      addToast('error', t('navigationOrder.saveError'));
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const createNavView = async () => {
+    const name = newViewName.trim();
+    if (!name) return;
+    setNavSaving(true);
+    try {
+      const created = await authApi.createNavigationView({
+        name,
+        navOrder,
+        hiddenEntries: navHidden,
+      });
+      setNewViewName('');
+      await refreshNavViews();
+      const effectiveOrder = effectiveOrderFor(created.data.navOrder);
+      setNavScope(created.data.id);
+      setNavOrder(effectiveOrder);
+      setNavSavedOrder(effectiveOrder);
+      setNavHidden(created.data.hiddenEntries.filter((href) => catalogHrefs.has(href)));
+      setNavSavedHidden(created.data.hiddenEntries.filter((href) => catalogHrefs.has(href)));
+      addToast('success', t('navViews.created'));
+    } catch {
+      addToast('error', t('navViews.saveError'));
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const setDefaultNavView = async () => {
+    if (navScope === DEFAULT_SCOPE) return;
+    setNavSaving(true);
+    try {
+      await authApi.setDefaultNavigationView(navScope);
+      await refreshNavViews();
+      addToast('success', t('navViews.defaultSet'));
+    } catch {
+      addToast('error', t('navViews.saveError'));
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const deleteNavView = async () => {
+    if (navScope === DEFAULT_SCOPE) return;
+    setNavSaving(true);
+    try {
+      await authApi.deleteNavigationView(navScope);
+      await refreshNavViews();
+      setNavScope(DEFAULT_SCOPE);
+      await loadDefaultScope();
+      addToast('success', t('navViews.deleted'));
+    } catch {
+      addToast('error', t('navViews.saveError'));
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const selectedNavView = navViews.find((view) => view.id === navScope);
 
   return (
     <div>
@@ -281,6 +495,121 @@ const Settings = () => {
                 {darkMode ? t('settings.darkMode') : t('settings.lightMode')}
               </span>
             </div>
+          </div>
+
+          {/* Navigation views (personal views + order/visibility editor) */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
+              {t('settings.navigationOrderTitle')}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+              {t('settings.navigationOrderDescription')}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <label htmlFor="settings-nav-view-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('navViews.scopeLabel')}
+              </label>
+              <select
+                id="settings-nav-view-select"
+                value={navScope}
+                onChange={(event) => selectNavScope(event.target.value)}
+                className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value={DEFAULT_SCOPE}>{t('navViews.defaultScope')}</option>
+                {navViews.map((view) => (
+                  <option key={view.id} value={view.id}>
+                    {view.name}{view.isDefault ? ` (${t('navViews.defaultBadge')})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {navScope === DEFAULT_SCOPE && (
+              <div className={`mb-4 inline-flex items-center px-2 py-1 rounded text-xs font-medium ${hasPersonalNavOverride || hasPersonalHiddenOverride ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                {hasPersonalNavOverride || hasPersonalHiddenOverride ? t('navigationOrder.overrideActive') : t('navigationOrder.usingGlobal')}
+              </div>
+            )}
+            {navLoading ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+            ) : (
+              <>
+                <NavigationOrderEditor
+                  entries={navEntries}
+                  value={navOrder}
+                  onChange={setNavOrder}
+                  disabled={navSaving}
+                  hidden={navHidden}
+                  onToggleHidden={(href) =>
+                    setNavHidden((current) => (current.includes(href) ? current.filter((entry) => entry !== href) : [...current, href]))
+                  }
+                />
+                <div className="flex flex-wrap items-center gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={saveNavOrder}
+                    disabled={!navDirty || navSaving}
+                    className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {navSaving ? t('common.saving') : t('common.save')}
+                  </button>
+                  {navScope === DEFAULT_SCOPE && (
+                    <button
+                      type="button"
+                      onClick={clearNavOverride}
+                      disabled={!(hasPersonalNavOverride || hasPersonalHiddenOverride) || navSaving}
+                      className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      {t('navigationOrder.useGlobal')}
+                    </button>
+                  )}
+                  {navDirty && <span className="text-xs text-amber-600 dark:text-amber-400">{t('navigationOrder.unsavedChanges')}</span>}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('navViews.personalTitle')}</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t('navViews.personalDescription')}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={newViewName}
+                      onChange={(event) => setNewViewName(event.target.value)}
+                      placeholder={t('navViews.newViewPlaceholder')}
+                      className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={createNavView}
+                      disabled={!newViewName.trim() || navSaving}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      {t('navViews.create')}
+                    </button>
+                    {navScope !== DEFAULT_SCOPE && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={setDefaultNavView}
+                          disabled={navSaving || selectedNavView?.isDefault}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          <StarIcon className="h-4 w-4" />
+                          {t('navViews.setDefault')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deleteNavView}
+                          disabled={navSaving}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-red-300 dark:border-red-700 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                          {t('navViews.delete')}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

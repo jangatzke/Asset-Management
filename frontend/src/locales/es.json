@@ -246,6 +246,7 @@
     "effectivenessLabel": "eficacia:",
     "evidence": "Evidencia",
     "evidenceNotVisible": "La evidencia ya no está visible",
+    "exportKit": "Exportar kit de auditoría",
     "findingDescription": "Descripción del hallazgo",
     "findingOwner": "Responsable del hallazgo",
     "findingTitle": "Título del hallazgo",
@@ -508,6 +509,28 @@
     "selectCatalog": "Seleccionar catálogo",
     "selectVersion": "Seleccionar versión",
     "showLinkedRisks": "Mostrar riesgos vinculados ({count})",
+    "soaDiff": {
+      "changeColumn": "Cambio",
+      "compareButton": "Comparar versiones",
+      "comparing": "Comparando…",
+      "controlColumn": "Control",
+      "description": "Compara dos declaraciones de aplicabilidad del mismo alcance y marco punto por punto (aplicabilidad, justificación, estado de implementación).",
+      "error": "No se pudo realizar la comparación de las declaraciones de aplicabilidad",
+      "fieldApplicability": "Aplicabilidad",
+      "fieldImplementationStatus": "Estado de implementación",
+      "fieldJustification": "Justificación",
+      "fromLabel": "Versión anterior",
+      "fromPlaceholder": "Seleccionar versión base",
+      "noChanges": "No hay diferencias entre las dos versiones.",
+      "notComparable": "Las dos versiones de la DoA no pertenecen al mismo alcance y versión de marco; la comparación es limitada.",
+      "sectionAdded": "Añadido",
+      "sectionChanged": "Modificado",
+      "sectionRemoved": "Eliminado",
+      "summary": "{added} añadidos, {removed} eliminados, {changed} modificados, {unchanged} sin cambios",
+      "title": "Comparar versiones (diff)",
+      "toLabel": "Versión nueva",
+      "toPlaceholder": "Seleccionar versión destino"
+    },
     "soaGenerator": {
       "description": "Crea un nuevo borrador editable que contiene los 93 controles del Anexo A. La aplicabilidad se establece intencionadamente en revisión; complete la decisión y justificación específicas del ámbito para cada elemento antes de enviar.",
       "exportCsv": "Exportar CSV",
@@ -535,6 +558,40 @@
       "effectiveTested": "eficaz/probado",
       "notVerified": "implementado, no verificado"
     }
+  },
+  "controlCoverage": {
+    "title": "Cobertura de controles",
+    "description": "Controles ISO 27001 por elemento de configuración: qué activos están cubiertos por controles activos y dónde existen brechas.",
+    "loadError": "No se pudo cargar la matriz de cobertura",
+    "searchLabel": "Búsqueda",
+    "searchPlaceholder": "Nombre o ID visible del activo",
+    "empty": "No se encontraron activos para los filtros actuales.",
+    "summaryLabel": "Resumen de cobertura",
+    "summary": {
+      "total": "Activos totales",
+      "covered": "Cubiertos por controles",
+      "uncovered": "Sin controles",
+      "criticalUncovered": "Críticos sin controles"
+    },
+    "filters": {
+      "uncoveredOnly": "Solo activos no cubiertos"
+    },
+    "columns": {
+      "asset": "Activo",
+      "coverage": "Controles",
+      "effective": "Implementados de forma eficaz"
+    },
+    "fields": {
+      "criticality": "Criticidad",
+      "complianceRelevance": "Relevancia de cumplimiento",
+      "dataProtection": "Relevancia de protección de datos"
+    },
+    "sections": {
+      "controls": "Controles asignados"
+    },
+    "noControls": "Ningún control activo está asignado a este activo: brecha de cobertura.",
+    "uncoveredBadge": "no cubierto",
+    "openAsset": "Abrir activo"
   },
   "costPlanning": {
     "acquired": "Adquirido",
@@ -1162,6 +1219,75 @@
     "saveError": "No se pudo guardar.",
     "title": "Espacio de trabajo de proceso ISMS"
   },
+  "kri": {
+    "title": "Indicadores clave de riesgo (KRI)",
+    "description": "Supervise los indicadores del SGSI según la cláusula 9.1 de ISO 27001. Los umbrales se evalúan frente a los últimos valores medidos.",
+    "typeLabel": "Tipo de indicador",
+    "types": {
+      "KRI": "Indicadores clave de riesgo (KRI)",
+      "KPI": "Indicadores clave de rendimiento (KPI)",
+      "KCI": "Indicadores clave de capacidad (KCI)"
+    },
+    "refresh": "Actualizar",
+    "manageMetrics": "Gestionar indicadores",
+    "loadError": "No se pudieron cargar los indicadores.",
+    "loading": "Cargando…",
+    "noIndicators": "No hay indicadores activos de este tipo definidos.",
+    "summaryLabel": "Resumen",
+    "status": {
+      "critical": "Crítico",
+      "warning": "Advertencia",
+      "none": "Dentro de límites",
+      "noData": "Sin datos"
+    },
+    "columns": {
+      "name": "Indicador",
+      "latest": "Último valor",
+      "thresholds": "Umbrales",
+      "trend": "Tendencia",
+      "history": "Histórico",
+      "measuredAt": "Medido el"
+    },
+    "trend": {
+      "up": "Ascendente",
+      "down": "Descendente",
+      "stable": "Estable",
+      "none": "Sin tendencia"
+    }
+  },
+  "knowledge": {
+    "title": "Base de conocimiento",
+    "newArticle": "Nuevo artículo",
+    "editArticle": "Editar artículo",
+    "searchPlaceholder": "Buscar títulos, contenido o etiquetas...",
+    "empty": "No se encontraron artículos.",
+    "saved": "Artículo guardado.",
+    "archived": "Artículo archivado.",
+    "loadError": "No se pudieron cargar los artículos.",
+    "saveError": "Error al guardar.",
+    "viewCount": "{count} visitas",
+    "tagsPlaceholder": "etiqueta1, etiqueta2",
+    "categories": {
+      "general": "General",
+      "incident": "Incidentes",
+      "risk": "Riesgos",
+      "control": "Controles",
+      "supplier": "Proveedores",
+      "nis2": "NIS2",
+      "service": "Servicios"
+    },
+    "statuses": {
+      "draft": "Borrador",
+      "published": "Publicado",
+      "archived": "Archivado"
+    },
+    "fields": {
+      "category": "Categoría",
+      "summary": "Resumen",
+      "content": "Contenido",
+      "tags": "Etiquetas"
+    }
+  },
   "licenses": {
     "basis": {
       "device": "Dispositivo",
@@ -1227,6 +1353,7 @@
     "authSettings": "Autenticación",
     "contracts": "Contratos",
     "controls": "Controles",
+    "controlCoverage": "Cobertura de controles",
     "costPlanning": "Planificación de costes",
     "dashboard": "Panel de control",
     "databaseBackup": "Copia de seguridad de la base de datos",
@@ -1235,11 +1362,14 @@
     "incidents": "Incidentes",
     "ismsOperations": "Operaciones ISMS",
     "ismsProcessWorkspace": "Proceso ISMS",
+    "kriDashboard": "Panel KRI",
+    "knowledgeBase": "Base de conocimiento",
     "licenses": "Licencias",
     "logout": "Cerrar sesión",
     "mainNavigation": "Navegación principal",
     "mobileNavigation": "Navegación móvil",
     "moreNavigation": "Más",
+    "navigationOrder": "Orden de navegación",
     "oidcConfig": "Configuración OIDC",
     "organizationUnits": "Unidades organizativas",
     "processes": "Procesos",
@@ -1248,13 +1378,59 @@
     "riskAggregation": "Agregación de riesgos",
     "risks": "Riesgos",
     "roleManagement": "Gestión de roles",
+    "serviceCatalog": "Catálogo de servicios",
     "settings": "Ajustes",
+    "supplyChain": "Visión general de proveedores",
     "ticketSlaSettings": "SLA de tickets",
     "tickets": "Tickets",
     "toggleMenu": "Alternar menú de navegación",
     "userManagement": "Gestión de usuarios",
     "userMenu": "Menú de usuario",
+    "views": {
+      "default": "Vista predeterminada",
+      "globalBadge": "Global",
+      "switchFailed": "No se pudo cambiar la vista",
+      "switchTooltip": "Cambiar vista"
+    },
     "vmwareConfig": "VMware vCenter"
+  },
+  "navigationOrder": {
+    "description": "Defina el orden predeterminado global de los elementos del menú. Los elementos situados más arriba aparecen primero en el menú principal; solo cuando no hay espacio suficiente, los elementos del final se mueven al menú desplegable «Más».",
+    "hide": "Ocultar",
+    "hideEntry": "Ocultar {name}",
+    "hint": "El orden determina qué elementos del menú son visibles directamente y cuáles son accesibles mediante el menú desplegable «Más». Los usuarios pueden personalizar este orden en su configuración personal.",
+    "listLabel": "Orden de los elementos del menú",
+    "loadError": "No se pudo cargar la navegación",
+    "moveDown": "Mover {name} hacia abajo",
+    "moveUp": "Mover {name} hacia arriba",
+    "overrideActive": "Orden personal activo",
+    "reset": "Restaurar predeterminado",
+    "resetDone": "Orden predeterminado restaurado",
+    "saveError": "Error al guardar la navegación",
+    "saved": "Orden guardado",
+    "show": "Mostrar",
+    "showEntry": "Mostrar {name}",
+    "title": "Orden de navegación",
+    "unsavedChanges": "Cambios sin guardar",
+    "useGlobal": "Usar valor global",
+    "usingGlobal": "Se usa el orden predeterminado global"
+  },
+  "navViews": {
+    "create": "Guardar vista",
+    "created": "Vista creada",
+    "defaultBadge": "Predeterminada",
+    "defaultScope": "Predeterminada (sin vista)",
+    "defaultSet": "Establecida como vista predeterminada",
+    "delete": "Eliminar",
+    "deleted": "Vista eliminada",
+    "globalDescription": "Las vistas globales están disponibles para todos los usuarios. La vista marcada como predeterminada se utiliza mientras el usuario no realice una selección propia activa.",
+    "globalTitle": "Vistas globales",
+    "newViewPlaceholder": "Nombre de la nueva vista",
+    "personalDescription": "Las vistas personales solo son visibles para usted. La vista marcada como predeterminada se usa automáticamente salvo que cambie de vista manualmente.",
+    "personalTitle": "Vistas personales",
+    "saveError": "Error al guardar la vista",
+    "scopeLabel": "Vista a editar",
+    "setDefault": "Establecer como predeterminada"
   },
   "nis2": {
     "answersFillableOncePresent": "Las respuestas son rellenables una vez que se selecciona o carga una versión de cuestionario.",
@@ -1312,6 +1488,7 @@
       "criticalService": "Presta un servicio esencial o importante",
       "crossBorderService": "Presta servicios transfronterizos",
       "employeeCount": "Número de empleados",
+      "jurisdiction": "Modelo jurídico para la evaluación de umbrales",
       "sector": "Sector"
     },
     "recordChange": "Registrar cambio",
@@ -1341,7 +1518,13 @@
     "enableLocalLogin": "Activar inicio de sesión local",
     "enableOidc": "Activar autenticación OIDC",
     "enableOidcDescription": "Activar o desactivar la autenticación OIDC",
+    "issuerUrl": "URL del emisor (OpenID Connect)",
+    "issuerUrlDescription": "URL base del proveedor OIDC donde se puede acceder a .well-known/openid-configuration (p. ej. Authentik o Keycloak).",
     "noConfig": "No se encontró configuración OIDC",
+    "provider": "Tipo de proveedor",
+    "providerAuthentik": "Authentik",
+    "providerEntra": "Microsoft Entra ID",
+    "providerGeneric": "Otro proveedor OIDC (genérico)",
     "providerSettings": "Ajustes del proveedor",
     "redirectUri": "URI de redirección",
     "saved": "Configuración guardada correctamente",
@@ -1850,6 +2033,34 @@
     },
     "title": "Requisitos de seguridad"
   },
+  "serviceCatalog": {
+    "adminMode": "Gestionar catálogo",
+    "availableServices": "Servicios disponibles",
+    "browseMode": "Solicitar servicios",
+    "code": "Código",
+    "createItem": "Crear servicio",
+    "disable": "Desactivar",
+    "disabled": "Desactivado",
+    "editItem": "Editar servicio",
+    "enabled": "Activo",
+    "itemDisabled": "Servicio desactivado.",
+    "itemSaved": "Servicio guardado.",
+    "loadError": "No se pudo cargar el catálogo de servicios.",
+    "manageItems": "Gestionar catálogo de servicios",
+    "name": "Nombre",
+    "newItem": "Nuevo servicio",
+    "noItems": "No hay servicios en el catálogo.",
+    "order": "Solicitar",
+    "orderCreated": "La solicitud de servicio se creó como ticket.",
+    "orderError": "No se pudo crear la solicitud de servicio.",
+    "orderTitle": "Solicitar servicio",
+    "saveError": "Error al guardar.",
+    "slaHours": "SLA (horas)",
+    "submitOrder": "Crear solicitud",
+    "ticketType": "Tipo de ticket",
+    "title": "Catálogo de servicios",
+    "urgency": "Urgencia"
+  },
   "settings": {
     "accountInfo": "Información de la cuenta",
     "accountType": "Tipo de cuenta",
@@ -1872,6 +2083,8 @@
     "mfaTitle": "Autenticación multifactor",
     "mustChangeTemporaryPassword": "Debe cambiar su contraseña temporal antes de continuar.",
     "name": "Nombre",
+    "navigationOrderDescription": "Personalice el orden de los elementos del menú para su cuenta. Sin una configuración personal, se aplica el valor global definido por la administración.",
+    "navigationOrderTitle": "Orden de navegación",
     "newPassword": "Nueva contraseña",
     "oidcLinked": "Vinculado a OIDC",
     "passwordRequirements": "Mínimo 12 caracteres con mayúsculas, minúsculas, dígito y carácter especial.",
@@ -1933,6 +2146,49 @@
     "useImplicitTLS": "Usar TLS implícito",
     "validateTLS": "Validar certificado TLS",
     "via": "Enviado vía"
+  },
+  "supplyChain": {
+    "title": "Visión general de proveedores",
+    "description": "NIS2 Art. 21(2)(d): dependencias de la cadena de suministro, riesgos y estrategias de salida de un vistazo.",
+    "loadError": "No se pudo cargar la visión general de proveedores.",
+    "searchLabel": "Buscar",
+    "searchPlaceholder": "Buscar nombre o servicio...",
+    "empty": "No se encontraron proveedores.",
+    "summaryLabel": "Métricas resumen",
+    "summary": {
+      "total": "Total de proveedores",
+      "nis2Relevant": "Relevante para NIS2",
+      "criticalHigh": "Alto/crítico",
+      "missingExitStrategy": "Sin estrategia de salida",
+      "reviewOverdue": "Revisión vencida"
+    },
+    "filters": {
+      "nis2Only": "Solo relevantes para NIS2"
+    },
+    "columns": {
+      "supplier": "Proveedor",
+      "contracts": "Contratos",
+      "openRisks": "Riesgos abiertos",
+      "latestAssessment": "Última evaluación",
+      "nextReview": "Próxima revisión"
+    },
+    "fields": {
+      "criticality": "Criticidad",
+      "exitStrategy": "Estrategia de salida",
+      "dataProtection": "Relevante para protección de datos"
+    },
+    "sections": {
+      "contracts": "Contratos",
+      "risks": "Riesgos"
+    },
+    "noContracts": "Sin contratos vinculados.",
+    "noRisks": "Sin riesgos vinculados.",
+    "noAssessment": "Sin evaluación",
+    "noServices": "Sin servicios registrados",
+    "missingExitStrategy": "Falta la estrategia de salida",
+    "nis2Badge": "Relevante para NIS2",
+    "renewsOn": "Se renueva el",
+    "openSupplier": "Abrir proveedor"
   },
   "suppliers": {
     "assessment": "Evaluación",
@@ -2010,15 +2266,28 @@
       "attachAssets": "Adjuntar activo(s)",
       "attachError": "No se pudo adjuntar el activo.",
       "by": "por",
+      "cabApprovedField": "Aprobado por CAB",
+      "changeDetailsTitle": "Datos del cambio (gestión de cambios)",
+      "changeTypeField": "Tipo de cambio",
+      "changeTypes": {
+        "standard": "Estándar",
+        "normal": "Normal",
+        "emergency": "Urgente"
+      },
       "closeError": "No se pudo cerrar el ticket.",
       "closeTicket": "Cerrar ticket",
       "closurePrompt": "Resumen de cierre (obligatorio para el registro de auditoría):",
       "commentError": "No se pudo añadir el comentario.",
       "commentsTitle": "Comentarios y notas de trabajo",
+      "convertConfirm": "¿Crear un ticket derivado a partir de este incidente y vincularlo automáticamente?",
+      "convertError": "La conversión falló.",
+      "convertToChange": "Derivar como cambio",
+      "convertToProblem": "Derivar como problema",
       "detach": "Desvincular",
       "detachError": "No se pudo desvincular el activo.",
       "estimatedEffort": "Esfuerzo (×15 min.)",
       "estimatedEffortHint": "Esfuerzo estimado en unidades de trabajo de 15 minutos cada una.",
+      "extensionSaveError": "No se pudieron guardar los datos de la extensión.",
       "historyButton": "Historial",
       "historyTitle": "Historial auditable del ticket",
       "internalWorkNote": "Nota de trabajo interna",
@@ -2031,7 +2300,17 @@
       "noHistory": "No hay entradas de historial.",
       "noManufacturer": "Sin fabricante",
       "notConfigured": "No configurado",
+      "implementationPlanLabel": "Plan de implementación",
+      "linkRisk": "Vincular riesgo",
+      "noRiskLinks": "Sin riesgos vinculados.",
+      "permanentFixLabel": "Solución permanente",
+      "problemDetailsTitle": "Datos del problema (análisis de causa raíz)",
       "priority": "Prioridad",
+      "riskLevelField": "Evaluación de riesgos del cambio",
+      "riskLinksTitle": "Riesgos vinculados (ISO 27001 A.8.32)",
+      "rollbackPlanLabel": "Plan de reversión",
+      "rootCauseLabel": "Causa raíz",
+      "saveExtension": "Guardar",
       "reopenTicket": "Reabrir ticket",
       "requesterComment": "Comentario visible para el solicitante",
       "requesterCommentPlaceholder": "Añada un comentario como solicitante…",
@@ -2043,7 +2322,9 @@
       "typeError": "No se pudo cambiar el tipo de ticket.",
       "unassign": "Quitar asignación",
       "unassigned": "Sin asignar",
-      "updatePlaceholder": "Registre una actualización."
+      "unlinkRisk": "Eliminar",
+      "updatePlaceholder": "Registre una actualización.",
+      "workaroundLabel": "Solución provisional"
     },
     "empty": "No se encontraron tickets.",
     "emptyAction": "Crear nuevo ticket",

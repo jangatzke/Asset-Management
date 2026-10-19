@@ -195,16 +195,65 @@ export class Phase6Service {
     const metric = await (prisma as any).metricDefinition.findUnique({ where: { id: metricId } });
     const value = Number(rawValue);
     const thresholds = (metric?.thresholds ?? {}) as AnyObject;
+    const { breachStatus, breaches } = this.evaluateThresholds(thresholds, value);
+    const previous = await (prisma as any).metricValue.findFirst({ where: { metricId }, orderBy: { measuredAt: 'desc' } });
+    const prev = previous ? Number(previous.value) : undefined;
+    const trend = prev === undefined ? 'none' : value > prev ? 'up' : value < prev ? 'down' : 'stable';
+    return { breachStatus, breachDetails: { breaches, thresholds, value }, trend };
+  }
+
+  private evaluateThresholds(thresholds: AnyObject, value: number): { breachStatus: string; breaches: string[] } {
     let breachStatus = 'none';
     const breaches: string[] = [];
     if (thresholds.warningMax !== undefined && value > Number(thresholds.warningMax)) { breachStatus = 'warning'; breaches.push('warningMax'); }
     if (thresholds.criticalMax !== undefined && value > Number(thresholds.criticalMax)) { breachStatus = 'critical'; breaches.push('criticalMax'); }
     if (thresholds.warningMin !== undefined && value < Number(thresholds.warningMin)) { breachStatus = breachStatus === 'critical' ? 'critical' : 'warning'; breaches.push('warningMin'); }
     if (thresholds.criticalMin !== undefined && value < Number(thresholds.criticalMin)) { breachStatus = 'critical'; breaches.push('criticalMin'); }
-    const previous = await (prisma as any).metricValue.findFirst({ where: { metricId }, orderBy: { measuredAt: 'desc' } });
-    const prev = previous ? Number(previous.value) : undefined;
-    const trend = prev === undefined ? 'none' : value > prev ? 'up' : value < prev ? 'down' : 'stable';
-    return { breachStatus, breachDetails: { breaches, thresholds, value }, trend };
+    return { breachStatus, breaches };
+  }
+
+  /**
+   * KRI/KPI dashboard aggregation (ISO 27001 Clause 9.1 measurement, NIS2 KPI
+   * reporting). Recomputes the threshold evaluation for the latest stored value
+   * so edits to thresholds are reflected immediately, and derives the trend from
+   * the two most recent measurements.
+   */
+  async kriBoard(metricType = 'KRI') {
+    const allowedTypes = ['KPI', 'KRI', 'KCI'];
+    const type = allowedTypes.includes(String(metricType)) ? String(metricType) : 'KRI';
+    const definitions = await (prisma as any).metricDefinition.findMany({ where: { metricType: type, status: 'active' }, orderBy: { name: 'asc' } });
+    const rows = await Promise.all(definitions.map(async (definition: AnyObject) => {
+      const values = await (prisma as any).metricValue.findMany({ where: { metricId: definition.id }, orderBy: { measuredAt: 'desc' }, take: 30 });
+      const thresholds = (definition.thresholds ?? {}) as AnyObject;
+      const latest = values[0];
+      const latestValue = latest === undefined ? undefined : Number(latest.value);
+      const previous = values[1] === undefined ? undefined : Number(values[1].value);
+      const evaluation = latestValue === undefined ? { breachStatus: 'none', breaches: [] as string[] } : this.evaluateThresholds(thresholds, latestValue);
+      const trend = latestValue === undefined || previous === undefined ? 'none' : latestValue > previous ? 'up' : latestValue < previous ? 'down' : 'stable';
+      return {
+        id: definition.id,
+        displayId: definition.displayId,
+        name: definition.name,
+        metricType: definition.metricType,
+        unit: definition.unit ?? null,
+        aggregation: definition.aggregation,
+        thresholds,
+        objectiveId: definition.objectiveId ?? null,
+        breachStatus: evaluation.breachStatus,
+        breaches: evaluation.breaches,
+        trend,
+        latestValue: latest === undefined ? null : { id: latest.id, value: latestValue, measuredAt: latest.measuredAt, source: latest.source ?? null },
+        sparkline: values.map((row: AnyObject) => ({ measuredAt: row.measuredAt, value: Number(row.value) })).reverse(),
+      };
+    }));
+    const summary = { critical: 0, warning: 0, none: 0, noData: 0 };
+    for (const row of rows) {
+      if (!row.latestValue) summary.noData += 1;
+      else if (row.breachStatus === 'critical') summary.critical += 1;
+      else if (row.breachStatus === 'warning') summary.warning += 1;
+      else summary.none += 1;
+    }
+    return { metricType: type, generatedAt: new Date().toISOString(), summary, items: rows };
   }
 }
 

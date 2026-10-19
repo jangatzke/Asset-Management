@@ -25,6 +25,20 @@ export interface ReminderConfigUpdate {
 const PASSWORD_PLACEHOLDERS = new Set(['', '********', '••••••••', '__KEEP_EXISTING__']);
 const CLOSED_STATUSES = ['completed', 'closed', 'cancelled', 'approved'];
 
+/** Synthetic reminder resource handled outside PHASE6_MODEL_MAP (Nis2Registration is not a Phase 6 entity). */
+export const NIS2_REGISTRATION_REMINDER_RESOURCE = 'nis2Registration';
+/** NIS2 registrations must be re-checked at least annually against the current situation (§10 BSIG update duty). */
+const NIS2_REVIEW_INTERVAL_MS = 365 * 24 * 60 * 60 * 1000;
+/**
+ * Derived review deadline for an NIS2 registration: one year after the last recorded
+ * review, or the registration deadline while no review has been performed yet.
+ */
+export function nis2RegistrationReviewDueDate(record: AnyObject): Date | null {
+  if (record.lastReviewDate) return new Date(new Date(record.lastReviewDate).getTime() + NIS2_REVIEW_INTERVAL_MS);
+  if (record.deadline) return new Date(record.deadline);
+  return null;
+}
+
 export class ReminderService {
   private sanitizeConfig(config: AnyObject | null) {
     if (!config) return null;
@@ -121,6 +135,7 @@ export class ReminderService {
   }
 
   async collectDueItems(resource: string, lookAheadDays = 0) {
+    if (resource === NIS2_REGISTRATION_REMINDER_RESOURCE) return this.collectNis2RegistrationDueItems(lookAheadDays);
     const config = PHASE6_MODEL_MAP[resource];
     if (!config) throw new AppError(`Unsupported Phase 6 resource: ${resource}`, 404);
     if (!config.dueField) throw new AppError('Resource has no due-date field', 400);
@@ -138,6 +153,32 @@ export class ReminderService {
       ownerId: this.getRecipientId(item),
       escalation: new Date(item[config.dueField!]).getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000,
     }));
+  }
+
+  /**
+   * NIS2 registration review rule: an active, non-archived registration is due for a
+   * periodic review one year after its lastReviewDate, or by its registration deadline
+   * when no review has been recorded yet. The derived date cannot be pushed into a
+   * Prisma where-clause, so candidates are filtered in memory.
+   */
+  private async collectNis2RegistrationDueItems(lookAheadDays: number) {
+    const dueLimit = new Date(Date.now() + lookAheadDays * 24 * 60 * 60 * 1000);
+    const rows = await (prisma as any).nis2Registration.findMany({
+      where: { isArchived: false, status: { notIn: CLOSED_STATUSES } },
+    });
+    return rows
+      .map((item: AnyObject) => ({ dueDate: nis2RegistrationReviewDueDate(item), item }))
+      .filter((entry: { dueDate: Date | null }) => entry.dueDate && entry.dueDate.getTime() <= dueLimit.getTime())
+      .sort((a: { dueDate: Date }, b: { dueDate: Date }) => a.dueDate.getTime() - b.dueDate.getTime())
+      .map(({ item, dueDate }: { item: AnyObject; dueDate: Date }) => ({
+        resource: NIS2_REGISTRATION_REMINDER_RESOURCE,
+        entityType: 'Nis2Registration',
+        id: item.id,
+        title: this.getTitle(item),
+        dueDate,
+        ownerId: this.getRecipientId(item),
+        escalation: dueDate.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000,
+      }));
   }
 
   async runForResource(resource: string, userId = 'system', options: { sendEmail?: boolean; lookAheadDays?: number } = {}) {
@@ -185,7 +226,7 @@ export class ReminderService {
 
   async runAllDue(userId = 'system') {
     const config = await this.ensureConfig();
-    const resources = Object.entries(PHASE6_MODEL_MAP).filter(([, value]) => value.dueField).map(([key]) => key);
+    const resources = [...Object.entries(PHASE6_MODEL_MAP).filter(([, value]) => value.dueField).map(([key]) => key), NIS2_REGISTRATION_REMINDER_RESOURCE];
     let total = 0; let sent = 0; let skipped = 0; let failed = 0;
     const results = [];
     for (const resource of resources) {

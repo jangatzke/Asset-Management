@@ -45,23 +45,25 @@ Die Methode [`generateIso27001AnnexASOA(scopeId, createdBy)`](backend/src/servic
 
 **Empfehlung:** Keine Änderungen erforderlich.
 
-### 2.3 Vorschlag #3 — NIS2 Self-Assessment mit Schwellenwerten ✅ IMPLEMENTIERT
+### 2.3 Vorschlag #3 — NIS2 Self-Assessment mit Schwellenwerten ✅ IMPLEMENTIERT (rechtlich präzisiert)
 
 [`nis2.service.ts`](backend/src/services/nis2.service.ts) enthält:
 - `NIS2_SECTORS`: alle Sektoren des NIS2-Umsetzungsgesetzes
-- `NIS2_APPLICABILITY_QUESTIONNAIRE`: Fragebogen mit Sektor, Beschäftigtenzahl, Jahresumsatz, Bilanzsumme
-- `NIS2_SCORING_RULES`: bwE (≥250 MA ODER (≥50 Mio. € UND ≥43 Mio. €)) und wE (≥50 MA ODER (≥10 Mio. € UND ≥10 Mio. €))
-- `evaluateApplicability()`: serverseitige Klassifizierung in `essential_entity` / `important_entity` / `not_applicable`
+- `NIS2_APPLICABILITY_QUESTIONNAIRE`: Fragebogen mit Sektor, Beschäftigtenzahl, Jahresumsatz, Bilanzsumme und Rechtsmodell-Selector (`jurisdiction`: EU-Modell vs. Deutschland)
+- `NIS2_SCORING_RULES`: bwE (≥250 MA ODER (>50 Mio. € UND >43 Mio. €)) und wE (≥50 MA ODER (>10 Mio. € UND >10 Mio. €)) — finanziell streng „über", wie es Art. 2 Abs. 1 i.V.m. Empfehlung 2003/361/EG sowie § 28 Abs. 1 Nr. 4 / Abs. 2 Nr. 3 BSIG vorgeben; Mitarbeiterzahl „mindestens" (≥)
+- `evaluateApplicability()`: serverseitige Klassifizierung in `essential_entity` / `important_entity` / `not_in_scope`; im DE-Modell (`jurisdiction: "de"`) werden Finanzschwellen streng `>` geprüft (§ 28 BSIG), Mitarbeiterzahl bleibt `≥`
 
-**Empfehlung:** Keine Änderungen erforderlich.
+Hinweis zur Recherche: § 29 BSIG regelt nur Einrichtungen der Bundesverwaltung; die Schwellenwerte stehen in § 28 BSIG. Die Telekommunikations-Sonderregel (§ 28 Abs. 1 Nr. 3 BSIG) wird über Sektor-/criticalService-Angaben abgebildet.
 
-### 2.4 Vorschlag #4 — NIS2 Incident-Reporting (24h-Meldung) ✅ IMPLEMENTIERT
+**Empfehlung:** Keine weiteren Änderungen erforderlich.
 
-[`incident.service.ts`](backend/src/services/incident.service.ts) implementiert den vollständigen NIS2-Meldeworkflow:
-- `markNis2Relevant()`: setzt `nis2Relevant=true`, berechnet `nis2ReportDeadline` (24h) und `nis2FinalReportDue` (30 Tage)
-- `submitNis2EarlyWarning()`: Frühwarnung
-- `submitNis2Notification()`: formelle Meldung (24h)
-- `submitNis2FinalReport()`: abschließender Bericht (30 Tage)
+### 2.4 Vorschlag #4 — NIS2 Incident-Reporting (Art. 23 dreistufig) ✅ IMPLEMENTIERT
+
+[`incident.service.ts`](backend/src/services/incident.service.ts) implementiert den vollständigen NIS2-Meldeworkflow nach Art. 23 NIS-2-Richtlinie (Fristen ab Zeitpunkt der Kenntnis des Vorfalls):
+- `markNis2Relevant()`: setzt `nis2Relevant=true`, berechnet `nis2ReportDeadline` (24 h Frühwarnfrist) und `nis2FinalReportDue` (1 Monat Abschlussbericht)
+- `submitNis2EarlyWarning()`: Frühwarnung innerhalb von 24 Stunden
+- `submitNis2Notification()`: formelle Meldung innerhalb von 72 Stunden
+- `submitNis2FinalReport()`: abschließender Bericht innerhalb eines Monats
 - `getNis2ReportingStatus()`: Statusberechnung mit Überfälligkeits-Flag
 
 Das Incident-Modell enthält die Felder `nis2Relevant`, `nis2Severity`, `nis2ReportDeadline`, `nis2FinalReportDue`, `nis2ReportedAt`.

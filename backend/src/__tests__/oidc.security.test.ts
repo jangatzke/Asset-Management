@@ -214,6 +214,32 @@ describe('OidcService Phase 4 security', () => {
     await expect(oidcService.handleCallback('auth-code', 'plain-state')).rejects.toThrow('OIDC tenant mismatch');
   });
 
+  it('does not enforce the Entra tid claim for generic providers such as authentik', async () => {
+    // A non-entra provider does not emit `tid`; a stray/foreign tid must never
+    // reject the login, otherwise Authentik/Keycloak users could not sign in.
+    mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, providerName: 'authentik', tenantId: null, issuerUrl: 'https://auth.example.com/application/o/asset-management/' });
+    openidClient.authorizationCodeGrant.mockResolvedValueOnce({ claims: () => ({ sub: 'subject-123', email: 'linked@example.com', tid: 'foreign-tenant' }) });
+
+    const result = await oidcService.handleCallback('auth-code', 'plain-state');
+    expect(result.state).toBe('authenticated');
+  });
+
+  it('discovers the issuer URL for generic providers without requiring a tenantId', async () => {
+    mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, providerName: 'authentik', tenantId: null, issuerUrl: 'https://auth.example.com/application/o/asset-management/' });
+
+    await oidcService.getAuthorizationUrl();
+
+    const discoveryCall = openidClient.discovery.mock.calls[0];
+    expect(discoveryCall[0].href).toBe('https://auth.example.com/application/o/asset-management/');
+    expect(discoveryCall[1]).toBe('client-123');
+  });
+
+  it('rejects authorization URL generation when neither issuerUrl nor tenantId is configured', async () => {
+    mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, providerName: 'authentik', tenantId: null, issuerUrl: null });
+
+    await expect(oidcService.getAuthorizationUrl()).rejects.toThrow('OIDC not configured');
+  });
+
   it('provisions a new external user with a bcrypt (no-password) passwordHash', async () => {
     mockPrismaClient.oidcConfig.findFirst.mockResolvedValueOnce({ ...mockConfig, autoProvisioning: true });
     mockPrismaClient.oidcAccountLink.findUnique.mockResolvedValueOnce(null);

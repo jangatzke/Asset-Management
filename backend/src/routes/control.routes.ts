@@ -5,6 +5,7 @@ import { controlService } from '../services/control.service';
 import { authorizationService } from '../services/authorization.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams } from '../middleware/validation';
+import { AppError } from '../middleware/errorHandler';
 import { ApproveRiskTreatmentSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, GenerateIso27001SoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
 
 export const controlRouter = Router();
@@ -54,6 +55,18 @@ controlRouter.post('/soa/generate/iso27001-annex-a', authenticate, authorizeEnti
   try {
     const soa = await controlService.generateIso27001AnnexASOA(req.body.scopeId, req.userId!);
     res.status(201).json(soa);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Static route /soa/diff must be before parametric /soa/:id routes
+controlRouter.get('/soa/diff', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
+  try {
+    const from = req.query.from as string;
+    const to = req.query.to as string;
+    if (!from || !to) throw new AppError('Query parameters "from" and "to" are required', 400);
+    res.json(await controlService.diffSoA(from, to));
   } catch (error) {
     next(error);
   }
@@ -123,6 +136,15 @@ controlRouter.get('/implementations/:implementationId/risks', authenticate, requ
 controlRouter.post('/tests', authenticate, requirePermission('controls.test'), validateBody(CreateControlTestSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createControlTest(req.body, req.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ISO 27001 control-to-configuration-item coverage matrix (static route, before /:id).
+controlRouter.get('/coverage-matrix', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
+  try {
+    res.json(await controlService.coverageMatrix(req.query));
   } catch (error) {
     next(error);
   }

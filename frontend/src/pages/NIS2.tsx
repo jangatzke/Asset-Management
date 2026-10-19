@@ -46,8 +46,15 @@ export default function NIS2() {
 
   const questionnaireQuestions = useMemo<Nis2Question[]>(() => {
     if (!selectedQuestionnaire || !Array.isArray(selectedQuestionnaire.questions)) return [];
-    return selectedQuestionnaire.questions as Nis2Question[];
-  }, [selectedQuestionnaire]);
+    // Normalize both stored formats: v1.0 uses key/label, v2.0 uses id/labelDe/labelEn.
+    return (selectedQuestionnaire.questions as unknown as Array<Record<string, unknown>>).map((q) => ({
+      key: String(q.key ?? q.id ?? ''),
+      label: String(q.label ?? (language === 'de' ? q.labelDe : q.labelEn) ?? q.labelDe ?? ''),
+      type: (q.type as Nis2Question['type']) ?? 'string',
+      required: Boolean(q.required),
+      options: Array.isArray(q.options) ? (q.options as Nis2QuestionOption[]) : undefined,
+    })).filter((q) => q.key);
+  }, [selectedQuestionnaire, language]);
 
   const load = useCallback(async () => {
     try {

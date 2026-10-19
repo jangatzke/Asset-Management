@@ -7,6 +7,7 @@
 import type { ActionCenterParams } from '../services/api';
 
 export const ACTION_CENTER_SOURCE_OPTIONS: ReadonlyArray<{ value: NonNullable<ActionCenterParams['sourceType']>; label: string }> = [
+  { value: 'ticket', label: 'Ticket' },
   { value: 'incidentNonReportableApproval', label: 'Incident non-reportable approval' },
   { value: 'workflowTask', label: 'Workflow task' },
   { value: 'notificationDeadline', label: 'Notification deadline' },
@@ -23,4 +24,5 @@ export const ACTION_CENTER_SOURCE_OPTIONS: ReadonlyArray<{ value: NonNullable<Ac
   { value: 'bcpExercise', label: 'BCP Exercise' },
   { value: 'auditPlan', label: 'Audit Plan' },
   { value: 'managementReview', label: 'Management Review' },
+  { value: 'nis2Registration', label: 'NIS2 Registration Review' },
 ];

@@ -164,6 +164,10 @@ phase6Router.post('/reports/run', authenticate, requireMappedWritePermission('au
 phase6Router.get('/suppliers', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.list(req.query)); } catch (error) { next(error); }
 });
+// NIS2 Art. 21(2)(d) supply-chain dependency overview (registered before /suppliers/:id routes).
+phase6Router.get('/suppliers/overview', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.supplyChainOverview(req.query)); } catch (error) { next(error); }
+});
 phase6Router.post('/suppliers', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await supplierService.create(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
@@ -290,6 +294,9 @@ phase6Router.patch('/audits/:id', authenticate, requireMappedWritePermission('au
 phase6Router.get('/audits/:id/detail', authenticate, requireMappedReadPermission('auditPlans'), async (req: AuthRequest, res, next) => {
   try { res.json(await auditWorkflowService.getAuditDetail(req.params.id)); } catch (error) { next(error); }
 });
+phase6Router.get('/audits/:id/audit-kit', authenticate, requireMappedReadPermission('auditPlans'), async (req: AuthRequest, res, next) => {
+  try { res.json(await auditWorkflowService.exportAuditKit(req.params.id, req.userId ?? 'system')); } catch (error) { next(error); }
+});
 phase6Router.post('/audits/:id/findings', authenticate, requireMappedWritePermission('auditPlans'), validateBody(AuditFindingWriteSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await auditWorkflowService.createFinding(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
@@ -356,6 +363,11 @@ phase6Router.patch('/metric-definitions/:id', authenticate, requireMappedWritePe
 });
 phase6Router.post('/metric-values', authenticate, requireMappedWritePermission('auditPlans'), validateBody(MetricValueWriteSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await phase6Service.create('metricValues', req.body, req.userId)); } catch (error) { next(error); }
+});
+// KRI/KPI dashboard aggregation (ISO 27001 Clause 9.1). Static route before the
+// generic '/:resource' routes so it is matched first.
+phase6Router.get('/kri-board', authenticate, requireMappedReadPermission('auditPlans'), async (req: AuthRequest, res, next) => {
+  try { res.json(await phase6Service.kriBoard(String(req.query.type ?? 'KRI'))); } catch (error) { next(error); }
 });
 phase6Router.post('/management-reviews', authenticate, requireMappedWritePermission('auditPlans'), validateBody(ManagementReviewWriteSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await phase6Service.create('managementReviews', req.body, req.userId)); } catch (error) { next(error); }
