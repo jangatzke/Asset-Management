@@ -192,7 +192,7 @@ export class AiService {
     const reply = await this.chat(endpoint, [
       { role: 'system', content: 'You are a connectivity test. Reply with exactly: OK' },
       { role: 'user', content: 'ping' },
-    ], { temperature: 0, maxTokens: 16 });
+    ], { temperature: 0, maxTokens: Math.max(256, endpoint.config.maxTokens ?? 0) });
     await auditService.logEventStandalone(prisma, {
       userId,
       action: 'CONFIG_CHANGE',
