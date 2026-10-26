@@ -143,7 +143,7 @@ describe('Integration: protected edit page (AdminAssetTypes pattern)', () => {
     fireEvent.change(nameInput, { target: { value: 'Updated Switch' } });
     expect(screen.getByText('isDirty: true')).toBeInTheDocument();
     // Click × button
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     // Discard confirmation should appear
     expect(screen.getByText('common.discardChangesTitle')).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe('Integration: protected edit page (AdminAssetTypes pattern)', () => {
     // Edit
     fireEvent.change(screen.getByTestId('name-input'), { target: { value: 'Updated Switch' } });
     // Click × to trigger discard confirm
-    fireEvent.click(screen.getByLabelText('Close'));
+    fireEvent.click(screen.getByLabelText('common.close'));
     // Click cancel
     const cancelBtn = screen.getByRole('button', { name: 'common.cancel' });
     fireEvent.click(cancelBtn);
@@ -175,7 +175,7 @@ describe('Integration: protected edit page (AdminAssetTypes pattern)', () => {
     // Edit
     fireEvent.change(screen.getByTestId('name-input'), { target: { value: 'Updated Switch' } });
     // Click × to trigger discard confirm
-    fireEvent.click(screen.getByLabelText('Close'));
+    fireEvent.click(screen.getByLabelText('common.close'));
     // Click discard
     const discardBtn = screen.getByRole('button', { name: 'common.discard' });
     fireEvent.click(discardBtn);

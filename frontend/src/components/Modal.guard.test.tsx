@@ -71,7 +71,7 @@ describe('Pristine modal dismissals', () => {
 
   it('closes immediately on × button click when pristine', () => {
     const { onClose } = renderModal({ isDirty: false });
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     expect(closeBtn).toBeInTheDocument();
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -104,7 +104,7 @@ describe('Dirty modal dismissals', () => {
 
   it('does NOT close on × button click when dirty — instead shows discard confirmation', () => {
     const { onClose } = renderModal({ isDirty: true });
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByText('common.discardChangesTitle')).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe('Dirty modal dismissals', () => {
       </Modal>
     );
 
-    fireEvent.click(screen.getByLabelText('Close'));
+    fireEvent.click(screen.getByLabelText('common.close'));
     expect(onClose).not.toHaveBeenCalled();
 
     await waitFor(() => {
@@ -130,7 +130,7 @@ describe('Dirty modal dismissals', () => {
 
   it('cancel/stay keeps the draft and hides discard dialog', async () => {
     const { onClose, onDiscardConfirm } = renderModal({ isDirty: true });
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     // MUI Dialog portals content to document.body — wait for it
     await waitFor(() => {
@@ -150,7 +150,7 @@ describe('Dirty modal dismissals', () => {
 
   it('confirm discard hides dialog and calls onDiscardConfirm', async () => {
     const { onClose, onDiscardConfirm } = renderModal({ isDirty: true });
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     // Wait for discard dialog to appear in portal
     await waitFor(() => {
@@ -185,7 +185,7 @@ describe('Dirty modal dismissals', () => {
         <p>Body</p>
       </Modal>
     );
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     // Wait for discard dialog to appear
     await waitFor(() => {
@@ -211,7 +211,7 @@ describe('isDirty state transitions', () => {
       </Modal>
     );
     // Trigger discard dialog via ×
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     // Wait for portal content
     await waitFor(() => {
@@ -250,7 +250,7 @@ describe('Custom i18n keys', () => {
         <p>Body</p>
       </Modal>
     );
-    const closeBtn = screen.getByLabelText('Close');
+    const closeBtn = screen.getByLabelText('common.close');
     fireEvent.click(closeBtn);
     // Wait for portal content with custom keys
     await waitFor(() => {

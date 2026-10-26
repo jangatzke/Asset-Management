@@ -366,7 +366,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox={`0 0 ${GRAPH_VIEWBOX_WIDTH} ${GRAPH_VIEWBOX_HEIGHT}`}
             role="img"
-            aria-label="Asset dependency graph"
+            aria-label={t('graph.ariaLabel')}
           >
             <defs>
               <marker id="asset-graph-arrow-incoming" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto" markerUnits="userSpaceOnUse">

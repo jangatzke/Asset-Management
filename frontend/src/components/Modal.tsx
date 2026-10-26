@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { DiscardConfirmationDialog } from './DiscardConfirmationDialog';
+import { useI18n } from '../context/I18nContext';
 
 interface ModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const Modal: React.FC<ModalProps> = ({
   discardTitleKey = 'common.discardChangesTitle',
   discardMessageKey = 'common.discardChangesMessage',
 }) => {
+  const { t } = useI18n();
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -147,7 +149,7 @@ export const Modal: React.FC<ModalProps> = ({
               ref={closeButtonRef}
               type="button"
               onClick={handleDismissal}
-              aria-label="Close"
+              aria-label={t('common.close')}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
             >
               &times;

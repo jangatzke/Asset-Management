@@ -122,12 +122,15 @@ export class CatalogService {
   }
 
   /**
-   * Maintains the NIS2-Umsetzungsgesetz (NIS2UmsuCG) obligation catalogue.
+   * Maintains the NIS2 obligation catalogue (NIS2UmsuCG).
    *
-   * Stores each obligation Article (23, 24, 25, 26, 27, 29, 30) as a
-   * `ControlCatalogItem`. The Article's `crosswalk` field carries the list of
-   * ISO/IEC 27001:2022 Annex A controls that fulfil the Article so the frontend
-   * can render a crosswalk (which ISO controls satisfy which NIS2 obligation).
+   * Stores each core obligation of the NIS-2 Directive as transposed by the
+   * BSI-Gesetz (Art. 20/§ 38 governance, Art. 21/§ 30 risk-management measures
+   * incl. supply chain and training, Art. 23/§ 32 reporting, Art. 27/§ 33
+   * registration) as a `ControlCatalogItem`. The item's `crosswalk` field
+   * carries the list of ISO/IEC 27001:2022 Annex A controls that fulfil the
+   * obligation so the frontend can render a crosswalk (which ISO controls
+   * satisfy which NIS2 obligation).
    *
    * The catalogue uses a fixed, deterministic id so it can be referenced from
    * the frontend and tests without a lookup.
@@ -138,16 +141,16 @@ export class CatalogService {
         where: { id: NIS2_ARTICLES_CATALOG_ID },
         create: {
           id: NIS2_ARTICLES_CATALOG_ID,
-          name: 'NIS2-Umsetzungsgesetz (Obligation Articles)',
+          name: 'NIS2 Obligation Catalogue (NIS-2 RL / BSIG)',
           description:
-            'Obligation Articles of the NIS2-Umsetzungsgesetz (Art. 23–30) with crosswalk to ISO/IEC 27001:2022 Annex A controls.',
+            'Core obligations of the NIS-2 Directive (EU) 2022/2555 as transposed by the BSI-Gesetz (§§ 30, 32, 33, 38 BSIG), with crosswalk to ISO/IEC 27001:2022 Annex A controls.',
           version: NIS2_ARTICLES_CATALOG_VERSION,
           isActive: true,
         },
         update: {
-          name: 'NIS2-Umsetzungsgesetz (Obligation Articles)',
+          name: 'NIS2 Obligation Catalogue (NIS-2 RL / BSIG)',
           description:
-            'Obligation Articles of the NIS2-Umsetzungsgesetz (Art. 23–30) with crosswalk to ISO/IEC 27001:2022 Annex A controls.',
+            'Core obligations of the NIS-2 Directive (EU) 2022/2555 as transposed by the BSI-Gesetz (§§ 30, 32, 33, 38 BSIG), with crosswalk to ISO/IEC 27001:2022 Annex A controls.',
           version: NIS2_ARTICLES_CATALOG_VERSION,
           isActive: true,
         },
@@ -183,6 +186,16 @@ export class CatalogService {
           },
         });
       }
+
+      // Remove stale obligation items from earlier (incorrect) catalogue versions
+      // so the catalogue only contains the currently modelled NIS-2 obligations.
+      const validControlIds = NIS2_ARTICLES.map((article) => `Article-${article.articleId}`);
+      await tx.controlCatalogItem.deleteMany({
+        where: {
+          catalogId: catalog.id,
+          NOT: { controlId: { in: validControlIds } },
+        },
+      });
 
       return tx.controlCatalog.findUniqueOrThrow({
         where: { id: catalog.id },

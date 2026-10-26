@@ -816,20 +816,25 @@ export class IncidentService {
   }
 
   // ==========================================
-  // NIS2 Incident Reporting (Art. 23)
+  // NIS2 Incident Reporting (Art. 23 NIS-2 RL / § 32 BSIG)
   // ==========================================
 
   /**
-   * Marks an incident as NIS2-relevant and calculates the 24h notification
-   * and 30-day final report deadlines based on the knowledge time.
+   * Marks an incident as NIS2-relevant and calculates the statutory reporting
+   * deadlines from the knowledge time: the formal notification is due within
+   * 72 hours (the early warning without undue delay, at the latest within
+   * 24 hours), and the final report one month after the notification —
+   * conservatively anchored to the notification deadline until the actual
+   * notification is submitted.
    */
   async markNis2Relevant(incidentId: string, actorId: string) {
     const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
     if (!incident) throw new AppError('Incident not found', 404);
 
     const knowledgeTime = new Date(incident.knowledgeTime);
-    const reportDeadline = new Date(knowledgeTime.getTime() + 24 * 60 * 60 * 1000); // 24 hours
-    const finalReportDue = new Date(knowledgeTime.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const reportDeadline = new Date(knowledgeTime.getTime() + 72 * 60 * 60 * 1000); // 72 hours (Art. 23(3)(b) NIS-2 RL / § 32 Abs. 2 BSIG)
+    const finalReportDue = new Date(reportDeadline);
+    finalReportDue.setMonth(finalReportDue.getMonth() + 1); // one month after the notification (§ 32 Abs. 4 BSIG)
 
     const updated = await prisma.$transaction(async (tx) => {
       const result = await (tx as any).incident.updateMany({
@@ -848,7 +853,7 @@ export class IncidentService {
         action: 'INCIDENT_NIS2_MARK_RELEVANT',
         entityType: 'Incident',
         entityId: incidentId,
-        details: 'Marked incident as NIS2-relevant with 24h notification and 30-day final report deadlines',
+        details: 'Marked incident as NIS2-relevant with 72h notification deadline and final report due one month after the notification',
         newValue: { nis2ReportDeadline: reportDeadline.toISOString(), nis2FinalReportDue: finalReportDue.toISOString() },
       });
       return tx.incident.findUnique({ where: { id: incidentId } });
@@ -892,8 +897,10 @@ export class IncidentService {
   }
 
   /**
-   * Submits the formal NIS2 notification (24h-Meldung) to the competent authority.
-   * NIS2 Art. 23: within 24 hours of detection.
+   * Submits the formal NIS2 notification (Meldung) to the competent authority.
+   * Art. 23(3)(b) NIS-2 RL / § 32 Abs. 2 BSIG: within 72 hours of first
+   * awareness. The final-report deadline is re-anchored to one month after
+   * the actual notification (§ 32 Abs. 4 BSIG).
    */
   async submitNis2Notification(incidentId: string, data: { description: string }, actorId: string) {
     const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;
@@ -901,12 +908,17 @@ export class IncidentService {
     if (!incident.nis2Relevant) throw new AppError('Incident must be marked as NIS2-relevant first', 400);
     if (incident.nis2Severity === 'final') throw new AppError('Final report already submitted', 409);
 
+    const notifiedAt = new Date();
+    const finalReportDue = new Date(notifiedAt);
+    finalReportDue.setMonth(finalReportDue.getMonth() + 1); // one month after the notification
+
     const updated = await prisma.$transaction(async (tx) => {
       const result = await (tx as any).incident.updateMany({
         where: { id: incidentId, nis2Severity: { in: ['not_assessed', 'early_warning'] } },
         data: {
           nis2Severity: 'notification',
-          nis2ReportedAt: incident.nis2ReportedAt ?? new Date(),
+          nis2ReportedAt: incident.nis2ReportedAt ?? notifiedAt,
+          nis2FinalReportDue: finalReportDue,
           updatedBy: actorId,
         },
       } as any);
@@ -917,7 +929,7 @@ export class IncidentService {
         entityType: 'Incident',
         entityId: incidentId,
         details: `NIS2 notification submitted: ${data.description}`,
-        newValue: { nis2Severity: 'notification' },
+        newValue: { nis2Severity: 'notification', nis2FinalReportDue: finalReportDue.toISOString() },
       });
       return tx.incident.findUnique({ where: { id: incidentId } });
     });
@@ -926,8 +938,9 @@ export class IncidentService {
   }
 
   /**
-   * Submits the final NIS2 report (30-day Abschlussbericht).
-   * NIS2 Art. 23: within 30 days of detection.
+   * Submits the final NIS2 report (Abschlussmeldung).
+   * Art. 23(3)(c) NIS-2 RL / § 32 Abs. 4 BSIG: within one month of the
+   * incident notification.
    */
   async submitNis2FinalReport(incidentId: string, data: { description: string; content: string }, actorId: string) {
     const incident = (await prisma.incident.findUnique({ where: { id: incidentId } })) as any;

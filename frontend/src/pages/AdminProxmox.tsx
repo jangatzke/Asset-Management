@@ -499,13 +499,13 @@ export default function AdminProxmox() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <MuiSortableTh column="name" label="Name" activeColumn={credSort.column} direction={credSort.column === 'name' ? credSort.direction : ''} onSort={toggleCredSort} />
-                  <MuiSortableTh column="username" label="Username" activeColumn={credSort.column} direction={credSort.column === 'username' ? credSort.direction : ''} onSort={toggleCredSort} />
-                  <MuiSortableTh column="credentialType" label="Auth Type" activeColumn={credSort.column} direction={credSort.column === 'credentialType' ? credSort.direction : ''} onSort={toggleCredSort} />
-                  <MuiSortableTh column="proxmoxServerCount" label="Server Count" activeColumn={credSort.column} direction={credSort.column === 'proxmoxServerCount' ? credSort.direction : ''} onSort={toggleCredSort} />
-                  <MuiSortableTh column="isDefault" label="Default" activeColumn={credSort.column} direction={credSort.column === 'isDefault' ? credSort.direction : ''} onSort={toggleCredSort} />
-                  <MuiSortableTh column="createdAt" label="Created" activeColumn={credSort.column} direction={credSort.column === 'createdAt' ? credSort.direction : ''} onSort={toggleCredSort} />
-                  <TableCell align="right">Actions</TableCell>
+                  <MuiSortableTh column="name" label={t('common.name')} activeColumn={credSort.column} direction={credSort.column === 'name' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="username" label={t('proxmox.username')} activeColumn={credSort.column} direction={credSort.column === 'username' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="credentialType" label={t('proxmox.authType')} activeColumn={credSort.column} direction={credSort.column === 'credentialType' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="proxmoxServerCount" label={t('proxmox.serverCount')} activeColumn={credSort.column} direction={credSort.column === 'proxmoxServerCount' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="isDefault" label={t('proxmox.default')} activeColumn={credSort.column} direction={credSort.column === 'isDefault' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <MuiSortableTh column="createdAt" label={t('common.created')} activeColumn={credSort.column} direction={credSort.column === 'createdAt' ? credSort.direction : ''} onSort={toggleCredSort} />
+                  <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -514,21 +514,21 @@ export default function AdminProxmox() {
                     <TableCell>{cred.name}</TableCell>
                     <TableCell>{cred.username}</TableCell>
                     <TableCell>
-                      {cred.hasPassword && <Chip label="Password" size="small" color="primary" />}
-                      {cred.hasApiToken && <Chip label="API Token" size="small" color="secondary" sx={{ ml: 0.5 }} />}
+                      {cred.hasPassword && <Chip label={t('proxmox.passwordChip')} size="small" color="primary" />}
+                      {cred.hasApiToken && <Chip label={t('proxmox.apiToken')} size="small" color="secondary" sx={{ ml: 0.5 }} />}
                     </TableCell>
                     <TableCell>{cred.proxmoxServerCount}</TableCell>
                     <TableCell>
-                      {cred.isDefault && <Chip label="Default" size="small" color="primary" />}
+                      {cred.isDefault && <Chip label={t('proxmox.default')} size="small" color="primary" />}
                     </TableCell>
                     <TableCell>{formatDate(cred.createdAt)}</TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Edit">
+                      <Tooltip title={t('common.edit')}>
                         <IconButton size="small" onClick={() => openEditCredentialDialog(cred)}>
                           <RefreshIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
+                      <Tooltip title={t('common.delete')}>
                         <IconButton size="small" color="error" onClick={() => handleDeleteCredential(cred.id, cred.name)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -569,7 +569,7 @@ export default function AdminProxmox() {
 
           {credentials.length === 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Please add Proxmox credentials first before configuring servers.
+              {t('proxmox.noCredentialsWarning')}
             </Alert>
           )}
 
@@ -577,15 +577,15 @@ export default function AdminProxmox() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <MuiSortableTh column="name" label="Name" activeColumn={serverSort.column} direction={serverSort.column === 'name' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="host" label="Host" activeColumn={serverSort.column} direction={serverSort.column === 'host' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="nodeId" label="Node" activeColumn={serverSort.column} direction={serverSort.column === 'nodeId' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="credentialName" label="Credential" activeColumn={serverSort.column} direction={serverSort.column === 'credentialName' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="enabled" label="Enabled" activeColumn={serverSort.column} direction={serverSort.column === 'enabled' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="vmCount" label="VM Count" activeColumn={serverSort.column} direction={serverSort.column === 'vmCount' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="lastSyncAt" label="Last Sync" activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncAt' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <MuiSortableTh column="lastSyncStatus" label="Status" activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncStatus' ? serverSort.direction : ''} onSort={toggleServerSort} />
-                  <TableCell align="right">Actions</TableCell>
+                  <MuiSortableTh column="name" label={t('common.name')} activeColumn={serverSort.column} direction={serverSort.column === 'name' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="host" label={t('proxmox.hostShort')} activeColumn={serverSort.column} direction={serverSort.column === 'host' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="nodeId" label={t('proxmox.nodeShort')} activeColumn={serverSort.column} direction={serverSort.column === 'nodeId' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="credentialName" label={t('proxmox.credential')} activeColumn={serverSort.column} direction={serverSort.column === 'credentialName' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="enabled" label={t('proxmox.enabled')} activeColumn={serverSort.column} direction={serverSort.column === 'enabled' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="vmCount" label={t('proxmox.vmCountShort')} activeColumn={serverSort.column} direction={serverSort.column === 'vmCount' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="lastSyncAt" label={t('proxmox.lastSync')} activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncAt' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <MuiSortableTh column="lastSyncStatus" label={t('proxmox.status')} activeColumn={serverSort.column} direction={serverSort.column === 'lastSyncStatus' ? serverSort.direction : ''} onSort={toggleServerSort} />
+                  <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -620,7 +620,7 @@ export default function AdminProxmox() {
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Test Connection">
+                      <Tooltip title={t('proxmox.testConnection')}>
                         <IconButton
                           size="small"
                           onClick={() => handleTestConnection(server.id)}
@@ -633,7 +633,7 @@ export default function AdminProxmox() {
                           )}
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Import VMs/Containers">
+                      <Tooltip title={t('proxmox.importVMs')}>
                         <IconButton
                           size="small"
                           color="primary"
@@ -647,7 +647,7 @@ export default function AdminProxmox() {
                           )}
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Dry Run Import">
+                      <Tooltip title={t('proxmox.dryRun')}>
                         <IconButton
                           size="small"
                           onClick={() => handleImportVMs(server.id, true)}
@@ -656,12 +656,12 @@ export default function AdminProxmox() {
                           <WarningIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Edit">
+                      <Tooltip title={t('common.edit')}>
                         <IconButton size="small" onClick={() => openEditServerDialog(server)}>
                           <RefreshIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
+                      <Tooltip title={t('common.delete')}>
                         <IconButton size="small" color="error" onClick={() => handleDeleteServer(server.id, server.name)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -709,14 +709,14 @@ export default function AdminProxmox() {
               value={credentialForm.values.name}
               onChange={(e) => credentialForm.handleChange({ name: e.target.value })}
               fullWidth
-              placeholder="e.g. Production PVE"
+              placeholder={t('proxmox.exampleServerName')}
             />
             <TextField
               label={t('proxmox.username')}
               value={credentialForm.values.username}
               onChange={(e) => credentialForm.handleChange({ username: e.target.value })}
               fullWidth
-              placeholder="e.g. admin@pam"
+              placeholder={t('proxmox.exampleUsername')}
             />
             <FormControlLabel
               control={
@@ -734,7 +734,7 @@ export default function AdminProxmox() {
                 value={credentialForm.values.apiToken}
                 onChange={(e) => credentialForm.handleChange({ apiToken: e.target.value })}
                 fullWidth
-                placeholder="PVEAPIToken=<user>=<token-id>=<hash>"
+                placeholder={t('proxmox.exampleApiToken')}
               />
             ) : (
               <>
@@ -794,14 +794,14 @@ export default function AdminProxmox() {
               value={serverForm.values.name}
               onChange={(e) => serverForm.handleChange({ name: e.target.value })}
               fullWidth
-              placeholder="e.g. Production PVE Cluster"
+              placeholder={t('proxmox.exampleServerName')}
             />
             <TextField
               label={t('proxmox.host')}
               value={serverForm.values.host}
               onChange={(e) => serverForm.handleChange({ host: e.target.value })}
               fullWidth
-              placeholder="e.g. pve.example.com"
+              placeholder={t('proxmox.exampleHost')}
             />
             <TextField
               label={t('proxmox.port')}
@@ -815,7 +815,7 @@ export default function AdminProxmox() {
               value={serverForm.values.nodeId}
               onChange={(e) => serverForm.handleChange({ nodeId: e.target.value })}
               fullWidth
-              placeholder="e.g. pve1"
+              placeholder={t('proxmox.exampleNode')}
             />
             <FormControl fullWidth error={!serverForm.values.credentialId}>
               <InputLabel>{t('proxmox.credential')}</InputLabel>

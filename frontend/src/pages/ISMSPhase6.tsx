@@ -398,6 +398,8 @@ function getStatusColor(status?: string): string {
   }
 }
 
+const phase6Slug = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 const actionIconClassName = 'h-4 w-4';
 
@@ -453,6 +455,7 @@ const ISMSPhase6 = () => {
   const previousResource = useRef(resource);
 
   const meta = resourceMetas[resource] || null;
+  const cellText = (value: unknown): string => typeof value === 'boolean' ? (value ? t('common.yes') : t('common.no')) : formatCellValue(value);
   const activeDomain = domainGroups.find((group) => group.resources.includes(resource));
   const sortedRows = useMemo(() => {
     if (!sort.column) return rows;
@@ -588,7 +591,7 @@ const ISMSPhase6 = () => {
             try {
               payload[f.key] = JSON.parse(payload[f.key] as string);
             } catch {
-              throw new Error(`${f.label} must contain valid JSON.`);
+              throw new Error(t('ismsPhase6.invalidJsonField', { field: t(`ismsPhase6.fields.${phase6Slug(f.label)}`) }));
             }
           }
           // Remove empty strings
@@ -756,8 +759,8 @@ const ISMSPhase6 = () => {
 
       <div className="rounded-lg border border-primary-200 bg-blue-50 p-4 dark:border-primary-800 dark:bg-blue-950/30">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="font-semibold text-blue-950 dark:text-primary-100">Guided operational workflows</h2><p className="text-sm text-primary-800 dark:text-primary-200">This legacy registry is read-only. Create and change records in the guided Supplier, BCM, Audit &amp; CAPA, Training, Metrics, Management Review, Workflow, and Report workflows—never by entering identifiers or JSON.</p></div>
-          <button onClick={() => navigate('/isms-operations/workspace')} className="rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Open workspaces</button>
+          <div><h2 className="font-semibold text-blue-950 dark:text-primary-100">{t('ismsPhase6.guidedTitle')}</h2><p className="text-sm text-primary-800 dark:text-primary-200">{t('ismsPhase6.guidedText')}</p></div>
+          <button onClick={() => navigate('/isms-operations/workspace')} className="rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">{t('ismsPhase6.openWorkspaces')}</button>
         </div>
       </div>
 
@@ -785,7 +788,7 @@ const ISMSPhase6 = () => {
                        onClick={() => handleResourceSelection(key)}
                       className={`px-3 py-2 rounded-md text-sm whitespace-nowrap ${resource === key ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 font-semibold' : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
                     >
-                      {m.label}
+                      {t(`ismsPhase6.labels.${phase6Slug(m.label)}`)}
                     </button>
                   );
                 })}
@@ -797,7 +800,7 @@ const ISMSPhase6 = () => {
 
       {activeDomain && (
         <div className="rounded-md bg-blue-50 dark:bg-primary-900/20 px-3 py-2 text-sm text-primary-800 dark:text-primary-200">
-          {t(`ismsOperations.domains.${activeDomain.key}`)} · {meta?.label}
+          {t(`ismsOperations.domains.${activeDomain.key}`)} · {t(`ismsPhase6.labels.${phase6Slug(meta?.label ?? '')}`)}
         </div>
       )}
 
@@ -819,7 +822,7 @@ const ISMSPhase6 = () => {
             >
               <option value="">{t('common.all')}</option>
               {meta.fields.find((f) => f.key === meta.statusField)?.options?.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>{t(`ismsPhase6.options.${phase6Slug(o.label)}`)}</option>
               ))}
             </select>
           )}
@@ -830,7 +833,7 @@ const ISMSPhase6 = () => {
             </label>
           )}
           <div className="ml-auto text-sm text-gray-500 dark:text-gray-400">
-            {rows.length} record{rows.length !== 1 ? 's' : ''}
+            {t('ismsPhase6.recordCount', { count: rows.length })}
           </div>
         </div>
       )}
@@ -840,9 +843,9 @@ const ISMSPhase6 = () => {
         {loading ? (
           <div className="p-6 text-gray-500">{t('common.loading')}</div>
         ) : !meta ? (
-          <div className="p-6 text-gray-500">No metadata for this resource.</div>
+          <div className="p-6 text-gray-500">{t('ismsPhase6.noMetadata')}</div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-gray-500">No records are available in this legacy index. Create records through the relevant guided workflow.</div>
+          <div className="p-6 text-gray-500">{t('ismsPhase6.noLegacyRecords')}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -852,7 +855,7 @@ const ISMSPhase6 = () => {
                     <SortableTh
                       key={col.key}
                       column={col.key}
-                      label={col.label}
+                      label={t(`ismsPhase6.columns.${phase6Slug(col.label)}`)}
                       activeColumn={sort.column}
                       direction={sort.column === col.key ? sort.direction : ''}
                       onSort={toggleSort}
@@ -867,12 +870,12 @@ const ISMSPhase6 = () => {
                   <tr key={row.id} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     {meta.columns.map((col) => (
                       <td key={col.key} className={`p-3 ${col.width} ${col.key === meta?.statusField ? getStatusColor(row[col.key]) : ''}`}>
-                        {col.key === 'nextReviewDate' || col.key === 'dueDate' || col.key === 'plannedStart' || col.key === 'plannedEnd' || col.key === 'reviewDate' || col.key === 'lastReviewDate' || col.key === 'nextTestDate' ? formatDate(row[col.key]) : formatCellValue(row[col.key])}
+                        {col.key === 'nextReviewDate' || col.key === 'dueDate' || col.key === 'plannedStart' || col.key === 'plannedEnd' || col.key === 'reviewDate' || col.key === 'lastReviewDate' || col.key === 'nextTestDate' ? formatDate(row[col.key]) : cellText(row[col.key])}
                       </td>
                     ))}
                     <td className="p-3">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => handleView(row)} aria-label={`${t('common.view')}: ${formatCellValue(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.view')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
+                        <button onClick={() => handleView(row)} aria-label={`${t('common.view')}: ${cellText(row[meta.titleField || 'displayId'] ?? row.displayId ?? row.id)}`} title={t('common.view')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                           <EyeIcon aria-hidden="true" className={actionIconClassName} />
                         </button>
                       </div>
@@ -889,17 +892,17 @@ const ISMSPhase6 = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-md text-sm disabled:opacity-50">
-            Previous
+{t('common.previous')}
           </button>
-          <span className="text-sm text-gray-600 dark:text-gray-300">Page {page} of {totalPages}</span>
+          <span className="text-sm text-gray-600 dark:text-gray-300">{t('pagination.pageOf', { page, total: totalPages })}</span>
           <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-md text-sm disabled:opacity-50">
-            Next
+{t('common.next')}
           </button>
         </div>
       )}
 
       {/* ─── Detail Modal ─────────────────────────────────────────────────── */}
-      <Modal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title={`${meta?.label || ''} Details`}>
+      <Modal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title={t('ismsPhase6.detailTitle', { name: t(`ismsPhase6.labels.${phase6Slug(meta?.label ?? '')}`) })}>
         {detailRow && meta && (
           <div className="space-y-4">
             {meta.fields.map((f) => {
@@ -907,9 +910,9 @@ const ISMSPhase6 = () => {
               if (val === undefined || val === null || val === '') return null;
               return (
                 <div key={f.key}>
-                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{f.label}</div>
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t(`ismsPhase6.fields.${phase6Slug(f.label)}`)}</div>
                   <div className="text-sm text-gray-900 dark:text-gray-100 mt-1">
-                    {f.type === 'boolean' ? (val ? 'Yes' : 'No') : f.type === 'date' ? formatDate(val as string) : f.type === 'json' ? JSON.stringify(val, null, 2) : formatCellValue(val)}
+                    {f.type === 'boolean' ? (val ? t('common.yes') : t('common.no')) : f.type === 'date' ? formatDate(val as string) : f.type === 'json' ? JSON.stringify(val, null, 2) : formatCellValue(val)}
                   </div>
                 </div>
               );
@@ -919,7 +922,7 @@ const ISMSPhase6 = () => {
       </Modal>
 
       {/* ─── Create/Edit Modal ────────────────────────────────────────────── */}
-      <Modal isOpen={createFormOpen || editModalOpen} onClose={handleModalClose} title={`${editRow ? 'Edit' : 'Add'} ${meta?.label.replace(/s$/, '')}`} isDirty={form.isDirty && !submitLoading} onDiscardConfirm={handleDiscard}>
+      <Modal isOpen={createFormOpen || editModalOpen} onClose={handleModalClose} title={`${editRow ? t('common.edit') : t('common.add')} ${t(`ismsPhase6.labels.${phase6Slug(meta?.label ?? '')}`)}`} isDirty={form.isDirty && !submitLoading} onDiscardConfirm={handleDiscard}>
         {meta && (() => {
           const isDisabled = false; // Future: disable form during submission etc.
           return (
@@ -1022,14 +1025,14 @@ const ISMSPhase6 = () => {
               return (
                 <div key={f.key}>
                   <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                    {t(f.label)} {required && <span className="text-red-500">*</span>}
+                    {t(`ismsPhase6.fields.${phase6Slug(f.label)}`)} {required && <span className="text-red-500">*</span>}
                   </label>
                   <div className="mt-1">
                     {f.type === 'textarea' ? (
                       <textarea
                         value={String(value ?? '')}
                         onChange={(e) => handleFormChange(f.key, e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={f.placeholder ? t(`ismsPhase6.placeholders.${phase6Slug(f.placeholder)}`) : undefined}
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       />
@@ -1039,9 +1042,9 @@ const ISMSPhase6 = () => {
                         onChange={(e) => handleFormChange(f.key, e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">{t('common.select')}</option>
                         {f.options?.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
+                          <option key={o.value} value={o.value}>{t(`ismsPhase6.options.${phase6Slug(o.label)}`)}</option>
                         ))}
                       </select>
                     ) : f.type === 'boolean' ? (
@@ -1055,7 +1058,7 @@ const ISMSPhase6 = () => {
                       <textarea
                         value={String(value ?? '')}
                         onChange={(e) => handleFormChange(f.key, e.target.value)}
-                        placeholder="Enter JSON..."
+                        placeholder={t('ismsPhase6.enterJson')}
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono"
                       />
@@ -1064,7 +1067,7 @@ const ISMSPhase6 = () => {
                         type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
                         value={String(value ?? '')}
                         onChange={(e) => handleFormChange(f.key, f.type === 'number' ? Number(e.target.value) : e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={f.placeholder ? t(`ismsPhase6.placeholders.${phase6Slug(f.placeholder)}`) : undefined}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       />
                     )}
@@ -1077,14 +1080,14 @@ const ISMSPhase6 = () => {
                 onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md text-sm"
               >
-                Cancel
+{t('common.cancel')}
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitLoading}
                 className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50"
               >
-                {submitLoading ? 'Saving...' : editRow ? 'Save Changes' : 'Create'}
+                {submitLoading ? t('common.saving') : editRow ? t('common.save') : t('common.create')}
               </button>
             </div>
             <DiscardConfirmationDialog
@@ -1110,25 +1113,25 @@ const ISMSPhase6 = () => {
       </Modal>
 
       {/* ─── Delete Confirmation Modal ────────────────────────────────────── */}
-      <Modal isOpen={deleteModalOpen} onClose={() => { setDeleteModalOpen(false); setDeleteRow(null); }} title={`Delete ${meta?.label.replace(/s$/, '')}?`}>
+      <Modal isOpen={deleteModalOpen} onClose={() => { setDeleteModalOpen(false); setDeleteRow(null); }} title={t('ismsPhase6.deleteTitle', { name: t(`ismsPhase6.labels.${phase6Slug(meta?.label ?? '')}`) })}>
         {deleteRow && (
           <div className="space-y-4">
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              Are you sure you want to delete <strong>{deleteRow[meta?.titleField || 'name'] || deleteRow.id}</strong>? This action cannot be undone.
+              {t('common.confirmDeleteNamed', { name: String(deleteRow[meta?.titleField || 'name'] ?? deleteRow.id) })}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setDeleteModalOpen(false); setDeleteRow(null); }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md text-sm"
               >
-                Cancel
+{t('common.cancel')}
               </button>
               <button
                 onClick={handleDelete}
                 disabled={submitLoading}
                 className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50"
               >
-                {submitLoading ? 'Deleting...' : 'Delete'}
+                {submitLoading ? t('ismsPhase6.deleting') : t('common.delete')}
               </button>
             </div>
           </div>

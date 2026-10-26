@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { useAuthStore } from '../store/auth';
 import { knowledgeApi, type KnowledgeArticleCategory, type KnowledgeArticleDetail, type KnowledgeArticleInput, type KnowledgeArticleSummary } from '../services/api';
@@ -20,7 +21,9 @@ export default function KnowledgeBase() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [search, setSearch] = useState('');
+  // Seed from ?search= so the global search "show all" deep-link works.
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState('');
 

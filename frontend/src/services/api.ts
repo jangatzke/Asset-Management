@@ -37,7 +37,7 @@ import type {
   UpdateRiskControlDTO,
   UpdateRiskDTO,
 } from '../../../shared/src';
-import type { TicketType } from '../../../shared/src';
+import type { TicketType, GlobalSearchResponse, SearchEntityType } from '../../../shared/src';
 
 export type { CreateIncidentDTO, UpdateIncidentDTO };
 
@@ -1217,4 +1217,10 @@ export const knowledgeApi = {
   create: (data: KnowledgeArticleInput) => api.post<KnowledgeArticleDetail>('/knowledge', data),
   update: (id: string, data: Partial<KnowledgeArticleInput> & { status?: KnowledgeArticleStatus }) => api.patch<KnowledgeArticleDetail>(`/knowledge/${id}`, data),
   delete: (id: string) => api.delete(`/knowledge/${id}`),
+};
+
+// Global full-text search (grouped by entity type, permission-filtered).
+export const searchApi = {
+  global: (params: { q: string; limit?: number; type?: SearchEntityType; offset?: number }, config?: { signal?: AbortSignal }) =>
+    api.get<GlobalSearchResponse>('/search', { params, signal: config?.signal }),
 };

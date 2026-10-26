@@ -147,9 +147,26 @@
   status: implemented
   implementation:
     - backend/src/routes/asset.routes.ts (confirm-responsibility Endpoint existiert)
+    - backend/prisma/schema.prisma (technicalOperator/businessOwner/informationSecurityResponsible als echte User-Relationen mit FK + @@index, ON DELETE SetNull)
+    - backend/src/services/asset.service.ts (validateAssetOwnerReferences: Server-seitige Prüfung gegen aktive User, 400/409)
+    - backend/prisma/migrations/20261026100000_user_owner_relations/migration.sql (Datenqualitäts-Reparatur + FK + Indizes)
+    - docs/api/openapi.yaml (/users/owners Endpoint, AssetInput Owner-Felder, UserSelectItem Schema)
   tests: []
-  gaps:
-    - Kein Statusfeld responsibilityConfirmed im Schema
+  gaps: []
+
+- id: RSK-REF-1
+  title: Risiko-Owner/Assessor referenzielle Integrität
+  priority: P0
+  status: implemented
+  implementation:
+    - backend/prisma/schema.prisma (riskOwner/riskAssessor als echte User-Relationen mit FK + @@index, ON DELETE Restrict)
+    - backend/src/services/risk.service.ts (validateRiskUserReferences: 400 bei unbekannten, 409 bei inaktiven Usern)
+    - backend/prisma/migrations/20261026100000_user_owner_relations/migration.sql (Orphan-Reassign auf aktiven system_admin + FK + Indizes)
+    - backend/src/services/user.service.ts (getOwnersForSelect: aktive User für Owner-Picker, max. 500)
+    - backend/src/routes/user.routes.ts (/users/owners Endpoint mit requireAdminAccess)
+    - docs/api/openapi.yaml (RiskInput assessorId/riskOwnerId mit FK-Validierungsbeschreibung)
+  tests: []
+  gaps: []
 
 - id: AST-002
   title: Vollständige Asset-Felder

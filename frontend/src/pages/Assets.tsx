@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, ShareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { assetApi, contractApi, licenseApi, adminApi } from '../services/api';
+import { assetApi, contractApi, licenseApi, organizationApi, userSearchApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { usePersistedView } from '../hooks/usePersistedView';
@@ -221,6 +221,14 @@ const Assets = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only trigger after assets are loaded.
   }, [loading, assets.length]);
 
+  // Seed the search box when arriving via the global search "show all"
+  // deep-link (/assets?search=...). The debounce effect then triggers the
+  // regular server-side search automatically.
+  useEffect(() => {
+    const initialSearch = new URLSearchParams(location.search).get('search');
+    if (initialSearch) setSearchTerm(initialSearch);
+  }, [location.search]);
+
   const handleDiscard = useCallback(() => {
     form.resetForm();
     setEditingId(null);
@@ -339,14 +347,18 @@ const Assets = () => {
     } catch { return []; }
   };
 
+  // Dedicated owner-search API: active users only, no admin user-list dependency.
   const searchUsers = async (q: string) => {
     try {
-      const res = await adminApi.listUsers();
-      const users = res.data?.data ?? res.data ?? [];
-      if (!q) return users;
-      return users.filter((u: any) =>
-        `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(q.toLowerCase())
-      );
+      const res = await userSearchApi.owners(q);
+      return res.data ?? res ?? [];
+    } catch { return []; }
+  };
+
+  const searchOrganizationUnits = async (q: string) => {
+    try {
+      const res = await organizationApi.listUnits({ q, limit: 20 });
+      return res.data?.data ?? res.data ?? [];
     } catch { return []; }
   };
 
@@ -959,7 +971,7 @@ const Assets = () => {
           <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2 mt-6">{t('assets.relations')}</h3>
 
           <div>
-            <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchUsers} value={form.values.organizationUnitId}
+            <EntitySearchSelect label={t('assets.organizationUnit')} searchEndpoint={searchOrganizationUnits} value={form.values.organizationUnitId}
               onChange={(v) => form.handleChange({ organizationUnitId: v })} placeholder={t('assets.searchOrgUnits')}
               errorMessage={fieldErrors.organizationUnitId ? t('common.requiredField') : undefined} />
             {fieldErrors.organizationUnitId && <p className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">{fieldErrors.organizationUnitId}</p>}

@@ -181,16 +181,32 @@ export class AuthorizationService {
   }
 
   async buildReadFilter(userId: string, entityType: EntityType): Promise<Prisma.InputJsonObject | Record<string, unknown>> {
+    const activeRoles = await this.getActiveRoles(userId);
+    return this.buildScopedReadFilterFromRoles(activeRoles, entityType);
+  }
+
+  /**
+   * Same result as buildReadFilter but accepts pre-resolved active roles.
+   * Used by the global search endpoint, which needs read filters for many
+   * entity types from a single role resolution instead of one per type.
+   */
+  buildScopedReadFilterFromRoles(activeRoles: EffectiveRoleAssignment[], entityType: EntityType): Record<string, unknown> {
     const permission = this.readPermissionForEntity(entityType);
     if (!permission) return { id: { equals: '__phase1_no_permission__' } };
 
-    const activeRoles = await this.getActiveRoles(userId);
     const grantingRoles = activeRoles.filter((role) => role.permissions.has(permission));
     if (grantingRoles.length === 0) return { id: { equals: '__phase1_no_permission__' } };
     if (grantingRoles.some((role) => !this.hasScopeConstraint(role))) return {};
 
     const scopedFilters = grantingRoles.map((role) => this.buildScopedFilter(entityType, role)).filter(Boolean) as Record<string, unknown>[];
     return scopedFilters.length ? { OR: scopedFilters } : { id: { equals: '__phase1_no_scope_match__' } };
+  }
+
+  /** True when the user holds the read permission for an entity type. */
+  hasReadPermission(activeRoles: EffectiveRoleAssignment[], entityType: EntityType): boolean {
+    const permission = this.readPermissionForEntity(entityType);
+    if (!permission) return false;
+    return activeRoles.some((role) => role.permissions.has(permission));
   }
 
   async canAccessAdmin(userId: string): Promise<boolean> {

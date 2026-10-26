@@ -82,6 +82,13 @@ model User {
   navigationViews      NavigationView[] @relation("UserOwnedNavigationViews")
   activeNavigationView NavigationView?  @relation("UserActiveNavigationView", fields: [activeNavigationViewId], references: [id], onDelete: SetNull)
 
+  // Asset/risk owner back-relations (F-01/F-14 referential integrity)
+  technicalOperatorAssets   Asset[] @relation("AssetTechnicalOperator")
+  businessOwnerAssets       Asset[] @relation("AssetBusinessOwner")
+  securityResponsibleAssets Asset[] @relation("AssetSecurityResponsible")
+  ownedRisks                Risk[]  @relation("RiskOwner")
+  assessedRisks             Risk[]  @relation("RiskAssessor")
+
   @@index([oidcId, oidcProvider])
   @@index([activeNavigationViewId])
   @@map("users")
@@ -680,6 +687,11 @@ model Asset {
   organizationUnit OrganizationUnit? @relation("AssetOrgUnit", fields: [organizationUnitId], references: [id], onDelete: SetNull)
   location         Site?             @relation("AssetLocation", fields: [locationId], references: [id], onDelete: SetNull)
 
+  // Owner/responsible persons — real User relations guarantee referential integrity (F-01/F-14)
+  technicalOperator              User? @relation("AssetTechnicalOperator", fields: [technicalOperatorId], references: [id], onDelete: SetNull)
+  businessOwner                  User? @relation("AssetBusinessOwner", fields: [businessOwnerId], references: [id], onDelete: SetNull)
+  informationSecurityResponsible User? @relation("AssetSecurityResponsible", fields: [informationSecurityResponsibleId], references: [id], onDelete: SetNull)
+
   sourceRelations AssetRelation[] @relation("AssetSource")
   targetRelations AssetRelation[] @relation("AssetTarget")
 
@@ -711,6 +723,9 @@ model Asset {
   licenseLinks  AssetLicense[]
   ControlAsset  ControlAsset[]
 
+  @@index([technicalOperatorId])
+  @@index([businessOwnerId])
+  @@index([informationSecurityResponsibleId])
   @@map("assets")
 }
 
@@ -982,6 +997,10 @@ model Risk {
   treatments        RiskTreatment[]
   riskMethodVersion RiskMethodVersion? @relation(fields: [riskMethodVersionId], references: [id], onDelete: SetNull)
 
+  // Owner/assessor — real User relations guarantee referential integrity (F-01/F-14)
+  riskOwner    User @relation("RiskOwner", fields: [riskOwnerId], references: [id], onDelete: Restrict)
+  riskAssessor User @relation("RiskAssessor", fields: [assessorId], references: [id], onDelete: Restrict)
+
   // Relational risk building blocks (Paket 3.2)
   scenario      RiskScenario?    @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
   threat        Threat?          @relation(fields: [threatId], references: [id], onDelete: SetNull)
@@ -998,6 +1017,8 @@ model Risk {
 
   @@index([riskMethodVersionId])
   @@index([scenarioId])
+  @@index([riskOwnerId])
+  @@index([assessorId])
   @@map("risks")
 }
 

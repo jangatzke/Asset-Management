@@ -1,5 +1,19 @@
 # Implementation Log
 
+## 2026-10-25 — Global Full-Text Search and Performance Indexes
+
+| Field | Value |
+|-------|-------|
+| Scope | New global full-text search with type-as-you-type suggestions grouped by entity type (top hits per category + "show all" deep-link), plus database-index and cache improvements. Permission model: a user only ever sees results for entities they may read. |
+| Shared types | `shared/src/types/search.ts`: `SEARCH_ENTITY_TYPES` (assets, tickets, incidents, risks, controls, contracts, licenses, suppliers, knowledge), `SearchResultItem`, `SearchGroup`, `GlobalSearchResponse`; exported from `shared/src/index.ts`. |
+| Backend search service | `backend/src/services/search.service.ts`: one handler per entity type with explicit searchable fields; single `getActiveRoles()` resolution shared across all categories via new public `authorizationService.buildScopedReadFilterFromRoles()` / `hasReadPermission()` (knowledge gated by `documents.read`, contracts/licenses by `administration.access`, others by the existing scoped read filters — sentinel-filtered categories are skipped entirely). Categories run concurrently, per-category failures are isolated, results ordered by `updatedAt desc`. Bounded in-process result cache (15 s TTL, max 200 entries) keyed by user+query+params. |
+| Backend API | `GET /api/v1/search?q=&limit=&type=&offset=` (`backend/src/routes/search.routes.ts`) behind `authenticate` + `etag()`; query validation (q required ≤200 chars, limit 1–50, type must be a known entity type). Registered in `backend/src/index.ts`. |
+| Performance migration | `backend/prisma/migrations/20261025120000_search_indexes_performance/migration.sql`: `pg_trgm` extension + GIN trigram indexes on the exact search columns of all 9 tables (supports Prisma `contains`/`mode: insensitive` → `ILIKE '%…%'`), `(isArchived, updatedAt DESC)` composite BTree indexes matching the search ordering, and FK indexes for scoped-authorization joins. Prisma 5.22 has no `@@fullTextIndex`, so raw-SQL migration is used; redundant displayId unique indexes omitted (Prisma `@unique` already creates them). Deploy with `npm run db:deploy`. |
+| Frontend | `frontend/src/services/api.ts`: `searchApi.global()`. `CommandPalette` section headers gained an optional action button (`sectionActionLabel`/`onSectionAction`). `Layout.tsx` entity search now calls the grouped global API (250 ms debounce + stale-response guard), renders Top-5 per category with icons/labels, and attaches "Alle anzeigen"/"Show all" deep-links to `${listRoute}?search=…`. List pages (`Assets`, `Tickets`, `Incidents`, `Risks`, `Controls`, `Contracts`, `Licenses`, `KnowledgeBase`, `SupplyChainOverview`) seed their search state from the `?search=` URL parameter so the deep-link lands pre-filtered. |
+| i18n | New `search.showAll` key in de/en/es/fr locale catalogs (alphabetical position preserved). |
+| changed files | `shared/src/types/search.ts`, `shared/src/index.ts`, `backend/src/services/authorization.service.ts`, `backend/src/services/search.service.ts`, `backend/src/routes/search.routes.ts`, `backend/src/index.ts`, `backend/prisma/migrations/20261025120000_search_indexes_performance/migration.sql`, `frontend/src/services/api.ts`, `frontend/src/components/CommandPalette.tsx`, `frontend/src/components/Layout.tsx`, the 9 list pages above, `frontend/src/locales/{de,en,es,fr}.json` |
+| verification | `npm run build --workspace shared` PASS; `npm run build --workspace backend` PASS; `npm run build --workspace frontend` PASS; frontend locale-parity test `npx vitest run src/locales/localeKeys.test.ts` PASS (13 tests). |
+
 ## 2026-10-03 — Backfill: features implemented after the last logged entry (retrospective)
 
 | Field | Value |

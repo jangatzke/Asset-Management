@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { supplierApi, type SupplyChainOverviewResponse, type SupplyChainOverviewSupplier } from '../services/api';
 import { extractApiError } from '../utils/apiError';
@@ -16,7 +16,9 @@ export default function SupplyChainOverview() {
   const [overview, setOverview] = useState<SupplyChainOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  // Seed from ?search= so the global search "show all" deep-link works.
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [criticality, setCriticality] = useState('');
   const [nis2Only, setNis2Only] = useState(false);
   const [detail, setDetail] = useState<SupplyChainOverviewSupplier | null>(null);

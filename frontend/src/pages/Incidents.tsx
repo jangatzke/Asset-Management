@@ -120,7 +120,8 @@ const Incidents = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  // Seed from ?search= so the global search "show all" deep-link works.
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState(() => normalizeIncidentStatusFilter(searchParams.get('status')));
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -444,7 +445,7 @@ const Incidents = () => {
           onChange={(e) => setSearch(e.target.value)}
         />
         <select
-          aria-label="Incident status filter"
+          aria-label={t('incidents.statusFilterAria')}
           value={statusFilter}
           onChange={(e) => handleStatusFilterChange(e.target.value)}
           className="px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -467,7 +468,7 @@ const Incidents = () => {
               <SortableTh column="status" label={t('incidents.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="severity" label={t('incidents.columns.severity')} activeColumn={sort.column} direction={sort.column === 'severity' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="detectionTime" label={t('incidents.columns.detectionTime')} activeColumn={sort.column} direction={sort.column === 'detectionTime' ? sort.direction : ''} onSort={toggleSort} />
-              <SortableTh column="nis2" label="NIS-2" activeColumn={sort.column} direction={sort.column === 'nis2' ? sort.direction : ''} onSort={toggleSort} />
+              <SortableTh column="nis2" label={t('incidents.columns.nis2')} activeColumn={sort.column} direction={sort.column === 'nis2' ? sort.direction : ''} onSort={toggleSort} />
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">
                 {t('common.actions')}
               </th>
@@ -561,7 +562,6 @@ const Incidents = () => {
             />
             <EntityPicker
               labelKey="incidents.fields.affectedAssets"
-              label="Affected assets"
               entityType="asset"
               values={affectedAssets}
               multiple
@@ -572,7 +572,6 @@ const Incidents = () => {
             />
             <EntityPicker
               labelKey="incidents.fields.affectedProcesses"
-              label="Affected processes"
               entityType="businessProcess"
               values={affectedProcesses}
               multiple
@@ -653,7 +652,7 @@ const Incidents = () => {
 
           <div className="flex gap-2">
             <select
-              aria-label="Filter by action"
+              aria-label={t('incidents.history.filterByAction')}
               value={historyActionFilter}
               onChange={(e) => {
                 setHistoryActionFilter(e.target.value);

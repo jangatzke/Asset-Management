@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { ClockIcon, PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { riskApi, assetApi, adminApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
+import { riskApi, assetApi, userSearchApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
@@ -153,7 +153,8 @@ const Risks = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [risks, setRisks] = useState<Risk[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Seed from ?search= so the global search "show all" deep-link works.
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState(() => normalizeRiskStatusFilter(searchParams.get('status')));
   const [density, setDensity] = useState<TableDensity>('comfortable');
   const [visibleColumns, setVisibleColumns] = useState(['id', 'title', 'likelihood', 'impact', 'inherentRisk', 'residualRisk', 'targetRisk', 'controls', 'status']);
@@ -244,16 +245,11 @@ const Risks = () => {
     } catch { return []; }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape is dynamic
+  // Dedicated owner-search API: active users only, no admin user-list dependency.
   const searchUsers = async (q: string) => {
     try {
-      const res = await adminApi.listUsers();
-      const users = res.data?.data ?? res.data ?? [];
-      if (!q) return users;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return users.filter((u: any) =>
-        `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(q.toLowerCase())
-      );
+      const res = await userSearchApi.owners(q);
+      return res.data ?? res ?? [];
     } catch { return []; }
   };
 
@@ -595,7 +591,7 @@ const Risks = () => {
         compactLabel={t('dataTable.compact')}
         comfortableLabel={t('dataTable.comfortable')}
         columnsLabel={t('common.columns')}
-        filters={<div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem]"><input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><select aria-label="Risk status filter" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)} className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('common.all')}</option><option value="open">{t('risks.statusFilter.open')}</option><option value="identified">{t('risks.status.identified')}</option><option value="assessed">{t('risks.status.assessed')}</option><option value="treatment_planned">{t('risks.status.treatment_planned')}</option><option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option><option value="accepted">{t('risks.status.accepted')}</option><option value="closed">{t('risks.status.closed')}</option></select></div>}
+        filters={<div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem]"><input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><select aria-label={t('risks.statusFilterAria')} value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)} className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('common.all')}</option><option value="open">{t('risks.statusFilter.open')}</option><option value="identified">{t('risks.status.identified')}</option><option value="assessed">{t('risks.status.assessed')}</option><option value="treatment_planned">{t('risks.status.treatment_planned')}</option><option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option><option value="accepted">{t('risks.status.accepted')}</option><option value="closed">{t('risks.status.closed')}</option></select></div>}
       >
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">

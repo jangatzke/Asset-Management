@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { ToastContext, type Toast, type ToastAction, type ToastPosition, type ToastType } from './ToastContext';
+import { useI18n } from '../context/I18nContext';
 
 const ICONS: Record<ToastType, string> = {
   success: '✓',
@@ -32,6 +33,7 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
   position = 'top-right',
   defaultDuration = 4000,
 }) => {
+  const { t } = useI18n();
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback((type: ToastType, message: string, duration?: number, toastPosition?: ToastPosition, action?: ToastAction) => {
@@ -120,7 +122,7 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
                   type="button"
                   onClick={() => removeToast(toast.id)}
                   className="text-current opacity-60 hover:opacity-100 flex-shrink-0"
-                  aria-label="Dismiss notification"
+                  aria-label={t('common.dismiss')}
                 >
                   ✕
                 </button>

@@ -15,3 +15,4 @@ export * from './incidentTransitions';
 export * from './navigation';
 export * from './types/ticket';
 export * from './ticketTransitions';
+export * from './types/search';

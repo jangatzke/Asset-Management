@@ -64,6 +64,7 @@ import { phase6Router } from './routes/phase6.routes';
 import { actionCenterRouter } from './routes/actionCenter.routes';
 import { catalogRouter } from './routes/catalog.routes';
 import { costPlanningRouter } from './routes/costPlanning.routes';
+import { searchRouter } from './routes/search.routes';
 // Phase 8 routes
 import { webhookRouter } from './routes/webhook.routes';
 import { serviceAccountRouter, serviceAccountAuthRouter } from './routes/serviceAccount.routes';
@@ -261,6 +262,9 @@ app.use('/api/v1/isms-operations', phase6Router);
 app.use('/api/v1/action-center', actionCenterRouter);
 app.use('/api/v1/catalog', catalogRouter);
 app.use('/api/v1/cost-planning', costPlanningRouter);
+
+// Global full-text search (results grouped by entity type, permission-filtered)
+app.use('/api/v1/search', etag(), searchRouter);
 
 // ==================== Phase 8 Routes - Webhooks & Service Accounts ====================
 // Authentication middleware runs BEFORE idempotency to ensure trusted principal is set.

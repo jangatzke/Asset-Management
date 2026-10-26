@@ -35,12 +35,14 @@ const EntitySearchSelect: React.FC<EntitySearchSelectProps> = ({
   onChange,
   onValuesChange,
   multiple = false,
-  placeholder = 'Search...',
-  emptyMessage = 'No results found',
+  placeholder,
+  emptyMessage,
   disabled = false,
   errorMessage,
 }) => {
   const { t } = useI18n();
+  const resolvedPlaceholder = placeholder ?? t('common.searchEllipsis');
+  const resolvedEmptyMessage = emptyMessage ?? t('entitySearch.empty');
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState<EntityOption[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -251,7 +253,7 @@ const EntitySearchSelect: React.FC<EntitySearchSelectProps> = ({
           onChange={handleSearch}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsOpen(true)}
-          placeholder={multiple ? placeholder : (value?.label || placeholder)}
+          placeholder={multiple ? resolvedPlaceholder : (value?.label || resolvedPlaceholder)}
           className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 ${errorMessage ? 'border-danger-500 dark:border-danger-600' : ''}`}
           disabled={disabled}
         />
@@ -279,7 +281,7 @@ const EntitySearchSelect: React.FC<EntitySearchSelectProps> = ({
         >
           <div ref={listRef} onScroll={handleScroll} className="overflow-y-auto max-h-52">
             {availableOptions.length === 0 && !loading ? (
-              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400" role="option" aria-selected={false}>{emptyMessage}</div>
+              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400" role="option" aria-selected={false}>{resolvedEmptyMessage}</div>
             ) : (
               availableOptions.map((option, index) => (
                 <button

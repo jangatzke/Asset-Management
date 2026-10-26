@@ -29,7 +29,8 @@ import { CommandPalette } from './CommandPalette';
 import { useToast } from './useToast';
 import type { CommandPaletteItem } from './CommandPalette';
 import { useKeyboardShortcuts, type KeyboardShortcutBinding } from '../hooks/useKeyboardShortcuts';
-import { assetApi, ticketApi, incidentApi, authApi, type NavigationViewResponse } from '../services/api';
+import { searchApi, authApi, type NavigationViewResponse } from '../services/api';
+import type { SearchEntityType } from '@shared/index';
 import { NAVIGATION_CATALOG, applyNavigationView } from '@shared/navigation';
 
 // Icons live in the frontend; the shared catalog owns hrefs/labels/permissions.
@@ -408,13 +409,26 @@ const Layout = () => {
 
   useKeyboardShortcuts(shortcuts);
 
-  // Global entity search across assets, tickets and incidents. Results are
-  // fetched server-side (each list endpoint already supports ?search=),
-  // marked filterable:false so the palette does not re-filter them, and
-  // rendered under section headings below the static navigation commands.
+  // Global full-text search across every entity type the user may read. The
+  // backend returns results grouped by type (top hits per category, permission
+  // filtered). Results are marked filterable:false so the palette does not
+  // re-filter them, and each group header offers a "show all" action that
+  // deep-links into the module list with the query prefilled.
   const [entityResults, setEntityResults] = useState<CommandPaletteItem[]>([]);
   const entitySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entitySearchSeq = useRef(0);
+
+  const searchGroupMeta = useMemo(() => ({
+    assets: { labelKey: 'navigation.assets', icon: CubeIcon, listRoute: '/assets' },
+    tickets: { labelKey: 'navigation.tickets', icon: ClipboardDocumentListIcon, listRoute: '/tickets' },
+    incidents: { labelKey: 'navigation.incidents', icon: FireIcon, listRoute: '/incidents' },
+    risks: { labelKey: 'navigation.risks', icon: ExclamationTriangleIcon, listRoute: '/risks' },
+    controls: { labelKey: 'navigation.controls', icon: ShieldCheckIcon, listRoute: '/controls' },
+    contracts: { labelKey: 'navigation.contracts', icon: DocumentTextIcon, listRoute: '/contracts' },
+    licenses: { labelKey: 'navigation.licenses', icon: ClipboardDocumentListIcon, listRoute: '/licenses' },
+    suppliers: { labelKey: 'navigation.supplyChain', icon: BuildingStorefrontIcon, listRoute: '/supply-chain' },
+    knowledge: { labelKey: 'navigation.knowledgeBase', icon: DocumentTextIcon, listRoute: '/knowledge-base' },
+  } satisfies Record<SearchEntityType, { labelKey: string; icon: typeof HomeIcon; listRoute: string }>), []);
 
   const runEntitySearch = useCallback((rawQuery: string) => {
     const query = rawQuery.trim();
@@ -424,53 +438,40 @@ const Layout = () => {
       return;
     }
     void (async () => {
-      const results: CommandPaletteItem[] = [];
-      const [assetRes, ticketRes, incidentRes] = await Promise.allSettled([
-        assetApi.list({ search: query, limit: 5, page: 1 }),
-        ticketApi.list({ search: query, limit: 5, page: 1 }),
-        incidentApi.list({ search: query, limit: 5, page: 1 }),
-      ]);
-      if (assetRes.status === 'fulfilled') {
-        const rows: any[] = (assetRes.value as any)?.data?.data ?? (Array.isArray((assetRes.value as any)?.data) ? (assetRes.value as any).data : []);
-        rows.slice(0, 5).forEach((row: any) => results.push({
-          id: `entity-asset-${row.id}`,
-          label: row.name ?? row.displayId ?? row.id,
-          description: row.displayId ? `${t('navigation.assets')} · ${row.displayId}` : t('navigation.assets'),
-          icon: CubeIcon,
-          section: t('navigation.assets'),
-          filterable: false,
-          onSelect: () => { navigate(`/assets/${row.id}`); setPaletteOpen(false); },
-        }));
-      }
-      if (ticketRes.status === 'fulfilled') {
-        const rows: any[] = (ticketRes.value as any)?.data?.data ?? [];
-        rows.slice(0, 5).forEach((row: any) => results.push({
-          id: `entity-ticket-${row.id}`,
-          label: row.title ?? row.displayId ?? row.id,
-          description: row.displayId ? `${t('navigation.tickets')} · ${row.displayId}` : t('navigation.tickets'),
-          icon: ClipboardDocumentListIcon,
-          section: t('navigation.tickets'),
-          filterable: false,
-          onSelect: () => { navigate(`/tickets/${row.id}`); setPaletteOpen(false); },
-        }));
-      }
-      if (incidentRes.status === 'fulfilled') {
-        const rows: any[] = (incidentRes.value as any)?.data?.data ?? (Array.isArray((incidentRes.value as any)?.data) ? (incidentRes.value as any).data : []);
-        rows.slice(0, 5).forEach((row: any) => results.push({
-          id: `entity-incident-${row.id}`,
-          label: row.title ?? row.id,
-          description: t('navigation.incidents'),
-          icon: ExclamationTriangleIcon,
-          section: t('navigation.incidents'),
-          filterable: false,
-          onSelect: () => { navigate(`/incidents/${row.id}`); setPaletteOpen(false); },
-        }));
-      }
-      if (sequence === entitySearchSeq.current) {
+      try {
+        const response = await searchApi.global({ q: query, limit: 5 });
+        if (sequence !== entitySearchSeq.current) return; // stale response
+        const results: CommandPaletteItem[] = [];
+        for (const group of response.data.groups) {
+          const meta = searchGroupMeta[group.entityType];
+          if (!meta) continue;
+          const sectionLabel = t(meta.labelKey);
+          group.items.forEach((item, index) => {
+            results.push({
+              id: `entity-${group.entityType}-${item.id}`,
+              label: item.title,
+              description: item.displayId ?? undefined,
+              icon: meta.icon,
+              section: sectionLabel,
+              filterable: false,
+              // "Show all" action on the group header → module list with query.
+              ...(index === 0 && group.total > group.items.length ? {
+                sectionActionLabel: t('search.showAll'),
+                onSectionAction: () => {
+                  navigate(`${meta.listRoute}?search=${encodeURIComponent(query)}`);
+                  setPaletteOpen(false);
+                },
+              } : {}),
+              onSelect: () => { navigate(item.route); setPaletteOpen(false); },
+            });
+          });
+        }
         setEntityResults(results);
+      } catch {
+        if (sequence === entitySearchSeq.current) setEntityResults([]);
       }
     })();
-  }, [navigate, t]);
+  }, [navigate, t, searchGroupMeta]);
 
   const handlePaletteQueryChange = useCallback((query: string) => {
     if (entitySearchTimer.current) clearTimeout(entitySearchTimer.current);
@@ -670,14 +671,18 @@ const Layout = () => {
                     )}
                   </div>
                 )}
+                {/* Global search entry point — opens the command palette, which
+                    now shows grouped full-text suggestions while typing. The
+                    Ctrl/Cmd+K hint mirrors the keyboard shortcut above. */}
                 <button
                   type="button"
                   onClick={() => setPaletteOpen(true)}
-                  className="mr-2 inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-                  aria-label={t('shortcuts.commandPalette')}
+                  className="mr-2 inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  aria-label={t('search.buttonLabel')}
                 >
-                  <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t('shortcuts.commandPalette')}</span>
+                  <MagnifyingGlassIcon className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">{t('search.buttonLabel')}</span>
+                  <kbd className="hidden md:inline-block rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-1.5 text-xs font-sans leading-4">Ctrl K</kbd>
                 </button>
                <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 ${isActive('/action-center') ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label={t('navigation.actionCenter')}>
                   <BellAlertIcon className="h-5 w-5" aria-hidden="true" />

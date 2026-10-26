@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useI18n } from '../context/I18nContext';
 
 export interface CommandPaletteItem {
   /** Unique key used to match the free-text filter. */
@@ -19,6 +20,12 @@ export interface CommandPaletteItem {
    * Used for server-side search results that already match the query.
    */
   filterable?: boolean;
+  /**
+   * Optional action rendered inside the section header (e.g. "Show all").
+   * Only honored on the first item of a section.
+   */
+  sectionActionLabel?: string;
+  onSectionAction?: () => void;
 }
 
 export interface CommandPaletteProps {
@@ -47,10 +54,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOpen,
   onClose,
   items,
-  placeholder = 'Type a command or search…',
+  placeholder,
   title,
   onQueryChange,
 }) => {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -152,14 +160,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               setQuery(e.target.value);
               onQueryChange?.(e.target.value);
             }}
-            placeholder={placeholder}
+            placeholder={placeholder ?? t('shortcuts.commandPalettePlaceholder')}
             className="h-12 w-full bg-transparent py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white"
           />
           <button
             type="button"
             onClick={() => onClose()}
             className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
@@ -173,7 +181,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         >
           {filtered.length === 0 ? (
             <li className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
-              No matches found.
+              {t('commandPalette.noMatches')}
             </li>
           ) : (
             filtered.map((item, index) => {
@@ -183,8 +191,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               return (
                 <Fragment key={item.id}>
                   {showSection && (
-                    <li aria-hidden="true" className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                      {item.section}
+                    <li aria-hidden="true" className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      <span>{item.section}</span>
+                      {item.sectionActionLabel && item.onSectionAction && (
+                        <button
+                          type="button"
+                          // Keep the palette open; the action navigates on click.
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={(e) => { e.stopPropagation(); item.onSectionAction?.(); }}
+                          className="rounded px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-gray-700"
+                        >
+                          {item.sectionActionLabel}
+                        </button>
+                      )}
                     </li>
                   )}
                   <li

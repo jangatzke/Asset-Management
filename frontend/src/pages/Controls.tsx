@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
-import { controlApi, frameworkApi, evidenceApi, catalogApi, adminApi, organizationApi, type SoADiffResponse } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi, catalogApi, userSearchApi, organizationApi, type SoADiffResponse } from '../services/api';
 import { getAccessToken } from '../store/accessToken';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
@@ -110,9 +111,11 @@ const actionIconClassName = 'h-4 w-4';
 
 const Controls = () => {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
   const [controls, setControls] = useState<Control[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Seed from ?search= so the global search "show all" deep-link works.
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') ?? '');
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -438,15 +441,12 @@ const Controls = () => {
     }
   }, [implementationFormState]);
 
-  // Search endpoint for EntitySearchSelect (responsible person)
+  // Search endpoint for EntitySearchSelect (responsible person) — dedicated
+  // owner-search API: active users only, no admin user-list dependency.
   const searchUsers = async (q: string) => {
     try {
-      const res = await adminApi.listUsers();
-      const users = res.data?.data ?? res.data ?? [];
-      if (!q) return users;
-      return users.filter((u: any) =>
-        `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(q.toLowerCase())
-      );
+      const res = await userSearchApi.owners(q);
+      return res.data ?? res ?? [];
     } catch { return []; }
   };
 

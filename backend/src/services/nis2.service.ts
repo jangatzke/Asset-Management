@@ -3,125 +3,119 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
 /**
- * NIS2 Sectors (NIS2-Umsetzungsgesetz — NIS2UmsuCG)
+ * NIS2 Sectors (NIS-2 Directive Annex I / Annex II, transposed by the BSIG)
  *
- * Die 18 Sektoren des Anhangs des NIS2-Umsetzungsgesetzes.
+ * Sektorliste gemäß Anhang I der NIS-2-Richtlinie (hochkritische Sektoren,
+ * vgl. Anlage 1 BSIG) und Anhang II (sonstige kritische Sektoren, vgl.
+ * Anlage 2 BSIG). "Baugewerbe" und "IT-Schulung" sind keine NIS-2-Sektoren
+ * und wurden entfernt; die Liste folgt jetzt abschließend den Sektoren der
+ * Rechtsanhange.
  */
 export const NIS2_SECTORS = [
+  // --- Annex I / BSIG Anlage 1 (high-critical sectors) ---
   {
     key: 'energy',
     nameDe: 'Energie',
     nameEn: 'Energy',
-    subSectors: ['Strom', 'Gas', 'Öl', 'Energieübertragung und -verteilung'],
+    subSectors: ['Strom', 'Gas', 'Erdöl', 'Fernwärme und -kälte', 'Energieübertragung und -verteilung'],
   },
   {
     key: 'transport',
     nameDe: 'Verkehr',
     nameEn: 'Transport',
-    subSectors: ['Luftfahrt', 'Bahn', 'Straßenverkehr', 'Wasserfahrt', 'Öffentlicher Nahverkehr'],
+    subSectors: ['Luftfahrt', 'Bahnverkehr', 'Straßenverkehr', 'Binnen- und Seeschifffahrt', 'Öffentlicher Personennahverkehr'],
   },
   {
     key: 'banking',
     nameDe: 'Bankwesen',
     nameEn: 'Banking',
-    subSectors: ['Kreditinstitute', 'Zahlungsabwicklung'],
+    subSectors: ['Kreditinstitute', 'Zahlungs- und E-Geld-Institute'],
   },
   {
     key: 'financial-market-infra',
     nameDe: 'Finanzmarkt-Infrastruktur',
     nameEn: 'Financial Market Infrastructures',
-    subSectors: ['Wertpapierhandel', 'Klare Gegenparteien (CCP)', 'Verwahrung'],
+    subSectors: ['Wertpapierhandelssysteme', 'Zentrale Gegenparteien (CCP)', 'Verwahrung von Wertpapieren'],
   },
   {
     key: 'health',
     nameDe: 'Gesundheit',
     nameEn: 'Health',
-    subSectors: ['Herstellende Gesundheitsanbieter', 'Versorgende Gesundheitsanbieter', 'Notfallversorgung', 'Pharma-Produktion'],
+    subSectors: ['Versorgende Gesundheitsanbieter (Krankenhäuser, Praxen)', 'Apotheken', 'Labore', 'Pharma-Grundstoffe und -Zubereitungen'],
   },
   {
     key: 'water',
-    nameDe: 'Wasserversorgung',
-    nameEn: 'Water Supply',
+    nameDe: 'Wasser',
+    nameEn: 'Water',
     subSectors: ['Trinkwasserversorgung', 'Abwasserentsorgung'],
   },
   {
     key: 'digital-infrastructure',
     nameDe: 'Digitale Infrastruktur',
     nameEn: 'Digital Infrastructure',
-    subSectors: ['Internet Exchange', 'Cloud Computing Services', 'Rechenzentren', 'Data Centre Interconnect', 'Internet Service Provider (ISP)', 'Domain Name Systems (DNS)'],
-  },
-  {
-    key: 'ict-service-mgmt',
-    nameDe: 'IT-Dienstleistungsmanagement',
-    nameEn: 'ICT Service Management',
-    subSectors: ['Managed Security Service Provider (MSSP)', 'Software und Hardware (Vertrieb)', 'IT-Projektmanagement', 'Softwareentwicklung'],
-  },
-  {
-    key: 'space',
-    nameDe: 'Weltraum',
-    nameEn: 'Space',
-    subSectors: ['Satelliten', 'Satellitengrundinfrastruktur', 'Weltraumbetrieb'],
+    subSectors: ['Internet-Knotenpunkte (IXP)', 'DNS-Dienstleister', 'Domain-Name-Registrare', 'Cloud Computing Services', 'Rechenzentren', 'CDN-Anbieter', 'IKT-Service-Management (B2B)'],
   },
   {
     key: 'public-admin',
     nameDe: 'Öffentliche Verwaltung',
     nameEn: 'Public Administration',
-    subSectors: ['Verwaltungen allgemein', 'Zertifizierungsstellen (Trust Service Providers)'],
+    subSectors: ['Verwaltungen und Behörden', 'Trust-Dienstleister (Zertifizierungsstellen)'],
   },
   {
+    key: 'space',
+    nameDe: 'Weltraum',
+    nameEn: 'Space',
+    subSectors: ['Satellitenbetreiber', 'Bodeninfrastruktur für Satelliten'],
+  },
+  // --- Annex II / BSIG Anlage 2 (other critical sectors) ---
+  {
     key: 'postal',
-    nameDe: 'Post und Kurier',
+    nameDe: 'Post- und Kurierdienste',
     nameEn: 'Postal and Courier Services',
-    subSectors: ['Post', 'Kurierdienste', 'Paketdienste'],
+    subSectors: ['Postdienste', 'Kurierdienste'],
   },
   {
     key: 'waste',
     nameDe: 'Abfallwirtschaft',
     nameEn: 'Waste Management',
-    subSectors: ['Siedlungsabfall', 'Gefährlicher Abfall'],
+    subSectors: ['Siedlungsabfall', 'Gefährliche Abfälle'],
   },
   {
     key: 'chemicals',
-    nameDe: 'Chemie',
+    nameDe: 'Chemikalien',
     nameEn: 'Chemicals',
-    subSectors: ['Industrielle Chemie', 'Pharmazeutische Chemie'],
+    subSectors: ['Grundchemikalien', 'Pharmazeutische Grundstoffe und Zubereitungen'],
   },
   {
     key: 'food',
     nameDe: 'Lebensmittel',
     nameEn: 'Food',
-    subSectors: ['Lebensmittelproduktion', 'Lebensmittelverteilung'],
+    subSectors: ['Lebensmittelproduktion, -verarbeitung', 'Großhandel und Verteilung'],
   },
   {
-    key: 'construction',
-    nameDe: 'Baugewerbe',
-    nameEn: 'Construction',
-    subSectors: ['Bauunternehmen', 'Baustoffproduktion'],
+    key: 'manufacturing',
+    nameDe: 'Produzierendes Gewerbe',
+    nameEn: 'Manufacturing',
+    subSectors: ['Medizinprodukte und medizinische Geräte', 'Computer-, Elektro- und Präzisionsgeräte', 'Fahrzeugbau'],
   },
   {
-    key: 'digital',
-    nameDe: 'Digitale Produkte',
-    nameEn: 'Digital Products',
-    subSectors: ['Endgeräte', 'Sicherheitskomponenten'],
-  },
-  {
-    key: 'ict-education',
-    nameDe: 'IT-Schulung',
-    nameEn: 'ICT Education',
-    subSectors: ['IT-Ausbildungseinrichtungen'],
+    key: 'digital-providers',
+    nameDe: 'Digitale Anbieter',
+    nameEn: 'Digital Providers',
+    subSectors: ['Netzbetreiber (öffentliche Kommunikationsnetze)', 'Software- und Hardwareentwicklung', 'Industrie-4.0-Lösungen'],
   },
   {
     key: 'research',
-    nameDe: 'Forschung und Entwicklung',
-    nameEn: 'Research and Development',
-    subSectors: ['Forschungseinrichtungen', 'Forschungsdatenverarbeitung'],
+    nameDe: 'Forschung',
+    nameEn: 'Research',
+    subSectors: ['Forschungsnetze mit Datenverarbeitungsanlagen für wissenschaftliche Aktivitäten'],
   },
 ];
 
 /**
  * NIS2 v2.0 Applicability Questionnaire.
  * Implements sector-based classification with employee count,
- * revenue and balance sheet thresholds per NIS2UmsuCG.
+ * revenue and balance sheet thresholds per § 28 BSIG (bwE/wE criteria).
  */
 export const NIS2_APPLICABILITY_QUESTIONNAIRE = {
   version: '2.0.0',
@@ -491,7 +485,7 @@ export class Nis2Service {
 
   /**
    * GET /nis2/sectors
-   * Returns the static list of 18 NIS2 sectors for the self-assessment selector.
+   * Returns the static list of NIS-2 Annex I/II sectors for the self-assessment selector.
    */
   async listSectors() {
     return NIS2_SECTORS;

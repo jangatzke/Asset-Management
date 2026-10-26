@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { assetApi } from '../services/api';
+import { useI18n } from '../context/I18nContext';
 
 interface ImpactNode {
   id: string;
@@ -42,6 +43,7 @@ const SEVERITY_BORDER: Record<string, string> = {
 };
 
 const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) => {
+  const { t } = useI18n();
   const [data, setData] = useState<ImpactAnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +66,10 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         }
       })
       .catch((err) => {
-        setError(err.response?.data?.error?.message || 'Failed to load impact analysis');
+        setError(err.response?.data?.error?.message || t('graph.impact.loadError'));
       })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial impact-analysis load only; loader uses current translation fallback for this mount.
   }, [assetId]);
 
   const toggleNode = (nodeId: string) => {
@@ -147,14 +150,14 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
       {/* Summary Header */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          Impact Analysis: {data.assetName}
+          {t('graph.impact.title')}: {data.assetName}
         </h2>
 
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-center">
             <div className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalAffected}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Total Affected</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('graph.impact.totalAffected')}</div>
           </div>
           {Object.entries(data.affectedBySeverity || {}).map(([level, count]) => (
             <div key={level} className={`rounded-lg p-4 text-center ${SEVERITY_COLORS[level]}`}>
@@ -167,7 +170,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         {/* Affected by Type */}
         {Object.keys(data.affectedByType || {}).length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Affected by Asset Type</h3>
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('graph.impact.affectedByType')}</h3>
             <div className="flex flex-wrap gap-2">
               {Object.entries(data.affectedByType).map(([type, count]) => (
                 <span key={type} className="px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full text-sm">
@@ -181,7 +184,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         {/* Critical Paths */}
         {data.criticalPaths?.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-sm font-medium text-red-700 dark:text-red-300 mb-2">⚠️ Critical Paths</h3>
+            <h3 className="text-sm font-medium text-red-700 dark:text-red-300 mb-2">⚠️ {t('graph.impact.criticalPaths')}</h3>
             <ul className="list-disc list-inside space-y-1">
               {data.criticalPaths.map((path, i) => (
                 <li key={i} className="text-sm text-gray-700 dark:text-gray-300">{path}</li>
@@ -193,7 +196,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         {/* Single Points of Failure */}
         {data.singlePointsOfFailure?.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">🔴 Single Points of Failure</h3>
+            <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">🔴 {t('graph.impact.singlePointsOfFailure')}</h3>
             <ul className="list-disc list-inside space-y-1">
               {data.singlePointsOfFailure.map((spof, i) => (
                 <li key={i} className="text-sm text-gray-700 dark:text-gray-300">{spof}</li>
@@ -205,12 +208,12 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
 
       {/* Impact Tree */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cascading Effects</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('graph.impact.cascadingEffects')}</h3>
         {data.tree?.length > 0 ? (
           renderTree(data.tree)
         ) : (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            No downstream dependencies found.
+            {t('graph.impact.noDownstream')}
           </div>
         )}
       </div>

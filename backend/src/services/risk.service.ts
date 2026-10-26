@@ -23,6 +23,22 @@ async function resolveOrgUnitScope(organizationUnitId: string) {
   return { legalEntityId: organizationUnit.legalEntityId ?? null, organizationUnitId, siteId: null, scopeId: null };
 }
 
+// Risk owner/assessor reference validation (F-01/F-14 referential integrity).
+// Both fields are required: they must reference existing, active users.
+async function validateRiskUserReferences(refs: { riskOwnerId?: string; assessorId?: string }) {
+  const ids = [refs.riskOwnerId, refs.assessorId].filter((v): v is string => Boolean(v));
+  if (!ids.length) return refs;
+  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, isActive: true } });
+  const byId = new Map(users.map((u: any) => [u.id, u.isActive]));
+  for (const field of ['riskOwnerId', 'assessorId'] as const) {
+    const id = refs[field];
+    if (!id) continue;
+    if (!byId.has(id)) throw new AppError(`${field} references a user that does not exist`, 400);
+    if (byId.get(id) === false) throw new AppError(`${field} references an inactive user`, 409);
+  }
+  return refs;
+}
+
 async function resolveImplementationScope(controlImplementationId: string): Promise<ScopeConstraints> {
   const implementation = await db.controlImplementation.findUnique({
     where: { id: controlImplementationId },
@@ -387,6 +403,9 @@ export class RiskService {
         throw new AppError('Risk method version not found', 404);
       }
     }
+
+    // Validate risk owner/assessor references (must be existing, active users)
+    await validateRiskUserReferences({ riskOwnerId: data.riskOwnerId, assessorId: data.assessorId });
 
     // Use a transaction to create risk, junction links, and initial assessment atomically
     const result = await prisma.$transaction(async (tx) => {

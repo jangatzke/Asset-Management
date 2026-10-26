@@ -136,10 +136,10 @@ const Login = () => {
       <div className={loginShellClass}>
         <div className={loginCardClass}>
           <div className="text-center mb-8">
-            <h1 className={loginTitleClass}>ISMS Asset Manager</h1>
-            <p className={`${loginTextClass} mt-2`}>Create the first administrator account</p>
+            <h1 className={loginTitleClass}>{t('navigation.applicationName')}</h1>
+            <p className={`${loginTextClass} mt-2`}>{t('login.firstAdminTitle')}</p>
             <div className="mt-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-3 py-2 rounded text-sm" role="status">
-              This will create the initial admin account. After this, all new users will be managed by administrators.
+              {t('login.firstAdminHint')}
             </div>
           </div>
           <form onSubmit={handleSubmit}>
@@ -158,7 +158,7 @@ const Login = () => {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className={loginInputClass}
-                placeholder="First name"
+                placeholder={t('adminUsers.fields.firstName')}
                 autoComplete="given-name"
                 required
               />
@@ -173,7 +173,7 @@ const Login = () => {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 className={loginInputClass}
-                placeholder="Last name"
+                placeholder={t('adminUsers.fields.lastName')}
                 autoComplete="family-name"
                 required
               />
@@ -203,7 +203,7 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={loginInputClass}
-                placeholder="Password"
+                placeholder={t('login.password')}
                 autoComplete="new-password"
                 required
               />
@@ -213,7 +213,7 @@ const Login = () => {
               disabled={submitting}
               className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition disabled:opacity-60"
             >
-              {submitting ? 'Creating account…' : 'Create Admin Account'}
+              {submitting ? t('login.creatingAccount') : t('login.createAdminAccount')}
             </button>
           </form>
         </div>
@@ -225,9 +225,9 @@ const Login = () => {
     <div className={loginShellClass}>
       <div className={loginCardClass}>
         <div className="text-center mb-8">
-          <h1 className={loginTitleClass}>ISMS Asset Manager</h1>
+          <h1 className={loginTitleClass}>{t('navigation.applicationName')}</h1>
           <p className={`${loginTextClass} mt-2`}>
-            {mode === 'login' ? 'Sign in to your account' : 'Create your account'}
+            {mode === 'login' ? t('login.signInPrompt') : t('login.createAccountPrompt')}
           </p>
         </div>
         <form onSubmit={handleSubmit}>
@@ -248,7 +248,7 @@ const Login = () => {
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   className={loginInputClass}
-                  placeholder="First name"
+                  placeholder={t('adminUsers.fields.firstName')}
                   autoComplete="given-name"
                   required
                 />
@@ -263,7 +263,7 @@ const Login = () => {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   className={loginInputClass}
-                  placeholder="Last name"
+                  placeholder={t('adminUsers.fields.lastName')}
                   autoComplete="family-name"
                   required
                 />
@@ -272,9 +272,9 @@ const Login = () => {
           )}
           {preAuthState && preAuthState !== 'disabled' && (
             <div className="mb-4 bg-blue-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-700 text-primary-800 dark:text-primary-200 px-3 py-2 rounded text-sm">
-              {preAuthState === 'mfa_required' && 'Enter your authenticator code to complete sign-in.'}
-              {preAuthState === 'mfa_enrollment_required' && 'MFA enrollment is required. Scan the QR code and enter the generated code.'}
-              {preAuthState === 'password_change_required' && 'Your password must be changed before sign-in can continue.'}
+              {preAuthState === 'mfa_required' && t('login.mfaRequiredHint')}
+              {preAuthState === 'mfa_enrollment_required' && t('login.mfaEnrollmentHint')}
+              {preAuthState === 'password_change_required' && t('login.passwordChangeHint')}
             </div>
           )}
           <div className="mb-4">
@@ -302,21 +302,21 @@ const Login = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={loginInputClass}
-              placeholder="Password"
+              placeholder={t('login.password')}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               required
             />
           </div>}
           {preAuthState === 'password_change_required' && (
             <div className="mb-6">
-              <label htmlFor="newPassword" className={loginLabelClass}>New password</label>
+              <label htmlFor="newPassword" className={loginLabelClass}>{t('settings.newPassword')}</label>
               <input
                 type="password"
                 id="newPassword"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className={loginInputClass}
-                placeholder="New password"
+                placeholder={t('settings.newPassword')}
                 autoComplete="new-password"
                 required
               />
@@ -324,12 +324,12 @@ const Login = () => {
           )}
           {mfaQrCode && (
             <div className="mb-4 text-center">
-              <img src={mfaQrCode} alt="MFA setup QR code" className="mx-auto max-w-48" />
+              <img src={mfaQrCode} alt={t('login.mfaQrAlt')} className="mx-auto max-w-48" />
             </div>
           )}
           {(preAuthState === 'mfa_required' || preAuthState === 'mfa_enrollment_required') && (
             <div className="mb-6">
-              <label htmlFor="mfaToken" className={loginLabelClass}>Authenticator code</label>
+              <label htmlFor="mfaToken" className={loginLabelClass}>{t('settings.mfaCode')}</label>
               <input
                 type="text"
                 id="mfaToken"
@@ -350,7 +350,7 @@ const Login = () => {
               disabled={submitting}
               className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition disabled:opacity-60"
             >
-              {submitting ? 'Please wait…' : preAuthState === 'mfa_required' ? 'Verify code' : preAuthState === 'mfa_enrollment_required' ? 'Confirm MFA setup' : preAuthState === 'password_change_required' ? 'Change password' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              {submitting ? t('login.pleaseWait') : preAuthState === 'mfa_required' ? t('login.verifyCode') : preAuthState === 'mfa_enrollment_required' ? t('login.confirmMfaSetup') : preAuthState === 'password_change_required' ? t('login.changePassword') : mode === 'login' ? t('login.signIn') : t('login.createAccount')}
           </button>
         </form>
         <div className="mt-4 text-center">
@@ -366,7 +366,7 @@ const Login = () => {
               setMfaQrCode(null);
             }}
           >
-            {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}
+            {mode === 'login' ? t('login.noAccount') + ' ' + t('login.register') : t('login.haveAccount') + ' ' + t('login.signIn')}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { contractApi } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -58,9 +59,11 @@ const actionIconClassName = 'h-4 w-4';
 
 const Contracts = () => {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Seed from ?search= so the global search "show all" deep-link works.
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') ?? '');
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);

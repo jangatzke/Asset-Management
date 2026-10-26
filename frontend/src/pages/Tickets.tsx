@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { ticketApi, type TicketResponse } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -91,6 +91,15 @@ export default function Tickets() {
   }, [page, debouncedQuery, run, scope, statusGroup, t, type]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Seed the search box when arriving via the global search "show all"
+  // deep-link (/tickets?search=...). The debounce effect then triggers the
+  // regular server-side search automatically.
+  const location = useLocation();
+  useEffect(() => {
+    const initialSearch = new URLSearchParams(location.search).get('search');
+    if (initialSearch) setQuery(initialSearch);
+  }, [location.search]);
 
   // Debounce the search input; typing no longer requires Enter to trigger a load.
   useEffect(() => {

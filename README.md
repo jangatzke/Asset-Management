@@ -54,7 +54,7 @@ The main functional areas visible in the repository are asset management, risk a
 
 ### Backend Routes and Cross-Cutting Features
 
-The API registers resources under `/api/v1/*` as well as health/monitoring endpoints. Visibly registered areas include auth, users, assets, risks, controls, incidents, tickets, action center, organization, admin, audit logs, Intune, VMware, Proxmox, contracts, licenses, processes, treatments, methods, imports, frameworks, evidence, documents, NIS 2, Phase 6/ISMS operations, catalog, cost planning, webhooks, service accounts, and email gateway.
+The API registers resources under `/api/v1/*` as well as health/monitoring endpoints. Visibly registered areas include auth, users, assets, risks, controls, incidents, tickets, action center, organization, admin, audit logs, Intune, VMware, Proxmox, contracts, licenses, processes, treatments, methods, imports, frameworks, evidence, documents, NIS 2, Phase 6/ISMS operations, catalog, cost planning, webhooks, service accounts, email gateway, and global search.
 
 Cross-cutting features according to the current repository state:
 
@@ -625,6 +625,7 @@ The API is versioned under `/api/v1`. Registered routes in the backend include, 
 | Business objects | `/api/v1/contracts`, `/api/v1/licenses`, `/api/v1/cost-planning` |
 | Business processes and risk workflows | `/api/v1/processes`, `/api/v1/treatments`, `/api/v1/methods` |
 | Action center | `/api/v1/action-center` |
+| Global search | `/api/v1/search` (permission-filtered full-text suggestions grouped by entity type) |
 | Integrations | `/api/v1/intune`, `/api/v1/admin/vmware`, `/api/v1/admin/proxmox`, `/api/v1/imports` |
 | Automation | `/api/v1/webhooks`, `/api/v1/service-accounts` |
 

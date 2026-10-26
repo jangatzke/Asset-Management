@@ -55,3 +55,15 @@ tsc_*.txt
 tmp-*.txt
 # Patch/diff artifacts
 *.patch
+
+# One-off analysis/patch artifacts (locale tooling diffs, patch scripts, reports)
+additions-*.json
+gitdiff*.txt
+locale-report*.txt
+missing-*.txt
+reusable-report.txt
+ns-dump.txt
+static-keys.txt
+phase6-keys.json
+phase6-strings.json
+void

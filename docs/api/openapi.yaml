@@ -470,6 +470,41 @@ paths:
                 $ref: '#/components/schemas/OidcConfigResponse'
 
   # ==================== Admin - Users ====================
+  /users/owners:
+    get:
+      summary: Search active users for owner/responsible person selection
+      description: >-
+        Lightweight lookup endpoint for assigning owners, technical operators and
+        information-security-responsible persons (Assets) as well as risk owner and
+        assessor (Risks). Returns active users only and never exposes role
+        administration data. Backed by real User relations (FK + ON DELETE SET NULL
+        on assets, ON DELETE RESTRICT on risks); IDs supplied by clients are
+        validated server-side (400 for unknown users, 409 for inactive users).
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          description: Optional search term applied to email/name.
+          schema: { type: string }
+        - name: limit
+          in: query
+          description: Maximum number of results (server-capped at 500).
+          schema: { type: integer, default: 25, maximum: 500 }
+      responses:
+        '200':
+          description: Matching active users as lightweight select items.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSelectItem'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Caller lacks admin access required for user lookups
+
   /admin/users:
     get:
       summary: List all users
@@ -1913,6 +1948,22 @@ paths:
       responses:
         '200': { description: Action center items }
 
+  # ==================== Global Search ====================
+  /search:
+    get:
+      summary: Global full-text search grouped by entity type (permission-filtered)
+      description: Returns top hits per entity type for the given query. Only entities the caller is allowed to read are included. Results are cached briefly per user+query.
+      tags: [Search]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, maxLength: 200 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: type, in: query, required: false, description: Restrict to a single entity type (assets, tickets, incidents, risks, controls, contracts, licenses, suppliers, knowledge), schema: { type: string } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200': { description: Search groups ordered by relevance with total counts per category }
+        '400': { description: Missing or invalid query parameters }
+
   # ==================== Control Catalogs ====================
   /catalog/catalogs:
     get:
@@ -2648,6 +2699,17 @@ components:
           $ref: '#/components/schemas/UserResponse'
         token: { type: string, description: JWT Bearer Token }
   
+    UserSelectItem:
+      type: object
+      description: Lightweight user representation for owner/assignee selection endpoints.
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+
     UserResponse:
       type: object
       properties:
@@ -2778,6 +2840,18 @@ components:
         description: { type: string }
         assetTypeId: { type: string, format: uuid }
         assetSubtypeId: { type: string, format: uuid }
+        technicalOperatorId:
+          type: string
+          format: uuid
+          description: Technical operator User ID. FK-validated; inactive or unknown users are rejected (400/409).
+        businessOwnerId:
+          type: string
+          format: uuid
+          description: Business owner User ID. FK-validated; inactive or unknown users are rejected (400/409).
+        informationSecurityResponsibleId:
+          type: string
+          format: uuid
+          description: Information security responsible User ID. FK-validated; inactive or unknown users are rejected (400/409).
         inventoryNumber: { type: string, description: Optional manual number; otherwise generated from subtype/type inventory pattern when enabled. }
         criticality: { type: string, enum: [low, medium, high, critical] }
         networkAddresses:

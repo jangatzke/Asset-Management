@@ -1,8 +1,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClockIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { processApi } from '../services/api';
+import { processApi, userSearchApi } from '../services/api';
 import { Modal } from '../components/Modal';
+import EntitySearchSelect from '../components/EntitySearchSelect';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
@@ -42,6 +43,14 @@ const initialForm: ProcessForm = {
 };
 
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+
+// Dedicated owner-search API: active users only, no admin user-list dependency.
+const searchOwnerUsers = async (q: string) => {
+  try {
+    const res = await userSearchApi.owners(q);
+    return res.data ?? res ?? [];
+  } catch { return []; }
+};
 const actionIconClassName = 'h-4 w-4';
 
 const Processes = () => {
@@ -57,6 +66,7 @@ const Processes = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCriticality, setFilterCriticality] = useState('');
   const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
+  const [ownerOption, setOwnerOption] = useState<{ id: string; label: string } | null>(null);
   const [linkedRisks, setLinkedRisks] = useState<any[]>([]);
   const [risksLoading, setRisksLoading] = useState(false);
   const [historyProcess, setHistoryProcess] = useState<Process | null>(null);
@@ -126,6 +136,7 @@ const Processes = () => {
 
   const handleDiscard = () => {
     form.resetForm();
+    setOwnerOption(null);
     setEditingId(null);
     setModalOpen(false);
   };
@@ -158,6 +169,9 @@ const Processes = () => {
       criticality: process.criticality || 'medium',
       processOwner: process.processOwner || '',
     });
+    // Rebuild a readable label when the stored owner can be resolved from the
+    // currently loaded users; fall back to the raw value so the picker stays honest.
+    setOwnerOption(process.processOwner ? { id: process.processOwner, label: process.processOwner } : null);
     setEditingId(process.id);
     setModalOpen(true);
   };
@@ -217,7 +231,7 @@ const Processes = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('processes.title')}</h1>
-        <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
+        <button onClick={() => { form.resetForm(); setOwnerOption(null); setEditingId(null); setModalOpen(true); }}
           className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600">
           {t('processes.newProcess')}
         </button>
@@ -337,9 +351,13 @@ const Processes = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('processes.fields.processOwner')}</label>
-              <input type="text" value={form.values.processOwner} onChange={(e) => form.handleChange({ processOwner: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <EntitySearchSelect
+                label={t('processes.fields.processOwner')}
+                searchEndpoint={searchOwnerUsers}
+                value={ownerOption}
+                onChange={(v: { id: string; label: string }) => { setOwnerOption(v); form.handleChange({ processOwner: v.id }); }}
+                placeholder={t('processes.searchUsers')}
+              />
             </div>
           </div>
 
