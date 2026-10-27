@@ -5,6 +5,7 @@ import { auditService } from './audit.service';
 import { nextDisplayId } from './displayId.service';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 import { authorizationService } from './authorization.service';
+import { serializeEntity, serializeEnvelope } from '../utils/dto';
 import type { ScopeConstraints } from './authorization.service';
 
 async function resolveOrganizationUnitScope(organizationUnitId: string): Promise<ScopeConstraints> {
@@ -248,7 +249,7 @@ export class AssetService {
       prisma.asset.count({ where: effectiveWhere }),
     ]);
 
-    return {
+    return serializeEnvelope({
       data: assets,
       pagination: {
         page,
@@ -256,7 +257,7 @@ export class AssetService {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    };
+    });
   }
 
   async getById(id: string) {
@@ -285,7 +286,7 @@ export class AssetService {
       throw new AppError('Asset not found', 404);
     }
 
-    return asset;
+    return serializeEntity(asset);
   }
 
   // ==========================================
@@ -946,7 +947,7 @@ export class AssetService {
   // Relations
   // ==========================================
 
-  async getRelations(assetId: string) {
+  async getRelations(assetId: string, query?: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
     const asset = await prisma.asset.findUnique({
       where: { id: assetId },
       include: {
@@ -963,10 +964,30 @@ export class AssetService {
       throw new AppError('Asset not found', 404);
     }
 
-    return {
-      sourceRelations: asset.sourceRelations,
-      targetRelations: asset.targetRelations,
-    };
+    // Backward compatibility: without query params the complete list is
+    // returned (page=1, limit covers all items) plus pagination metadata.
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const allSource = asset.sourceRelations;
+    const allTarget = asset.targetRelations;
+    const total = allSource.length + allTarget.length;
+    const totalItems = Math.max(total, 1);
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+    const offset = (page - 1) * limit;
+
+    const slice = <T>(items: T[]) => (offset >= items.length ? [] : items.slice(offset, offset + limit));
+
+    return serializeEnvelope({
+      data: [...slice(allSource), ...slice(allTarget)],
+      sourceRelations: slice(allSource),
+      targetRelations: slice(allTarget),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
   }
 
   async createRelation(assetId: string, relationData: {
@@ -996,7 +1017,7 @@ export class AssetService {
       },
     });
 
-    return relation;
+    return serializeEntity(relation);
   }
 
   // ==========================================
@@ -1033,16 +1054,36 @@ export class AssetService {
   // Lifecycle Logs (AST-030)
   // ==========================================
 
-  async getLifecycleLogs(assetId: string) {
+  async getLifecycleLogs(assetId: string, query?: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) {
       throw new AppError('Asset not found', 404);
     }
 
-    return prisma.assetLifecycleLog.findMany({
-      where: { assetId },
-      orderBy: { changedAt: 'desc' },
-    });
+    // Backward compatible defaults: page=1, limit=20 (or the requested limit).
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const offset = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      prisma.assetLifecycleLog.findMany({
+        where: { assetId },
+        orderBy: { changedAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.assetLifecycleLog.count({ where: { assetId } }),
+    ]);
+
+    return {
+      data: logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   // ==========================================

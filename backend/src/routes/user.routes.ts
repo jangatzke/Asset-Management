@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { UserService } from '../services/user.service';
+import { validateQuery } from '../middleware/validation';
+import { UserSearchQuerySchema } from 'shared';
 
 export const userRouter = Router();
 const userService = new UserService();
@@ -15,21 +17,20 @@ userRouter.get('/', authenticate, requireAdminAccess, async (_req, res, next) =>
   }
 });
 
-// Search users (for owner dropdown)
-userRouter.get('/search', authenticate, requireAdminAccess, async (req, res, next) => {
+// Search users (for owner dropdown) — query validated via shared Zod schema (ISSUE-1)
+userRouter.get('/search', authenticate, requireAdminAccess, validateQuery(UserSearchQuerySchema), async (req, res, next) => {
   try {
-    const q = (req.query.q as string) || '';
-    const limit = parseInt(req.query.limit as string) || 20;
-    res.json(await userService.searchUsers(q, limit));
+    const { q, limit } = req.query as any;
+    res.json(await userService.searchUsers(q ?? '', limit));
   } catch (error) {
     next(error);
   }
 });
 
-// Get users for owner selection dropdown
-userRouter.get('/owners', authenticate, requireAdminAccess, async (req, res, next) => {
+// Get users for owner selection dropdown — query validated via shared Zod schema (ISSUE-1)
+userRouter.get('/owners', authenticate, requireAdminAccess, validateQuery(UserSearchQuerySchema.partial()), async (req, res, next) => {
   try {
-    const q = (req.query.q as string) || undefined;
+    const { q } = req.query as { q?: string };
     res.json(await userService.getOwnersForSelect(q));
   } catch (error) {
     next(error);

@@ -1,8 +1,9 @@
 import { Router } from 'express';
+import { SupplierReviewsDueQuerySchema } from 'shared';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireMappedReadPermission, requireMappedWritePermission } from '../middleware/entityAuth';
-import { validateBody } from '../middleware/validation';
+import { validateBody, validateQuery } from '../middleware/validation';
 import { phase6Service, PHASE6_MODEL_MAP } from '../services/phase6.service';
 import { supplierService } from '../services/supplier.service';
 import { bcmService } from '../services/bcm.service';
@@ -167,6 +168,10 @@ phase6Router.get('/suppliers', authenticate, requireMappedReadPermission('suppli
 // NIS2 Art. 21(2)(d) supply-chain dependency overview (registered before /suppliers/:id routes).
 phase6Router.get('/suppliers/overview', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.supplyChainOverview(req.query)); } catch (error) { next(error); }
+});
+// NIS2 Art. 26/30 review reminder oversight: due/overdue supplier reviews (registered before /suppliers/:id routes).
+phase6Router.get('/suppliers/reviews-due', authenticate, requireMappedReadPermission('suppliers'), validateQuery(SupplierReviewsDueQuerySchema), async (req: AuthRequest, res, next) => {
+  try { res.json(await supplierService.listReviewsDue(req.query)); } catch (error) { next(error); }
 });
 phase6Router.post('/suppliers', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await supplierService.create(req.body, req.userId ?? 'system')); } catch (error) { next(error); }

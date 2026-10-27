@@ -5,6 +5,7 @@ import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
 import { nextDisplayId } from './displayId.service';
 import { resolveActorName, resolveActorNames } from './entityHistory.service';
+import { serializeEntity, serializeEnvelope } from '../utils/dto';
 import { CLOSE_TARGET_STATUS, computePriority, getAllowedTicketTransitions, INITIAL_TICKET_STATUS, type TicketType } from 'shared';
 
 type Data = Record<string, any>;
@@ -130,7 +131,10 @@ export class TicketService {
       (prisma as any).ticket.findMany({ where, include, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       (prisma as any).ticket.count({ where }),
     ]);
-    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    // userSelect already scopes requester/assignee/manager to safe fields;
+    // serializeEntity additionally strips credential-like internals that may
+    // enter through nested includes (e.g. catalogItem, escalations) on deep copies.
+    return serializeEnvelope({ data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   }
 
   async getById(id: string) {
@@ -141,7 +145,7 @@ export class TicketService {
     // by name, not by a raw user id).
     const authors = await resolveActorNames((ticket.comments as any[])?.map((c: any) => c?.authorId).filter(Boolean));
     (ticket.comments as any[])?.forEach((c: any) => { if (c?.authorId) c.authorName = authors.get(c.authorId); });
-    return ticket;
+    return serializeEntity(ticket);
   }
 
   async create(data: Data, actorId: string) {

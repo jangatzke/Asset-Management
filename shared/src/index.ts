@@ -1,5 +1,6 @@
 // Shared types and enums for Asset Management ISMS System
 
+export * from './permissions';
 export * from './types/common';
 export * from './types/asset';
 export * from './types/risk';

@@ -7,6 +7,7 @@ import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
 import { riskMethodService } from './riskmethod.service';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
+import { serializeEntity, serializeEnvelope } from '../utils/dto';
 
 const db = prisma as any;
 
@@ -284,7 +285,7 @@ export class RiskService {
       prisma.risk.count({ where: effectiveWhere }),
     ]);
 
-    return {
+    return serializeEnvelope({
       data: risks,
       pagination: {
         page,
@@ -292,7 +293,7 @@ export class RiskService {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    };
+    });
   }
 
   /**
@@ -333,7 +334,7 @@ export class RiskService {
       throw new AppError('Risk not found', 404);
     }
 
-    return risk;
+    return serializeEntity(risk);
   }
 
   /**
@@ -852,16 +853,34 @@ export class RiskService {
   /**
    * Get all assessments for a risk (full history).
    */
-  async getAssessments(riskId: string) {
-    const assessments = await db.riskAssessmentVersion.findMany({
-      where: { riskId },
-      orderBy: { versionNumber: 'desc' },
-      include: {
-        controlAssessments: { include: { riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: true } },
-      },
-    });
+  async getAssessments(riskId: string, query?: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
+    // Backward compatible defaults: page=1, limit=20 (or the requested limit).
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const offset = (page - 1) * limit;
 
-    return assessments;
+    const [assessments, total] = await Promise.all([
+      db.riskAssessmentVersion.findMany({
+        where: { riskId },
+        orderBy: { versionNumber: 'desc' },
+        include: {
+          controlAssessments: { include: { riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: true } },
+        },
+        skip: offset,
+        take: limit,
+      }),
+      db.riskAssessmentVersion.count({ where: { riskId } }),
+    ]);
+
+    return {
+      data: assessments,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   /**
@@ -881,19 +900,38 @@ export class RiskService {
     });
   }
 
-  async listRiskControls(riskId: string, query?: { status?: string; includeInactive?: boolean }) {
+  async listRiskControls(riskId: string, query?: { status?: string; includeInactive?: boolean; page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
     const risk = await db.risk.findUnique({ where: { id: riskId }, select: { id: true } });
     if (!risk) throw new AppError('Risk not found', 404);
     const where: any = { riskId };
     if (query?.status) where.status = query.status;
     if (!query?.includeInactive && !query?.status) where.status = { not: 'inactive' };
-    return db.riskControl.findMany({ where, orderBy: { createdAt: 'desc' }, include: this.riskControlInclude });
+
+    // Backward compatible defaults: page=1, limit=20 (or the requested limit).
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const offset = (page - 1) * limit;
+
+    const [controls, total] = await Promise.all([
+      db.riskControl.findMany({ where, orderBy: { createdAt: 'desc' }, include: this.riskControlInclude, skip: offset, take: limit }),
+      db.riskControl.count({ where }),
+    ]);
+
+    return serializeEnvelope({
+      data: controls,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    });
   }
 
   async getRiskControl(riskId: string, riskControlId: string) {
     const riskControl = await db.riskControl.findFirst({ where: { id: riskControlId, riskId }, include: this.riskControlInclude });
     if (!riskControl) throw new AppError('Risk control link not found', 404);
-    return riskControl;
+    return serializeEntity(riskControl);
   }
 
   async createRiskControl(riskId: string, data: CreateRiskControlData, createdBy?: string) {
@@ -945,7 +983,7 @@ export class RiskService {
           },
         });
       }
-      return created;
+      return serializeEntity(created);
     } catch (error: any) {
       if (error?.code === 'P2002') throw new AppError('Risk is already linked to this control implementation', 409);
       throw error;
@@ -976,7 +1014,7 @@ export class RiskService {
     if (updatedBy) {
       await auditService.logEventStandalone(prisma, { userId: updatedBy, action: 'RISK_CONTROL_UPDATE', entityType: 'RiskControl', entityId: riskControlId, details: 'Updated risk control relationship', oldValue: existing, newValue: updated });
     }
-    return updated;
+    return serializeEntity(updated);
   }
 
   async removeRiskControl(riskId: string, riskControlId: string, userId?: string) {
@@ -992,34 +1030,76 @@ export class RiskService {
         details: existing.assessments?.length ? 'Deactivated risk control relationship with assessment history' : 'Deactivated risk control relationship',
         oldValue: existing,
         newValue: { ...existing, status: 'inactive' },
-      });
-    }
-    return updated;
+    });
   }
+  return serializeEntity(updated);
+}
 
-  async listControlAssessmentsForRisk(riskId: string, query?: { riskAssessmentVersionId?: string; status?: string }) {
+  async listControlAssessmentsForRisk(riskId: string, query?: { riskAssessmentVersionId?: string; status?: string; page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
     const risk = await db.risk.findUnique({ where: { id: riskId }, select: { id: true } });
     if (!risk) throw new AppError('Risk not found', 404);
     const where: any = { riskControl: { riskId } };
     if (query?.riskAssessmentVersionId) where.riskAssessmentVersionId = query.riskAssessmentVersionId;
     if (query?.status) where.status = query.status;
-    return db.riskControlAssessment.findMany({
-      where,
-      orderBy: { assessedAt: 'desc' },
-      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
-    });
+
+    // Backward compatible defaults: page=1, limit=20 (or the requested limit).
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const offset = (page - 1) * limit;
+
+    const [assessments, total] = await Promise.all([
+      db.riskControlAssessment.findMany({
+        where,
+        orderBy: { assessedAt: 'desc' },
+        include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
+        skip: offset,
+        take: limit,
+      }),
+      db.riskControlAssessment.count({ where }),
+    ]);
+
+    return {
+      data: assessments,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
-  async listRiskControlAssessments(riskId: string, riskControlId: string, query?: { riskAssessmentVersionId?: string; status?: string }) {
+  async listRiskControlAssessments(riskId: string, riskControlId: string, query?: { riskAssessmentVersionId?: string; status?: string; page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
     await this.getRiskControl(riskId, riskControlId);
     const where: any = { riskControlId };
     if (query?.riskAssessmentVersionId) where.riskAssessmentVersionId = query.riskAssessmentVersionId;
     if (query?.status) where.status = query.status;
-    return db.riskControlAssessment.findMany({
-      where,
-      orderBy: { assessedAt: 'desc' },
-      include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
-    });
+
+    // Backward compatible defaults: page=1, limit=20 (or the requested limit).
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const offset = (page - 1) * limit;
+
+    const [assessments, total] = await Promise.all([
+      db.riskControlAssessment.findMany({
+        where,
+        orderBy: { assessedAt: 'desc' },
+        include: { riskAssessmentVersion: true, riskControl: { include: { controlImplementation: { include: { control: true } } } }, evidenceLinks: { include: { evidence: true } } },
+        skip: offset,
+        take: limit,
+      }),
+      db.riskControlAssessment.count({ where }),
+    ]);
+
+    return {
+      data: assessments,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   async getRiskControlAssessment(riskId: string, riskControlId: string, assessmentId: string) {

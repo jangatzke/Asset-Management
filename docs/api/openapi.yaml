@@ -110,6 +110,55 @@ paths:
       responses:
         '201': { description: ReportRun }
 
+  /phase6/suppliers/overview:
+    get:
+      summary: Supply-chain dependency overview (NIS2 Art. 21(2)(d))
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: criticality, in: query, required: false, schema: { type: string } }
+        - { name: nis2Relevant, in: query, required: false, schema: { type: string, enum: ['true'] } }
+        - { name: search, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: Suppliers with linked contracts, risks, latest assessment and review status }
+
+  /phase6/suppliers/reviews-due:
+    get:
+      summary: List suppliers with due or overdue reviews (NIS2 Art. 26/30 review reminders)
+      description: >
+        Supplier review reminder oversight: returns non-archived suppliers whose
+        nextReviewDate falls at or before the end of the look-ahead window
+        (days, default 30). Supplier reviews are surfaced data-driven by the
+        reminder subsystem (suppliers is registered in PHASE6_MODEL_MAP with
+        dueField nextReviewDate); no per-supplier reminder records are created.
+      tags: [Phase6]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: days, in: query, required: false, description: Look-ahead window in days (0 = overdue only), schema: { type: integer, minimum: 0, maximum: 365, default: 30 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Paginated suppliers with reviewOverdue flag
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  pagination:
+                    type: object
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      total: { type: integer }
+                      totalPages: { type: integer }
+                  days: { type: integer }
+                  asOf: { type: string, format: date-time }
+        '400': { description: VALIDATION_ERROR (e.g. days out of range) }
+
   /frameworks:
     get:
       summary: List frameworks with recent versions
@@ -924,6 +973,132 @@ paths:
       responses:
         '200': { description: RiskAssessmentVersion closed }
 
+  /risks/{id}/assessments:
+    get:
+      summary: List risk assessments (paginated)
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated risk assessments
+          headers:
+            X-Total-Count:
+              description: Total number of risk assessments
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
+
+  /risks/{riskId}/controls:
+    get:
+      summary: List RiskControl links for a risk (paginated)
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: riskId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: includeInactive
+          in: query
+          schema: { type: boolean }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated RiskControl links
+          headers:
+            X-Total-Count:
+              description: Total number of RiskControl links
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
+
+  /risks/{riskId}/control-assessments:
+    get:
+      summary: List all RiskControl assessments for a risk (paginated)
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: riskId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: riskAssessmentVersionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated RiskControl assessments
+          headers:
+            X-Total-Count:
+              description: Total number of RiskControl assessments
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
+
+  /risks/{riskId}/controls/{riskControlId}/assessments:
+    get:
+      summary: List assessments of a single RiskControl (paginated)
+      tags: [Risks]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: riskId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: riskControlId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: riskAssessmentVersionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated RiskControl assessments for one link
+          headers:
+            X-Total-Count:
+              description: Total number of assessments for this RiskControl
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
+
   /controls/tests:
     post:
       summary: Create a control implementation test with generic evidence links
@@ -948,15 +1123,30 @@ paths:
           in: path
           required: true
           schema: { type: string }
-        - name: depth
+        - name: maxDepth
           in: query
-          schema: { type: integer, default: 3 }
+          schema: { type: integer, minimum: 1, maximum: 20, default: 5 }
+        - name: direction
+          in: query
+          schema: { type: string, enum: [both, upstream, downstream], default: both }
+        - name: relationTypes
+          in: query
+          description: Comma-separated relation type filter
+          schema: { type: string }
+        - name: assetTypes
+          in: query
+          description: Comma-separated asset type filter
+          schema: { type: string }
+      responses:
+        '200': { description: Dependency graph nodes and edges }
 
   /assets/graph:
     get:
       summary: Get full asset dependency graph
       tags: [Assets]
       security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Dependency graph nodes and edges }
 
   /assets/{id}/impact-analysis:
     get:
@@ -968,6 +1158,92 @@ paths:
           in: path
           required: true
           schema: { type: string }
+        - name: maxDepth
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 20 }
+      responses:
+        '200': { description: Impact analysis result }
+
+  /assets/{id}/relations:
+    get:
+      summary: List asset relations (paginated)
+      description: Returns sourceRelations and targetRelations plus pagination metadata. Sets the X-Total-Count response header.
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated asset relations
+          headers:
+            X-Total-Count:
+              description: Total number of relations across both directions
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
+
+  /assets/{id}/dependencies:
+    get:
+      summary: List direct upstream and downstream dependencies (paginated)
+      description: Returns upstream/downstream dependency arrays at the top level plus pagination metadata. Sets the X-Total-Count response header.
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated dependency payload
+          headers:
+            X-Total-Count:
+              description: Total number of dependencies across both directions
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
+
+  /assets/{id}/lifecycle-logs:
+    get:
+      summary: List lifecycle log entries for an asset (paginated)
+      description: Sets the X-Total-Count response header.
+      tags: [Assets]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: '#/components/parameters/PageQuery' }
+        - { $ref: '#/components/parameters/LimitQuery' }
+        - { $ref: '#/components/parameters/SortByQuery' }
+        - { $ref: '#/components/parameters/SortOrderQuery' }
+      responses:
+        '200':
+          description: Paginated lifecycle log entries
+          headers:
+            X-Total-Count:
+              description: Total number of lifecycle log entries
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubResourceListResponse'
 
   # ==================== Risks ====================
   /risks:
@@ -2393,6 +2669,32 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: Page number for sub-resource listings (server-side default 1)
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      description: Page size for sub-resource listings (server-side default 20)
+    SortByQuery:
+      name: sortBy
+      in: query
+      required: false
+      schema: { type: string, maxLength: 100 }
+      description: Optional sort column
+    SortOrderQuery:
+      name: sortOrder
+      in: query
+      required: false
+      schema: { type: string, enum: [asc, desc], default: asc }
+      description: Sort direction for sub-resource listings
+
   schemas:
     FrameworkImport:
       type: object
@@ -2887,6 +3189,21 @@ components:
         page: { type: integer }
         limit: { type: integer }
         totalPages: { type: integer }
+
+    SubResourceListResponse:
+      type: object
+      description: Paginated sub-resource listing; `data` carries the rows and
+        `pagination` the server-side totals. Additional keys (e.g. sourceRelations,
+        upstream) may be present depending on the endpoint.
+      properties:
+        data: { type: array, items: {} }
+        pagination:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            totalPages: { type: integer }
 
 # ==================== Phase 8: API, Betrieb und Nachweise ====================
 

@@ -15,6 +15,20 @@ import { validateTransition } from './statusTransition';
 
 type AnyObject = Record<string, any>;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+/**
+ * NIS2 Art. 26/30 supply-chain rule: a nis2Relevant supplier must have a mandatory
+ * risk assessment, materialised as at least one SupplierRiskRelation to a
+ * non-archived risk record. Because the UI workflow creates the supplier first and
+ * links risks afterwards, enforcement returns a warning field on the created/
+ * updated record instead of a hard 400/409 (documented variant, see plans/
+ * iso27001-nis2-gap-analysis.md §2.4).
+ */
+const NIS2_RISK_ASSESSMENT_WARNING =
+  'NIS2-relevant supplier without risk assessment: link at least one non-archived risk via supplier risk relations to complete the mandatory risk assessment (NIS2 Art. 26/30).';
+const NIS2_RISK_ASSESSMENT_ARCHIVED_WARNING =
+  'NIS2-relevant supplier risk assessment incomplete: all linked risks are archived; link at least one non-archived risk via supplier risk relations (NIS2 Art. 26/30).';
+
 const CREATE_ACTION: AuditAction = 'CONFIG_CHANGE';
 const UPDATE_ACTION: AuditAction = 'CONFIG_CHANGE';
 const ARCHIVE_ACTION: AuditAction = 'ASSET_ARCHIVE';
@@ -46,7 +60,7 @@ export class SupplierService {
       details: `Created supplier ${supplier.displayId}`,
       newValue: supplier as any,
     });
-    return supplier;
+    return await this.withNis2RiskAssessmentWarning(supplier);
   }
 
   /**
@@ -78,6 +92,29 @@ export class SupplierService {
       oldValue: existing as any,
       newValue: supplier as any,
     });
+    return await this.withNis2RiskAssessmentWarning(supplier);
+  }
+
+  /**
+   * Soft NIS2 enforcement (Gap-Analyse §2.4, NIS2 Art. 26/30): appends a warning
+   * to the response when a nis2Relevant supplier has no active risk relation to a
+   * non-archived risk. A hard 400/409 would break the create-then-link workflow,
+   * so the validation mirrors the warning style used elsewhere in the domain
+   * services (cf. ticket.service.ts reference validations).
+   */
+  private async withNis2RiskAssessmentWarning(supplier: AnyObject): Promise<AnyObject> {
+    if (!supplier?.nis2Relevant || supplier.isArchived) return supplier;
+    const relations = await prisma.supplierRiskRelation.findMany({ where: { supplierId: supplier.id } });
+    if (relations.length === 0) {
+      return { ...supplier, nis2RiskAssessmentWarning: NIS2_RISK_ASSESSMENT_WARNING };
+    }
+    const activeRisks = await prisma.risk.findMany({
+      where: { id: { in: relations.map((relation: any) => relation.riskId) }, isArchived: false },
+      select: { id: true },
+    });
+    if (activeRisks.length === 0) {
+      return { ...supplier, nis2RiskAssessmentWarning: NIS2_RISK_ASSESSMENT_ARCHIVED_WARNING };
+    }
     return supplier;
   }
 
@@ -158,6 +195,42 @@ export class SupplierService {
     ]);
 
     return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  /**
+   * Supplier review reminder oversight (NIS2 Art. 26/30, Gap-Analyse §2.4):
+   * lists suppliers whose nextReviewDate falls within the given look-ahead window
+   * (`days`). Supplier reviews are already surfaced data-driven by the reminder
+   * subsystem (suppliers is registered in PHASE6_MODEL_MAP with dueField
+   * nextReviewDate), so no per-supplier reminder records or scheduler are needed.
+   */
+  async listReviewsDue(query: AnyObject = {}): Promise<AnyObject> {
+    const page = Number(query.page ?? 1);
+    const limit = Math.min(Number(query.limit ?? 20), 100);
+    const days = Number(query.days ?? 30);
+    const skip = (page - 1) * limit;
+    const now = new Date();
+    const dueLimit = new Date(now.getTime() + Math.max(0, days) * DAY_MS);
+    const where: AnyObject = {
+      isArchived: false,
+      status: { not: 'archived' },
+      nextReviewDate: { lte: dueLimit },
+    };
+
+    const [data, total] = await Promise.all([
+      prisma.supplier.findMany({ where, skip, take: limit, orderBy: { nextReviewDate: 'asc' as const } }),
+      prisma.supplier.count({ where }),
+    ]);
+
+    return {
+      data: data.map((supplier: AnyObject) => ({
+        ...supplier,
+        reviewOverdue: new Date(supplier.nextReviewDate).getTime() < now.getTime(),
+      })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      days,
+      asOf: now.toISOString(),
+    };
   }
 
   /**

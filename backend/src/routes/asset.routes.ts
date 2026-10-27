@@ -6,7 +6,7 @@ import { assetService } from '../services/asset.service';
 import { assetGraphService } from '../services/asset.graph';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
-import { ArchiveAssetSchema, AssetQuerySchema, AssetRelationCreateSchema, BulkArchiveAssetsSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, IdParamSchema, LifecycleTransitionSchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
+import { ArchiveAssetSchema, AssetGraphQuerySchema, AssetImpactQuerySchema, AssetQuerySchema, AssetRelationCreateSchema, BulkArchiveAssetsSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, EntityHistoryQuerySchema, IdParamSchema, LifecycleTransitionSchema, SubResourceListQuerySchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
 
 
 
@@ -137,14 +137,10 @@ assetRouter.get('/:id', authenticate, requireEntityPermission('assets.read', 'as
 });
 
 // GET /api/v1/assets/:id/history - Get asset history (entity + linked ticket events)
-assetRouter.get('/:id/history', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), async (req: AuthRequest, res, next) => {
+assetRouter.get('/:id/history', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), validateQuery(EntityHistoryQuerySchema), async (req: AuthRequest, res, next) => {
   try {
     await assetService.getById(req.params.id);
-    const history = await assetService.getAssetTicketHistory(req.params.id, {
-      action: req.query.action as any,
-      limit: req.query.limit ? Number(req.query.limit) : undefined,
-      offset: req.query.offset ? Number(req.query.offset) : undefined,
-    });
+    const history = await assetService.getAssetTicketHistory(req.params.id, req.query as any);
     res.json(history);
   } catch (error) {
     next(error);
@@ -236,10 +232,11 @@ assetRouter.post('/:id/disposal-proof', authenticate, authorizeEntityWrite('asse
 // Relations
 // ==========================================
 
-assetRouter.get('/:id/relations', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
+assetRouter.get('/:id/relations', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), validateQuery(SubResourceListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const relations = await assetService.getRelations(req.params.id);
-    res.json(relations);
+    const result = await assetService.getRelations(req.params.id, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -259,15 +256,9 @@ assetRouter.post('/:id/relations', authenticate, requireEntityPermission('assets
 // ==========================================
 
 // AST-011: Graph visualization data - centered on specific asset with BFS traversal and options
-assetRouter.get('/:id/graph', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
+assetRouter.get('/:id/graph', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), validateQuery(AssetGraphQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth as string) : undefined;
-    const direction = ['both', 'upstream', 'downstream'].includes(req.query.direction as string)
-      ? req.query.direction as 'both' | 'upstream' | 'downstream'
-      : 'both';
-    const relationTypes = req.query.relationTypes ? (req.query.relationTypes as string).split(',') : undefined;
-    const assetTypes = req.query.assetTypes ? (req.query.assetTypes as string).split(',') : undefined;
-
+    const { maxDepth, direction, relationTypes, assetTypes } = req.query as any;
     const graph = await assetGraphService.getDependencyGraph(req.params.id, {
       maxDepth,
       direction,
@@ -281,9 +272,9 @@ assetRouter.get('/:id/graph', authenticate, requireEntityPermission('assets.read
 });
 
 // AST-012: Impact analysis - calculate blast radius along dependencies
-assetRouter.get('/:id/impact-analysis', authenticate, requireAdminAccess, async (req, res, next) => {
+assetRouter.get('/:id/impact-analysis', authenticate, requireAdminAccess, validateParams(IdParamSchema), validateQuery(AssetImpactQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth as string) : undefined;
+    const { maxDepth } = req.query as any;
     const result = await assetGraphService.analyzeImpact(req.params.id, { maxDepth });
     res.json(result);
   } catch (error) {
@@ -292,10 +283,11 @@ assetRouter.get('/:id/impact-analysis', authenticate, requireAdminAccess, async 
 });
 
 // AST-011, AST-012: List all upstream/downstream dependencies
-assetRouter.get('/:id/dependencies', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
+assetRouter.get('/:id/dependencies', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), validateQuery(SubResourceListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const deps = await assetGraphService.getDependencies(req.params.id);
-    res.json(deps);
+    const result = await assetGraphService.getDependencies(req.params.id, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -325,10 +317,11 @@ assetRouter.get('/:id/upstream', authenticate, requireAdminAccess, async (req, r
 // Lifecycle Logs — AST-030
 // ==========================================
 
-assetRouter.get('/:id/lifecycle-logs', authenticate, requireEntityPermission('assets.read', 'assets'), async (req, res, next) => {
+assetRouter.get('/:id/lifecycle-logs', authenticate, requireEntityPermission('assets.read', 'assets'), validateParams(IdParamSchema), validateQuery(SubResourceListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const logs = await assetService.getLifecycleLogs(req.params.id);
-    res.json(logs);
+    const result = await assetService.getLifecycleLogs(req.params.id, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }

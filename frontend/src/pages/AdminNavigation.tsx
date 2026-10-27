@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import { ArrowUturnLeftIcon, InformationCircleIcon, PlusIcon, StarIcon, TrashIcon } from '@heroicons/react/24/outline';
 import NavigationOrderEditor, { type NavigationOrderEntry } from '../components/NavigationOrderEditor';
@@ -35,10 +35,10 @@ const AdminNavigation = () => {
 
   const catalogHrefs = useMemo(() => new Set(catalogEntries.map((entry) => entry.href)), [catalogEntries]);
 
-  const effectiveOrderFor = (stored: string[]) => applyNavigationOrder(
+  const effectiveOrderFor = useCallback((stored: string[]) => applyNavigationOrder(
     catalogEntries.map((entry) => ({ ...entry })),
     stored.filter((href) => catalogHrefs.has(href)),
-  ).map((entry) => entry.href);
+  ).map((entry) => entry.href), [catalogEntries, catalogHrefs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +68,7 @@ const AdminNavigation = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [catalogEntries, catalogHrefs, addToast, t]);
+  }, [catalogEntries, catalogHrefs, effectiveOrderFor, addToast, t]);
 
   const selectScope = (nextScope: string) => {
     if (scope === nextScope) return;

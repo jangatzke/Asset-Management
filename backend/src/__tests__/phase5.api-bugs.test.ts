@@ -138,6 +138,11 @@ const createApp = () => {
 describe('Phase 5 API bug fixes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // validateRiskUserReferences resolves assessor/risk-owner references through user.findMany
+    mockPrisma.user.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id: string) => ({ id, isActive: true }));
+    });
     mockAuthorizationService.require.mockResolvedValue(undefined as never);
     mockAuthorizationService.buildReadFilter.mockResolvedValue({} as never);
     mockDisplayIdService.nextDisplayIdStandalone.mockResolvedValue('RSK-005' as never);

@@ -88,6 +88,7 @@ export default function AdminAI() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial AI config/activity load only; load uses current translation fallback for this mount.
   }, []);
 
   const load = async () => {

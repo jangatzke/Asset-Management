@@ -169,6 +169,7 @@ export default function AdminVMware() {
   useEffect(() => {
     loadCredentials();
     loadServers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap; loaders are stable across renders
   }, []);
 
   // ---- Credential Functions ----

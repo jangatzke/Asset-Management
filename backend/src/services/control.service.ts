@@ -6,6 +6,7 @@ import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 import { catalogService } from './catalog.service';
+import { serializeEntity, serializeEnvelope } from '../utils/dto';
 import {
   ISO27001_ANNEX_A_2022_CATALOG_CODE,
   ISO27001_ANNEX_A_2022_CONTROLS,
@@ -161,7 +162,7 @@ export class ControlService {
       prisma.control.count({ where: effectiveWhere }),
     ]);
 
-    return {
+    return serializeEnvelope({
       data: controls,
       pagination: {
         page,
@@ -169,7 +170,7 @@ export class ControlService {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    };
+    });
   }
 
   async getById(id: string, userId?: string) {
@@ -186,7 +187,7 @@ export class ControlService {
       throw new AppError('Control not found', 404);
     }
 
-    return control;
+    return serializeEntity(control);
   }
 
   async listImplementationRisks(implementationId: string, userId?: string) {
@@ -270,7 +271,7 @@ export class ControlService {
       actorId: createdBy,
     });
 
-    return control;
+    return serializeEntity(control);
   }
 
   async update(id: string, data: UpdateControlData, updatedBy?: string) {
@@ -311,7 +312,7 @@ export class ControlService {
       actorId: updatedBy,
     });
 
-    return control;
+    return serializeEntity(control);
   }
 
   async delete(id: string, deletedBy?: string) {

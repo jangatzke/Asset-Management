@@ -41,6 +41,7 @@ var mockPrisma = {
   assetLifecycleLog: {
     create: jest.fn(),
     findMany: jest.fn(),
+    count: jest.fn(),
   },
   assetRelation: {
     createMany: jest.fn(),
@@ -776,23 +777,28 @@ describe('AssetService - CRUD Operations', () => {
   // ==========================================
   // Lifecycle Logs
   // ==========================================
+describe('getLifecycleLogs', () => {
+  it('should return paginated lifecycle logs for an asset', async () => {
+    mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
+    mockPrisma.assetLifecycleLog.findMany.mockResolvedValue([
+      { id: 'log-1', assetId: 'asset-123', newStatus: 'planned' },
+    ]);
+    mockPrisma.assetLifecycleLog.count.mockResolvedValue(1);
 
-  describe('getLifecycleLogs', () => {
-    it('should return lifecycle logs for an asset', async () => {
-      mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
-      mockPrisma.assetLifecycleLog.findMany.mockResolvedValue([
-        { id: 'log-1', assetId: 'asset-123', newStatus: 'planned' },
-      ]);
+    const result = await assetService.getLifecycleLogs('asset-123');
 
-      const logs = await assetService.getLifecycleLogs('asset-123');
-
-      expect(logs).toHaveLength(1);
-      expect(mockPrisma.assetLifecycleLog.findMany).toHaveBeenCalledWith({
-        where: { assetId: 'asset-123' },
-        orderBy: { changedAt: 'desc' },
-      });
+    expect(result).toEqual({
+      data: [{ id: 'log-1', assetId: 'asset-123', newStatus: 'planned' }],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+    expect(mockPrisma.assetLifecycleLog.findMany).toHaveBeenCalledWith({
+      where: { assetId: 'asset-123' },
+      orderBy: { changedAt: 'desc' },
+      skip: 0,
+      take: 20,
     });
   });
+});
 
   // ==========================================
   // Display ID Integration

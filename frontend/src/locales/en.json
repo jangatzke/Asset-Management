@@ -935,6 +935,14 @@
     "outgoingDependencies": "This asset depends on",
     "reset": "Reset",
     "ariaLabel": "Asset dependency graph",
+    "a11y": {
+      "summary": "Asset dependency graph with {count} nodes and {edges} connections",
+      "statusNodes": "{count} nodes, {edges} connections",
+      "focusAnnouncement": "Focus: {name} (criticality: {criticality})",
+      "focusAnnouncementPlain": "Focus: {name}",
+      "listLabel": "Graph nodes",
+      "keyboardHint": "Use the arrow keys to move between assets, Enter to show details, and Escape to exit."
+    },
     "impact": {
       "title": "Impact Analysis",
       "totalAffected": "Total Affected",
@@ -1873,6 +1881,23 @@
     "readonly": "Read Only",
     "readwrite": "Read/Write"
   },
+  "permissionGroups": {
+    "Assets": "Assets",
+    "Audits": "Audits",
+    "Bcm": "Business Continuity (BCM)",
+    "Controls": "Controls",
+    "CorrectiveActions": "Corrective Actions",
+    "Documents": "Documents",
+    "Evidence": "Evidence",
+    "Incidents": "Incidents",
+    "InterestedParties": "Interested Parties",
+    "Nis2": "NIS2",
+    "Risks": "Risks",
+    "ServiceCatalog": "Service Catalog",
+    "Suppliers": "Suppliers",
+    "Tickets": "Tickets",
+    "Training": "Training"
+  },
   "processes": {
     "categories": {
       "compliance": "Compliance",
@@ -2252,6 +2277,7 @@
   },
   "roles": {
     "adminAccess": "Admin Access",
+    "adminAccessHint": "Members can open the admin area and manage users, roles and settings",
     "builtIn": "Built-in",
     "createRole": "Create Role",
     "deleteConfirm": "Are you sure you want to delete this role?",
@@ -2259,6 +2285,8 @@
     "entityPermissions": "Entity Permissions",
     "globalPermissions": "Global permissions",
     "loadError": "Could not load roles",
+    "nameRequired": "A role name is required.",
+    "newRole": "Create new role",
     "noPermissions": "No permissions assigned",
     "permissionManagement": "Permission management",
     "permissions": "Permissions",
@@ -2269,7 +2297,8 @@
     "roleUpdated": "Role updated successfully",
     "saveError": "Could not save role",
     "savePermissions": "Save permissions",
-    "selectPermissionLevel": "Select permission level"
+    "selectPermissionLevel": "Select permission level",
+    "subtitle": "Manage roles and their granular permissions"
   },
   "securityRequirements": {
     "addRequirement": "Add Requirement",

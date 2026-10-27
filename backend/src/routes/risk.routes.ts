@@ -9,6 +9,7 @@ import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import {
   CreateReviewTaskSchema,
+  EntityHistoryQuerySchema,
   CreateRiskSchema,
   CreateRiskAssessmentSchema,
   CreateNestedRiskControlAssessmentSchema,
@@ -16,10 +17,12 @@ import {
   CreateRiskControlAssessmentSchema,
   CreateRiskControlSchema,
   RiskAggregationQuerySchema,
+  RiskAssessmentCurrentQuerySchema,
   RiskControlAssessmentListQuerySchema,
   RiskControlListQuerySchema,
   RiskControlNestedParamsSchema,
   UnplannedReviewEventSchema,
+  SubResourceListQuerySchema,
   UpdateReviewTaskSchema,
   UpdateRiskSchema,
   UpdateRiskControlSchema,
@@ -259,9 +262,11 @@ riskRouter.get('/aggregate/by-business-process', authenticate, requireAdminAcces
 });
 
 // Canonical nested RiskControl workflow routes.
-riskRouter.get('/:riskId/controls', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlListQuerySchema), async (req, res, next) => {
+riskRouter.get('/:riskId/controls', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    res.json(await riskService.listRiskControls(req.params.riskId, req.query as any));
+    const result = await riskService.listRiskControls(req.params.riskId, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -275,9 +280,11 @@ riskRouter.post('/:riskId/controls', authenticate, requireEntityPermission('risk
   }
 });
 
-riskRouter.get('/:riskId/control-assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
+riskRouter.get('/:riskId/control-assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    res.json(await riskService.listControlAssessmentsForRisk(req.params.riskId, req.query as any));
+    const result = await riskService.listControlAssessmentsForRisk(req.params.riskId, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -307,9 +314,11 @@ riskRouter.delete('/:riskId/controls/:riskControlId', authenticate, requireEntit
   }
 });
 
-riskRouter.get('/:riskId/controls/:riskControlId/assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req, res, next) => {
+riskRouter.get('/:riskId/controls/:riskControlId/assessments', authenticate, requireEntityPermission('risks.read', 'risks', 'riskId'), validateParams(RiskControlNestedParamsSchema), validateQuery(RiskControlAssessmentListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    res.json(await riskService.listRiskControlAssessments(req.params.riskId, req.params.riskControlId, req.query as any));
+    const result = await riskService.listRiskControlAssessments(req.params.riskId, req.params.riskControlId, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -345,14 +354,10 @@ riskRouter.get('/:id', authenticate, requireEntityPermission('risks.read', 'risk
 });
 
 // GET /api/v1/risks/:id/history - Get risk history
-riskRouter.get('/:id/history', authenticate, requireEntityPermission('risks.read', 'risks'), async (req: AuthRequest, res, next) => {
+riskRouter.get('/:id/history', authenticate, requireEntityPermission('risks.read', 'risks'), validateQuery(EntityHistoryQuerySchema), async (req: AuthRequest, res, next) => {
   try {
     await riskService.getById(req.params.id);
-    const history = await getEntityHistory('Risk', req.params.id, {
-      action: req.query.action as any,
-      limit: req.query.limit ? Number(req.query.limit) : undefined,
-      offset: req.query.offset ? Number(req.query.offset) : undefined,
-    });
+    const history = await getEntityHistory('Risk', req.params.id, req.query as any);
     res.json(history);
   } catch (error) {
     next(error);
@@ -378,19 +383,21 @@ riskRouter.delete('/:id', authenticate, authorizeEntityDelete('risks'), async (r
 });
 
 // Assessment history for a specific risk
-riskRouter.get('/:id/assessments', authenticate, requireEntityPermission('risks.read', 'risks'), async (req, res, next) => {
+riskRouter.get('/:id/assessments', authenticate, requireEntityPermission('risks.read', 'risks'), validateQuery(SubResourceListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const assessments = await riskService.getAssessments(req.params.id);
-    res.json(assessments);
+    const result = await riskService.getAssessments(req.params.id, req.query as any);
+    res.setHeader('X-Total-Count', String(result.pagination.total));
+    res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
 // Current assessment for a specific risk
-riskRouter.get('/:id/assessments/current', authenticate, requireEntityPermission('risks.read', 'risks'), async (req, res, next) => {
+riskRouter.get('/:id/assessments/current', authenticate, requireEntityPermission('risks.read', 'risks'), validateQuery(RiskAssessmentCurrentQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    const assessment = await riskService.getCurrentAssessment(req.params.id, req.query.type as any);
+    const { type } = req.query as any;
+    const assessment = await riskService.getCurrentAssessment(req.params.id, type);
     if (!assessment) {
       return res.status(404).json({ error: 'No current assessment found' });
     }

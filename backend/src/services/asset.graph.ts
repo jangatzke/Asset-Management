@@ -374,7 +374,7 @@ export class AssetGraphService {
     };
   }
 
-  async getDependencies(assetId: string): Promise<DependencyResult> {
+  async getDependencies(assetId: string, query?: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }): Promise<DependencyResult & { data: DependencyResult; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset) throw new AppError('Asset not found', 404);
 
@@ -383,9 +383,32 @@ export class AssetGraphService {
       prisma.assetRelation.findMany({ where: { sourceAssetId: assetId }, include: { targetAsset: { include: { assetType: true } } } }),
     ]);
 
+    const upstream = incoming.map((rel: any) => ({ id: rel.sourceAsset.id, name: rel.sourceAsset.name, type: rel.sourceAsset.assetType.name, relationType: rel.relationshipType }));
+    const downstream = outgoing.map((rel: any) => ({ id: rel.targetAsset.id, name: rel.targetAsset.name, type: rel.targetAsset.assetType.name, relationType: rel.relationshipType }));
+
+    // Backward compatible defaults: page=1, limit=20 (or the requested limit).
+    const page = query?.page && Number.isFinite(query.page) ? query.page : 1;
+    const limit = query?.limit && Number.isFinite(query.limit) ? query.limit : 20;
+    const total = upstream.length + downstream.length;
+    const totalPages = Math.ceil(Math.max(total, 1) / limit) || 1;
+    const offset = (page - 1) * limit;
+
+    const slice = <T>(items: T[]) => (offset >= items.length ? [] : items.slice(offset, offset + limit));
+
+    const data: DependencyResult = {
+      upstream: slice(upstream),
+      downstream: slice(downstream),
+    };
+
     return {
-      upstream: incoming.map((rel: any) => ({ id: rel.sourceAsset.id, name: rel.sourceAsset.name, type: rel.sourceAsset.assetType.name, relationType: rel.relationshipType })),
-      downstream: outgoing.map((rel: any) => ({ id: rel.targetAsset.id, name: rel.targetAsset.name, type: rel.targetAsset.assetType.name, relationType: rel.relationshipType })),
+      ...data,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
     };
   }
 

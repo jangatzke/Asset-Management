@@ -31,6 +31,7 @@ const AdminOIDC = () => {
 
   useEffect(() => {
     loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial OIDC config load only; loadConfig uses current translation fallback for this mount.
   }, []);
 
   const loadConfig = async () => {

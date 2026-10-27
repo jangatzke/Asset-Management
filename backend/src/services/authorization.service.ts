@@ -1,27 +1,12 @@
 import { Prisma } from '@prisma/client';
+import { GRANULAR_PERMISSIONS, type PermissionName } from 'shared';
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 
-export const GRANULAR_PERMISSIONS = [
-  'assets.read', 'assets.write', 'assets.archive',
-  'risks.read', 'risks.write', 'risks.assess', 'risks.approve', 'risks.accept',
-  'controls.read', 'controls.write', 'controls.test', 'controls.approve',
-  'incidents.read', 'incidents.write', 'incidents.assess', 'incidents.report', 'incidents.close',
-  'tickets.read', 'tickets.write', 'tickets.assign', 'tickets.close', 'tickets.escalate', 'tickets.approve', 'tickets.context',
-  'serviceCatalog.read', 'serviceCatalog.manage',
-  'suppliers.read', 'suppliers.write', 'suppliers.approve',
-  'bcm.read', 'bcm.write', 'bcm.approve',
-  'audits.read', 'audits.write', 'audits.close',
-  'correctiveActions.read', 'correctiveActions.write', 'correctiveActions.verify',
-  'training.read', 'training.manage',
-  'documents.read', 'documents.write', 'documents.approve',
-  'interestedParties.read', 'interestedParties.write',
-  'evidence.read', 'evidence.write', 'evidence.export',
-  'nis2.read', 'nis2.write', 'nis2.approve',
-  'administration.access',
-] as const;
-
-export type PermissionName = typeof GRANULAR_PERMISSIONS[number];
+// The canonical permission catalog lives in `shared` (single source of truth
+// for backend validation and the admin role editor UI).
+export { GRANULAR_PERMISSIONS };
+export type { PermissionName };
 
 export type EntityType =
   | 'assets'

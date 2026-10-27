@@ -26,6 +26,7 @@ export default function ActionCenter() {
       .catch(() => active && setError(t('actionCenter.loadError')))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is only the error-message fallback; adding it would refetch the list on language switch.
   }, [filters]);
 
   const update = (next: Partial<ActionCenterParams>) => setFilters((current) => ({ ...current, ...next, page: 1 }));

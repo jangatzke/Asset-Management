@@ -27,6 +27,8 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
   const [internalEdges, setInternalEdges] = useState<GraphEdge[]>(propEdges || []);
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const nodeButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [keyboardFocusIndex, setKeyboardFocusIndex] = useState(-1);
 
   // Load graph data from API when assetId is provided
   useEffect(() => {
@@ -93,6 +95,24 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
     () => rootAssetId ? visibleNodes.filter((node) => node.id !== rootAssetId) : visibleNodes,
     [visibleNodes, rootAssetId],
   );
+  // Keyboard navigation order follows the visual layout: top-to-bottom, left-to-right.
+  const orderedNodes = useMemo(
+    () => [...visibleNodes].sort((first, second) => {
+      const firstPos = graphPositions.get(first.id);
+      const secondPos = graphPositions.get(second.id);
+      if (!firstPos || !secondPos) return 0;
+      if (Math.abs(firstPos.y - secondPos.y) > 1) return firstPos.y - secondPos.y;
+      return firstPos.x - secondPos.x;
+    }),
+    [visibleNodes, graphPositions],
+  );
+  const keyboardFocusedNode = keyboardFocusIndex >= 0 ? orderedNodes[keyboardFocusIndex] : undefined;
+
+  useEffect(() => {
+    if (keyboardFocusIndex !== -1 && keyboardFocusIndex >= orderedNodes.length) {
+      setKeyboardFocusIndex(-1);
+    }
+  }, [keyboardFocusIndex, orderedNodes]);
   const showIsolatedFocusAsset = !!focusAssetNode && dependencyNodes.length === 0 && visualEdges.length === 0;
   const selectedAssetFields = useMemo(
     () => selectedNode ? buildSelectedAssetFields(selectedNode) : [],
@@ -225,9 +245,55 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
 
   const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
+  const handleGraphKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (orderedNodes.length === 0) return;
+    const key = e.key;
+    if (key === 'Escape') {
+      setKeyboardFocusIndex(-1);
+      setSelectedNode(null);
+      // Leave the focus mode cleanly: return keyboard focus to the focusable
+      // viewport itself so Tab resumes the natural page order afterwards.
+      e.currentTarget.focus();
+      return;
+    }
+    if (key === 'Enter' || key === ' ') {
+      // Let unrelated interactive children (zoom buttons, filters) keep their
+      // native Enter/Space behavior; node entries share this selection action.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button, input, select, textarea, a') && !target.closest('[data-asset-graph-node-entry]')) return;
+      const node = orderedNodes[keyboardFocusIndex];
+      if (!node) return;
+      e.preventDefault();
+      setSelectedNode(node);
+      return;
+    }
+    let nextIndex: number | null = null;
+    if (key === 'ArrowDown' || key === 'ArrowRight') {
+      nextIndex = keyboardFocusIndex < 0 ? 0 : Math.min(keyboardFocusIndex + 1, orderedNodes.length - 1);
+    } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+      nextIndex = keyboardFocusIndex < 0 ? orderedNodes.length - 1 : Math.max(keyboardFocusIndex - 1, 0);
+    } else if (key === 'Home') {
+      nextIndex = 0;
+    } else if (key === 'End') {
+      nextIndex = orderedNodes.length - 1;
+    }
+    if (nextIndex === null) return;
+    e.preventDefault();
+    setKeyboardFocusIndex(nextIndex);
+    nodeButtonRefs.current[nextIndex]?.focus();
+  }, [orderedNodes, keyboardFocusIndex]);
+
   // Collect unique relation types for filter
   const relationTypes = Array.from(new Set(normalizedEdges.map(e => e.relationType).filter(Boolean))) as string[];
   const graphTransform = `translate(${GRAPH_CENTER.x + pan.x} ${GRAPH_CENTER.y + pan.y}) scale(${zoom}) translate(${-GRAPH_CENTER.x} ${-GRAPH_CENTER.y})`;
+  const liveMessage = keyboardFocusedNode
+    ? keyboardFocusedNode.criticality
+      ? t('graph.a11y.focusAnnouncement', {
+        name: getNodeLabel(keyboardFocusedNode),
+        criticality: t(`assets.criticality.${String(keyboardFocusedNode.criticality)}`),
+      })
+      : t('graph.a11y.focusAnnouncementPlain', { name: getNodeLabel(keyboardFocusedNode) })
+    : t('graph.a11y.statusNodes', { count: visibleNodes.length, edges: visualEdges.length });
 
   return (
     <div className="relative" ref={containerRef}>
@@ -349,11 +415,21 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
 
       {/* Canvas */}
       {!loading && visibleNodes.length > 0 && (
-        <div data-testid="asset-graph-viewport" className={`relative w-full ${heightClassName} overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900`} style={{ height }}>
+        <div
+          data-testid="asset-graph-viewport"
+          role="group"
+          tabIndex={0}
+          aria-label={t('graph.ariaLabel')}
+          onKeyDown={handleGraphKeyDown}
+          className={`relative w-full ${heightClassName} overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900`}
+          style={{ height }}
+        >
           <canvas
             ref={canvasRef}
             className="h-full w-full cursor-grab active:cursor-grabbing"
             style={{ width: '100%', height: '100%' }}
+            role="img"
+            aria-label={t('graph.a11y.summary', { count: visibleNodes.length, edges: visualEdges.length })}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -365,8 +441,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
             data-testid="asset-graph-visual-layer"
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox={`0 0 ${GRAPH_VIEWBOX_WIDTH} ${GRAPH_VIEWBOX_HEIGHT}`}
-            role="img"
-            aria-label={t('graph.ariaLabel')}
+            aria-hidden="true"
           >
             <defs>
               <marker id="asset-graph-arrow-incoming" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto" markerUnits="userSpaceOnUse">
@@ -419,9 +494,10 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
                 const pos = graphPositions.get(node.id);
                 if (!pos) return null;
                 const focused = rootAssetId === node.id;
+                const keyboardFocused = keyboardFocusedNode?.id === node.id;
                 const bounds = getNodeCardBounds(node.id, pos, rootAssetId, node);
-                const nodeFill = focused ? '#EFF6FF' : '#FFFFFF';
-                const nodeStroke = focused ? '#FACC15' : getStrokeColor(node);
+                const nodeFill = focused || keyboardFocused ? '#EFF6FF' : '#FFFFFF';
+                const nodeStroke = keyboardFocused ? '#2563EB' : focused ? '#FACC15' : getStrokeColor(node);
                 const accentColor = focused ? '#2563EB' : getFillColor(node);
                 const metadata = getNodeMetadata(node);
                 return (
@@ -435,7 +511,7 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
                       rx={14}
                       fill={nodeFill}
                       stroke={nodeStroke}
-                      strokeWidth={focused ? 3 : 2}
+                      strokeWidth={focused || keyboardFocused ? 3 : 2}
                       className="drop-shadow-sm dark:fill-gray-800"
                     />
                     <circle cx={-bounds.width / 2 + 31} cy={0} r={focused ? 22 : 18} fill={accentColor} stroke={focused ? '#FACC15' : nodeStroke} strokeWidth={focused ? 4 : 2} />
@@ -461,6 +537,28 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
               })}
             </g>
           </svg>
+          <p data-testid="asset-graph-live-region" aria-live="polite" className="sr-only">{liveMessage}</p>
+          <ul data-testid="asset-graph-node-list" className="sr-only" aria-label={t('graph.a11y.listLabel')}>
+            {orderedNodes.map((node, index) => (
+              <li key={node.id}>
+                <button
+                  type="button"
+                  data-asset-graph-node-entry="true"
+                  ref={(el) => { nodeButtonRefs.current[index] = el; }}
+                  data-testid={`asset-graph-node-entry-${node.id}`}
+                  tabIndex={keyboardFocusIndex === index ? 0 : -1}
+                  aria-current={keyboardFocusIndex === index ? 'true' : undefined}
+                  onClick={() => setSelectedNode(node)}
+                  onFocus={() => setKeyboardFocusIndex(index)}
+                >
+                  {getNodeLabel(node)}
+                  {node.criticality && (
+                    <span className="sr-only"> ({t(`assets.criticality.${String(node.criticality)}`)})</span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
           {focusAssetNode && showIsolatedFocusAsset && (
             <div
               data-testid="asset-graph-isolated-focus"
@@ -485,6 +583,11 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
             <button onClick={resetView} className="bg-white dark:bg-gray-800 px-2 py-1 rounded shadow text-sm hover:bg-gray-50 dark:hover:bg-gray-700">{t('graph.reset')}</button>
           </div>
         </div>
+      )}
+      {!loading && visibleNodes.length > 0 && (
+        <p data-testid="asset-graph-keyboard-hint" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {t('graph.a11y.keyboardHint')}
+        </p>
       )}
 
       {/* Node Detail Side Panel */}

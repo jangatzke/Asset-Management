@@ -935,6 +935,14 @@
     "outgoingDependencies": "Este activo depende de",
     "reset": "Restablecer",
     "ariaLabel": "Gráfico de dependencias de activos",
+    "a11y": {
+      "summary": "Gráfico de dependencias de activos con {count} nodos y {edges} conexiones",
+      "statusNodes": "{count} nodos, {edges} conexiones",
+      "focusAnnouncement": "Enfoque: {name} (criticidad: {criticality})",
+      "focusAnnouncementPlain": "Enfoque: {name}",
+      "listLabel": "Nodos del gráfico",
+      "keyboardHint": "Use las flechas para moverse entre los activos, Enter para ver los detalles y Escape para salir."
+    },
     "impact": {
       "title": "Análisis de impacto",
       "totalAffected": "Total afectados",
@@ -1873,6 +1881,23 @@
     "readonly": "Solo lectura",
     "readwrite": "Lectura/Escritura"
   },
+  "permissionGroups": {
+    "Assets": "Activos",
+    "Audits": "Auditorías",
+    "Bcm": "Continuidad de negocio (BCM)",
+    "Controls": "Controles",
+    "CorrectiveActions": "Acciones correctivas",
+    "Documents": "Documentos",
+    "Evidence": "Evidencias",
+    "Incidents": "Incidentes",
+    "InterestedParties": "Partes interesadas",
+    "Nis2": "NIS2",
+    "Risks": "Riesgos",
+    "ServiceCatalog": "Catálogo de servicios",
+    "Suppliers": "Proveedores",
+    "Tickets": "Tickets",
+    "Training": "Formación"
+  },
   "processes": {
     "categories": {
       "compliance": "Cumplimiento",
@@ -2252,6 +2277,7 @@
   },
   "roles": {
     "adminAccess": "Acceso de administrador",
+    "adminAccessHint": "Los miembros pueden abrir el área de administración y gestionar usuarios, roles y ajustes",
     "builtIn": "Integrado",
     "createRole": "Crear rol",
     "deleteConfirm": "¿Está seguro de que desea eliminar este rol?",
@@ -2259,6 +2285,8 @@
     "entityPermissions": "Permisos de entidad",
     "globalPermissions": "Permisos globales",
     "loadError": "No se pudieron cargar los roles",
+    "nameRequired": "El nombre del rol es obligatorio.",
+    "newRole": "Crear nuevo rol",
     "noPermissions": "No hay permisos asignados",
     "permissionManagement": "Gestión de permisos",
     "permissions": "Permisos",
@@ -2269,7 +2297,8 @@
     "roleUpdated": "Rol actualizado correctamente",
     "saveError": "No se pudo guardar el rol",
     "savePermissions": "Guardar permisos",
-    "selectPermissionLevel": "Seleccionar nivel de permiso"
+    "selectPermissionLevel": "Seleccionar nivel de permiso",
+    "subtitle": "Gestionar roles y sus permisos granulares"
   },
   "securityRequirements": {
     "addRequirement": "Añadir requisito",

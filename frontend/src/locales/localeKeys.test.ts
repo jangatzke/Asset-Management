@@ -257,6 +257,31 @@ test('KRI dashboard locale keys resolve in all locales', () => {
   }
 });
 
+test('asset graph accessibility locale keys resolve in all locales', () => {
+  const keys = [
+    'graph.ariaLabel',
+    'graph.a11y.summary',
+    'graph.a11y.statusNodes',
+    'graph.a11y.focusAnnouncement',
+    'graph.a11y.focusAnnouncementPlain',
+    'graph.a11y.listLabel',
+    'graph.a11y.keyboardHint',
+    'assets.criticality.low',
+    'assets.criticality.medium',
+    'assets.criticality.high',
+    'assets.criticality.critical',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
 test('AI assistant admin locale keys resolve in all locales', () => {
   const keys = [
     'aiAssistant.title', 'aiAssistant.subtitle', 'aiAssistant.connection',

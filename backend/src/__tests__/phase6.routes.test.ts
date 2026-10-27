@@ -20,13 +20,35 @@ jest.mock('../services/phase6.service', () => ({
   phase6Service: { list: jest.fn(), create: jest.fn(), export: jest.fn(), runReminders: jest.fn(), createCorrectiveActionFromSource: jest.fn() },
 }));
 jest.mock('../services/supplier.service', () => ({
-  supplierService: { list: jest.fn().mockResolvedValue({ data: [], pagination: { total: 0 } }) },
+  supplierService: {
+    list: jest.fn().mockResolvedValue({ data: [], pagination: { total: 0 } }),
+    listReviewsDue: jest.fn().mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }, days: 30, asOf: new Date().toISOString() }),
+  },
 }));
 
 describe('Phase6 routes', () => {
   it('lists resource records via explicit supplier route', async () => {
     const res = await request(app).get('/api/v1/phase6/suppliers');
     expect(res.status).toBe(200);
+  });
+
+  it('lists due supplier reviews with the pagination envelope (NIS2 Art. 26/30)', async () => {
+    const res = await request(app).get('/api/v1/phase6/suppliers/reviews-due?days=30&page=1&limit=20');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }, days: 30 });
+    expect(typeof res.body.asOf).toBe('string');
+  });
+
+  it('rejects an out-of-range days parameter with VALIDATION_ERROR', async () => {
+    const res = await request(app).get('/api/v1/phase6/suppliers/reviews-due?days=9999');
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a non-numeric days parameter with VALIDATION_ERROR', async () => {
+    const res = await request(app).get('/api/v1/phase6/suppliers/reviews-due?days=abc');
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code).toBe('VALIDATION_ERROR');
   });
 
   it('rejects unknown resources', async () => {

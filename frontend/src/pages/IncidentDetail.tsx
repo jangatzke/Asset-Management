@@ -61,6 +61,7 @@ const IncidentDetail = () => {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asErrorMessage is recreated each render and only wraps translation fallbacks; adding it would rerun the effect every render.
   }, [incidentId]);
 
   useEffect(() => { void load(); }, [load]);

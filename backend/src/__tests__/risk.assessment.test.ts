@@ -119,6 +119,11 @@ const mockService = { id: 'service-001', displayId: 'SVC-001', name: 'E-Commerce
 describe('Risk Assessment — Paket 3.2', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // validateRiskUserReferences resolves assessor/risk-owner references through user.findMany
+    PrismaMock.user.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id: string) => ({ id, isActive: true }));
+    });
   });
 
   // ==========================================

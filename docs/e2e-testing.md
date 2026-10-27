@@ -28,7 +28,17 @@ flowchart LR
 | Persistence and authorization | UI contract, navigation, and mocked mutation-refresh behavior only. | Express authentication, authorization/RBAC, validation, Prisma writes, state transitions, reload persistence, and UI rendering. |
 | Data safety | No backend or database is involved. | A separately named disposable PostgreSQL database only. Never a developer, shared, staging, or production database. |
 
-The existing four mocked journeys remain fast browser-contract coverage and must stay clearly labeled as mocked. They are not evidence that a request authorizes, persists, or transitions correctly. The new real-E2E suite complements rather than replaces backend unit/integration tests.
+The existing mocked journeys remain fast browser-contract coverage and must stay clearly labeled as mocked. They are not evidence that a request authorizes, persists, or transitions correctly. The new real-E2E suite complements rather than replaces backend unit/integration tests.
+
+## Mocked browser-contract specs (current)
+
+All specs under [`frontend/e2e`](../frontend/e2e) run against the Vite dev server only ([`playwright.config.ts`](../frontend/playwright.config.ts) starts Vite on port `3100`) and intercept every `/api/v1` call with [`page.route()`](../frontend/e2e/fixtures.ts) fulfillment from the shared [`fixtures.ts`](../frontend/e2e/fixtures.ts) module (synthetic `system_admin` session, `paginated()` envelope helper, ticket/asset fixtures). They are browser-contract coverage, not persistence evidence:
+
+| Spec | Workflows covered |
+| --- | --- |
+| [`core-workflows.spec.ts`](../frontend/e2e/core-workflows.spec.ts) | Login → dashboard navigation; Action Center → incident detail routing; incident NIS2 assessment save; ISMS operations training workspace entry. |
+| [`nis2-reporting.spec.ts`](../frontend/e2e/nis2-reporting.spec.ts) | NIS2 Art. 23 reporting: mark NIS2-relevant → 24h/30d deadline rendering incl. overdue visualization → early warning → 72h notification → final report; severity badge and overdue-tag suppression once the final report is submitted. |
+| [`tickets.spec.ts`](../frontend/e2e/tickets.spec.ts) | Ticket creation (requester set automatically, assignee/manager optional), ITIL status transitions per [`ticketTransitions.ts`](../shared/src/ticketTransitions.ts) incl. the `fulfilled → new` reopen, assignee assignment, multi-asset TicketAsset linking, and the inactive-user validation error surfaced to the user. |
 
 ## Repository baseline and constraints
 

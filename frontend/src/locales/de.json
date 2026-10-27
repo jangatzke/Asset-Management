@@ -935,6 +935,14 @@
     "outgoingDependencies": "Dieses Asset hängt ab von",
     "reset": "Zurücksetzen",
     "ariaLabel": "Asset-Abhängigkeitsdiagramm",
+    "a11y": {
+      "summary": "Asset-Abhängigkeitsdiagramm mit {count} Knoten und {edges} Verbindungen",
+      "statusNodes": "{count} Knoten, {edges} Verbindungen",
+      "focusAnnouncement": "Fokus: {name} (Kritikalität: {criticality})",
+      "focusAnnouncementPlain": "Fokus: {name}",
+      "listLabel": "Diagrammknoten",
+      "keyboardHint": "Pfeiltasten zum Wechseln zwischen Assets verwenden, Enter für Details und Escape zum Verlassen."
+    },
     "impact": {
       "title": "Auswirkungsanalyse",
       "totalAffected": "Betroffen gesamt",
@@ -1873,6 +1881,23 @@
     "readonly": "Nur lesen",
     "readwrite": "Lesen/Schreiben"
   },
+  "permissionGroups": {
+    "Assets": "Assets",
+    "Audits": "Audits",
+    "Bcm": "Business Continuity (BCM)",
+    "Controls": "Kontrollen",
+    "CorrectiveActions": "Korrekturmaßnahmen",
+    "Documents": "Dokumente",
+    "Evidence": "Nachweise",
+    "Incidents": "Vorfälle",
+    "InterestedParties": "Interessierte Parteien",
+    "Nis2": "NIS2",
+    "Risks": "Risiken",
+    "ServiceCatalog": "Service-Katalog",
+    "Suppliers": "Lieferanten",
+    "Tickets": "Tickets",
+    "Training": "Schulungen"
+  },
   "processes": {
     "categories": {
       "compliance": "Compliance",
@@ -2252,6 +2277,7 @@
   },
   "roles": {
     "adminAccess": "Admin-Zugriff",
+    "adminAccessHint": "Mitglieder können den Adminbereich öffnen und Benutzer, Rollen und Einstellungen verwalten",
     "builtIn": "Eingebaut",
     "createRole": "Rolle erstellen",
     "deleteConfirm": "Sind Sie sicher, dass Sie diese Rolle löschen möchten?",
@@ -2259,6 +2285,8 @@
     "entityPermissions": "Entitätsberechtigungen",
     "globalPermissions": "Globale Berechtigungen",
     "loadError": "Rollen konnten nicht geladen werden",
+    "nameRequired": "Ein Rollenname ist erforderlich.",
+    "newRole": "Neue Rolle erstellen",
     "noPermissions": "Keine Berechtigungen zugewiesen",
     "permissionManagement": "Berechtigungsverwaltung",
     "permissions": "Berechtigungen",
@@ -2269,7 +2297,8 @@
     "roleUpdated": "Rolle erfolgreich aktualisiert",
     "saveError": "Rolle konnte nicht gespeichert werden",
     "savePermissions": "Berechtigungen speichern",
-    "selectPermissionLevel": "Berechtigungsstufe auswählen"
+    "selectPermissionLevel": "Berechtigungsstufe auswählen",
+    "subtitle": "Rollen und deren granulare Berechtigungen verwalten"
   },
   "securityRequirements": {
     "addRequirement": "Anforderung hinzufügen",

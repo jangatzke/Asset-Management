@@ -236,6 +236,96 @@ export const AssetQuerySchema = z.object({
 
 export type AssetQueryDTO = z.infer<typeof AssetQuerySchema>;
 
+// ==========================================
+// Sub-resource list & query consolidation (ISSUE-1 / ISSUE-2)
+// Shared, Zod-validated query schemas for nested list endpoints so routes
+// never parse query parameters ad-hoc and always return bounded results.
+// ==========================================
+
+/**
+ * Canonical pagination query for sub-resource list endpoints
+ * (e.g. /assets/:id/relations, /risks/:id/controls, /risks/:id/assessments).
+ * Defaults guarantee backward compatibility when the frontend calls
+ * the endpoints without query parameters.
+ */
+export const SubResourceListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  sortBy: z.string().max(100).optional(),
+  sortOrder: z.enum(['asc', 'desc']).default('asc'),
+});
+export type SubResourceListQueryDTO = z.infer<typeof SubResourceListQuerySchema>;
+
+/**
+ * Supplier review due query (GET /phase6/suppliers/reviews-due).
+ * NIS2 Art. 26/30 supply-chain oversight: lists suppliers whose
+ * `nextReviewDate` falls within the given look-ahead window (default 30 days).
+ */
+export const SupplierReviewsDueQuerySchema = z.object({
+  days: z.coerce.number().int().min(0).max(365).default(30),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type SupplierReviewsDueQueryDTO = z.infer<typeof SupplierReviewsDueQuerySchema>;
+
+/**
+ * Entity history query (GET /:entity/:id/history across asset, risk, control,
+ * contract, process, license and incident routes). Replaces ad-hoc
+ * `Number(req.query.limit)` parsing with Zod validation.
+ */
+export const EntityHistoryQuerySchema = z.object({
+  action: z.string().max(50).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+export type EntityHistoryQueryDTO = z.infer<typeof EntityHistoryQuerySchema>;
+
+/**
+ * Asset dependency graph query (GET /assets/:id/graph). Replaces the ad-hoc
+ * `parseInt(req.query.maxDepth)` / manual direction whitelist parsing.
+ * Comma-separated relation/asset type lists are transformed into arrays.
+ */
+export const AssetGraphQuerySchema = z.object({
+  maxDepth: z.coerce.number().int().min(1).max(20).optional(),
+  direction: z.enum(['both', 'upstream', 'downstream']).default('both'),
+  relationTypes: z.string().transform((value) => value.split(',').map((item) => item.trim()).filter(Boolean)).optional(),
+  assetTypes: z.string().transform((value) => value.split(',').map((item) => item.trim()).filter(Boolean)).optional(),
+});
+export type AssetGraphQueryDTO = z.infer<typeof AssetGraphQuerySchema>;
+
+/**
+ * Impact analysis query (GET /assets/:id/impact-analysis).
+ */
+export const AssetImpactQuerySchema = z.object({
+  maxDepth: z.coerce.number().int().min(1).max(20).optional(),
+});
+export type AssetImpactQueryDTO = z.infer<typeof AssetImpactQuerySchema>;
+
+/**
+ * Current risk assessment query (GET /risks/:id/assessments/current).
+ */
+export const RiskAssessmentCurrentQuerySchema = z.object({
+  type: AssessmentTypeSchema.optional(),
+});
+export type RiskAssessmentCurrentQueryDTO = z.infer<typeof RiskAssessmentCurrentQuerySchema>;
+
+/**
+ * User search query (GET /users/search, GET /users/owners-for-select).
+ */
+export const UserSearchQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type UserSearchQueryDTO = z.infer<typeof UserSearchQuerySchema>;
+
+/**
+ * Admin log list query (reminder/SLA/email-gateway/AI activity log listings).
+ */
+export const AdminLogListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type AdminLogListQueryDTO = z.infer<typeof AdminLogListQuerySchema>;
+
 export const CreateAssetSubtypeSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
@@ -463,17 +553,19 @@ export const ControlImplementationRiskParamsSchema = z.object({
   implementationId: z.string().uuid(),
 });
 
-export const RiskControlListQuerySchema = z.object({
+export const RiskControlListQuerySchema = SubResourceListQuerySchema.extend({
   status: z.string().optional(),
   includeInactive: z.coerce.boolean().optional(),
 });
-export type RiskControlListQueryDTO = z.infer<typeof RiskControlListQuerySchema>;
+// `z.input` keeps page/limit optional so frontend callers relying on
+// server-side defaults (page=1, limit=20) keep working unchanged.
+export type RiskControlListQueryDTO = z.input<typeof RiskControlListQuerySchema>;
 
-export const RiskControlAssessmentListQuerySchema = z.object({
+export const RiskControlAssessmentListQuerySchema = SubResourceListQuerySchema.extend({
   riskAssessmentVersionId: z.string().uuid().optional(),
   status: z.string().optional(),
 });
-export type RiskControlAssessmentListQueryDTO = z.infer<typeof RiskControlAssessmentListQuerySchema>;
+export type RiskControlAssessmentListQueryDTO = z.input<typeof RiskControlAssessmentListQuerySchema>;
 
 export const CreateRiskControlSchema = z.object({
   riskId: z.string().uuid(),

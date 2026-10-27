@@ -41,6 +41,7 @@ const AssetDetail = () => {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is only the error-message fallback; adding it would refetch the asset on language switch.
   }, [assetId]);
 
   useEffect(() => { void load(); }, [load]);

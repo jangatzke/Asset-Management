@@ -297,14 +297,16 @@ const Risks = () => {
     await loadControlImplementations();
     try {
       const [detail, controls] = await Promise.all([riskApi.getById(risk.id), riskApi.listControls(risk.id, { includeInactive: true })]);
-      setRiskDetails((prev) => ({ ...prev, [risk.id]: { ...detail.data, riskControls: controls.data } }));
+      const controlList = Array.isArray(controls.data) ? controls.data : (controls.data as unknown as { data?: RiskControlLink[] })?.data ?? [];
+      setRiskDetails((prev) => ({ ...prev, [risk.id]: { ...detail.data, riskControls: controlList } }));
     } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.loadError')); }
   };
 
   const refreshSelectedRiskControls = async () => {
     if (!selectedRiskForControls) return;
     const controls = await riskApi.listControls(selectedRiskForControls.id, { includeInactive: true });
-    setRiskDetails((prev) => ({ ...prev, [selectedRiskForControls.id]: { ...(prev[selectedRiskForControls.id] ?? selectedRiskForControls), riskControls: controls.data } }));
+    const controlList = Array.isArray(controls.data) ? controls.data : (controls.data as unknown as { data?: RiskControlLink[] })?.data ?? [];
+    setRiskDetails((prev) => ({ ...prev, [selectedRiskForControls.id]: { ...(prev[selectedRiskForControls.id] ?? selectedRiskForControls), riskControls: controlList } }));
   };
 
   const handleLinkControl = async () => {

@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { renderToStaticMarkup } from 'react-dom/server';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { AssetGraph } from './AssetGraph';
 import { buildDependencyFallbackGraph, buildSelectedAssetConnections, buildSelectedAssetFields, buildSelectedAssetMetadataFields, buildVisualEdges, calculateGraphLayoutMetadata, calculateNodePositions, createNodeEndpointLookup, doNodeCardBoundsOverlap, ensureFocusAssetNode, extractGraphPayload, filterGraphForVisibleNodes, getCardSize, getConnectorPath, getConnectorPoints, getEdgeLabelPlacement, getEdgeSource, getEdgeTarget, getNodeCardBounds, nodeMatchesCriticalityThreshold, resolveEdgeEndpoint } from './AssetGraphUtils';
 import de from '../locales/de.json';
@@ -1208,5 +1209,155 @@ describe('AssetGraph selected asset details panel', () => {
 
     expect(html).not.toContain('data-testid="asset-graph-selected-details"');
     expect(buildSelectedAssetFields({ id: 'focus', name: 'Central Focus Asset', displayId: 'AST-001', type: 'server', criticality: 'critical' }).map((field) => field.value)).toEqual(expect.arrayContaining(['AST-001', 'server', 'critical']));
+  });
+});
+
+describe('AssetGraph keyboard accessibility', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  const renderAccessibleGraph = () => render(
+    <AssetGraph
+      nodes={[
+        { id: 'focus', name: 'Central Focus Asset', criticality: 'critical' },
+        { id: 'dependency', name: 'Dependency Asset', criticality: 'high' },
+      ]}
+      edges={[{ sourceId: 'dependency', targetId: 'focus', relationType: 'uses' }]}
+      focusAssetId="focus"
+      fallbackNode={{ id: 'focus', name: 'Central Focus Asset', criticality: 'critical' }}
+    />,
+  );
+
+  it('makes the graph viewport keyboard-focusable with a localized accessible name', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    expect(viewport).toHaveAttribute('tabindex', '0');
+    expect(viewport).toHaveAttribute('role', 'group');
+    expect(viewport).toHaveAttribute('aria-label', 'graph.ariaLabel');
+  });
+
+  it('gives the canvas a localized image role summarizing nodes and edges', () => {
+    renderAccessibleGraph();
+    const canvas = screen.getByTestId('asset-graph-viewport').querySelector('canvas');
+
+    expect(canvas).toHaveAttribute('role', 'img');
+    expect(canvas).toHaveAttribute('aria-label', 'graph.a11y.summary');
+  });
+
+  it('marks the decorative SVG visual layer as aria-hidden for assistive technology', () => {
+    renderAccessibleGraph();
+    const svg = screen.getByTestId('asset-graph-visual-layer');
+
+    expect(svg).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('renders an sr-only node list with node names and criticality labels', () => {
+    renderAccessibleGraph();
+    const list = screen.getByTestId('asset-graph-node-list');
+
+    expect(list).toHaveClass('sr-only');
+    expect(list).toHaveAttribute('aria-label', 'graph.a11y.listLabel');
+    expect(screen.getByTestId('asset-graph-node-entry-focus')).toHaveTextContent('Central Focus Asset');
+    expect(screen.getByTestId('asset-graph-node-entry-focus')).toHaveTextContent('(assets.criticality.critical)');
+    expect(screen.getByTestId('asset-graph-node-entry-dependency')).toHaveTextContent('Dependency Asset');
+    expect(screen.getByTestId('asset-graph-node-entry-dependency')).toHaveTextContent('(assets.criticality.high)');
+  });
+
+  it('reports graph status and focused node through a polite live region', () => {
+    renderAccessibleGraph();
+    const liveRegion = screen.getByTestId('asset-graph-live-region');
+
+    expect(liveRegion).toHaveAttribute('aria-live', 'polite');
+    expect(liveRegion).toHaveTextContent('graph.a11y.statusNodes');
+  });
+
+  it('moves keyboard focus to the first node entry with ArrowDown and announces the focused asset', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    fireEvent.keyDown(viewport, { key: 'ArrowDown' });
+
+    const firstEntry = screen.getByTestId('asset-graph-node-entry-focus');
+    expect(document.activeElement).toBe(firstEntry);
+    expect(screen.getByTestId('asset-graph-live-region')).toHaveTextContent('graph.a11y.focusAnnouncement');
+    expect(firstEntry).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('navigates sequentially with ArrowDown and opens the details panel with Enter', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    fireEvent.keyDown(viewport, { key: 'ArrowDown' });
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+
+    const secondEntry = screen.getByTestId('asset-graph-node-entry-dependency');
+    expect(document.activeElement).toBe(secondEntry);
+
+    fireEvent.keyDown(secondEntry, { key: 'Enter' });
+
+    const details = screen.getByTestId('asset-graph-selected-details');
+    expect(details).toHaveTextContent('Dependency Asset');
+    expect(screen.queryByTestId('asset-graph-node-entry-focus')).not.toHaveAttribute('aria-current');
+  });
+
+  it('activates the same detail action with Space on a focused node entry', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    fireEvent.keyDown(viewport, { key: 'End' });
+    const lastEntry = screen.getByTestId('asset-graph-node-entry-dependency');
+    expect(document.activeElement).toBe(lastEntry);
+
+    fireEvent.keyDown(lastEntry, { key: ' ' });
+
+    expect(screen.getByTestId('asset-graph-selected-details')).toHaveTextContent('Dependency Asset');
+  });
+
+  it('jumps to the last node with End and the first node with Home', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    fireEvent.keyDown(viewport, { key: 'End' });
+    expect(document.activeElement).toBe(screen.getByTestId('asset-graph-node-entry-dependency'));
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' });
+    expect(document.activeElement).toBe(screen.getByTestId('asset-graph-node-entry-focus'));
+  });
+
+  it('leaves the node focus mode cleanly with Escape by closing details and refocusing the viewport', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    fireEvent.keyDown(viewport, { key: 'ArrowDown' });
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter' });
+    expect(screen.getByTestId('asset-graph-selected-details')).toBeInTheDocument();
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+
+    expect(screen.queryByTestId('asset-graph-selected-details')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(viewport);
+    expect(screen.getByTestId('asset-graph-node-entry-focus')).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('renders a localized keyboard usage hint below the graph', () => {
+    renderAccessibleGraph();
+
+    const hint = screen.getByTestId('asset-graph-keyboard-hint');
+    expect(hint).toHaveTextContent('graph.a11y.keyboardHint');
+  });
+
+  it('does not intercept Enter on unrelated interactive children like the zoom buttons', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+    const buttons = viewport.querySelectorAll('button');
+    const resetButton = buttons[buttons.length - 1] as HTMLButtonElement;
+
+    expect(resetButton).not.toBeNull();
+    expect(resetButton.closest('[data-asset-graph-node-entry]')).toBeNull();
+    fireEvent.keyDown(resetButton, { key: 'Enter' });
+
+    expect(screen.queryByTestId('asset-graph-selected-details')).not.toBeInTheDocument();
   });
 });

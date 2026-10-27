@@ -22,3 +22,42 @@ export const test = base.extend({
 });
 
 export { expect };
+
+/** Pagination envelope helper for list endpoints (matches the backend `{ data, pagination }` contract). */
+export const paginated = <T,>(data: T[], total = data.length) => ({
+  data,
+  pagination: { page: 1, limit: 20, total, totalPages: Math.max(1, Math.ceil(total / 20)) },
+});
+
+/** Two assets for TicketAsset-linking journeys (multiple assets per ticket are the integrity contract). */
+export const e2eAssets = [
+  { id: 'asset-e2e-1', displayId: 'AST-E2E-001', name: 'E2E file server', assetType: { name: 'Server' }, manufacturer: 'E2E Systems', status: 'active' },
+  { id: 'asset-e2e-2', displayId: 'AST-E2E-002', name: 'E2E database host', assetType: { name: 'Server' }, manufacturer: 'E2E Systems', status: 'active' },
+];
+
+/** service_request ticket fixture: requester is the authenticated E2E user, assignee unassigned (optional reference). */
+export const e2eTicket = {
+  id: 'ticket-e2e-1',
+  displayId: 'TKT-E2E-001',
+  type: 'service_request',
+  title: 'E2E printer outage',
+  description: 'Service request raised by the E2E browser journey.',
+  status: 'new',
+  priority: 'medium',
+  urgency: 'medium',
+  impact: 'medium',
+  estimatedEffortUnits: null,
+  resolutionDueAt: null,
+  updatedAt: '2026-08-01T09:00:00.000Z',
+  assigneeId: null,
+  assignee: null,
+  requesterId: testUser.id,
+  requester: { id: testUser.id, email: testUser.email, firstName: testUser.firstName, lastName: testUser.lastName },
+  openedAt: '2026-08-01T09:00:00.000Z',
+  createdAt: '2026-08-01T09:00:00.000Z',
+  comments: [],
+  problem: null,
+  change: null,
+  linksFrom: [],
+  linksTo: [],
+};

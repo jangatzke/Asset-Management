@@ -6,6 +6,7 @@ import { authorizationService } from './authorization.service';
 import { nextDisplayId } from './displayId.service';
 import { computePriority, type TicketLevel } from 'shared';
 import { validateTransition } from './statusTransition';
+import { serializeEntity, serializeEnvelope } from '../utils/dto';
 
 // ==========================================
 // Incident History (AUDIT-001)
@@ -315,7 +316,7 @@ export class IncidentService {
       prisma.incident.count({ where: effectiveWhere }),
     ]);
 
-    return {
+    return serializeEnvelope({
       data: incidents,
       pagination: {
         page,
@@ -323,7 +324,7 @@ export class IncidentService {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    };
+    });
   }
 
   async getById(id: string) {
@@ -347,7 +348,7 @@ export class IncidentService {
       throw new AppError('Incident not found', 404);
     }
 
-    return incident;
+    return serializeEntity(incident);
   }
 
   async create(data: CreateIncidentData, createdBy?: string) {
@@ -416,7 +417,7 @@ export class IncidentService {
     // Incident history entry (AUDIT-001)
     await this.recordHistoryEntry(prisma, incident.id, 'CREATE', `Created incident: ${data.title}`, {}, createdBy);
 
-    return incident;
+    return serializeEntity(incident);
   }
 
   async update(id: string, data: UpdateIncidentData, updatedBy?: string) {
@@ -492,7 +493,7 @@ export class IncidentService {
       await this.recordHistoryEntry(prisma, id, 'UPDATE', `Updated incident: ${existing.title} (${changedFields})`, fieldChanges, updatedBy);
     }
 
-    return incident;
+    return serializeEntity(incident);
   }
 
   async delete(id: string, deletedBy?: string) {
@@ -612,7 +613,7 @@ export class IncidentService {
       return (tx as any).incidentAssessment.findUnique({ where: { incidentId } });
     });
     await this.recordHistoryEntry(prisma, incidentId, 'ASSESSMENT', approved ? 'Approved non-reportable decision' : `Returned non-reportable decision: ${data.returnReason}`, { decision: data.decision }, actorId);
-    return updated;
+    return serializeEntity(updated);
   }
 
   private async createDeadlinesForIncident(tx: any, incidentId: string, knowledgeTime: Date) {
@@ -705,7 +706,7 @@ export class IncidentService {
       await this.recordHistoryEntry(tx, incidentId, 'STATUS_CHANGE', `Status changed from ${oldStatus} to ${newStatus}: ${data.reason}`, { oldStatus, newStatus }, actorId);
       return current;
     });
-    return updated;
+    return serializeEntity(updated);
   }
 
   async createIncidentReport(incidentId: string, reportData: { reportType: IncidentReportType; title?: string; content: Record<string, unknown>; recipient?: string; submissionMethod?: string; submissionProof?: string }, actorId: string) {
@@ -800,7 +801,7 @@ export class IncidentService {
       await this.recordHistoryEntry(tx, incidentId, 'CLOSE', data.closureSummary ?? 'Closed incident with root cause and measures evaluation', { rootCause, measuresEvaluation, closureSummary: data.closureSummary }, closedBy);
       return current;
     });
-    return updated;
+    return serializeEntity(updated);
   }
 
   async createReport(incidentId: string, reportData: {
@@ -859,7 +860,7 @@ export class IncidentService {
       return tx.incident.findUnique({ where: { id: incidentId } });
     });
 
-    return updated;
+    return serializeEntity(updated);
   }
 
   /**
@@ -893,7 +894,7 @@ export class IncidentService {
       return tx.incident.findUnique({ where: { id: incidentId } });
     });
 
-    return updated;
+    return serializeEntity(updated);
   }
 
   /**
@@ -934,7 +935,7 @@ export class IncidentService {
       return tx.incident.findUnique({ where: { id: incidentId } });
     });
 
-    return updated;
+    return serializeEntity(updated);
   }
 
   /**
