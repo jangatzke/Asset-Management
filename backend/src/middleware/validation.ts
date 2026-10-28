@@ -2,7 +2,7 @@
 // Validates incoming request bodies, query params, and URL parameters against Zod schemas
 
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema, ZodError } from 'zod';
+import { ZodType, ZodError } from 'zod';
 
 export interface ValidationResult {
   valid: boolean;
@@ -18,7 +18,7 @@ export interface ValidationResult {
  * @param source - Which part of the request to validate ('body', 'query', 'params')
  * @returns Express middleware function
  */
-export function validate(schema: ZodSchema<any>, source: 'body' | 'query' | 'params' = 'body') {
+export function validate(schema: ZodType<any>, source: 'body' | 'query' | 'params' = 'body') {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const data = req[source];
@@ -72,20 +72,20 @@ export function validate(schema: ZodSchema<any>, source: 'body' | 'query' | 'par
 /**
  * Validate request body against a Zod schema.
  */
-export function validateBody(schema: ZodSchema<any>) {
+export function validateBody(schema: ZodType<any>) {
   return validate(schema, 'body');
 }
 
 /**
  * Validate query parameters against a Zod schema.
  */
-export function validateQuery(schema: ZodSchema<any>) {
+export function validateQuery(schema: ZodType<any>) {
   return validate(schema, 'query');
 }
 
 /**
  * Validate URL parameters against a Zod schema.
  */
-export function validateParams(schema: ZodSchema<any>) {
+export function validateParams(schema: ZodType<any>) {
   return validate(schema, 'params');
 }

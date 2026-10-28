@@ -10,7 +10,7 @@ const IdParamSchema = z.object({ id: z.string().uuid() });
 const SourceSchema = z.object({
   name: z.string().min(1).max(200),
   type: z.string().min(1).max(100),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   isActive: z.boolean().default(true),
 });
 const UpdateSourceSchema = SourceSchema.partial();
@@ -21,7 +21,7 @@ const NetworkAddressSchema = z.object({
 });
 const ImportRecordSchema = z.object({
   sourceRecordId: z.string().min(1).max(300),
-  data: z.record(z.unknown()).and(z.object({ networkAddresses: z.array(NetworkAddressSchema).optional() })),
+  data: z.record(z.string(), z.unknown()).and(z.object({ networkAddresses: z.array(NetworkAddressSchema).optional() })),
 });
 const ExecuteImportSchema = z.object({
   dryRun: z.boolean().default(false),

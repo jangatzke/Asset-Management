@@ -91,7 +91,7 @@ function buildJsonValueSchema(depth: number): z.ZodType<JsonValue> {
     return JsonPrimitiveSchema as z.ZodType<JsonValue>;
   }
   const inner = buildJsonValueSchema(depth - 1);
-  return z.union([inner, z.array(inner), z.record(inner)]) as z.ZodType<JsonValue>;
+  return z.union([inner, z.array(inner), z.record(z.string(), inner)]) as z.ZodType<JsonValue>;
 }
 
 export const JsonValueSchema: z.ZodType<JsonValue> = buildJsonValueSchema(JSON_VALUE_MAX_DEPTH);
@@ -185,7 +185,23 @@ export const CreateAssetSchema = z.object({
 
 export type CreateAssetDTO = z.input<typeof CreateAssetSchema>;
 
-export const UpdateAssetSchema = CreateAssetSchema.partial();
+// Zod 4 applies ZodDefault values even within .partial() fields; an asset
+// update must only carry explicitly supplied fields, so re-declare the
+// defaulted dimensions as plain optionals to avoid injecting defaults
+// (e.g. overwriting stored lifecycleStatus with 'planned').
+export const UpdateAssetSchema = CreateAssetSchema.partial().extend({
+  personnelSafetyRelevance: RatingLevelSchema.optional(),
+  regulatoryRelevance: RatingLevelSchema.optional(),
+  financialDamagePotential: RatingLevelSchema.optional(),
+  productionDowntimeImpact: RatingLevelSchema.optional(),
+  lifecycleStatus: LifecycleStatusSchema.optional(),
+  confidentialityNeed: CIANeedSchema.optional(),
+  integrityNeed: CIANeedSchema.optional(),
+  availabilityNeed: CIANeedSchema.optional(),
+  dataProtectionRelevance: z.boolean().optional(),
+  criticality: CriticalitySchema.optional(),
+  complianceRelevance: z.boolean().optional(),
+});
 
 export type UpdateAssetDTO = z.infer<typeof UpdateAssetSchema>;
 
@@ -415,10 +431,10 @@ export const WorkflowDefinitionCreateSchema = z.object({
   name: z.string().min(1),
   version: z.string().default('1.0.0'),
   entityType: z.string().min(1),
-  states: z.array(z.record(z.any())).min(1),
-  transitions: z.array(z.record(z.any())).min(1),
-  approvalRules: z.record(z.any()).default({}),
-  dueDateRules: z.record(z.any()).default({}),
+  states: z.array(z.record(z.string(), z.any())).min(1),
+  transitions: z.array(z.record(z.string(), z.any())).min(1),
+  approvalRules: z.record(z.string(), z.any()).default({}),
+  dueDateRules: z.record(z.string(), z.any()).default({}),
 });
 export type WorkflowDefinitionCreateDTO = z.infer<typeof WorkflowDefinitionCreateSchema>;
 
@@ -491,7 +507,14 @@ export const CreateControlSchema = z.object({
 }).merge(DeprecatedDirectRiskControlFields);
 
 export type CreateControlDTO = z.input<typeof CreateControlSchema>;
-export const UpdateControlSchema = CreateControlSchema.partial().extend({ status: z.string().optional() });
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// control fields so an update body never injects them.
+export const UpdateControlSchema = CreateControlSchema.partial().extend({
+  status: z.string().optional(),
+  applicability: z.enum(['applicable', 'not_applicable', 'under_review']).optional(),
+  implementationStatus: z.string().optional(),
+  maturityLevel: z.number().int().min(0).max(5).optional(),
+});
 export type UpdateControlDTO = z.infer<typeof UpdateControlSchema>;
 
 export const FrameworkRequirementImportSchema = z.object({
@@ -707,7 +730,14 @@ export const GenerateIso27001SoASchema = z.object({
 });
 export type GenerateIso27001SoADTO = z.infer<typeof GenerateIso27001SoASchema>;
 
-export const UpdateSoAItemSchema = CreateSoAItemSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// SoA fields so an update body never injects them.
+export const UpdateSoAItemSchema = CreateSoAItemSchema.partial().extend({
+  applicability: z.enum(['applicable', 'not_applicable', 'under_review']).optional(),
+  implementationStatus: z.string().optional(),
+  controlImplementationIds: z.array(z.string().uuid()).optional(),
+  riskAssessmentIds: z.array(z.string().uuid()).optional(),
+});
 export type UpdateSoAItemDTO = z.infer<typeof UpdateSoAItemSchema>;
 
 export const CreateEvidenceSchema = z.object({
@@ -782,7 +812,22 @@ export type CreateIncidentDTO = z.input<typeof CreateIncidentSchema>;
 
 // Workflow state is intentionally omitted: only dedicated incident transitions
 // may change status or notificationStatus.
-export const UpdateIncidentSchema = CreateIncidentSchema.partial().strict();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// incident fields so an update body never injects them.
+export const UpdateIncidentSchema = CreateIncidentSchema.partial().extend({
+  affectedAssetIds: z.array(z.string().uuid()).optional(),
+  affectedServiceIds: z.array(z.string().uuid()).optional(),
+  affectedProcessIds: z.array(z.string().uuid()).optional(),
+  confidentialityImpact: z.enum(['none', 'low', 'medium', 'high']).optional(),
+  integrityImpact: z.enum(['none', 'low', 'medium', 'high']).optional(),
+  availabilityImpact: z.enum(['none', 'low', 'medium', 'high']).optional(),
+  personalDataImpact: z.boolean().optional(),
+  affectedCustomers: z.array(z.string()).optional(),
+  affectedThirdParties: z.array(z.string()).optional(),
+  indicatorsOfCompromise: z.array(z.string()).optional(),
+  immediateActions: z.array(z.string()).optional(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+}).strict();
 // HTTP clients send JSON-compatible input (for example ISO-8601 strings for
 // coerced dates); the route validates and coerces it before invoking services.
 export type UpdateIncidentDTO = z.input<typeof UpdateIncidentSchema>;
@@ -831,7 +876,7 @@ export const IncidentReportTypeSchema = z.enum(['early_warning_24h', 'incident_n
 export const CreateIncidentReportSchema = z.object({
   reportType: IncidentReportTypeSchema,
   title: z.string().optional(),
-  content: z.record(JsonValueSchema),
+  content: z.record(z.string(), JsonValueSchema),
   recipient: z.string().optional(),
   submissionMethod: z.string().optional(),
   submissionProof: z.string().optional(),
@@ -897,7 +942,7 @@ export const IncidentHistoryQuerySchema = z.object({
 export type IncidentHistoryQueryDTO = z.infer<typeof IncidentHistoryQuerySchema>;
 export const CreateSignificanceRuleVersionSchema = z.object({
   version: z.string().min(1),
-  rules: z.array(z.record(JsonValueSchema)).min(1),
+  rules: z.array(z.record(z.string(), JsonValueSchema)).min(1),
   effectiveFrom: z.coerce.date().optional(),
 });
 export type CreateSignificanceRuleVersionDTO = z.infer<typeof CreateSignificanceRuleVersionSchema>;
@@ -909,8 +954,8 @@ export type CreateSignificanceRuleVersionDTO = z.infer<typeof CreateSignificance
 export const CreateNis2QuestionnaireVersionSchema = z.object({
   version: z.string().min(1),
   title: z.string().min(1),
-  questions: z.array(z.record(z.any())).min(1),
-  scoringRules: z.record(z.any()),
+  questions: z.array(z.record(z.string(), z.any())).min(1),
+  scoringRules: z.record(z.string(), z.any()),
   effectiveFrom: z.coerce.date().optional(),
 });
 export type CreateNis2QuestionnaireVersionDTO = z.infer<typeof CreateNis2QuestionnaireVersionSchema>;
@@ -918,7 +963,7 @@ export type CreateNis2QuestionnaireVersionDTO = z.infer<typeof CreateNis2Questio
 export const CreateNis2AssessmentSchema = z.object({
   organizationUnitId: z.string().uuid().optional(),
   questionnaireVersion: z.string().optional(),
-  answers: z.record(z.any()),
+  answers: z.record(z.string(), z.any()),
   justification: z.string().optional(),
 });
 export type CreateNis2AssessmentDTO = z.infer<typeof CreateNis2AssessmentSchema>;
@@ -936,7 +981,7 @@ export const CreateNis2RegistrationSchema = z.object({
   deadline: z.coerce.date(),
   contactPerson: z.string().optional(),
   contactDetails: z.string().optional(),
-  submittedData: z.record(z.any()).optional(),
+  submittedData: z.record(z.string(), z.any()).optional(),
   submissionProof: z.string().optional(),
   bsiConfirmation: z.string().optional(),
 });
@@ -945,7 +990,7 @@ export type CreateNis2RegistrationDTO = z.infer<typeof CreateNis2RegistrationSch
 export const CreateNis2RegistrationChangeSchema = z.object({
   changeType: z.string().min(1),
   description: z.string().min(1),
-  changedData: z.record(z.any()),
+  changedData: z.record(z.string(), z.any()),
   notificationDeadline: z.coerce.date().optional(),
   submittedAt: z.coerce.date().optional(),
   submissionProof: z.string().optional(),
@@ -973,7 +1018,11 @@ export type CreateContractDTO = z.infer<typeof CreateContractSchema>;
 
 // PATCH bodies reuse the create shape with everything optional (mirrors the
 // service's Update*Data = Partial<Create*Data> interfaces).
-export const UpdateContractSchema = CreateContractSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// contract status so an update body never injects it.
+export const UpdateContractSchema = CreateContractSchema.partial().extend({
+  status: z.string().optional(),
+});
 
 export type UpdateContractDTO = z.input<typeof UpdateContractSchema>;
 
@@ -1000,7 +1049,11 @@ export const CreateLicenseSchema = z.object({
 export type CreateLicenseDTO = z.infer<typeof CreateLicenseSchema>;
 
 // PATCH body: create shape with everything optional (mirrors UpdateLicenseData).
-export const UpdateLicenseSchema = CreateLicenseSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// license status so an update body never injects it.
+export const UpdateLicenseSchema = CreateLicenseSchema.partial().extend({
+  status: z.string().optional(),
+});
 
 export type UpdateLicenseDTO = z.input<typeof UpdateLicenseSchema>;
 
@@ -1021,7 +1074,13 @@ export const CreateBusinessProcessSchema = z.object({
 export type CreateBusinessProcessDTO = z.infer<typeof CreateBusinessProcessSchema>;
 
 // PATCH body: create shape with everything optional (mirrors UpdateBusinessProcessData).
-export const UpdateBusinessProcessSchema = CreateBusinessProcessSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// business process fields so an update body never injects them.
+export const UpdateBusinessProcessSchema = CreateBusinessProcessSchema.partial().extend({
+  siacControlled: z.boolean().optional(),
+  criticality: z.enum(['low', 'medium', 'high']).optional(),
+  status: z.string().optional(),
+});
 
 export type UpdateBusinessProcessDTO = z.input<typeof UpdateBusinessProcessSchema>;
 
@@ -1066,7 +1125,18 @@ export const CreateRiskTreatmentSchema = RiskTreatmentBaseSchema.superRefine(val
 
 export type CreateRiskTreatmentDTO = z.infer<typeof CreateRiskTreatmentSchema>;
 
-export const UpdateRiskTreatmentSchema = RiskTreatmentBaseSchema.partial().superRefine((data, ctx) => {
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// actions array so an update body never injects it.
+export const UpdateRiskTreatmentSchema = RiskTreatmentBaseSchema.partial().extend({
+  actions: z.array(z.object({
+    actionType: z.enum(['create', 'extend', 'replace', 'improve']),
+    title: z.string().min(1),
+    description: z.string().optional(),
+    controlImplementationId: z.string().uuid().optional(),
+    responsibleUserId: z.string().uuid().optional(),
+    targetDate: z.coerce.date().optional(),
+  })).optional(),
+}).superRefine((data, ctx) => {
   validateRiskTreatmentAcceptance(data as z.infer<typeof RiskTreatmentBaseSchema>, ctx);
 });
 export type UpdateRiskTreatmentDTO = z.infer<typeof UpdateRiskTreatmentSchema>;
@@ -1117,22 +1187,27 @@ export const CreateRiskMethodSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   version: z.string().min(1, 'Version is required'),
-  likelihoodScale: z.record(z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Likelihood scale is required' }),
-  impactScale: z.record(z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Impact scale is required' }),
-  ratingDimensions: z.record(z.any()),
+  likelihoodScale: z.record(z.string(), z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Likelihood scale is required' }),
+  impactScale: z.record(z.string(), z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Impact scale is required' }),
+  ratingDimensions: z.record(z.string(), z.any()),
   calculationType: CalculationTypeSchema.default('product'),
   formulaExpression: z.string().optional(),
-  riskClasses: z.record(z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Risk classes are required' }),
-  acceptanceThresholds: z.record(z.any()).optional(),
-  escalationThresholds: z.record(z.any()).optional(),
-  approvalRules: z.record(z.any()).optional(),
+  riskClasses: z.record(z.string(), z.any()).refine((v) => v && Object.keys(v).length > 0, { message: 'Risk classes are required' }),
+  acceptanceThresholds: z.record(z.string(), z.any()).optional(),
+  escalationThresholds: z.record(z.string(), z.any()).optional(),
+  approvalRules: z.record(z.string(), z.any()).optional(),
   reviewInterval: z.number().int().positive().optional(),
   isActive: z.boolean().default(false),
 });
 
 export type CreateRiskMethodDTO = z.infer<typeof CreateRiskMethodSchema>;
 
-export const UpdateRiskMethodSchema = CreateRiskMethodSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// risk method fields so an update body never injects them.
+export const UpdateRiskMethodSchema = CreateRiskMethodSchema.partial().extend({
+  calculationType: CalculationTypeSchema.optional(),
+  isActive: z.boolean().optional(),
+});
 
 export type UpdateRiskMethodDTO = z.infer<typeof UpdateRiskMethodSchema>;
 
@@ -1232,7 +1307,11 @@ export const CreateRiskImpactSchema = z.object({
 
 export type CreateRiskImpactDTO = z.infer<typeof CreateRiskImpactSchema>;
 
-export const UpdateRiskImpactSchema = CreateRiskImpactSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// severity so an update body never injects it.
+export const UpdateRiskImpactSchema = CreateRiskImpactSchema.partial().extend({
+  severity: z.enum(['low', 'medium', 'high', 'very_high']).optional(),
+});
 
 export type UpdateRiskImpactDTO = z.infer<typeof UpdateRiskImpactSchema>;
 
@@ -1254,7 +1333,11 @@ export const CreateRiskAssessmentSchema = z.object({
 
 export type CreateRiskAssessmentDTO = z.infer<typeof CreateRiskAssessmentSchema>;
 
-export const UpdateRiskAssessmentSchema = CreateRiskAssessmentSchema.partial();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// assessmentType so an update body never injects it.
+export const UpdateRiskAssessmentSchema = CreateRiskAssessmentSchema.partial().extend({
+  assessmentType: AssessmentTypeSchema.optional(),
+});
 
 export type UpdateRiskAssessmentDTO = z.infer<typeof UpdateRiskAssessmentSchema>;
 
@@ -1368,7 +1451,7 @@ export const SupplierUpdateSchema = z.object({
   criticality: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   dataProtectionRelevant: z.boolean().optional(),
   nis2Relevant: z.boolean().optional(),
-  securityRequirements: z.record(z.any()).optional(),
+  securityRequirements: z.record(z.string(), z.any()).optional(),
   certifications: z.array(z.string()).optional(),
   exitStrategy: z.string().max(2000).optional(),
   assessmentScore: z.number().int().min(0).max(100).nullable().optional(),
@@ -1383,7 +1466,7 @@ export type SupplierUpdateDTO = z.infer<typeof SupplierUpdateSchema>;
 export const SupplierAssessmentCreateSchema = z.object({
   supplierId: z.string().uuid('Invalid supplier ID'),
   assessmentType: z.enum(['initial', 'periodic', 'triggered']).default('initial'),
-  questionnaire: z.record(z.any()).default({}),
+  questionnaire: z.record(z.string(), z.any()).default({}),
   assessorId: z.string().min(1, 'Assessor is required'),
 });
 
@@ -1399,9 +1482,9 @@ export const BiACreateSchema = z.object({
   rtoMinutes: z.number().int().positive('RTO must be a positive integer'),
   rpoMinutes: z.number().int().nonnegative('RPO must be non-negative'),
   impactCategories: z.array(z.string()).default([]),
-  timeDependentImpacts: z.record(z.any()).default({}),
+  timeDependentImpacts: z.record(z.string(), z.any()).default({}),
   minimumOperatingLevel: z.string().max(500).optional(),
-  requiredResources: z.record(z.any()).default({}),
+  requiredResources: z.record(z.string(), z.any()).default({}),
 }).refine((data) => data.mtpdMinutes >= data.rtoMinutes, {
   message: 'MTPD must be greater than or equal to RTO',
   path: ['mtpdMinutes'],
@@ -1417,9 +1500,9 @@ export const BIAUpdateSchema = z.object({
   rtoMinutes: z.number().int().positive().optional(),
   rpoMinutes: z.number().int().nonnegative().optional(),
   impactCategories: z.array(z.string()).optional(),
-  timeDependentImpacts: z.record(z.any()).optional(),
+  timeDependentImpacts: z.record(z.string(), z.any()).optional(),
   minimumOperatingLevel: z.string().max(500).optional(),
-  requiredResources: z.record(z.any()).optional(),
+  requiredResources: z.record(z.string(), z.any()).optional(),
   status: z.enum(['draft', 'under_review', 'approved', 'rejected', 'archived']).optional(),
 }).refine((data) => {
   if (data.mtpdMinutes !== undefined && data.rtoMinutes !== undefined && data.mtpdMinutes < data.rtoMinutes) return false;
@@ -1489,8 +1572,8 @@ export const CapaUpdateSchema = z.object({
   priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   status: z.enum(['open', 'in_progress', 'deferred', 'completed', 'closed', 'reopened', 'cancelled']).optional(),
   rootCause: z.string().max(2000).optional(),
-  containmentActions: z.array(z.record(z.any())).optional(),
-  correctiveActions: z.array(z.record(z.any())).optional(),
+  containmentActions: z.array(z.record(z.string(), z.any())).optional(),
+  correctiveActions: z.array(z.record(z.string(), z.any())).optional(),
   effectivenessCriteria: z.string().max(2000).optional(),
   effectivenessReview: z.string().max(2000).optional(),
   effectivenessStatus: z.enum(['not_reviewed', 'effective', 'partially_effective', 'ineffective']).optional(),
@@ -1597,7 +1680,7 @@ export const MetricDefinitionCreateSchema = z.object({
   ownerId: z.string().min(1, 'Owner is required'),
   frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'yearly']).default('monthly'),
   status: z.enum(['draft', 'active', 'deprecated']).default('draft'),
-  thresholds: z.record(z.any()).optional(),
+  thresholds: z.record(z.string(), z.any()).optional(),
 });
 
 export type MetricDefinitionCreateDTO = z.infer<typeof MetricDefinitionCreateSchema>;
@@ -1883,7 +1966,12 @@ export const CreateTicketTypeConfigSchema = z.object({
 });
 export type CreateTicketTypeConfigDTO = z.infer<typeof CreateTicketTypeConfigSchema>;
 
-export const UpdateTicketTypeConfigSchema = CreateTicketTypeConfigSchema.partial().omit({ type: true }).strict();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// ticket type config fields so an update body never injects them.
+export const UpdateTicketTypeConfigSchema = CreateTicketTypeConfigSchema.partial().omit({ type: true }).extend({
+  enabled: z.boolean().optional(),
+  defaultPriority: TicketLevelSchema.optional(),
+}).strict();
 export type UpdateTicketTypeConfigDTO = z.input<typeof UpdateTicketTypeConfigSchema>;
 
 // ---- Service catalog ----
@@ -1902,7 +1990,12 @@ export const CreateServiceCatalogItemSchema = z.object({
 });
 export type CreateServiceCatalogItemDTO = z.infer<typeof CreateServiceCatalogItemSchema>;
 
-export const UpdateServiceCatalogItemSchema = CreateServiceCatalogItemSchema.partial().omit({ code: true }).strict();
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// service catalog fields so an update body never injects them.
+export const UpdateServiceCatalogItemSchema = CreateServiceCatalogItemSchema.partial().omit({ code: true }).extend({
+  ticketType: TicketTypeSchema.optional(),
+  enabled: z.boolean().optional(),
+}).strict();
 export type UpdateServiceCatalogItemDTO = z.input<typeof UpdateServiceCatalogItemSchema>;
 
 // ---- Knowledge base articles (ISO 27001 A.7.5) ----
@@ -1922,8 +2015,12 @@ export const CreateKnowledgeArticleSchema = z.object({
 });
 export type CreateKnowledgeArticleDTO = z.infer<typeof CreateKnowledgeArticleSchema>;
 
+// Zod 4 keeps .default() values inside .partial(); neutralize the defaulted
+// knowledge article fields so an update body never injects them.
 export const UpdateKnowledgeArticleSchema = CreateKnowledgeArticleSchema.partial().extend({
   status: z.enum(['draft', 'published', 'archived']).optional(),
+  category: KnowledgeArticleCategorySchema.optional(),
+  tags: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
 }).strict();
 export type UpdateKnowledgeArticleDTO = z.input<typeof UpdateKnowledgeArticleSchema>;
 

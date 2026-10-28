@@ -24,7 +24,7 @@ export const updateWebhookSchema = z.object({
 
 export const broadcastSchema = z.object({
   eventType: z.string().min(1).describe('Event type to broadcast'),
-  data: z.record(z.unknown()).describe('Event payload data'),
+  data: z.record(z.string(), z.unknown()).describe('Event payload data'),
 });
 
 export const testWebhookSchema = z.object({

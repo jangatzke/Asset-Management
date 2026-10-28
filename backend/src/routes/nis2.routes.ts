@@ -7,11 +7,11 @@ import { z } from 'zod';
 
 export const nis2Router = Router();
 
-const CreateNis2QuestionnaireVersionSchema = z.object({ version: z.string().min(1), title: z.string().min(1), questions: z.array(z.record(z.any())).min(1), scoringRules: z.record(z.any()), effectiveFrom: z.coerce.date().optional() });
-const CreateNis2AssessmentSchema = z.object({ organizationUnitId: z.string().uuid().optional(), questionnaireVersion: z.string().optional(), answers: z.record(z.any()), justification: z.string().optional() });
+const CreateNis2QuestionnaireVersionSchema = z.object({ version: z.string().min(1), title: z.string().min(1), questions: z.array(z.record(z.string(), z.any())).min(1), scoringRules: z.record(z.string(), z.any()), effectiveFrom: z.coerce.date().optional() });
+const CreateNis2AssessmentSchema = z.object({ organizationUnitId: z.string().uuid().optional(), questionnaireVersion: z.string().optional(), answers: z.record(z.string(), z.any()), justification: z.string().optional() });
 const ApproveNis2AssessmentSchema = z.object({ result: z.enum(['essential_entity', 'important_entity', 'not_in_scope']).optional(), justification: z.string().optional() });
-const CreateNis2RegistrationSchema = z.object({ assessmentId: z.string().uuid().optional(), entityType: z.string().min(1), registrationDate: z.coerce.date().optional(), deadline: z.coerce.date(), contactPerson: z.string().optional(), contactDetails: z.string().optional(), submittedData: z.record(z.any()).optional(), submissionProof: z.string().optional(), bsiConfirmation: z.string().optional() });
-const CreateNis2RegistrationChangeSchema = z.object({ changeType: z.string().min(1), description: z.string().min(1), changedData: z.record(z.any()), notificationDeadline: z.coerce.date().optional(), submittedAt: z.coerce.date().optional(), submissionProof: z.string().optional() });
+const CreateNis2RegistrationSchema = z.object({ assessmentId: z.string().uuid().optional(), entityType: z.string().min(1), registrationDate: z.coerce.date().optional(), deadline: z.coerce.date(), contactPerson: z.string().optional(), contactDetails: z.string().optional(), submittedData: z.record(z.string(), z.any()).optional(), submissionProof: z.string().optional(), bsiConfirmation: z.string().optional() });
+const CreateNis2RegistrationChangeSchema = z.object({ changeType: z.string().min(1), description: z.string().min(1), changedData: z.record(z.string(), z.any()), notificationDeadline: z.coerce.date().optional(), submittedAt: z.coerce.date().optional(), submissionProof: z.string().optional() });
 
 nis2Router.get('/questionnaires/active', authenticate, authorizeEntityRead('controls'), async (_req: AuthRequest, res, next) => {
   try { res.json(await nis2Service.listActiveQuestionnaires()); } catch (error) { next(error); }

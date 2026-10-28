@@ -66,7 +66,7 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ 
         error: 'Validation Error', 
         message: 'Invalid request body',
-        details: parsed.error.errors 
+        details: parsed.error.issues
       });
       return;
     }
@@ -157,7 +157,7 @@ router.post('/broadcast', async (req: Request, res: Response) => {
       res.status(400).json({
         error: 'Validation Error',
         message: 'Invalid request body',
-        details: parsed.error.errors
+        details: parsed.error.issues
       });
       return;
     }
@@ -323,7 +323,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       res.status(400).json({ 
         error: 'Validation Error', 
         message: 'Invalid request body',
-        details: parsed.error.errors 
+        details: parsed.error.issues
       });
       return;
     }
