@@ -305,13 +305,20 @@ export class IncidentService {
 
     const effectiveWhere: Prisma.IncidentWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
 
+    // Phase 2.5 read-path projection: the incident table renders scalar fields
+    // only; reports/escalations are declared as optional arrays in the frontend
+    // contract and are narrowed to their identifying fields instead of loading
+    // complete models. The envelope shape is unchanged.
     const [incidents, total] = await Promise.all([
       prisma.incident.findMany({
         where: effectiveWhere,
         skip: offset,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { reports: true, escalations: true } as Prisma.IncidentInclude,
+        include: {
+          reports: { select: { id: true, reportType: true, status: true, dueAt: true } },
+          escalations: { select: { id: true, reason: true, status: true } },
+        } as Prisma.IncidentInclude,
       }),
       prisma.incident.count({ where: effectiveWhere }),
     ]);

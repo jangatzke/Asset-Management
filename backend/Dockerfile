@@ -5,7 +5,7 @@
 # ============================================================================
 
 # ---------- Stage 1: Install dependencies ----------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY backend/package.json ./backend/
 RUN npm ci
 
 # ---------- Stage 2: Build ----------
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -45,7 +45,7 @@ RUN npm run db:generate --workspace backend
 RUN cd backend && npm run build
 
 # ---------- Stage 3: Production ----------
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 WORKDIR /app
 

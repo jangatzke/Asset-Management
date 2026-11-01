@@ -31,20 +31,31 @@
   implementation:
     - backend/src/routes/admin.routes.ts
     - backend/src/middleware/auth.ts
-  tests: []
-  gaps:
-    - requireAdminAccess prüft nur Legacy-Rollennamen 'system_admin' (admin.routes.ts:8-17)
-    - Keine dynamische Prüfung von role.canAccessAdmin aus DB
+    - backend/src/middleware/entityAuth.ts
+    - backend/src/services/authorization.service.ts
+  tests:
+    - backend/src/__tests__/authorization.integration.test.ts
+  gaps: []
+  evidence:
+    - requireAdminAccess prüft role.canAccessAdmin aus der Datenbank (entityAuth.ts), nicht Legacy-Rollennamen.
 
 - id: IAM-002
   title: Entity-Level Authorization
   priority: P0
   status: implemented
-  implementation: []
-  tests: []
-  gaps:
-    - Keine Middleware für entityPermissions (Role.entityPermissions existiert in Schema aber wird nicht geprüft)
-    - Alle CRUD-Routen haben nur authenticate, keine entity-level Prüfung
+  implementation:
+    - backend/src/services/authorization.service.ts
+    - backend/src/middleware/entityAuth.ts
+    - backend/src/routes/asset.routes.ts
+    - backend/src/routes/risk.routes.ts
+    - backend/src/routes/control.routes.ts
+    - backend/src/routes/incident.routes.ts
+  tests:
+    - backend/src/__tests__/authorization.integration.test.ts
+  gaps: []
+  evidence:
+    - authorizationService.checkEntityPermission() und requireEntityPermission-Middleware schützen CRUD-Routen.
+    - Permission-Aggregation über RolePermission-Zuweisungen (Legacy entityPermissions sind keine Runtime-Grants).
 
 - id: IAM-003
   title: Routenreihenfolge und Konfliktfreiheit
@@ -54,9 +65,11 @@
     - backend/src/index.ts
   tests:
     - backend/src/__tests__/auth.routes.test.ts
-  gaps:
-    - Admin-Sub-Routern (/admin/vmware, /admin/proxmox) werden nach /admin gemountet – Reihenfolge korrekt
-    - Kein Integrationstest für Route-Konflikte
+    - backend/src/__tests__/route.order.test.ts
+  gaps: []
+  evidence:
+    - Admin-Sub-Routen (/admin/vmware, /admin/proxmox) werden nach /admin gemountet – Reihenfolge korrekt.
+    - Integrationstest für Route-Konflikte existiert (route.order.test.ts).
 
 - id: SEC-001
   title: JWT-Härtung
@@ -65,11 +78,12 @@
   implementation:
     - backend/src/middleware/auth.ts
     - backend/src/services/auth.service.ts
-  tests: []
-  gaps:
-    - Fallback auf 'secret' in auth.ts:23
-    - Fallback auf 'your-super-secret-jwt-key-change-in-production' in auth.service.ts:282
-    - Algorithmus nicht explizit auf HS256 beschränkt
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+  gaps: []
+  evidence:
+    - Statische Fallback-Secrets entfernt; fehlender JWT_SECRET führt zu Fail-Fast in Production bzw. generiertem Development-Fallback (getJwtSecretStatus in auth.ts).
+    - jwt.verify ist explizit auf HS256 beschränkt (JWT_ALGORITHMS in auth.ts).
 
 - id: SEC-002
   title: OIDC – State, Nonce und PKCE
@@ -78,11 +92,12 @@
   implementation:
     - backend/src/services/oidc.service.ts
     - backend/src/routes/auth.routes.ts
-  tests: []
-  gaps:
-    - Kein PKCE (kein code_challenge/code_verifier)
-    - State wird nicht validiert (_state Parameter in handleCallback)
-    - Keine Nonce-Generierung oder -Validierung
+  tests:
+    - backend/src/__tests__/oidc.security.test.ts
+  gaps: []
+  evidence:
+    - PKCE mit code_challenge/code_verifier (S256) implementiert (oidc.service.ts).
+    - State wird über gehashten OidcLoginState-Datensatz validiert und einmalig verbraucht; Nonce wird generiert und gegen den ID-Token geprüft (expectedNonce).
 
 - id: SEC-003
   title: CORS-Härtung
@@ -90,9 +105,11 @@
   status: implemented
   implementation:
     - backend/src/index.ts
-  tests: []
-  gaps:
-    - Wildcard-Fallback '*' wenn CORS_ORIGIN nicht gesetzt (index.ts:38)
+  tests:
+    - backend/src/__tests__/cors.config.test.ts
+  gaps: []
+  evidence:
+    - Kein Wildcard-Fallback; explizite Origins aus CORS_ORIGINS, sonst Fallback auf http://localhost:3000 (index.ts).
 
 - id: SEC-004
   title: Passwort-Policy
@@ -100,14 +117,17 @@
   status: implemented
   implementation:
     - backend/src/services/auth.service.ts
-  tests: []
-  gaps:
-    - Keine Validierung der Passwortstärke bei register() und createFirstAdmin()
+    - backend/src/utils/passwordValidation.ts
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+  gaps: []
+  evidence:
+    - Passwortstärke-Validierung (min. 12 Zeichen, Groß-/Kleinbuchstaben, Ziffer, Sonderzeichen) in register(), createFirstAdmin(), createUser() und changePassword().
 
 - id: SEC-005
   title: Zentrales Auditlog
   priority: P0
-  status: compliant
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (AuditLog-Modell)
     - backend/src/services/audit.service.ts
@@ -124,16 +144,18 @@
   implementation:
     - backend/src/routes/auth.routes.ts
     - backend/src/services/auth.service.ts
-    - Admin-Freigabe für neue Benutzer (isApproved-Flag)
-    - Selbstregistrierung standardmäßig deaktiviert
-  tests: []
-  gaps:
-    - Kein Rate-Limiting auf Auth-Endpunkte
+    - Selbstregistrierung standardmäßig deaktiviert (ALLOW_SELF_REGISTRATION)
+  tests:
+    - backend/src/__tests__/auth.service.test.ts
+    - backend/src/__tests__/auth.routes.test.ts
+  gaps: []
+  evidence:
+    - Auth-Rate-Limiter (express-rate-limit) schützen Login, Refresh und OIDC-Endpunkte (auth.routes.ts).
 
 - id: IAM-004
   title: Display-ID Generierung
   priority: P1
-  status: compliant
+  status: implemented
   implementation:
     - backend/src/services/displayId.service.ts
     - Prisma DisplayIdCounter Modell mit sequenziellen Containern
@@ -171,7 +193,7 @@
 - id: AST-002
   title: Vollständige Asset-Felder
   priority: P1
-  status: compliant
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (Asset-Modell)
     - shared/src/types/asset.ts
@@ -185,7 +207,7 @@
 - id: AST-CRUD-2.2
   title: Asset-CRUD normalisiertes Schema, Bewertung, Lifecycle, Archivierung
   priority: P1
-  status: compliant
+  status: implemented
   implementation:
     - shared/src/types/asset.ts (NetworkAddress[], M:N Junction-ID-Felder, CIA, Kritikalität, Compliance, Disposal)
     - shared/src/dtos/index.ts (Zod-Schemata für Asset-CRUD, Lifecycle, Archive/Restore, DisposalProof)
@@ -199,7 +221,7 @@
 - id: IMP-2.3
   title: Generisches Importframework für externe Asset-Quellen
   priority: P1
-  status: compliant
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (IntegrationSource, ImportRun, ImportRecord, ImportConflict, FieldProvenance, FieldLock, SourcePriority)
     - backend/prisma/migrations/20260718113000_import_framework/migration.sql
@@ -215,27 +237,34 @@
   priority: P1
   status: implemented
   implementation:
-    - backend/prisma/schema.prisma (BusinessProcess-Modell)
+    - backend/prisma/schema.prisma (BusinessProcess-Modell, RiskProcess-Junction-Table)
+    - backend/src/services/risk.service.ts
     - backend/src/routes/businessprocess.routes.ts
   tests:
     - backend/src/__tests__/businessprocess.service.test.ts
-  gaps:
-    - affectedProcessIds im Risk-Modell ist noch String[] (denormalisiert)
+    - backend/src/__tests__/risk.assessment.test.ts
+  gaps: []
+  evidence:
+    - affectedProcessIds String[] wurde durch die RiskProcess-Junction-Table ersetzt (schema.prisma).
 
 - id: RSK-002
   title: Aggregierte Risikoverteilungen
   priority: P1
   status: implemented
-  implementation: []
+  implementation:
+    - backend/src/services/risk.aggregation.ts
+    - backend/src/routes/risk.routes.ts
+    - shared/src/types/risk.ts
   tests:
     - backend/src/__tests__/risk.aggregation.test.ts
-  gaps:
-    - Kein API-Endpoint für Aggregation
+  gaps: []
+  evidence:
+    - Aggregations-Endpoints unter /risks/aggregated/* in risk.routes.ts (Asset, Prozess, Service, Organisation, Risikoklasse, Status, AssessmentType).
 
 - id: RSK-003
   title: Risiko-Behandlung und Risiko-Akzeptanz
   priority: P1
-  status: compliant
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (RiskAcceptance, RiskTreatmentApproval, RiskTreatmentEffectivenessReview, Assessment-Referenzen)
     - backend/prisma/migrations/20260718160000_risk_treatment_acceptance_workflow/migration.sql
@@ -255,9 +284,12 @@
   implementation:
     - backend/prisma/schema.prisma (StatementOfApplicability-Modell)
     - backend/src/routes/control.routes.ts
-  tests: []
-  gaps:
-    - Keine automatische Control-Auflistung pro Framework
+    - backend/src/services/control.service.ts
+  tests:
+    - backend/src/__tests__/phase4.service.test.ts
+  gaps: []
+  evidence:
+    - SoA-Versionen mit Item-Begründungen; Workflow create/submit/approve/reject mit Immutabilität (control.service.ts).
 
 - id: INC-001
   title: Incident-Bewertung und Meldefristen
@@ -266,9 +298,12 @@
   implementation:
     - backend/prisma/schema.prisma (IncidentAssessment, NotificationDeadline)
     - backend/src/routes/incident.routes.ts
-  tests: []
-  gaps:
-    - Keine automatische Fristberechnung
+    - backend/src/services/incident.service.ts
+  tests:
+    - backend/src/__tests__/phase5.service.test.ts
+  gaps: []
+  evidence:
+    - NIS2-Meldefristen (24h/72h/Zwischen-/Monatsabschluss) werden automatisch aus dem geschützten Kenntniszeitpunkt erzeugt.
 
 - id: AST-003
   title: Asset-Lebenszyklus-Protokollierung
@@ -276,14 +311,16 @@
   status: implemented
   implementation:
     - backend/prisma/schema.prisma (AssetLifecycleLog-Modell)
+    - backend/src/services/asset.service.ts (Lifecycle-Log bei Anlage, Statuswechsel, Decommission, Disposal und Responsibility-Bestätigung)
   tests: []
-  gaps:
-    - Keine automatische Protokollierung bei Statusänderungen
+  gaps: []
+  evidence:
+    - tx.assetLifecycleLog.create wird in den Lifecycle-Transaktionen von asset.service.ts geschrieben.
 
 - id: AST-004
   title: Erweiterte Bewertungsdimensionen
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - backend/prisma/schema.prisma (Asset-Modell)
   tests: []
@@ -292,7 +329,7 @@
 - id: AST-005
   title: Graphvisualisierung (AST-011)
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - backend/src/services/asset.graph.ts
     - frontend/src/components/AssetGraph.tsx
@@ -309,7 +346,7 @@
 - id: AST-006
   title: Impact Analysis (AST-012)
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - backend/src/services/asset.graph.ts
     - frontend/src/components/AssetImpactAnalysis.tsx
@@ -323,7 +360,7 @@
     - Redundante unabhängige Pfade und Redundanzgrad werden ausgewiesen.
     - Performance-Test mit 10.000 Assets und 50.000 Relationen ergänzt.
 
-- id: RSK-003
+- id: RSK-TREATMENT-2
   title: Risikobehandlungspläne
   priority: P2
   status: implemented
@@ -332,13 +369,14 @@
     - backend/src/services/risktreatment.service.ts
   tests:
     - backend/src/__tests__/risktreatment.service.test.ts
-  gaps:
-    - Validierung für accept-Option nicht implementiert
+  gaps: []
+  evidence:
+    - Acceptance-Validierung (Pflichtfelder, Approval-Level, Vier-Augen-Prinzip) ist implementiert; siehe RSK-003.
 
 - id: UX-001
   title: Internationalisierung (i18n)
   priority: P2
-  status: implemented
+  status: partial
   implementation:
     - frontend/src/context/I18nContext.tsx
     - frontend/src/locales/de.json
@@ -349,7 +387,7 @@
 - id: UX-002
   title: Dark Mode
   priority: P2
-  status: implemented
+  status: partial
   implementation:
     - frontend/src/context/DarkModeContext.tsx
   tests: []
@@ -358,7 +396,7 @@
 - id: OPS-001
   title: Intune-Integration
   priority: P3
-  status: implemented
+  status: partial
   implementation:
     - backend/src/services/intune.service.ts
     - backend/src/services/intune.scheduler.ts
@@ -369,7 +407,7 @@
 - id: OPS-002
   title: VMware vCenter-Integration
   priority: P3
-  status: implemented
+  status: partial
   implementation:
     - backend/src/services/vcenter.service.ts
     - backend/src/routes/vmware.routes.ts
@@ -379,7 +417,7 @@
 - id: OPS-003
   title: Proxmox-Integration
   priority: P3
-  status: implemented
+  status: partial
   implementation:
     - backend/src/services/proxmox.service.ts
     - backend/src/routes/proxmox.routes.ts
@@ -391,64 +429,65 @@
   priority: P3
   status: implemented
   implementation:
-    - backend/src/index.ts (GET /health)
-  tests: []
-  gaps:
-    - Keine DB-Konnektivitätsprüfung
+    - backend/src/index.ts (GET /health, /health/ready)
+    - backend/src/middleware/health.ts
+  tests:
+    - backend/src/__tests__/phase8.health.test.ts
+    - backend/src/__tests__/phase11.health-readiness.test.ts
+  gaps: []
+  evidence:
+    - /health/ready prüft die DB-Konnektivität per SELECT 1 (siehe OPS-1101).
 ```
 
 - id: UI-801
   title: EntityPicker-Komponente mit such-/paginierbarer Multi-Auswahl
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - frontend/src/components/EntityPicker.tsx
     - frontend/src/services/entityPickerApi.ts
-    - frontend/src/components/entityPickerUtils.test.ts
   tests:
     - frontend/src/components/entityPickerUtils.test.ts
-    - frontend/src/pages/RiskDetail.test.tsx
   gaps: []
 
 - id: UI-802
   title: Raw UUID-Eingabefelder durch EntityPicker ersetzen
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - frontend/src/pages/ISMSPhase6.tsx (EntityPicker für ownerId, chairId, auditorIds, businessProcesses, resources, dependencies)
     - frontend/src/components/EntitySearchSelect.tsx (bestehende Single-Select Integration)
-  tests:
-    - frontend/src/pages/RiskDetail.test.tsx (EntityPicker Feld-Mapping Tests)
+  tests: []
   gaps: []
 
 - id: UI-803
   title: Security Requirements strukturierte UI statt JSON-Textarea
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - frontend/src/pages/ISMSPhase6.tsx (SecurityRequirements Dropdowns mit Kategorien und Status)
     - frontend/src/locales/en.json (securityRequirements translations)
     - frontend/src/locales/de.json (securityRequirements Übersetzungen)
   tests:
-    - frontend/src/pages/RiskDetail.test.tsx (Security Requirements Serialisierung Tests)
+    - frontend/src/components/RiskDetail.test.ts (Security Requirements Serialisierung Tests)
   gaps: []
 
 - id: UI-804
   title: Risk-Detail-Seite mit 7 Tabs
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - frontend/src/pages/RiskDetail.tsx (Overview, Assessment, Controls, Treatment, Evidence, History, Audit Tabs)
     - frontend/src/locales/en.json (riskDetail.tabs translations)
     - frontend/src/locales/de.json (riskDetail.tabs Übersetzungen)
   tests:
-    - frontend/src/pages/RiskDetail.test.tsx (Tab-Struktur Tests)
+    - frontend/src/components/RiskDetail.test.ts (Tab-Struktur Tests)
   gaps: []
 
 - id: UI-805
   title: i18n-Einträge für alle neuen UI-Texte
   priority: P2
-  status: compliant
+  status: implemented
   implementation:
     - frontend/src/locales/en.json (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs)
     - frontend/src/locales/de.json (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs)

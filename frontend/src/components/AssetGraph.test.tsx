@@ -1229,13 +1229,23 @@ describe('AssetGraph keyboard accessibility', () => {
     />,
   );
 
-  it('makes the graph viewport keyboard-focusable with a localized accessible name', () => {
+  it('makes the graph viewport a single tab stop with a localized accessible name and role description', () => {
     renderAccessibleGraph();
     const viewport = screen.getByTestId('asset-graph-viewport');
 
     expect(viewport).toHaveAttribute('tabindex', '0');
     expect(viewport).toHaveAttribute('role', 'group');
     expect(viewport).toHaveAttribute('aria-label', 'graph.ariaLabel');
+    expect(viewport).toHaveAttribute('aria-roledescription', 'graph.a11y.roleDescription');
+  });
+
+  it('keeps a visible keyboard focus ring on the viewport using the shared token', () => {
+    renderAccessibleGraph();
+    const viewport = screen.getByTestId('asset-graph-viewport');
+
+    // The focus ring reuses the primary accent token rather than a new hex value.
+    expect(viewport.className).toContain('focus-visible:outline-primary-500');
+    expect(viewport.className).toContain('focus-visible:ring-2');
   });
 
   it('gives the canvas a localized image role summarizing nodes and edges', () => {

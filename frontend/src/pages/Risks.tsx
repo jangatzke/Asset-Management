@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useDraftForm } from '../hooks/useDraftForm';
 import { ClockIcon, PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { riskApi, assetApi, userSearchApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
 import { Modal } from '../components/Modal';
@@ -18,6 +19,10 @@ import { normalizeRiskStatusFilter, matchesRiskStatusFilter } from './riskStatus
 import { exportCsv } from '../utils/csvExport';
 import { useListQuery } from '../hooks/useListQuery';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import HelpTooltip from '../components/HelpTooltip';
+import { useToast } from '../components/useToast';
+import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { buttonPrimary } from '../styles/tokens';
 
 interface Risk {
   id: string;
@@ -150,6 +155,7 @@ const RiskLevelBadge = ({ level, translate }: { level: string; translate: (key: 
 
 const Risks = () => {
   const { t } = useI18n();
+  const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [risks, setRisks] = useState<Risk[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,6 +171,8 @@ const Risks = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const pendingMainClose = useRef<(() => void) | null>(null);
+  const [draftRestoreOpen, setDraftRestoreOpen] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<CreateRiskForm | null>(null);
 
   // Treatment plan state
   const [treatmentModalOpen, setTreatmentModalOpen] = useState(false);
@@ -180,6 +188,15 @@ const Risks = () => {
   const riskControlState = useDirtyForm<RiskControlForm>(initialRiskControlForm);
   // Legacy form state (used by JSX templates)
   const [form, setForm] = useState<CreateRiskForm>(initialForm);
+  // Phase 2.3 draft: observes the legacy `form` state because that is what the
+  // JSX inputs are bound to. `formState` remains the dirty/submit source.
+  const draft = useDraftForm<CreateRiskForm>({
+    formKey: 'risks.create',
+    schemaVersion: 1,
+    value: form,
+    // Editing an existing risk must never overwrite the "new risk" draft.
+    autoSave: !editingId,
+  });
   const handleChange = (field: keyof CreateRiskForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
@@ -189,11 +206,38 @@ const Risks = () => {
   const [assessingRiskControlId, setAssessingRiskControlId] = useState<string | null>(null);
   const [historyRisk, setHistoryRisk] = useState<Risk | null>(null);
 
+  // Bulk selection (archive several risks at once). Page-scoped: cleared
+  // whenever the search term or status filter changes (same contract as Assets).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [searchTerm, statusFilter]);
+
   const handleMainDiscard = useCallback(() => {
     formState.resetForm();
     setEditingId(null);
     setModalOpen(false);
   }, [formState]);
+
+  const restoreDraft = useCallback(() => {
+    if (!pendingDraft) return;
+    // Restore into BOTH stores: the JSX reads `form`, submit/dirty reads `formState`.
+    setForm(pendingDraft);
+    formState.setFormValues(pendingDraft);
+    setDraftRestoreOpen(false);
+    setPendingDraft(null);
+    setModalOpen(true);
+  }, [formState, pendingDraft]);
+
+  const discardDraft = useCallback(() => {
+    draft.clear();
+    setDraftRestoreOpen(false);
+    setPendingDraft(null);
+    setModalOpen(true);
+  }, [draft]);
 
   const handleMainModalClose = useCallback(() => {
     if (formState.isDirty) {
@@ -416,6 +460,50 @@ const Risks = () => {
     });
   }, [filteredRisks, sort]);
 
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((current) => {
+      const pageIds = sortedRisks.map((risk) => risk.id);
+      const allSelected = pageIds.length > 0 && pageIds.every((id) => current.has(id));
+      const next = new Set(current);
+      pageIds.forEach((id) => {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = [...selectedIds];
+    setBulkConfirmOpen(false);
+    setBulkArchiving(true);
+    try {
+      const result = (await riskApi.bulkArchive({ ids })).data;
+      if (result.failedCount === 0) {
+        addToast('success', t('bulk.success', { count: result.succeededCount }));
+      } else if (result.succeededCount > 0) {
+        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
+      } else {
+        addToast('error', t('bulk.failed'));
+      }
+    } catch (err: unknown) {
+      addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
+    } finally {
+      setBulkArchiving(false);
+      setSelectedIds(new Set());
+      await loadRisks();
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formState.values.title || !formState.values.description || !formState.values.possibleImpact || !formState.values.riskOwnerId?.id || !formState.values.assessorId?.id || !formState.values.nextReviewDate || !formState.values.justification) {
       setError(t('common.requiredField'));
@@ -445,6 +533,8 @@ const Risks = () => {
       } else {
         await riskApi.create(payload);
       }
+      // Draft is cleared only after a confirmed successful save.
+      if (!editingId) draft.clear();
       setModalOpen(false);
       resetForm();
       await loadRisks();
@@ -522,9 +612,17 @@ const Risks = () => {
   const handleOpenCreate = useCallback(() => {
     resetForm();
     formState.setFormValues(initialForm);
-    setModalOpen(true);
+    // Draft conflict is resolved before the form modal opens, so the Modal's
+    // Escape handler and the dialog never race.
+    const record = draft.loadRecord();
+    if (record) {
+      setPendingDraft(record.value);
+      setDraftRestoreOpen(true);
+    } else {
+      setModalOpen(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resetForm is a stable helper; omitting it avoids unnecessary callback recreation
-  }, [formState]);
+  }, [formState, draft]);
 
   const handleCreateTreatment = async () => {
     if (!selectedRiskForTreatment || !treatmentForm.plannedActions || !treatmentForm.actionTitle) {
@@ -595,9 +693,27 @@ const Risks = () => {
         columnsLabel={t('common.columns')}
         filters={<div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_14rem]"><input type="text" placeholder={t('risks.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><select aria-label={t('risks.statusFilterAria')} value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)} className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('common.all')}</option><option value="open">{t('risks.statusFilter.open')}</option><option value="identified">{t('risks.status.identified')}</option><option value="assessed">{t('risks.status.assessed')}</option><option value="treatment_planned">{t('risks.status.treatment_planned')}</option><option value="treatment_in_progress">{t('risks.status.treatment_in_progress')}</option><option value="accepted">{t('risks.status.accepted')}</option><option value="closed">{t('risks.status.closed')}</option></select></div>}
       >
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
+            </div>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
+              <th className="px-6 py-3 w-10">
+                <input
+                  type="checkbox"
+                  aria-label={t('bulk.selectAll')}
+                  checked={sortedRisks.length > 0 && sortedRisks.every((risk) => selectedIds.has(risk.id))}
+                  onChange={toggleSelectAllOnPage}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+              </th>
               {visibleColumns.includes('id') && <SortableTh column="id" label={t('risks.columns.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} className="w-24" />}
               {visibleColumns.includes('title') && <SortableTh column="title" label={t('risks.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} className="min-w-[19rem]" />}
               {visibleColumns.includes('likelihood') && <SortableTh column="likelihood" label={t('risks.columns.likelihood')} activeColumn={sort.column} direction={sort.column === 'likelihood' ? sort.direction : ''} onSort={toggleSort} className="w-24" />}
@@ -612,9 +728,18 @@ const Risks = () => {
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredRisks.length === 0 ? (
-              <tr><td colSpan={visibleColumns.length + 1} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('risks.noRisks')}</td></tr>
+              <tr><td colSpan={visibleColumns.length + 2} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('risks.noRisks')}</td></tr>
             ) : sortedRisks.map((risk) => (
               <tr key={risk.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-6 py-4 w-10">
+                  <input
+                    type="checkbox"
+                    aria-label={t('bulk.select')}
+                    checked={selectedIds.has(risk.id)}
+                    onChange={() => toggleSelected(risk.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </td>
                 {visibleColumns.includes('id') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{risk.displayId}</td>}
                 {visibleColumns.includes('title') && <td className="min-w-[19rem] px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
                   <div>{risk.title}</div>
@@ -634,19 +759,19 @@ const Risks = () => {
                 {visibleColumns.includes('status') && <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`risks.status.${risk.status}`)}</td>}
                 <td className="sticky right-0 bg-white px-4 py-4 text-sm whitespace-nowrap shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.5)] dark:bg-gray-800">
                   <div className="flex items-center justify-center gap-1">
-                    <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
+                    <button onClick={() => handleEdit(risk)} aria-label={`${t('common.edit')}: ${risk.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200`}>
                       <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
-                    <button onClick={() => handleOpenControls(risk)} aria-label={`${t('risks.controls.manage')}: ${risk.title}`} title={t('risks.controls.manage')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
+                    <button onClick={() => handleOpenControls(risk)} aria-label={`${t('risks.controls.manage')}: ${risk.title}`} title={t('risks.controls.manage')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200`}>
                       <ShieldCheckIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                     <button onClick={() => handleOpenTreatment(risk)} aria-label={`${t('common.treatment')}: ${risk.title}`} title={t('common.treatment')} className={`${actionButtonClassName} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300`}>
                       <span aria-hidden="true" className="text-base leading-none">✚</span>
                     </button>
-                    <button onClick={() => setHistoryRisk(risk)} aria-label={`${t('history.viewHistory')}: ${risk.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                    <button onClick={() => setHistoryRisk(risk)} aria-label={`${t('history.viewHistory')}: ${risk.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200`}>
                       <ClockIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
-                    <button onClick={() => handleDelete(risk.id, risk.title)} aria-label={`${t('common.delete')}: ${risk.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                    <button onClick={() => handleDelete(risk.id, risk.title)} aria-label={`${t('common.delete')}: ${risk.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200`}>
                       <TrashIcon aria-hidden="true" className={actionIconClassName} />
                     </button>
                   </div>
@@ -773,9 +898,18 @@ const Risks = () => {
             <select value={riskControlState.values.role} onChange={(e) => riskControlState.handleChange({ role: e.target.value } as any)} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
               {['preventive', 'detective', 'corrective', 'recovery', 'compensating'].map((role) => <option key={role} value={role}>{t(`risks.controls.roles.${role}`)}</option>)}
             </select>
-            <select value={riskControlState.values.mitigationDimension} onChange={(e) => riskControlState.handleChange({ mitigationDimension: e.target.value } as any)} className="px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-              {['likelihood', 'impact', 'both'].map((dimension) => <option key={dimension} value={dimension}>{t(`risks.controls.dimensions.${dimension}`)}</option>)}
-            </select>
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <label htmlFor="risk-control-mitigation-dimension" className="block text-xs font-medium text-gray-700 dark:text-gray-300">{t('risks.fields.mitigationDimension.label')}</label>
+                <HelpTooltip
+                  labelKey="risks.fields.mitigationDimension.label"
+                  bodyKey="risks.fields.mitigationDimension.description"
+                />
+              </div>
+              <select id="risk-control-mitigation-dimension" value={riskControlState.values.mitigationDimension} onChange={(e) => riskControlState.handleChange({ mitigationDimension: e.target.value } as any)} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {['likelihood', 'impact', 'both'].map((dimension) => <option key={dimension} value={dimension}>{t(`risks.controls.dimensions.${dimension}`)}</option>)}
+              </select>
+            </div>
             <button onClick={handleLinkControl} className="px-4 py 2 bg-purple-600 text-white rounded hover:bg-purple-700">{t('risks.controls.add')}</button>
           </div>
           {(selectedRiskForControls ? riskControls(selectedRiskForControls) : []).length === 0 ? <p className="text-sm text-gray-500">{t('risks.controls.empty')}</p> : (selectedRiskForControls ? riskControls(selectedRiskForControls) : []).map((link) => (
@@ -873,6 +1007,19 @@ const Risks = () => {
        messageKey={t('common.discardChangesMessage')}
      />
 
+     {/* Draft restore conflict — separate state/dialog from the dirty-guard,
+         same component, draft-specific labels. */}
+     <DiscardConfirmationDialog
+       open={draftRestoreOpen}
+       onClose={discardDraft}
+       onDiscard={restoreDraft}
+       titleKey="draft.found"
+       messageKey="draft.restoreMessage"
+       cancelLabelKey="draft.discard"
+       confirmLabelKey="draft.restore"
+       confirmColor="primary"
+     />
+
      <EntityHistoryModal isOpen={!!historyRisk} onClose={() => setHistoryRisk(null)} entityId={historyRisk?.id} entityName={historyRisk?.title} loadHistory={riskApi.history} />
 
      {/* Discard confirmation for treatment modal */}
@@ -894,7 +1041,17 @@ const Risks = () => {
      />
 
      <ConfirmDialog
-       isOpen={!!pendingRemoveControl}
+     isOpen={bulkConfirmOpen}
+     onClose={() => setBulkConfirmOpen(false)}
+     onConfirm={handleBulkArchive}
+     danger
+     title={t('bulk.confirmTitle')}
+     message={t('bulk.confirmMessage', { count: selectedIds.size })}
+     confirmLabel={t('bulk.archive')}
+   />
+
+     <ConfirmDialog
+     isOpen={!!pendingRemoveControl}
        onClose={() => setPendingRemoveControl(null)}
        onConfirm={() => void confirmRemoveRiskControl()}
        danger

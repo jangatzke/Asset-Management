@@ -112,6 +112,18 @@ test('ticket workflow and SLA locale keys resolve in both locales', () => {
   }
 });
 
+test('error reference locale key resolves in all locales', () => {
+  for (const locale of [en, de, es, fr]) {
+    const key = 'common.referenceId';
+    const value = resolveKey(locale, key);
+    expect(value).toBeDefined();
+    expect(value).toEqual(expect.any(String));
+    expect(value).not.toBe(key);
+    expect(value).not.toBe('');
+    expect(value).toContain('{id}');
+  }
+});
+
 test('list-view enhancement keys resolve in all locales', () => {
   const keys = [
     'pagination.goTo', 'pagination.jumpAriaLabel',
@@ -275,6 +287,26 @@ test('asset graph accessibility locale keys resolve in all locales', () => {
   for (const locale of [en, de, es, fr]) {
     for (const key of keys) {
       const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
+test('field help tooltip locale keys resolve in all locales', () => {
+  const keys = [
+    'common.help.ariaLabel',
+    'risks.fields.mitigationDimension.label',
+    'risks.fields.mitigationDimension.description',
+    'risks.fields.riskClasses.label',
+    'risks.fields.riskClasses.description',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toBeDefined();
       expect(value).toEqual(expect.any(String));
       expect(value).not.toBe(key);
       expect(value).not.toBe('');

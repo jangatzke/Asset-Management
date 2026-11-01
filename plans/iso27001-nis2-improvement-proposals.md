@@ -7,6 +7,8 @@
 
 **Umsetzungsstand:** Phase A-C abgeschlossen - nur noch #10 (SoA-Diff) offen. Details in Abschnitt [Umsetzungsstatus](#umsetzungsstatus-2026-08-24) unten.
 
+> **Status update (2026-10-30):** Auch Vorschlag #10 (SoA-Diff) ist inzwischen implementiert: `diffSoA()` in [`control.service.ts`](backend/src/services/control.service.ts), Route `GET /controls/soa/diff` in [`control.routes.ts`](backend/src/routes/control.routes.ts:64), Tests in `backend/src/__tests__/controlService.soa-diff.test.ts`. Damit sind alle 10 Vorschläge umgesetzt. Hinweis zur Nummerierung: ISO/IEC 27001:2022 Anhang A endet bei **A.8.34** (93 Kontrollen, A.5.1–A.8.34) — die unten vereinzelt genannte Obergrenze „A.8.42" existiert nicht. Ältere Zeilenangaben (z. B. `schema.prisma:1556`, heute [`schema.prisma:1726`](backend/prisma/schema.prisma:1726) für `SoAItemRiskAssessment`) können verschoben sein.
+
 ---
 
 ## Executive Summary
@@ -26,7 +28,7 @@ Die größten Lücken (Stand 2026-08-19): **unvollständiges Control-Catalog** (
 
 ### Ist-Zustand (Stand 2026-08-19)
 
-Das Catalog enthielt nur ~17 ISO-27001-Kontrollen als Sample (A.5.1–A.5.6, A.6.1–A.6.3, A.7.1–A.7.4, A.8.1–A.8.4) — siehe [`migration.sql`](backend/prisma/migrations/20260725010000_control_catalogs/migration.sql:43). Die restlichen 76 Kontrollen (A.5.7–A.8.42) fehlten. — *Aktualisiert 2026-08-24: Der Katalog enthält nun alle 93 Anhang-A-Kontrollen (A.5.1–A.8.42) und die SoA-Generierung deckt die vollständige Abdeckung ab (siehe [Umsetzungsstatus](#umsetzungsstatus-2026-08-24), #1/#2).*
+Das Catalog enthielt nur ~17 ISO-27001-Kontrollen als Sample (A.5.1–A.5.6, A.6.1–A.6.3, A.7.1–A.7.4, A.8.1–A.8.4) — siehe [`migration.sql`](backend/prisma/migrations/20260725010000_control_catalogs/migration.sql:43). Die restlichen 76 Kontrollen (A.5.7–A.8.34) fehlten. — *Aktualisiert 2026-08-24: Der Katalog enthält nun alle 93 Anhang-A-Kontrollen (A.5.1–A.8.34) und die SoA-Generierung deckt die vollständige Abdeckung ab (siehe [Umsetzungsstatus](#umsetzungsstatus-2026-08-24), #1/#2).*
 
 ### Warum relevant
 
@@ -34,7 +36,7 @@ ISO 27001:2022 **6.1.3 d** verlangt eine **Statement of Applicability, die alle 
 
 ### Vorschlag
 
-1. **Katalog-Datenbank vervollständigen:** Alle 93 Kontrollen mit `controlId` (A.5.1–A.8.42), Titel, Ziel (objective), Kategorie und Unterkategorie (z. B. A.8.22 = „Security of networks" als Subkategorie von A.8.22 "Access controls").
+1. **Katalog-Datenbank vervollständigen:** Alle 93 Kontrollen mit `controlId` (A.5.1–A.8.34), Titel, Ziel (objective), Kategorie und Unterkategorie (z. B. A.8.22 = „Security of networks" in der Themenreihe „Technological controls").
 2. **Seed-Script statt Migration** für die Katalog-Ergänzung (idempotent, `ON CONFLICT DO NOTHING`) — das Muster ist bereits in [`catalog.service.ts`](backend/src/services/catalog.service.ts) vorhanden (`ensureCatalogue`).
 3. **SoA-Generierung aus Katalog:** Neuer Button „SoA aus Katalog generieren" — erstellt je Scope ein `SoAItem` pro Katalog-Kontrolle mit Default-Status `applicable` und leerer Begründung. Der bestehende Validierungs-Check (`submitSOA` verlangt Begründung pro Item, siehe [`control.service.ts`](backend/src/services/control.service.ts:438)) erzwingt dann die vollständige Abdeckung.
 4. **Kontrollen-Mapping:** NIS2-Catalog (neu, siehe §2.3) mit Cross-Referenzen zu ISO-Kontrollen pflegen (z. B. NIS2-Art. 23 → A.5.4, A.8.x), damit die SoA gleichzeitig beide Frameworks abbildet.
@@ -186,6 +188,6 @@ Bei SoA-Update: Visuell zeigen, welche Kontrollen hinzugefügt/entfernt/geänder
 | 7 | ISMS Process Workspace (Klauseln 4,5,7) | ✅ implementiert | [`ismsProcessWorkspace.tsx`](frontend/src/pages/ismsProcessWorkspace.tsx) mit Klausel-4 (interessierte Parteien), Klausel-5 (ISMS-Policy-Dokumente), Klausel-7 (Schulungs-Nachweise) |
 | 8 | SoA-Risk-Linkage | ✅ implementiert | `SoAItemRiskAssessment`-Join-Modell in [`schema.prisma`](backend/prisma/schema.prisma:1556), `riskAssessmentIds` in [`CreateSoAItemSchema`](shared/src/dtos/index.ts:556), Service-Logik in [`control.service.ts`](backend/src/services/control.service.ts:348), API `PATCH /controls/soa/items/:id` in [`api.ts`](frontend/src/services/api.ts:384) |
 | 9 | SoA-Export (CSV/HTML) | ✅ implementiert | `GET /controls/soa/:id/export?format=csv\|html` in [`control.routes.ts`](backend/src/routes/control.routes.ts:87), `exportSoACsv()`/`exportSoAHtml()` in [`control.service.ts`](backend/src/services/control.service.ts:633), Export-Buttons in [`Controls.tsx`](frontend/src/pages/Controls.tsx:470) |
-| 10 | SoA-Diff zwischen Versionen | ❌ offen | — |
+| 10 | SoA-Diff zwischen Versionen | ✅ implementiert (2026-10-30) | `diffSoA()` in [`control.service.ts`](backend/src/services/control.service.ts), Route `GET /controls/soa/diff` in [`control.routes.ts`](backend/src/routes/control.routes.ts:64), Tests in `backend/src/__tests__/controlService.soa-diff.test.ts` |
 
 **Hinweis zur Migration:** Die Remote-PostgreSQL-Datenbank (`192.168.66.222:5432`) hat die Crash-Recovery abgeschlossen; am 2026-08-24 wurden alle ausstehenden Migrations (inkl. `crosswalk`-Feld und `20260824103100_add_soa_item_risk_assessment_links`) via `prisma migrate deploy` erfolgreich angewendet. Backend-Build und Tests (Frontend 220/220, Backend 985/992 — 1 vorliegender, nicht zum Scope gehörender Fehler) laufen grün.

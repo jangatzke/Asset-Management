@@ -100,6 +100,32 @@ export interface CreateSoAData {
   items?: CreateSoAItemData[];
 }
 
+/**
+ * Phase 3.3 – one pending-justification finding for a SoA item that cannot be
+ * submitted as-is. `reason` is a stable, non-localised category; the UI maps it
+ * to a translated label.
+ */
+export interface PendingJustificationEntry {
+  soaItemId: string;
+  soaId: string;
+  soaVersion: number;
+  approvalStatus: string;
+  scopeId: string;
+  controlId: string | null;
+  catalogId: string | null;
+  controlTitle: string | null;
+  requirementId: string | null;
+  applicability: string;
+  reason: 'placeholder_pending_justification' | 'pending_applicability_decision' | 'empty_justification';
+}
+
+/** Structured report: empty structure instead of an exception when no data exists. */
+export interface PendingJustificationReport {
+  generatedAt: string;
+  totalPending: number;
+  entries: PendingJustificationEntry[];
+}
+
 export interface UpdateControlData extends Partial<CreateControlData> {
   status?: string;
 }
@@ -148,6 +174,10 @@ export class ControlService {
 
     const effectiveWhere: Prisma.ControlWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
 
+    // Phase 2.5 read-path projection: the control table renders requirement key
+    // and title plus implementation status/maturity/test dates. Narrow the
+    // nested requirement and implementation relations accordingly; the detail
+    // read (getById) keeps the full findings/actions payload. Envelope unchanged.
     const [controls, total] = await Promise.all([
       prisma.control.findMany({
         where: effectiveWhere,
@@ -155,8 +185,28 @@ export class ControlService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          requirementMappings: { include: { requirement: true } },
-          implementations: implementationAuthzWhere ? { where: implementationAuthzWhere } : true,
+          requirementMappings: {
+            select: {
+              requirementId: true,
+              requirement: { select: { id: true, requirementKey: true, title: true } },
+            },
+          },
+          implementations: {
+            where: implementationAuthzWhere ?? undefined,
+            select: {
+              id: true,
+              implementationStatus: true,
+              maturityLevel: true,
+              implementationDescription: true,
+              responsibleUserId: true,
+              testMethod: true,
+              testFrequency: true,
+              lastTestDate: true,
+              nextTestDate: true,
+              findingsSummary: true,
+              actionsSummary: true,
+            },
+          },
         } as Prisma.ControlInclude,
       }),
       prisma.control.count({ where: effectiveWhere }),
@@ -366,6 +416,73 @@ async getSOA(scopeId?: string) {
       approvals: true,
     },
   });
+  }
+
+  /**
+   * Phase 3.3 – pending-justification audit report.
+   *
+   * Data sources (all existing, no schema change):
+   * - `SoAItem.justification` – free-text rationale; an empty/whitespace string
+   *   already blocks submission (see `submitSOA`, line ~621).
+   * - `SoAItem.applicability` – `under_review` blocks submission (see
+   *   `submitSOA`, line ~622).
+   * - `ISO27001_SOA_PENDING_JUSTIFICATION` – the placeholder written by
+   *   `generateIso27001AnnexASOA`; it is non-empty, so it passes the emptiness
+   *   check and is only caught by the explicit equality check in `submitSOA`.
+   *
+   * Semantics: read-only derivation. Missing/empty data yields
+   * `{ totalPending: 0, entries: [] }` — never an exception. Approved or
+   * immutable SoA versions are excluded because they can no longer be submitted
+   * and their items are frozen; the report targets drafts awaiting submission.
+   */
+  async buildPendingJustificationReport(query: { scopeId?: string } = {}): Promise<PendingJustificationReport> {
+    const where: Record<string, any> = {
+      soa: { approvalStatus: { not: 'approved' }, isImmutable: false },
+    };
+    if (query.scopeId) where.soa.scopeId = query.scopeId;
+
+    const rawItems = await prisma.soAItem.findMany({
+      where,
+      orderBy: [{ soaId: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        soa: { select: { id: true, version: true, approvalStatus: true, scopeId: true } },
+        control: { select: { id: true, title: true, catalogId: true } },
+      },
+    });
+
+    const items: any[] = Array.isArray(rawItems) ? rawItems : [];
+    const entries: PendingJustificationEntry[] = [];
+
+    for (const item of items) {
+      const justification = typeof item.justification === 'string' ? item.justification.trim() : '';
+      const applicability = String(item.applicability ?? '');
+
+      let reason: PendingJustificationEntry['reason'] | null = null;
+      if (!justification) reason = 'empty_justification';
+      else if (justification === ISO27001_SOA_PENDING_JUSTIFICATION) reason = 'placeholder_pending_justification';
+      else if (applicability === 'under_review') reason = 'pending_applicability_decision';
+      if (!reason) continue;
+
+      entries.push({
+        soaItemId: item.id,
+        soaId: item.soa?.id ?? item.soaId,
+        soaVersion: item.soa?.version ?? item.version ?? 1,
+        approvalStatus: item.soa?.approvalStatus ?? 'draft',
+        scopeId: item.soa?.scopeId ?? '',
+        controlId: item.controlId ?? null,
+        catalogId: item.control?.catalogId ?? null,
+        controlTitle: item.control?.title ?? null,
+        requirementId: item.requirementId ?? null,
+        applicability: applicability || 'under_review',
+        reason,
+      });
+    }
+
+    return {
+      generatedAt: new Date().toISOString(),
+      totalPending: entries.length,
+      entries,
+    };
   }
 
   async createSOA(data: CreateSoAData, createdBy?: string) {

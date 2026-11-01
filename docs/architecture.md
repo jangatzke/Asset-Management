@@ -30,7 +30,7 @@ graph TB
     subgraph Frontend
         A[React SPA] --> B[Vite + TypeScript]
         B --> C[Tailwind CSS]
-        C --> D[Redux/Zustand Store]
+        C --> D[Zustand Store]
         D --> E[API Client axios]
     end
 
@@ -188,6 +188,17 @@ frontend/src/
 ### 1.5 Shared Types
 
 ```
+shared/src/types/
+├── asset.ts       # AssetType, AssetRelationType enums, interfaces
+├── common.ts      # Common types (PaginatedResponse, etc.)
+├── control.ts     # Control interfaces
+├── incident.ts    # Incident interfaces
+├── organization.ts # OrganizationUnit interfaces
+├── risk.ts        # Risk status, treatment enums
+└── user.ts        # User, Role interfaces
+```
+
+> Hinweis (Stand 2026-10-30): Das Verzeichnis enthält inzwischen weitere Typdateien (`graph.ts`, `isms.ts`, `nis2.ts`, `search.ts`, `ticket.ts`); die Liste oben spiegelt den Baseline-Stand Juli 2026.
 
 ### 1.6 Normalisiertes Risiko-/Kontroll-/Asset-Modell
 
@@ -206,15 +217,6 @@ frontend/src/
 - Control.relatedRiskIds, SoAItem.riskIds, SoAItem.evidenceIds und vergleichbare SoA/Evidence-Mirror-Arrays werden als Eingabe abgewiesen; Clients müssen ControlImplementation-, RiskControl- und EvidenceLink-Ressourcen verwenden.
 - Evidence.relatedControlIds und Evidence.relatedRiskIds sind nicht mehr der kanonische Speicherort; EvidenceInput verwendet links[] mit entityType/entityId.
 - Asset.networkAddresses als kommagetrennter String wurde durch das normalisierte NetworkAddress-Modell ersetzt.
-shared/src/types/
-├── asset.ts       # AssetType, AssetRelationType enums, interfaces
-├── common.ts      # Common types (PaginatedResponse, etc.)
-├── control.ts     # Control interfaces
-├── incident.ts    # Incident interfaces
-├── organization.ts # OrganizationUnit interfaces
-├── risk.ts        # Risk status, treatment enums
-└── user.ts        # User, Role interfaces
-```
 
 ---
 
@@ -389,7 +391,7 @@ Ziel: Vollständige OpenAPI 3.1 Spezifikation in `docs/api/openapi.yaml`:
 - Health Check Monitoring (OPS-004)
 ## Phase 2 Authentication and Session Architecture
 
-The authentication architecture now separates short-lived bearer access tokens from persisted refresh-token sessions. Access JWTs are intentionally minimal (`userId`, `email`, HS256, configurable lifetime around 15-30 minutes). Authorization decisions for privileged and scoped resources remain database-backed and are not permanently derived from JWT role claims.
+The authentication architecture now separates short-lived bearer access tokens from persisted refresh-token sessions. Access JWTs are intentionally minimal (`userId`, `email`, HS256, configurable lifetime via `JWT_ACCESS_TOKEN_EXPIRES_IN`, default 20 minutes). Authorization decisions for privileged and scoped resources remain database-backed and are not permanently derived from JWT role claims.
 
 The `RefreshToken` table stores `tokenHash`, `familyId`, `issuedAt`, `expiresAt`, `usedAt`, `revokedAt`, `replacedById`, `ipAddress`, and `userAgent`. Refresh-token plaintext is only sent to the browser as an HttpOnly cookie scoped to auth routes. Rotation and reuse detection are handled by the auth service; refresh works independently of expired access tokens.
 

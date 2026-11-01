@@ -1,5 +1,7 @@
 # Phase 6 DTO/API Contract Plan
 
+> **Status update (2026-10-30):** Completed (commit `1250be6`). The "Baseline" below is the pre-Phase 6 state and is historical. Current code matches this plan: shared Zod schemas live in `shared/src/dtos/index.ts` and backend validation uses them; contract tests exist at `backend/src/__tests__/phase6.dto-contract.test.ts`, `backend/src/__tests__/asset.dto-contract.test.ts`, and `backend/src/__tests__/core.dto-serialization.test.ts`. Note: the runtime Zod schemas are imported by the backend from `shared/dist` (the `shared` workspace is built first via backend `predev`).
+
 ## Scope
 
 Phase 6 is limited to shared DTO and API contract hardening for the existing Asset Management resources. Phase 7 service extraction, universal entity picker work, and new ISMS modules are explicitly out of scope.

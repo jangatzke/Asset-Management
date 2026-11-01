@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
-import { catalogApi, nis2Api, type Nis2Answer, type Nis2Assessment, type Nis2Question, type Nis2QuestionOption, type Nis2Questionnaire, type Nis2Registration } from '../services/api';
+import { catalogApi, nis2Api, type Nis2Answer, type Nis2Assessment, type Nis2CrosswalkCompleteness, type Nis2Question, type Nis2QuestionOption, type Nis2Questionnaire, type Nis2Registration } from '../services/api';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
@@ -41,6 +41,8 @@ export default function NIS2() {
   const [changeValue, setChangeValue] = useState('');
   const [changeDeadline, setChangeDeadline] = useState('');
   const [changeProof, setChangeProof] = useState('');
+  const [crosswalk, setCrosswalk] = useState<Nis2CrosswalkCompleteness | null>(null);
+  const [crosswalkError, setCrosswalkError] = useState('');
 
   const selectedQuestionnaire = useMemo(() => questionnaires.find((item) => item.version === questionnaireVersion), [questionnaires, questionnaireVersion]);
 
@@ -72,6 +74,21 @@ export default function NIS2() {
   }, [t]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Crosswalk completeness is computed by the backend from the static NIS-2 /
+  // ISO27001 catalogues. Failures must not affect the rest of the page.
+  const loadCrosswalk = useCallback(async () => {
+    try {
+      const { data } = await nis2Api.getCrosswalk();
+      setCrosswalk(data);
+      setCrosswalkError('');
+    } catch (caught: unknown) {
+      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.crosswalkLoadError');
+      setCrosswalkError(message);
+    }
+  }, [t]);
+
+  useEffect(() => { void loadCrosswalk(); }, [loadCrosswalk]);
 
   // Reset answers when questionnaire changes
   useEffect(() => { setAnswers({}); }, [questionnaireVersion]);
@@ -338,6 +355,70 @@ export default function NIS2() {
             {t('nis2.recordChange')}
           </button>
         </form>
+      </section>
+
+      {/* Section 5: NIS-2 ↔ ISO/IEC 27001:2022 Annex A crosswalk completeness */}
+      <section className={card}>
+        <h2 className="text-lg font-semibold">{t('nis2.crosswalkTitle')}</h2>
+        <p className="mt-1 text-sm text-gray-600">{t('nis2.crosswalkDescription')}</p>
+
+        {crosswalkError && <p className="mt-2 rounded bg-red-50 p-2 text-sm text-red-800">{crosswalkError}</p>}
+
+        {crosswalk && crosswalk.isComplete && (
+          <p className="mt-2 rounded bg-green-50 p-2 text-sm text-green-800">{t('nis2.crosswalkComplete')}</p>
+        )}
+
+        {crosswalk && !crosswalk.isComplete && (
+          <div className="mt-3 space-y-3">
+            <p className="rounded bg-amber-50 p-2 text-sm text-amber-900">
+              {t('nis2.crosswalkFindings')}: {crosswalk.missingControls.length + crosswalk.unknownControls.length + crosswalk.unmappedArticles.length + crosswalk.unmappedControls.length}
+            </p>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <span className="font-medium">{t('nis2.crosswalkMissingControls')}: {crosswalk.missingControls.length}</span>
+                {crosswalk.missingControls.length > 0 && (
+                  <ul className="mt-1 flex flex-wrap gap-1">
+                    {crosswalk.missingControls.map((control) => (
+                      <li key={control} className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-800 dark:bg-red-900 dark:text-red-200">{control}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+              <li>
+                <span className="font-medium">{t('nis2.crosswalkUnknownControls')}: {crosswalk.unknownControls.length}</span>
+                {crosswalk.unknownControls.length > 0 && (
+                  <ul className="mt-1 flex flex-wrap gap-1">
+                    {crosswalk.unknownControls.map((control) => (
+                      <li key={control} className="rounded bg-orange-50 px-2 py-0.5 text-xs text-orange-800 dark:bg-orange-900 dark:text-orange-200">{control}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+              <li>
+                <span className="font-medium">{t('nis2.crosswalkUnmappedArticles')}: {crosswalk.unmappedArticles.length}</span>
+                {crosswalk.unmappedArticles.length > 0 && (
+                  <ul className="mt-1 flex flex-wrap gap-1">
+                    {crosswalk.unmappedArticles.map((article) => (
+                      <li key={article} className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">Art. {article}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+              <li>
+                <span className="font-medium">{t('nis2.crosswalkUnmappedControls')}: {crosswalk.unmappedControls.length}</span>
+                {crosswalk.unmappedControls.length > 0 && (
+                  <ul className="mt-1 flex flex-wrap gap-1">
+                    {crosswalk.unmappedControls.map((control) => (
+                      <li key={control} className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">{control}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            </ul>
+          </div>
+        )}
+
+        {!crosswalk && !crosswalkError && <p className="mt-2 text-sm text-gray-500">{t('common.loading')}</p>}
       </section>
 
       {/* Catalog administration */}

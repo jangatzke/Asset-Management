@@ -259,6 +259,10 @@ export class RiskService {
 
     const effectiveWhere: Prisma.RiskWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
 
+    // Phase 2.5 read-path projection: list rows only render scalar risk fields
+    // in Risks.tsx (the edit form and control drawer hydrate via getById), so the
+    // nested relations are narrowed to the contract fields instead of loading
+    // complete related models. The envelope shape is unchanged.
     const [risks, total] = await Promise.all([
       prisma.risk.findMany({
         where: effectiveWhere,
@@ -266,20 +270,21 @@ export class RiskService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          organizationUnit: true,
+          organizationUnit: { select: { id: true, name: true } },
           scenario: {
-            include: {
-              threat: true,
-              vulnerability: true,
+            select: {
+              id: true,
+              threat: { select: { id: true, name: true } },
+              vulnerability: { select: { id: true, name: true } },
             },
           },
-          threat: true,
-          vulnerability: true,
-          causes: { include: { cause: true } },
-          impacts: { include: { impact: true } },
-          riskAssets: { include: { asset: true } },
-          processLinks: { include: { process: true } },
-          serviceLinks: { include: { service: true } },
+          threat: { select: { id: true, name: true } },
+          vulnerability: { select: { id: true, name: true } },
+          causes: { select: { causeId: true, cause: { select: { id: true, displayId: true, title: true } } } },
+          impacts: { select: { impactId: true, impact: { select: { id: true, displayId: true, title: true } } } },
+          riskAssets: { select: { assetId: true, asset: { select: { id: true, displayId: true, name: true } } } },
+          processLinks: { select: { processId: true, process: { select: { id: true, displayId: true, name: true } } } },
+          serviceLinks: { select: { serviceId: true, service: { select: { id: true, displayId: true, name: true } } } },
         },
       }),
       prisma.risk.count({ where: effectiveWhere }),

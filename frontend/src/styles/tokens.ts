@@ -30,10 +30,13 @@ export const buttonDanger =
 export const iconButtonBase =
   'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 
-export const iconButtonEdit = `${iconButtonBase} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`;
-export const iconButtonView = `${iconButtonBase} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`;
-export const iconButtonHistory = `${iconButtonBase} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`;
-export const iconButtonDanger = `${iconButtonBase} text-danger-600 hover:text-danger-800 dark:text-danger-400 dark:hover:text-danger-300`;
+// Dark-mode shades are chosen to clear WCAG AA (>= 4.5:1) against both the
+// resting row background (gray-800/gray-900) and the hover background
+// (dark:hover:bg-gray-700 from iconButtonBase). See utils/contrast.test.ts.
+export const iconButtonEdit = `${iconButtonBase} text-primary-600 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200`;
+export const iconButtonView = `${iconButtonBase} text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200`;
+export const iconButtonHistory = `${iconButtonBase} text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-200`;
+export const iconButtonDanger = `${iconButtonBase} text-danger-600 hover:text-danger-800 dark:text-danger-300 dark:hover:text-danger-200`;
 
 /* --- Status / criticality badges ----------------------------------------- */
 /**
@@ -61,6 +64,16 @@ export const inputField =
 
 export const selectField =
   'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500';
+
+/* --- Keyboard focus ------------------------------------------------------ */
+
+/**
+ * Explicit focus ring for composite widgets (currently the AssetGraph
+ * viewport). Reuses the primary accent token instead of new hex values and is
+ * additive to the global `:focus-visible` outline in index.css.
+ */
+export const focusRing =
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900';
 
 /* --- Layout primitives --------------------------------------------------- */
 export const cardSurface =

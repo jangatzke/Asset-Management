@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
-import { controlApi, frameworkApi, evidenceApi, catalogApi, userSearchApi, organizationApi, type SoADiffResponse } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi, catalogApi, userSearchApi, organizationApi, type SoADiffResponse, type PendingJustificationReport, type PendingJustificationReason } from '../services/api';
 import { getAccessToken } from '../store/accessToken';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
@@ -14,8 +14,12 @@ import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useToast } from '../components/useToast';
 import { exportCsv } from '../utils/csvExport';
 import { useListQuery } from '../hooks/useListQuery';
+import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { buttonPrimary } from '../styles/tokens';
 
 interface Control {
   id: string;
@@ -111,6 +115,7 @@ const actionIconClassName = 'h-4 w-4';
 
 const Controls = () => {
   const { t } = useI18n();
+  const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const [controls, setControls] = useState<Control[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,6 +140,8 @@ const Controls = () => {
   const [soaDiffToId, setSoaDiffToId] = useState('');
   const [soaDiffResult, setSoaDiffResult] = useState<SoADiffResponse | null>(null);
   const [diffingSoA, setDiffingSoA] = useState(false);
+  const [pendingReport, setPendingReport] = useState<PendingJustificationReport | null>(null);
+  const [loadingPendingReport, setLoadingPendingReport] = useState(false);
   const [catalogOptions, setCatalogOptions] = useState<CatalogOption[]>([]);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
   const [implementationModalOpen, setImplementationModalOpen] = useState(false);
@@ -176,6 +183,12 @@ const Controls = () => {
       console.error('Failed to load ISMS scopes:', err);
     }
   };
+
+  // Bulk selection (archive several controls at once). Page-scoped: cleared
+  // whenever the search term changes (same contract as Assets).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
 
   // Guard against out-of-order responses: superseded/aborted loads are silent.
   const { run: runControlListQuery } = useListQuery();
@@ -244,6 +257,55 @@ const Controls = () => {
       return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
     });
   }, [filteredControls, sort]);
+
+  // Page-scoped selection reset: search changes clear the selection.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [searchTerm]);
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((current) => {
+      const pageIds = sortedControls.map((control) => control.id);
+      const allSelected = pageIds.length > 0 && pageIds.every((id) => current.has(id));
+      const next = new Set(current);
+      pageIds.forEach((id) => {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = [...selectedIds];
+    setBulkConfirmOpen(false);
+    setBulkArchiving(true);
+    try {
+      const result = (await controlApi.bulkArchive({ ids })).data;
+      if (result.failedCount === 0) {
+        addToast('success', t('bulk.success', { count: result.succeededCount }));
+      } else if (result.succeededCount > 0) {
+        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
+      } else {
+        addToast('error', t('bulk.failed'));
+      }
+    } catch (err: unknown) {
+      addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
+    } finally {
+      setBulkArchiving(false);
+      setSelectedIds(new Set());
+      await loadControls();
+    }
+  };
 
   const primaryImplementation = (control: Control) => control.implementations?.[0];
 
@@ -341,6 +403,27 @@ const Controls = () => {
     } finally {
       setDiffingSoA(false);
     }
+  };
+
+  const handleLoadPendingJustifications = async () => {
+    if (loadingPendingReport) return;
+    try {
+      setLoadingPendingReport(true);
+      setError('');
+      const response = await controlApi.pendingJustifications();
+      setPendingReport(response.data);
+    } catch (err: unknown) {
+      setPendingReport(null);
+      setError(getErrorMessage(err) || t('controls.soaPending.error'));
+    } finally {
+      setLoadingPendingReport(false);
+    }
+  };
+
+  const pendingReasonLabel = (reason: PendingJustificationReason) => {
+    if (reason === 'placeholder_pending_justification') return t('controls.soaPending.reasonPlaceholder');
+    if (reason === 'pending_applicability_decision') return t('controls.soaPending.reasonApplicability');
+    return t('controls.soaPending.reasonEmpty');
   };
 
   const soaDiffFieldLabel = (field: string) => {
@@ -639,6 +722,40 @@ const Controls = () => {
             )}
           </div>
         )}
+        <div className="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('controls.soaPending.title')}</h3>
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('controls.soaPending.description')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleLoadPendingJustifications}
+              disabled={loadingPendingReport}
+              className="bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loadingPendingReport ? t('controls.soaPending.loading') : t('controls.soaPending.loadButton')}
+            </button>
+          </div>
+          {pendingReport && (
+            <div className="mt-3 text-sm">
+              <p className="font-medium">
+                {pendingReport.totalPending === 0
+                  ? t('controls.soaPending.empty')
+                  : t('controls.soaPending.summary').replace('{count}', String(pendingReport.totalPending))}
+              </p>
+              {pendingReport.entries.length > 0 && (
+                <ul className="mt-2 space-y-1 list-disc pl-5">
+                  {pendingReport.entries.map((entry) => (
+                    <li key={entry.soaItemId}>
+                      {entry.controlTitle ?? entry.controlId ?? entry.soaItemId} · {entry.catalogId ?? '—'} · {pendingReasonLabel(entry.reason)} ({entry.approvalStatus})
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
       </section>
 
       <div className="mb-4">
@@ -667,9 +784,27 @@ const Controls = () => {
       </div>
 
       <DataTableShell onExport={exportVisibleControls} exportLabel="Export CSV" rowCount={sortedControls.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
+            </div>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
+              <th className="px-6 py-3 w-10">
+                <input
+                  type="checkbox"
+                  aria-label={t('bulk.selectAll')}
+                  checked={sortedControls.length > 0 && sortedControls.every((control) => selectedIds.has(control.id))}
+                  onChange={toggleSelectAllOnPage}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+              </th>
               <SortableTh column="title" label={t('controls.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="controlGoal" label={t('controls.columns.controlGoal')} activeColumn={sort.column} direction={sort.column === 'controlGoal' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="implementation" label={t('controls.columns.implementation')} activeColumn={sort.column} direction={sort.column === 'implementation' ? sort.direction : ''} onSort={toggleSort} />
@@ -682,13 +817,22 @@ const Controls = () => {
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {sortedControls.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                   {t('controls.noControls')}
                 </td>
               </tr>
             ) : (
               sortedControls.map((control) => (
                 <tr key={control.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label={t('bulk.select')}
+                      checked={selectedIds.has(control.id)}
+                      onChange={() => toggleSelected(control.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{control.title}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{control.controlGoal}</td>
                   <td className="px-6 py-4 text-sm">
@@ -723,13 +867,13 @@ const Controls = () => {
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => handleEditControl(control)} aria-label={`${t('common.edit')}: ${control.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
+                      <button onClick={() => handleEditControl(control)} aria-label={`${t('common.edit')}: ${control.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300`}>
+                      <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200`}>
                         <PlusCircleIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => setHistoryControl(control)} aria-label={`${t('history.viewHistory')}: ${control.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                      <button onClick={() => setHistoryControl(control)} aria-label={`${t('history.viewHistory')}: ${control.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -965,6 +1109,16 @@ const Controls = () => {
       </Modal>
 
       <EntityHistoryModal isOpen={!!historyControl} onClose={() => setHistoryControl(null)} entityId={historyControl?.id} entityName={historyControl?.title} loadHistory={controlApi.history} />
+
+      <ConfirmDialog
+        isOpen={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={handleBulkArchive}
+        danger
+        title={t('bulk.confirmTitle')}
+        message={t('bulk.confirmMessage', { count: selectedIds.size })}
+        confirmLabel={t('bulk.archive')}
+      />
 
       {/* Discard Confirmation Dialog for Control Modal */}
       <DiscardConfirmationDialog

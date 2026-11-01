@@ -4,6 +4,12 @@
 
 **Date:** 2026-09-10
 
+> **Status update (2026-10-30):** All four proposals below are implemented. Evidence in the current frontend:
+> - **A1 (design tokens)** — semantic color scales (`primary`, `danger`, `warning`, `success`) are defined in [`tailwind.config.js`](frontend/tailwind.config.js:10) and shared style constants (`buttonPrimary`, etc.) live in [`styles/tokens.ts`](frontend/src/styles/tokens.ts); pages such as [`Assets.tsx`](frontend/src/pages/Assets.tsx:34) and [`Tickets.tsx`](frontend/src/pages/Tickets.tsx:23) import them instead of inline literals.
+> - **A2 (badge system)** — [`StatusBadge.tsx`](frontend/src/components/StatusBadge.tsx) implements the `(kind, value)` → palette mapping (`criticality`, `state`, `priority`) with accessible labels, and is used in the Assets ([`Assets.tsx`](frontend/src/pages/Assets.tsx:835)) and Tickets ([`Tickets.tsx`](frontend/src/pages/Tickets.tsx:255)) tables; sorting integrates via [`SortableTh.tsx`](frontend/src/components/SortableTh.tsx).
+> - **B1 (keyboard nav + command palette)** — the `useKeyboardShortcuts` hook exists at [`hooks/useKeyboardShortcuts.ts`](frontend/src/hooks/useKeyboardShortcuts.ts) and a full command palette with global entity search is implemented in [`CommandPalette.tsx`](frontend/src/components/CommandPalette.tsx), wired into [`Layout.tsx`](frontend/src/components/Layout.tsx:197) (Ctrl/Cmd+K, `?` help overlay).
+> - **B2 (persistent list state)** — the proposed hooks exist: [`usePersistedView.ts`](frontend/src/hooks/usePersistedView.ts), [`useSavedViews.ts`](frontend/src/hooks/useSavedViews.ts) (+ [`SavedViewsBar.tsx`](frontend/src/components/SavedViewsBar.tsx)), [`useListQuery.ts`](frontend/src/hooks/useListQuery.ts) and [`useLocalSort.ts`](frontend/src/hooks/useLocalSort.ts); the `ActiveFilters` chips ([`ActiveFilters.tsx`](frontend/src/components/ActiveFilters.tsx)) provide the clear-view affordance.
+
 **Scope:** Two concrete, high-impact proposals for *look* ("Optik") and two for *operability* ("Bedienbarkeit"), each grounded in the current frontend code (`frontend/src`). These are intentionally a focused complement to the broader audit in [`plans/usability-improvement-recommendations.md`](plans/usability-improvement-recommendations.md), which covers type-safety, error-format standardization, and caching. The proposals below target only the two experience dimensions the user asked about.
 
 **Method:** Each proposal states the current state (with line references), the concrete change, and the effort/impact so a reviewer can triage quickly.

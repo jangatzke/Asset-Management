@@ -18,7 +18,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
     "requirements-check": "tsx scripts/check-requirements.ts",
-    "vulnerability-check": "tsx scripts/check-vulnerabilities.ts"
+    "vulnerability-check": "tsx scripts/check-vulnerabilities.ts",
+    "openapi:check": "node scripts/check-openapi-coverage.js"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

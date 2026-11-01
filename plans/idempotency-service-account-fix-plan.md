@@ -1,5 +1,7 @@
 # Production-Ready Idempotency & Service Account Fix Plan
 
+> **Status update (2026-10-30):** All fixes implemented. Evidence: Redis SET-NX reservation runs before `next()` and losers poll the winner ([`backend/src/middleware/idempotency.ts:112`](../backend/src/middleware/idempotency.ts:112)); no `'anonymous'` fallback — a missing trusted principal yields 401 `MISSING_PRINCIPAL` ([`idempotency.ts:157`](../backend/src/middleware/idempotency.ts:157)) and the `requireTrustedPrincipal: false` option no longer exists. Service accounts are persisted via the Prisma `ServiceAccount` model ([`backend/prisma/schema.prisma:3619`](../backend/prisma/schema.prisma:3619)); Bearer auth middlewares exist at [`middleware/serviceAccountAuth.ts:36`](../backend/src/middleware/serviceAccountAuth.ts:36) and [`middleware/webhookAuth.ts:31`](../backend/src/middleware/webhookAuth.ts:31). Route registration matches the "AFTER (fixed)" sketch with management guarded by `authenticate, authorize('admin')` ([`backend/src/index.ts:275`](../backend/src/index.ts:275)). Deviations: the token format is `svc_<uuid>_<random>` with lookup-by-UUID + per-account salt verification (not a single global `SERVICE_ACCOUNT_TOKEN_SALT` hash lookup); webhook auth supports both Bearer tokens and an `X-Webhook-Secret` shared secret; the `/auth` endpoint was **kept** as a real rate-limited token-validation endpoint (`POST /api/v1/service-accounts/auth`, [`serviceAccount.routes.ts:507`](../backend/src/routes/serviceAccount.routes.ts:507)), not removed.
+
 ## Executive Summary
 
 Two critical production-release blockers must be fixed:
@@ -312,13 +314,15 @@ export async function authenticateWebhook(req: Request, res: Response, next: Nex
 
 ## Production Readiness Checklist
 
-- [ ] Redis SET NX happens BEFORE `next()` (no race condition)
-- [ ] Each principal has isolated idempotency namespace (no 'anonymous' fallback)
-- [ ] Service accounts persisted to database ( survives restarts)
-- [ ] Service accounts shared across instances (database, not Map)
-- [ ] Bearer token auth middleware for service accounts
-- [ ] Bearer token auth middleware for webhooks
-- [ ] `/auth` endpoint removed or deprecated
-- [ ] Multiple backend instances share same service accounts
-- [ ] Idempotency works across multiple backend instances (Redis distributed)
-- [ ] All existing tests pass with new behavior
+> **Status update (2026-10-30):** Verified against current code; the `/auth` item was intentionally changed — the endpoint remains as a supported, rate-limited token-validation API.
+
+- [x] Redis SET NX happens BEFORE `next()` (no race condition)
+- [x] Each principal has isolated idempotency namespace (no 'anonymous' fallback)
+- [x] Service accounts persisted to database ( survives restarts)
+- [x] Service accounts shared across instances (database, not Map)
+- [x] Bearer token auth middleware for service accounts
+- [x] Bearer token auth middleware for webhooks
+- [x] `/auth` endpoint kept as a real rate-limited token-validation endpoint (decision changed from "removed or deprecated")
+- [x] Multiple backend instances share same service accounts
+- [x] Idempotency works across multiple backend instances (Redis distributed)
+- [x] All existing tests pass with new behavior (`idempotency.integration.test.ts`, `serviceAccount.webhook.auth.test.ts`)

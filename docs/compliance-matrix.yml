@@ -36,6 +36,22 @@
     - Polling is executed through the cluster-safe tracked job runner.
     - Configuration changes are audit logged and secret values are redacted from responses.
 
+- id: TCK-603
+  title: E-Mail replies become ticket comments via display ID
+  priority: P1
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - backend/src/services/emailGateway.service.ts
+    - backend/src/services/ticket.service.ts
+  tests:
+    - backend/src/__tests__/emailGateway.service.test.ts
+  gaps: []
+  evidence:
+    - Inbound replies are matched to the ticket by display ID parsed from subject/references.
+    - Trusted requester replies are stored as public comments via ticketService.comment; spoofed senders are not attributed to the requester.
+    - Processing status is persisted on the EmailMessage record.
+
 - id: TCK-605
   title: Configurable ticket SLA targets with cluster-safe breach escalation
   priority: P1
@@ -99,7 +115,7 @@
   status: implemented
   implementation:
     - backend/src/middleware/health.ts
-    - backend/src/routes/health.routes.ts
+    - backend/src/index.ts
   tests:
     - backend/src/__tests__/phase8.health.test.ts
     - backend/src/__tests__/phase11.health-readiness.test.ts
@@ -132,7 +148,7 @@
   status: implemented
   implementation:
     - backend/src/middleware/metrics.ts
-    - backend/src/routes/metrics.routes.ts
+    - backend/src/index.ts
     - backend/.env.example
   tests:
     - backend/src/__tests__/phase11.metrics-auth.test.ts
@@ -234,9 +250,9 @@
     - backend/src/__tests__/intune.phase7.test.ts
   gaps: []
   evidence:
-    - `$select` enthält nur unterstützte `managedDevice`-Felder
-    - `@odata.nextLink` wird vollständig verfolgt
-    - `Retry-After` wird bei HTTP 429 respektiert
+    - "`$select` enthält nur unterstützte `managedDevice`-Felder"
+    - "@odata.nextLink wird vollständig verfolgt"
+    - "`Retry-After` wird bei HTTP 429 respektiert"
 
 - id: INT-704
   title: Intune Asset Matching Provenance FieldLock
@@ -823,16 +839,17 @@
   title: Asset-Verantwortliche Bestätigung
   priority: P1
   dimension: application_coverage
-  status: deferred
-  implementation: []
+  status: implemented
+  implementation:
+    - backend/src/routes/asset.routes.ts (POST /:id/confirm-responsibility)
+    - backend/src/services/asset.service.ts (confirmAssetResponsibility setzt Owner-FK und schreibt AssetLifecycleLog)
+    - backend/prisma/schema.prisma (technicalOperator/businessOwner/informationSecurityResponsible als User-Relationen)
+    - backend/prisma/migrations/20261026100000_user_owner_relations/migration.sql
   tests: []
-  gaps:
-    - Kein Statusfeld responsibilityConfirmed im Schema
-  temporary_acceptance:
-    reason: Asset owner assignment exists, but explicit owner confirmation workflow is not implemented in the stabilization scope.
-    owner: Product Owner
-    expiry: 2026-12-31
-  evidence: []
+  gaps: []
+  evidence:
+    - Bestätigung über /assets/:id/confirm-responsibility mit Rollenwahl owner/operator/security_responsible.
+    - Confirmation setzt die jeweilige Owner-FK und wird als responsibility_*_confirmed im AssetLifecycleLog protokolliert.
 
 - id: AST-002
   title: Vollständige Asset-Felder
@@ -1028,13 +1045,15 @@
   title: Asset-Lebenszyklus-Protokollierung
   priority: P2
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
-    - backend/prisma/schema.prisma
+    - backend/prisma/schema.prisma (AssetLifecycleLog-Modell)
+    - backend/src/services/asset.service.ts (Lifecycle-Log bei Anlage, Statuswechsel, Decommission, Disposal und Responsibility-Bestätigung)
   tests: []
-  gaps:
-    - Keine automatische Protokollierung bei Statusänderungen
-  evidence: []
+  gaps: []
+  evidence:
+    - tx.assetLifecycleLog.create wird in create/update/lifecycle/disposal-Transaktionen geschrieben (asset.service.ts).
+    - GET-Historie über die Lifecycle-Log-Abfrage in asset.service.ts.
 
 - id: AST-004
   title: Erweiterte Bewertungsdimensionen
@@ -1228,13 +1247,16 @@
   title: Health Check und Monitoring
   priority: P3
   dimension: application_coverage
-  status: partial
+  status: implemented
   implementation:
     - backend/src/index.ts
-  tests: []
-  gaps:
-    - Keine DB-Konnektivitätsprüfung
-  evidence: []
+    - backend/src/middleware/health.ts
+  tests:
+    - backend/src/__tests__/phase8.health.test.ts
+    - backend/src/__tests__/phase11.health-readiness.test.ts
+  gaps: []
+  evidence:
+    - /health/ready prüft die DB-Konnektivität per $queryRaw SELECT 1 (siehe OPS-1101).
 
 - id: API-001
   title: Zentrale DTOs in shared/
@@ -1283,7 +1305,7 @@
   gaps: []
   evidence:
     - Alle unimplementierten Routes geben explizit HTTP 501 Not Implemented zurück
-    - Konsistentes Fehlerformat mit "error: 'Not Implemented'" und beschreibender Nachricht
+    - "Konsistentes Fehlerformat mit \"error: 'Not Implemented'\" und beschreibender Nachricht"
 
 - id: API-004
   title: OpenAPI-Spezifikation für alle Endpunkte
@@ -2029,3 +2051,63 @@
   gaps: []
   evidence:
     - Inline getStatusColor/getRiskColor removed from Risks.tsx and Controls.tsx
+
+- id: UI-801
+  title: EntityPicker-Komponente mit such-/paginierbarer Multi-Auswahl
+  priority: P2
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/components/EntityPicker.tsx
+    - frontend/src/services/entityPickerApi.ts
+  tests:
+    - frontend/src/components/entityPickerUtils.test.ts
+  gaps: []
+
+- id: UI-802
+  title: Raw UUID-Eingabefelder durch EntityPicker ersetzen
+  priority: P2
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/pages/ISMSPhase6.tsx (EntityPicker für ownerId, chairId, auditorIds, businessProcesses, resources, dependencies)
+    - frontend/src/components/EntitySearchSelect.tsx (bestehende Single-Select Integration)
+  tests: []
+  gaps: []
+
+- id: UI-803
+  title: Security Requirements strukturierte UI statt JSON-Textarea
+  priority: P2
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/pages/ISMSPhase6.tsx (SecurityRequirements Dropdowns mit Kategorien und Status)
+    - frontend/src/locales/en.json (securityRequirements translations)
+    - frontend/src/locales/de.json (securityRequirements Übersetzungen)
+  tests:
+    - frontend/src/components/RiskDetail.test.ts (Security Requirements Serialisierung Tests)
+  gaps: []
+
+- id: UI-804
+  title: Risk-Detail-Seite mit 7 Tabs
+  priority: P2
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/pages/RiskDetail.tsx (Overview, Assessment, Controls, Treatment, Evidence, History, Audit Tabs)
+    - frontend/src/locales/en.json (riskDetail.tabs translations)
+    - frontend/src/locales/de.json (riskDetail.tabs Übersetzungen)
+  tests:
+    - frontend/src/components/RiskDetail.test.ts (Tab-Struktur Tests)
+  gaps: []
+
+- id: UI-805
+  title: i18n-Einträge für alle neuen UI-Texte
+  priority: P2
+  dimension: application_coverage
+  status: implemented
+  implementation:
+    - frontend/src/locales/en.json (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs)
+    - frontend/src/locales/de.json (entityPicker, ismsOperations.fields, securityRequirements, riskDetail.tabs)
+  tests: []
+  gaps: []

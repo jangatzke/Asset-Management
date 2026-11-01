@@ -4,6 +4,17 @@
 
 **Date:** 2026-08-01
 
+> **Status update (2026-10-30):** Historical audit; many findings have since been addressed. Current state per the action plan:
+> - **P0-1 (error format + codes) — DONE.** [`errorHandler.ts`](backend/src/middleware/errorHandler.ts:79) now emits a stable `{ success: false, error: { message, code, details } }` shape with mapped error codes (`NOT_FOUND`, `INVALID_JSON`, etc.); the frontend parses it into `{ message, code, fieldErrors }` via [`utils/apiError.ts`](frontend/src/utils/apiError.ts).
+> - **P0-2 (typed responses) — PARTIALLY DONE.** Shared DTO types (`RiskControlDto`, query DTOs, etc.) are used as response generics in [`api.ts`](frontend/src/services/api.ts); generic `*Response` aliases were tightened ([line 118](frontend/src/services/api.ts:118)) but not fully replaced.
+> - **P0-3 (toasts) — DONE.** [`ToastProvider.tsx`](frontend/src/components/ToastProvider.tsx) + `useToast` hook exist and are used across pages.
+> - **P0-4 (skeletons) — DONE.** [`SkeletonTable.tsx`](frontend/src/components/SkeletonTable.tsx) exists and list pages use it instead of plain "Loading..." text.
+> - **P1-1 (ETag wiring) — DONE.** `etag()` is mounted on assets/risks/controls/incidents/tickets/search in [`index.ts`](backend/src/index.ts:229). **P1-2 (pagination middleware) — N/A (middleware removed).** `backend/src/middleware/pagination.ts` has been deleted; pagination stays service-layer with `{ data, pagination }` envelopes, and primary list routes now additionally set `X-Total-Count` (Phase 1.1) via [`utils/pagination.ts`](backend/src/utils/pagination.ts:1).
+> - **P1-3 (field-level validation) — DONE.** Forms use `fieldErrors` state plus the parsed `apiError.fieldErrors` map (e.g. [`Assets.tsx`](frontend/src/pages/Assets.tsx:173)) with `aria-invalid`/`role="alert"` wiring; dirty-form protection uses [`useDirtyForm.ts`](frontend/src/hooks/useDirtyForm.ts) + [`DiscardConfirmationDialog.tsx`](frontend/src/components/DiscardConfirmationDialog.tsx).
+> - **P1-4 (undo window) — NOT done** as proposed (no `UndoContext`); the discard-guard covers unsaved-form loss instead. **P1-5 (EntityPicker keyboard nav)** — see the newer [`EntitySearchSelect.tsx`](frontend/src/components/EntitySearchSelect.tsx) used across forms.
+> - **P2-3 (Cmd+K global search) — DONE.** [`CommandPalette.tsx`](frontend/src/components/CommandPalette.tsx) with a unified `GET /api/v1/search` backend. **P2-2 (bulk operations) — PARTIALLY done** (bulk archive exists on Assets; no general bulk endpoints). **P2-1 (AssetGraph a11y), P2-4 (draft saving), P2-5 (help tooltips)** — not implemented as proposed.
+> - Executive-summary claims 3 ("ETag/pagination never wired") and 7's "Keyboard shortcuts are not implemented" are outdated; see [`useKeyboardShortcuts.ts`](frontend/src/hooks/useKeyboardShortcuts.ts).
+
 **Scope:** Full-stack analysis combining frontend UI/UX (React + TypeScript + Tailwind CSS) and backend API (Express + Prisma + Zod) findings.
 
 ---
@@ -16,7 +27,7 @@ However, several usability gaps directly impact the user experience:
 
 1. **Type Safety Erosion:** All API responses are typed as `Record<string, unknown>` ([`frontend/src/services/api.ts:48`](frontend/src/services/api.ts:48)), forcing manual type checking throughout the frontend.
 2. **Inconsistent Error Handling:** Three different error response formats exist across the backend ([`errorHandler.ts`](backend/src/middleware/errorHandler.ts:27), [`validation.ts`](backend/src/middleware/validation.ts:44), [`idempotency.ts`](backend/src/middleware/idempotency.ts:9)), requiring custom error parsing per endpoint.
-3. **Missing HTTP Caching:** ETag middleware ([`etag.ts`](backend/src/middleware/etag.ts:43)) and pagination middleware ([`pagination.ts`](backend/src/middleware/pagination.ts:55)) are implemented but never wired to any route.
+3. **Missing HTTP Caching:** ETag middleware ([`etag.ts`](backend/src/middleware/etag.ts:43)) is implemented and mounted on core routes; the formerly referenced pagination middleware no longer exists — pagination is handled in the service layer, and primary list routes now emit `X-Total-Count` (Phase 1.1) via [`utils/pagination.ts`](backend/src/utils/pagination.ts:1).
 4. **No Loading State Management:** No optimistic updates or skeleton loaders exist; pages show raw "Loading..." text ([`frontend/src/App.tsx:31`](frontend/src/App.tsx:31)) during route transitions.
 5. **Form Validation Gaps:** Required fields are validated client-side but error messages are not associated with specific form fields.
 6. **Accessibility Deficiencies:** Canvas-based graph component ([`AssetGraph.tsx`](frontend/src/components/AssetGraph.tsx:65)) has no keyboard navigation or screen reader support.

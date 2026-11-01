@@ -1,5 +1,7 @@
 # Phase 1 Authorization Consolidation Plan
 
+> **Status update (2026-10-30):** Completed (commit `4f9678f`, re-audited 2026-07-28). The "Baseline authorization findings" below describe the pre-Phase 1 state and are historical; entity-level authorization is implemented today via `backend/src/middleware/entityAuth.ts` and `backend/src/services/authorization.service.ts`, with a route-order test at `backend/src/__tests__/route.order.test.ts`.
+
 Phase 1 is limited to authorization and scoped permission hardening. Phase 2+ authentication/session, MFA pre-auth, OIDC, UI/entity picker, audit hash chain, jobs, health/metrics, CI gates, and unrelated refactors are explicitly out of scope.
 
 ## Pre-existing working-tree changes

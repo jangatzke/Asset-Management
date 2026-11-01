@@ -27,6 +27,8 @@ const DEFAULT_TICKET_TYPE_CONFIGS: Record<string, { label: string; description: 
   change: { label: 'Change', description: 'Controlled modification to an asset or service.', defaultPriority: 'medium' },
 };
 const userSelect = { id: true, displayId: true, email: true, firstName: true, lastName: true, isActive: true } as const;
+// Full detail shape (used by getById): comments, type-specific extensions,
+// links and escalations are needed on the ticket detail page.
 const include = {
   assets: { include: { asset: { select: { id: true, displayId: true, name: true } } } },
   comments: { orderBy: { createdAt: 'asc' } },
@@ -37,6 +39,16 @@ const include = {
   change: { include: { riskLinks: { include: { risk: { select: { id: true, displayId: true, title: true, status: true } } } } } },
   serviceRequest: { include: { catalogItem: true } },
   escalations: { orderBy: { createdAt: 'desc' } },
+  requester: { select: userSelect },
+  assignee: { select: userSelect },
+  manager: { select: userSelect },
+} as const;
+
+// Phase 2.5 read-path projection for GET /tickets (list): the ticket table and
+// dashboard render only scalar fields plus requester/assignee identity. Loading
+// comments, link graphs and type-specific extensions per list row is unnecessary
+// and is dropped here; detail reads still use `include`.
+const listInclude = {
   requester: { select: userSelect },
   assignee: { select: userSelect },
   manager: { select: userSelect },
@@ -128,7 +140,7 @@ export class TicketService {
     });
     const where: Prisma.TicketWhereInput = { AND: conditions };
     const [data, total] = await Promise.all([
-      (prisma as any).ticket.findMany({ where, include, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
+      (prisma as any).ticket.findMany({ where, include: listInclude, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       (prisma as any).ticket.count({ where }),
     ]);
     // userSelect already scopes requester/assignee/manager to safe fields;

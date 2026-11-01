@@ -4,6 +4,8 @@
 **Stand:** 2026-07-25  
 **Startpunkte:** [`backend/prisma/schema.prisma`](../backend/prisma/schema.prisma), [`backend/src`](../backend/src), [`frontend/src`](../frontend/src), [`docs/compliance-matrix.md`](compliance-matrix.md), [`docs/security-model.md`](security-model.md), [`docs/architecture.md`](architecture.md), [`docs/requirements.md`](requirements.md), [`docs/api/openapi.yaml`](api/openapi.yaml)
 
+> **Status-Update (2026-10-30):** Die Security-P0-Findings F-05 (Legacy-Role-Checks), F-06 (Default-Allow) und F-07 (Debug-Logs/Secret-Fallback) sind sowie der LocalStorage-Teil von F-08 inzwischen behoben; jeweils siehe datiertes Status-Update im betroffenen Finding. Die übrigen Befunde (Owner-Felder ohne FK, manuelle UUID-Felder, `phase6`-Namensschulden u. a.) sind weiterhin zutreffend.
+
 ---
 
 ## Executive Summary
@@ -88,6 +90,8 @@ Die wichtigsten Risiken liegen nicht im Fehlen aller Grundmodule, sondern in Ink
 
 **Empfehlung:** Alle Legacy-Admin-Checks auf [`requireAdminAccess`](../backend/src/middleware/entityAuth.ts:70) migrieren und Regressionstests für Direktrollen, Gruppenrollen, abgelaufene Rollen und Nicht-Admins ergänzen.
 
+> **Status-Update (2026-10-30):** Behoben. In allen sechs genannten Routendateien existiert kein `authorize('system_admin')` mehr; sie nutzen durchgehend `requireAdminAccess` aus [`entityAuth.ts`](../backend/src/middleware/entityAuth.ts), z. B. [`asset.routes.ts`](../backend/src/routes/asset.routes.ts:3), [`contract.routes.ts`](../backend/src/routes/contract.routes.ts:3), [`businessprocess.routes.ts`](../backend/src/routes/businessprocess.routes.ts:3), [`riskmethod.routes.ts`](../backend/src/routes/riskmethod.routes.ts:3), [`import.routes.ts`](../backend/src/routes/import.routes.ts:4) und [`auditLog.routes.ts`](../backend/src/routes/auditLog.routes.ts:10) (`const adminGuard = [authenticate, requireAdminAccess]`).
+
 ---
 
 ### F-06 – P0 – Entity Authorization hat Default-Allow-Verhalten
@@ -97,6 +101,8 @@ Die wichtigsten Risiken liegen nicht im Fehlen aller Grundmodule, sondern in Ink
 **Risiko:** Fehlkonfiguration führt zu zu weitreichendem Zugriff. Das widerspricht Least Privilege und ISO-27001 Access-Control-Erwartungen.
 
 **Empfehlung:** Für Produktivbetrieb Default-Deny erzwingen; Migrations-/Kompatibilitätsphase nur explizit per Feature-Flag erlauben. Tests für fehlende `entityPermissions` ergänzen.
+
+> **Status-Update (2026-10-30):** Behoben. `checkEntityPermission()` ist Default-Deny: ohne explizites Permission-Mapping wird `allowed: false` zurückgegeben ([`authorization.service.ts:205-210`](../backend/src/services/authorization.service.ts:205)), und `requireEntityPermission()` wirft in diesem Fall 403 ([`authorization.service.ts:212-217`](../backend/src/services/authorization.service.ts:212)). Das frühere Legacy-`entityPermissions`-Feature ist ein bewusster No-op ([`authorization.service.ts:249-254`](../backend/src/services/authorization.service.ts:249)); die Entity-Prüfung läuft vollständig über granulare Berechtigungen.
 
 ---
 
@@ -108,6 +114,8 @@ Die wichtigsten Risiken liegen nicht im Fehlen aller Grundmodule, sondern in Ink
 
 **Empfehlung:** Token-/Header-Logs entfernen oder strikt redigieren, Start ohne starkes `JWT_SECRET` verweigern, `jwt.verify` mit expliziter Algorithmus-Whitelist und Tests härten.
 
+> **Status-Update (2026-10-30):** Behoben. Es werden keine Authorization-Header oder Token-Präfixe mehr geloggt. Der `'secret'`-Fallback existiert nicht mehr: `getJwtSecretStatus()` verweigert bei fehlendem/schwachem `JWT_SECRET` im Produktionsmodus den Start (Fail-Fast) und erzeugt in Entwicklung nur einen sicheren Zufallsfallback ([`auth.ts:46-76`](../backend/src/middleware/auth.ts:46)); die Verifikation ist auf HS256 fixiert ([`auth.ts:12`](../backend/src/middleware/auth.ts:12)).
+
 ---
 
 ### F-08 – P1 – Token-Ablage im Browser-LocalStorage
@@ -117,6 +125,8 @@ Die wichtigsten Risiken liegen nicht im Fehlen aller Grundmodule, sondern in Ink
 **Risiko:** Bei XSS kann der Token exfiltriert werden. React schützt gerenderte Werte standardmäßig, aber Context7/React-Dokumentation warnt ausdrücklich vor XSS bei unsicherem HTML und untrusted input.
 
 **Empfehlung:** Mittelfristig HttpOnly/SameSite/Secure Cookies oder Backend-for-Frontend-Session-Konzept prüfen. Kurzfristig CSP, keine unsicheren HTML-Sinks, kurze Token-Lifetime und Refresh-Rotation sicherstellen.
+
+> **Status-Update (2026-10-30):** Weitgehend behoben. Der Access-Token liegt nicht mehr im `localStorage`, sondern nur als In-Memory-Modulvariable ([`frontend/src/store/accessToken.ts:1`](../frontend/src/store/accessToken.ts:1)); der Axios-Client nutzt `withCredentials: true` mit HttpOnly-Refresh-Cookie und hängt den Token aus dem Speicher an ([`frontend/src/services/api.ts:277`](../frontend/src/services/api.ts:277), [`:312`](../frontend/src/services/api.ts:312)). Verbleibendes Restrisiko: XSS kann den In-Memory-Token weiterhin lesen, aber er überlebt keinen Page-Reload.
 
 ---
 

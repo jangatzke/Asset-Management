@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { recordRouteError } from './metrics';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -30,10 +31,9 @@ export interface ApiErrorResponse {
     stack?: string;
   };
 }
-
 export const errorHandler = (
   err: Error & { type?: string; status?: number; statusCode?: number },
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
@@ -56,6 +56,11 @@ export const errorHandler = (
   const appError = err as AppError;
   const isOperational = appError.name === 'AppError' && appError.isOperational !== false;
   const statusCode = appError.statusCode || 500;
+
+  // Phase 1.4b (D3): count server errors per route exactly once, from the single
+  // central error path. `recordRouteError` no-ops for status < 500 to avoid
+  // double-counting with the `http_errors_total` counter in `metricsMiddleware`.
+  recordRouteError(req, statusCode);
 
   // Per-account login lockout (S3): expose Retry-After so clients can back off
   // without changing the generic error message.

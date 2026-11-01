@@ -4,6 +4,14 @@
 **Grundlage:** `plans/iso27001-nis2-improvement-proposals.md` + Codebase-Audit (Code, Migrationen, Schema, Frontend)
 **Ergebnis:** 6 von 10 Vorschlägen umgesetzt · 3 zum Teil · 1 unvollständig
 
+> **Status update (2026-10-30):** Historischer Snapshot vom 2026-08-22. Die als „nicht umgesetzt" markierten Vorschläge #6, #8, #9 und #10 sind inzwischen implementiert:
+> - **#6 NIS2 Control-Catalog + Crosswalk:** Catalog `NIS2UmsuCG` mit Artikel-Katalog [`nis2UmsuCGArticles.ts`](backend/src/data/nis2UmsuCGArticles.ts) (`NIS2_ARTICLES`, `isoCrosswalk`) und idempotentem Upsert in [`catalog.service.ts`](backend/src/services/catalog.service.ts:140).
+> - **#8 SoA-Risk-Linkage:** Junction-Tabelle [`SoAItemRiskAssessment`](backend/prisma/schema.prisma:1726); `riskAssessmentIds` in [`control.service.ts`](backend/src/services/control.service.ts:569).
+> - **#9 SoA-Export:** `GET /soa/:id/export?format=csv|html` in [`control.routes.ts`](backend/src/routes/control.routes.ts:100), Frontend-Export in [`Controls.tsx`](frontend/src/pages/Controls.tsx:311).
+> - **#10 SoA-Diff:** `diffSoA()` + Route `GET /soa/diff` in [`control.routes.ts`](backend/src/routes/control.routes.ts:64), Tests in `backend/src/__tests__/controlService.soa-diff.test.ts`.
+>
+> Damit sind alle 10 Vorschläge umgesetzt (Vorschlag #7 `ismsProcessWorkspace.tsx` wurde wie unten beschrieben erstellt und existiert). Die Priorisierungstabelle und der Abschnitt „Nächste Schritte" sind gegenstandslos. Zeilenangaben im Text (z. B. `schema.prisma:2478` für `ManagementReview`, heute [`schema.prisma:2643`](backend/prisma/schema.prisma:2643)) können verschoben sein.
+
 ---
 
 ## Gesamtbilanz

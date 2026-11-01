@@ -419,6 +419,9 @@
     "exportJson": "Export JSON",
     "filters": "Filters",
     "group": "Group",
+    "help": {
+      "ariaLabel": "More information about this field"
+    },
     "id": "ID",
     "inactive": "Inactive",
     "loading": "Loading...",
@@ -432,6 +435,7 @@
     "page": "Page",
     "pageNumber": "Page {page}",
     "removeFilter": "Remove filter",
+    "referenceId": "Ref: {id}",
     "required": "Required",
     "requiredField": "This field is required",
     "role": "Role",
@@ -596,6 +600,18 @@
       "soaPlaceholder": "Select a Statement of Applicability",
       "success": "ISO/IEC 27001:2022 SoA draft created with {count} Annex A controls. Review applicability and replace every pending rationale before submission.",
       "title": "Generate ISO/IEC 27001:2022 Annex A SoA"
+    },
+    "soaPending": {
+      "title": "Pending justification audit",
+      "description": "Flags SoA items that still cannot be submitted: empty rationale, the generated placeholder rationale, or an applicability decision still under review.",
+      "loadButton": "Check pending justifications",
+      "loading": "Checking…",
+      "empty": "No pending justifications — every SoA item has a scope-specific rationale.",
+      "summary": "{count} SoA item(s) cannot be submitted yet.",
+      "error": "The pending-justification report could not be loaded",
+      "reasonPlaceholder": "Generated placeholder rationale still present",
+      "reasonApplicability": "Applicability decision still under review",
+      "reasonEmpty": "Justification is empty"
     },
     "stats": {
       "evidenceItems": "Evidence items",
@@ -941,7 +957,8 @@
       "focusAnnouncement": "Focus: {name} (criticality: {criticality})",
       "focusAnnouncementPlain": "Focus: {name}",
       "listLabel": "Graph nodes",
-      "keyboardHint": "Use the arrow keys to move between assets, Enter to show details, and Escape to exit."
+      "keyboardHint": "Use the arrow keys to move between assets, Enter to show details, and Escape to exit.",
+      "roleDescription": "Interactive dependency graph: use the arrow keys to move through nodes"
     },
     "impact": {
       "title": "Impact Analysis",
@@ -1657,6 +1674,15 @@
     "contactPerson": "Contact person",
     "createDraftAssessment": "Create draft assessment",
     "createRegistration": "Create registration",
+    "crosswalkTitle": "NIS-2 ↔ ISO 27001:2022 Annex A crosswalk completeness",
+    "crosswalkDescription": "Read-only report derived from the NIS-2 obligation catalogue and the ISO Annex A control catalogue. It lists missing, unknown and unmapped references without inventing mappings.",
+    "crosswalkComplete": "Crosswalk complete: every NIS-2 article references only existing ISO Annex A controls and every control is mapped.",
+    "crosswalkFindings": "Crosswalk findings",
+    "crosswalkMissingControls": "Missing controls",
+    "crosswalkUnknownControls": "Unknown controls",
+    "crosswalkUnmappedArticles": "Unmapped articles",
+    "crosswalkUnmappedControls": "Unmapped controls",
+    "crosswalkLoadError": "Unable to load the crosswalk completeness report.",
     "defaultQuestionnaireLoaded": "Default questionnaire loaded. You can now fill in the answers below.",
     "description": "Description *",
     "emptyQuestionnaireExplanation": "No active questionnaire is currently available. Without a questionnaire you cannot create an assessment. Use the default questionnaire endpoint to create one first, then return here to fill answers and submit.",
@@ -2209,9 +2235,17 @@
       "description": "Description",
       "impact": "Impact (1-5)",
       "justification": "Assessment Justification",
+      "mitigationDimension": {
+        "label": "Mitigation dimension",
+        "description": "Risk dimension the linked control reduces: likelihood, impact, or both."
+      },
       "likelihood": "Likelihood (1-5)",
       "nextReviewDate": "Next Review Date",
       "possibleImpact": "Possible Impact",
+      "riskClasses": {
+        "label": "Risk classes",
+        "description": "Method-specific JSON definition of risk classes used to map calculated risk scores onto class thresholds."
+      },
       "riskOwnerId": "Risk Owner ID",
       "title": "Title"
     },
@@ -3056,5 +3090,12 @@
       "e_g_draft_in_review_approved": "e.g., draft, in_review, approved",
       "e_g_suppliers_bias_auditplans": "e.g., suppliers, bias, auditPlans"
     }
+  },
+  "draft": {
+    "found": "Saved draft found",
+    "restoreMessage": "A draft of your changes was saved on this device. Restore it or discard it before starting over.",
+    "restore": "Restore draft",
+    "discard": "Discard draft",
+    "saved": "Changes are saved automatically as a local draft."
   }
 }

@@ -4,6 +4,13 @@
 **Prüfumfang:** Alle 10 Verbesserungsvorschläge aus `plans/iso27001-nis2-improvement-proposals.md`
 **Methode:** Ist-Analyse des Codebase (Prisma-Schema, Services, Routes, Frontend)
 
+> **Status update (2026-10-30):** Die Analyse ist ein historischer Snapshot vom 2026-08-22. Inzwischen sind auch die Vorschläge #8, #9 und #10 implementiert:
+> - **#8 SoA-Risk-Linkage:** Junction-Tabelle [`SoAItemRiskAssessment`](backend/prisma/schema.prisma:1726); `riskAssessmentIds` wird in [`control.service.ts`](backend/src/services/control.service.ts:569) beim Anlegen/Aktualisieren von `SoAItem`s verarbeitet.
+> - **#9 SoA-Export:** Export-Route `GET /soa/:id/export?format=csv|html` in [`control.routes.ts`](backend/src/routes/control.routes.ts:100); Frontend-Export (CSV/Print-PDF) in [`Controls.tsx`](frontend/src/pages/Controls.tsx:311).
+> - **#10 SoA-Diff:** `diffSoA()` in [`control.service.ts`](backend/src/services/control.service.ts), Route `GET /soa/diff` in [`control.routes.ts`](backend/src/routes/control.routes.ts:64), Tests in `backend/src/__tests__/controlService.soa-diff.test.ts`.
+>
+> Auch Vorschlag #7 ist inzwischen umgesetzt: die Seite [`ismsProcessWorkspace.tsx`](frontend/src/pages/ismsProcessWorkspace.tsx) mit Klausel-4/5/7-Tabs, Route `/isms-operations/process` in [`App.tsx`](frontend/src/App.tsx:106). Damit sind alle 10 Vorschläge implementiert; die Priorisierungstabelle in Abschnitt 4 ist gegenstandslos. Die im Text genannten Zeilenangaben (z. B. `control.service.ts:404`, `incident.service.ts:802`, `schema.prisma:2478`, `phase6.routes.ts:359`) sind durch spätere Änderungen verschoben; die Funktionen existieren unverändert (z. B. `generateIso27001AnnexASOA` jetzt [`control.service.ts:415`](backend/src/services/control.service.ts:415), NIS2-Meldemethoden ab [`incident.service.ts:831`](backend/src/services/incident.service.ts:831), `ManagementReview` jetzt [`schema.prisma:2643`](backend/prisma/schema.prisma:2643)).
+
 ---
 
 ## 1. Zusammenfassung der Ergebnisse

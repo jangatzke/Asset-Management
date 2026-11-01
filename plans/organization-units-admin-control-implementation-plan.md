@@ -1,5 +1,13 @@
 # Organization Units Admin and Control Implementation Plan
 
+> **Status update (2026-10-30):** Implemented, with two open items. Evidence in the current codebase:
+> - **Admin CRUD** — `listOrganizationUnits`, `createOrganizationUnit` (duplicate-name check among non-archived units), `updateOrganizationUnit`, `archiveOrganizationUnit` and an additional `restoreOrganizationUnit` exist in [`admin.service.ts`](backend/src/services/admin.service.ts:1339). Routes `GET/POST /api/v1/admin/organization-units`, `PUT /:id`, `POST /:id/archive`, `POST /:id/restore`, plus extra picker endpoints `GET /search` and `GET /:id`, are registered with `authenticate` + `requireAdminAccess` in [`admin.routes.ts`](backend/src/routes/admin.routes.ts:725).
+> - **Picker endpoint kept** — `GET /api/v1/organization/units` still serves non-archived units with `?q=` search for normal workflows ([`organization.routes.ts`](backend/src/routes/organization.routes.ts:13)); `POST /organization/units` remains a 501 stub, as described in "Current findings".
+> - **Frontend client + Admin page** — `adminApi.*OrganizationUnit*` methods exist in [`api.ts`](frontend/src/services/api.ts:814); [`AdminOrganizationUnits.tsx`](frontend/src/pages/AdminOrganizationUnits.tsx) is implemented and registered at `/admin/organization-units` in [`App.tsx`](frontend/src/App.tsx:116) and the admin navigation in [`Layout.tsx`](frontend/src/pages/../components/Layout.tsx:368).
+> - **Controls selector replaced** — step 7 is done: [`Controls.tsx`](frontend/src/pages/Controls.tsx:453) uses `searchOrganizationUnits` (via `organizationApi.listUnits`) with `EntitySearchSelect`; the raw text input is gone. The same pattern was also applied to Assets and Risks pages.
+> - **Open items:** step 8 (including `organizationUnit: { id, name }` in control list/detail includes) is NOT implemented — [`control.service.ts`](backend/src/services/control.service.ts:182) still includes only `findings`/`actions` per implementation. Step 9 tests for the Admin org-unit routes/service were not added (no matching test files found).
+> - **Deviations:** create/update accept only `name`, `description`, `parentId`, `type` — `legalEntityId` and `responsibleUserId` are not exposed in the Admin CRUD API, consistent with the plan's "keep legalEntityId optional" decision. Archiving performs no reference checks against users/sites/assets/risks/roles/control implementations (step 1's reference-check proposal was not implemented); archive is soft (`isArchived: true`) and reversible via restore.
+
 ## Scope
 
 - Make organization units maintainable in the Admin area.

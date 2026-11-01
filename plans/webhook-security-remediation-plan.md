@@ -1,5 +1,16 @@
 # Webhook Security Remediation Plan
 
+> **Status update (2026-10-30):** Fully implemented. All six vulnerabilities listed below are remediated, with evidence in the current codebase:
+> - **SSRF protection** — [`backend/src/services/urlValidator.ts`](backend/src/services/urlValidator.ts) implements `validateWebhookUrl()`, `checkResolvedIp()` and `checkWebhookUrlSSRF()`; enforced at save time ([`webhook.routes.ts`](backend/src/routes/webhook.routes.ts:77)) and re-checked at delivery time for DNS-rebinding protection ([`webhookQueue.service.ts`](backend/src/services/webhookQueue.service.ts:165)).
+> - **HMAC signing + replay protection** — `generateHmacSignature()` is used on every delivery and `verifyHmacSignature()` enforces a max-age window (default 5 min, hard cap 30 min) plus a future-skew cap ([`webhook.service.ts`](backend/src/services/webhook.service.ts:128)). The implementation goes beyond this plan: payloads are canonicalized with recursively sorted JSON keys before signing so recipients can verify the raw body.
+> - **Async queue** — [`backend/src/services/webhookQueue.service.ts`](backend/src/services/webhookQueue.service.ts) queues deliveries via `JobRun` records; broadcast returns 202 and the worker is started in [`index.ts`](backend/src/index.ts:341) via `startWebhookQueueWorker()`.
+> - **Persistence** — `Webhook`, `WebhookDelivery` (plus an additional `WebhookDeliveryAttempt` model for per-attempt audit records, not in the original plan) exist in [`schema.prisma`](backend/prisma/schema.prisma:3699); routes use Prisma instead of the in-memory Map.
+> - **Bounded inputs** — Zod schemas in [`webhook.dto.ts`](backend/src/dtos/webhook.dto.ts) enforce `maxRetries` 0–10 and `timeoutMs` 1000–30000 exactly as planned; PATCH additionally clamps values ([`webhook.routes.ts`](backend/src/routes/webhook.routes.ts:349)).
+> - **Env vars & endpoints** — `WEBHOOK_SIGNATURE_SECRET`, `WEBHOOK_SIGNATURE_MAX_AGE_MS` and `WEBHOOK_QUEUE_POLL_INTERVAL_MS` are in [`backend/.env.example`](backend/.env.example:158) (with a legacy `WEBHOOK_SECRET` fallback). All three "New Endpoints" (`GET /webhooks/deliveries/:deliveryId`, `GET /webhooks/deliveries`, `POST /webhooks/:id/regenerate-secret`) are implemented.
+> - **Tests** — the planned security test file exists as [`webhook.security.test.ts`](backend/src/__tests__/webhook.security.test.ts) plus an additional [`webhook.security.remediation.test.ts`](backend/src/__tests__/webhook.security.remediation.test.ts).
+>
+> Deviations from the plan (intentional improvements): the circuit breaker triggers after `webhook.maxRetries` failures per webhook instead of a fixed 5 consecutive failures ([`webhookQueue.service.ts`](backend/src/services/webhookQueue.service.ts:321)), and per-attempt delivery records are stored in `WebhookDeliveryAttempt` rather than mutating a single `WebhookDelivery` row.
+
 ## Summary
 
 This plan addresses the following security vulnerabilities in the webhook system:

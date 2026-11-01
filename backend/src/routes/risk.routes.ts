@@ -8,6 +8,7 @@ import { authorizationService } from '../services/authorization.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import {
+  BulkArchiveIdsSchema,
   CreateReviewTaskSchema,
   EntityHistoryQuerySchema,
   CreateRiskSchema,
@@ -27,6 +28,8 @@ import {
   UpdateRiskSchema,
   UpdateRiskControlSchema,
 } from 'shared';
+import { setPaginationHeader } from '../utils/pagination';
+import { idempotency } from '../middleware/idempotency';
 
 
 
@@ -41,13 +44,14 @@ const parseAggregationFilters = (query: unknown) => RiskAggregationQuerySchema.p
 riskRouter.get('/', authenticate, requirePermission('risks.read'), async (req: AuthRequest, res, next) => {
   try {
     const result = await riskService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'risks') as any);
+    setPaginationHeader(res, result);
     res.json(result);
   } catch (error) {
     return next(error);
   }
 });
 
-riskRouter.post('/', authenticate, requirePermission('risks.write'), validateBody(CreateRiskSchema), async (req: AuthRequest, res, next) => {
+riskRouter.post('/', authenticate, requirePermission('risks.write'), idempotency(), validateBody(CreateRiskSchema), async (req: AuthRequest, res, next) => {
   try {
     await authorizationService.require(req.userId!, 'risks.write');
     const risk = await riskService.create(req.body, req.userId);
@@ -340,6 +344,40 @@ riskRouter.get('/:riskId/controls/:riskControlId/assessments/:assessmentId', aut
   }
 });
 
+// Bulk archive (soft-delete) — Phase 2.1 / D4. Mirrors the Assets bulk archive
+// (asset.routes.ts). Per-item authorization + per-item archive so a single
+// failure never aborts the other ids. Placed before the parametric /:id routes
+// so the static path is matched first.
+riskRouter.post('/bulk-archive', authenticate, requirePermission('risks.write'), idempotency(), validateBody(BulkArchiveIdsSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    const succeeded: Array<{ id: string; status: number }> = [];
+    const failed: Array<{ id: string; error: string; status: number }> = [];
+
+    for (const id of ids) {
+      try {
+        // Mirror the single delete guard (authorizeEntityDelete → risks.write).
+        await authorizationService.requireForEntity(req.userId!, 'risks.write', 'risks', id);
+        await riskService.delete(id, req.userId);
+        succeeded.push({ id, status: 200 });
+      } catch (error: any) {
+        const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+        failed.push({ id, error: error?.message ?? 'Archive failed', status });
+      }
+    }
+
+    res.status(200).json({
+      succeeded,
+      failed,
+      total: ids.length,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ==========================================
 // Parametric routes - /:id must come AFTER all static routes
 // ==========================================
@@ -364,7 +402,7 @@ riskRouter.get('/:id/history', authenticate, requireEntityPermission('risks.read
   }
 });
 
-riskRouter.put('/:id', authenticate, requireEntityPermission('risks.write', 'risks'), validateBody(UpdateRiskSchema), async (req: AuthRequest, res, next) => {
+riskRouter.put('/:id', authenticate, requireEntityPermission('risks.write', 'risks'), idempotency(), validateBody(UpdateRiskSchema), async (req: AuthRequest, res, next) => {
   try {
     const risk = await riskService.update(req.params.id, req.body, req.userId);
     res.json(risk);
@@ -373,7 +411,7 @@ riskRouter.put('/:id', authenticate, requireEntityPermission('risks.write', 'ris
   }
 });
 
-riskRouter.delete('/:id', authenticate, authorizeEntityDelete('risks'), async (req: AuthRequest, res, next) => {
+riskRouter.delete('/:id', authenticate, authorizeEntityDelete('risks'), idempotency(), async (req: AuthRequest, res, next) => {
   try {
     const result = await riskService.delete(req.params.id, req.userId);
     res.json(result);

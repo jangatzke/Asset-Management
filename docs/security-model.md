@@ -23,11 +23,11 @@ Das System schützt vertrauliche ISMS-Daten gemäß ISO/IEC 27001:2022 und erfü
 
 | Parameter | Wert |
 |-----------|------|
-| Passwort-Hashing | bcrypt, Rounds ≥ 10 (konfigurierbar via `BCRYPT_ROUNDS`) |
-| Mindestlänge | 12 Zeichen |
+| Passwort-Hashing | bcrypt, hartcodiert 10 Rounds (nicht per Env konfigurierbar) |
+| Mindestlänge | 12 Zeichen (Default; adminseitig konfigurierbar via Auth-Einstellungen `minPasswordLength`) |
 | Komplexität | Großbuchstaben, Kleinbuchstaben, Ziffern, Sonderzeichen |
 | Token-Typ | JWT (HS256) |
-| Access-Token Lifetime | 1 Stunde |
+| Access-Token Lifetime | Default 20 Minuten (`JWT_ACCESS_TOKEN_EXPIRES_IN`) |
 | Refresh-Token | Separate Tabelle (`RefreshToken`), Rotation bei Verwendung |
 
 ### 2.2 OIDC / Entra ID
@@ -69,6 +69,8 @@ Existing local accounts are never linked by email alone. `OidcAccountLink` binds
 - `jti` Claim für Token-Revocation
 - Kein Fallback auf Hardcoded Secrets – Application startet nicht ohne `JWT_SECRET`
 
+> Statushinweis (2026-10-30): Umgesetzt ist HS256 mit expliziter Algorithmus-Whitelist bei Signatur und Verifikation. Access-Tokens enthalten jedoch nur `userId` und `email` (kein `roles`/`jti`; `jti` nur bei Pre-Auth-Tokens). In Produktion startet die Anwendung ohne gültigen `JWT_SECRET` nicht (Fail-fast); im Development wird eine generierte Fallback-Secret mit Warnung erzeugt.
+
 ---
 
 ## 3. Autorisierung
@@ -98,7 +100,7 @@ graph TD
 | `system_admin` | alle Permissions inklusive `administration.access` | Vollzugriff auf System und Admin-Bereich |
 | `ism_manager` | alle Permissions inklusive `administration.access` | ISMS-Verantwortlicher, Admin-Zugriff |
 | `auditor` | Leserechte auf ISMS-/Kernmodule | Externer Auditor – Leserecht auf relevante Objekte |
-| `employee` | Basis-Leserechte auf Assets, Risiken, Controls, Incidents, Training und Dokumente | Standard-Mitarbeiter |
+| `employee` | Basis-Leserechte auf Assets, Risiken, Controls, Incidents, Tickets, Training, Dokumente und Interested Parties | Standard-Mitarbeiter |
 
 Phase 1 ersetzt das grobe `entityPermissions`-Modell durch `Permission` und `RolePermission`. Bestehende JSON-Felder bleiben nur als Kompatibilitätspfad für Altrollen erhalten. Der Mindestkatalog umfasst `assets.read`, `assets.write`, `assets.archive`, granulare Risiko-/Control-/Incident-Aktionsrechte, ISMS-Modulrechte und `administration.access`.
 
@@ -145,21 +147,28 @@ Alle Routen unter `/api/v1/admin/*` erfordern `administration.access`. Die Middl
 
 ```prisma
 model AuditLog {
-  id            String   @id @default(uuid())
-  actorId       String                      // User-ID des Ausführenden
-  actorType     String                      // 'user', 'system', 'oidc'
-  timestamp     DateTime @default(now())
-  action        String                      // 'create', 'update', 'delete', 'login', etc.
-  objectId      String                      // ID der betroffenen Entität
-  objectType    String                      // 'User', 'Asset', 'Risk', etc.
-  previousValue Json?                       // Zustand vor Änderung
-  newValue      Json?                       // Zustand nach Änderung
-  origin        String?                     // 'api', 'scheduler', 'migration'
-  correlationId String?                     // Request-Trace-ID
-  justification String?                     // Begründung (z.B. bei Risk Acceptance)
+  id           String   @id @default(uuid())
+  timestamp    DateTime @default(now())
+  userId       String                      // User-ID des Ausführenden
+  userName     String?
+  action       String                      // 'create', 'update', 'delete', 'login', etc.
+  entityType   String                      // 'User', 'Asset', 'Risk', etc.
+  entityId     String                      // ID der betroffenen Entität
+  details      String?
+  oldValue     Json?                       // Zustand vor Änderung
+  newValue     Json?                       // Zustand nach Änderung
+  ipAddress    String?
+  userAgent    String?
+  // Hash-Kette (Phase 9)
+  sequence     Int
+  previousHash String?  @db.Text
+  entryHash    String   @default("") @db.Text
 
+  @@unique([sequence])
   @@index([timestamp])
-  @@index([objectId, objectType])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
   @@map("audit_logs")
 }
 ```
@@ -196,9 +205,9 @@ Ab Phase 9 enthält jede AuditLog-Zeile drei zusätzliche Felder für eine krypt
 
 | Umgebung | Origin | Credentials |
 |----------|--------|-------------|
-| Development | `http://localhost:*` | true |
-| Staging | Konfigurierbar via `CORS_ORIGIN` | true |
-| Production | Konfigurierbar via `CORS_ORIGIN` – **kein Wildcard** | true |
+| Development | Default-Fallback `http://localhost:3000`, wenn `CORS_ORIGINS` nicht gesetzt | true |
+| Staging | Konfigurierbar via `CORS_ORIGINS` (kommagetrennt) | true |
+| Production | Konfigurierbar via `CORS_ORIGINS` – **kein Wildcard** (`*` wird verworfen) | true |
 
 ### 5.2 HTTP-Sicherheitsheader (Helmet.js)
 
@@ -214,10 +223,10 @@ app.use(helmet({
 
 | Endpoint | Limit | Fenster |
 |----------|-------|---------|
-| `/auth/login`, `/auth/register`, `/auth/login/mfa`, `/auth/preauth/*`, `/auth/oidc/*`, `/auth/me/*` | `AUTH_RATE_LIMIT_MAX` (Default 20) | `AUTH_RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+| `/auth/has-admin`, `/auth/create-first-admin`, `/auth/register`, `/auth/login`, `/auth/login/mfa`, `/auth/preauth/*`, `/auth/oidc/*`, `/auth/me/change-password`, `/auth/me/mfa/*` | `AUTH_RATE_LIMIT_MAX` (Default 20) | `AUTH_RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
 | `/auth/refresh` | `REFRESH_RATE_LIMIT_MAX` (Default 120) | `AUTH_RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
-| `/service-accounts/auth` (Token-Verifizierung) | Globaler API-Limiter | `RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
-| Alle anderen API-Endpunkte | `RATE_LIMIT_MAX_REQUESTS` (Default 100) | `RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+| `/service-accounts/auth` (Token-Verifizierung) | `SERVICE_ACCOUNT_AUTH_RATE_LIMIT_MAX` (Default 60) | `SERVICE_ACCOUNT_AUTH_RATE_LIMIT_WINDOW_MS` (Default 15 Min) pro IP |
+| Alle anderen API-Endpunkte | hartcodiert 500 (der Env-Wert `RATE_LIMIT_MAX_REQUESTS` wird vom Code nicht gelesen) | hartcodiert 15 Min pro IP |
 
 Hinweis: Die Rate-Limiter werten `req.ip` aus; hinter Reverse-Proxy/Load-Balancer
 muss `TRUST_PROXY` korrekt gesetzt sein (Default: 1 Hop), sonst greift die
@@ -236,7 +245,7 @@ Limitierung pro Proxy-IP statt pro Endnutzer-IP.
 | OIDC Client Secret | Verschlüsselt in DB (zukünftig) |
 | vCenter Credentials | `passwordEncrypted` – AES-256-**GCM** (authentifizierte Verschlüsselung), Key aus `VMWARE_ENCRYPTION_KEY` (fail-closed, exakt 32 Zeichen) |
 | Proxmox Credentials | `passwordEncrypted`/`apiToken` – AES-256-**GCM**, Key aus `PROXMOX_ENCRYPTION_KEY` (fail-closed, exakt 32 Zeichen) |
-| MFA (TOTP) Secrets | `mfaSecret` – AES-256-GCM, Key aus `MFA_ENCRYPTION_KEY` (Fallback: abgeleitet aus `JWT_SECRET`) |
+| MFA (TOTP) Secrets | `mfaSecret` – AES-256-GCM, Key aus `MFA_ENCRYPTION_KEY` (fail-closed: ohne Key wirft der Dienst einen Fehler; kein Fallback auf `JWT_SECRET`) |
 | PII (Namen, E-Mails) | Zugriffsbeschränkung via RBAC |
 
 **Kompatibilität:** Bestehende AES-256-CBC-Werte (2-segmentiges
@@ -271,7 +280,7 @@ Expired or administrator-required password changes use a password-change pre-aut
 | `JWT_SECRET` | Ja | **Kein Default** | JWT Signatur-Secret (≥ 32 Zeichen) |
 | `VMWARE_ENCRYPTION_KEY` | Bei Nutzung vCenter | **Kein Default (fail-closed)** | AES-256-GCM Key, exakt 32 Zeichen |
 | `PROXMOX_ENCRYPTION_KEY` | Bei Nutzung Proxmox | **Kein Default (fail-closed)** | AES-256-GCM Key, exakt 32 Zeichen |
-| `MFA_ENCRYPTION_KEY` | Empfehlung | abgeleitet aus `JWT_SECRET` | AES-256-GCM Key für TOTP-Secrets |
+| `MFA_ENCRYPTION_KEY` | Ja (bei MFA-Nutzung, fail-closed) | **Kein Default** | AES-256-GCM Key für TOTP-Secrets; ohne Key schlägt MFA fehl |
 | `WEBHOOK_SIGNATURE_SECRET` | Bei X-Webhook-Secret | – | Inbound Shared Secret (`WEBHOOK_SECRET` als Legacy-Fallback) |
 | `TRUST_PROXY` | Bei Proxy | `1` (1 Hop) | Proxy-Hops für korrekte IP-Bestimmung (Rate-Limiting, Audit); `true` wird explizit in die Zahl `1` übersetzt – boolean `true` würde den linksten, von Clients fälschbaren `X-Forwarded-For`-Eintrag vertrauen |
 | `HOST` | Nein | `127.0.0.1` | Bind-Adresse; `0.0.0.0` nur bei externer Erreichbarkeit |
@@ -286,10 +295,11 @@ Expired or administrator-required password changes use a password-change pre-aut
 
 ### 7.1 Passwort-Richtlinie
 
-- Mindestlänge: 12 Zeichen
+- Mindestlänge: 12 Zeichen (Default; adminseitig konfigurierbar via Auth-Einstellungen, `minPasswordLength`)
 - Erfordert: Großbuchstaben, Kleinbuchstaben, Ziffern, Sonderzeichen
-- Keine der letzten 5 Passwörter wiederholen
-- Sperrung nach 5 fehlgeschlagenen Versuchen (30 Minuten)
+- Keine Wiederverwendung der letzten Passwörter (Default-Historie: 5, adminseitig konfigurierbar via `passwordHistoryCount`)
+- Optionale Passwort-Gültigkeit (Default: 365 Tage, via `passwordValidityDays`)
+- Temporäre Sperre pro Konto nach 10 fehlgeschlagenen Login-Versuchen innerhalb eines rollierenden 15-Minuten-Fensters (in-memory pro Prozess; generische Fehlermeldung + `Retry-After`)
 
 ### 7.2 Session-Management
 
@@ -343,7 +353,7 @@ Organisatorische Nachweise wie die Freigabe der Exchange-App, Berechtigungsrevie
 |----------|---------|
 | Mehrfache fehlgeschlagene Logins | Account-Sperre nach 5 Versuchen, Audit-Eintrag |
 | JWT-Manipulationsversuch | 401 Antwort, Audit-Eintrag mit IP |
-| OIDC State Mismatch | 400 Antwort, Audit-Eintrag (möglicher CSRF-Angriff) |
+| OIDC State Mismatch | 401 Antwort, Audit-Eintrag (möglicher CSRF-Angriff) |
 | Admin-Zugriff ohne Berechtigung | 403 Antwort, Audit-Eintrag mit Detail |
 
 ### 9.3 Eskalationspfad
@@ -379,8 +389,8 @@ Abwägungsbedarf verbunden. Stand: 2026-08-16.
 
 | # | Punkt | Priorität | Hinweis / nächste Aktion |
 |---|-------|-----------|--------------------------|
-| 1 | MFA-Key fällt auf abgeleiteten `JWT_SECRET` zurück | Mittel | `MFA_ENCRYPTION_KEY` dediziert setzen (siehe `.env.example`). Langfristig: fail-closed wie bei Credential-Keys. |
-| 2 | Service-Account `/auth`-Endpoint nicht separat rate-limitiert | Mittel | Profitiert vom globalen Limiter; bei hohem Volumen eigenen Limiter ergänzen. |
+| 1 | ~~MFA-Key fällt auf abgeleiteten `JWT_SECRET` zurück~~ | – | Erledigt (Stand 2026-10-30): `getMfaEncryptionKey()` ist fail-closed und wirft ohne `MFA_ENCRYPTION_KEY`. |
+| 2 | ~~Service-Account `/auth`-Endpoint nicht separat rate-limitiert~~ | – | Erledigt (Stand 2026-10-30): eigener Limiter `SERVICE_ACCOUNT_AUTH_RATE_LIMIT_MAX` (Default 60) in `serviceAccount.routes.ts`. |
 | 3 | `POST /auth/logout` ohne eigenen Limiter | Niedrig | Logout ist idempotent; Risiko gering, aber Limiter ergänzbar. |
 
 ### 10.2 Performance / Skalierung
@@ -403,6 +413,6 @@ Abwägungsbedarf verbunden. Stand: 2026-08-16.
 
 | # | Punkt | Priorität | Hinweis / nächste Aktion |
 |---|-------|-----------|--------------------------|
-| 10 | `multer` ^1.4.5-lts.1 (ältere Major-Version) | Mittel | Upgrade auf multer 2.x (API-kompatibel für diskStorage) im nächsten Wartungsfenster. |
+| 10 | ~~`multer` ^1.4.5-lts.1 (ältere Major-Version)~~ | – | Erledigt (Stand 2026-10-30): `backend/package.json` nutzt `multer` ^2.5.0. |
 | 11 | `express` ^4.18.2 (v5 verfügbar) | Niedrig | Migration bewusst planen (Router/Body-Parser-Änderungen). |
 | 12 | `bcryptjs` (pure JS) statt nativen `bcrypt`/`argon2` | Niedrig | Funktionell OK; native Variante schneller bei hoher Last. Argon2id wäre die krypto-bestpractice-Option. |

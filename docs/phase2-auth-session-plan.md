@@ -1,5 +1,7 @@
 Phase 2 baseline and plan (pre-implementation):
 
+> **Status update (2026-10-30):** Completed (commit `d7e4237`). The "Existing state" line below is the pre-Phase 2 baseline; current code differs: access JWT lifetime defaults to 20 minutes via `JWT_ACCESS_TOKEN_EXPIRES_IN`, the JWT payload carries only `{ userId, email }` (HS256), and the frontend access token is memory-only (`frontend/src/store/accessToken.ts`) with an HttpOnly refresh cookie.
+
 - Affected backend files: `backend/src/services/auth.service.ts`, `backend/src/routes/auth.routes.ts`, `backend/src/middleware/auth.ts`, `backend/src/index.ts`, `backend/prisma/schema.prisma`, `backend/.env.example`, backend auth tests.
 - Affected frontend files: `frontend/src/services/api.ts`, `frontend/src/store/auth.ts`, `frontend/src/pages/Login.tsx`, frontend auth/API tests.
 - Existing state: access JWT lifetime is hard-coded at 1h and carries roles; `/auth/refresh` currently requires access-token middleware and creates a weak/unused refresh record; frontend stores access token in `localStorage` and has no refresh retry interceptor.

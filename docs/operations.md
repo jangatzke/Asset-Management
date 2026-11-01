@@ -43,27 +43,26 @@
 ### Components
 | Component | Technology | Port | Purpose |
 |-----------|------------|------|---------|
-| Frontend | React + Vite | 5173 (dev) / 80 (prod) | UI |
-| Backend | Express + TypeScript | 3000 | API Server |
+| Frontend | React + Vite | 3000 (dev, Vite) / 8080→80 (prod, nginx via `FRONTEND_PORT`) | UI |
+| Backend | Express + TypeScript | 3001 (default dev and prod) | API Server |
 | Database | PostgreSQL | 5432 | Data Store |
 | Prisma ORM | — | — | Schema Management |
 
 ### Environment Variables
 ```bash
 # Required
-DATABASE_URL=postgresql://user:pass@host:5432/assetmgmt
-JWT_SECRET=<32-char-random-string>
+DATABASE_URL=postgresql://user:pass@host:5432/asset_management?schema=public
+JWT_SECRET=<32-char-random-string>   # required; app refuses to start without it in production
 NODE_ENV=production|development
 
-# Optional
-PORT=3000
-CORS_ORIGIN=https://yourdomain.com
-LOG_LEVEL=info
-WEBHOOK_TIMEOUT_MS=10000
-WEBHOOK_MAX_RETRIES=3
+# Optional (names per backend/.env.example)
+PORT=3001
+HOST=127.0.0.1                       # bind address; 0.0.0.0 only when externally reachable
+TRUST_PROXY=1
+CORS_ORIGINS=https://yourdomain.com  # comma-separated, no wildcard default
 
 # Metrics (Phase 11)
-METRICS_TOKEN=<strong-random-token>   # Required to protect /metrics endpoint
+METRICS_TOKEN=<strong-random-token>   # required in production; /metrics returns 503 without it
 ```
 
 ---
@@ -72,12 +71,14 @@ METRICS_TOKEN=<strong-random-token>   # Required to protect /metrics endpoint
 
 ### Endpoints
 
+> Note: health endpoints are registered at the **root path** in `backend/src/index.ts`, not under `/api/v1`. The production nginx only proxies `/api`, so probes must target the backend directly (e.g. container port 3001).
+
 | Endpoint | Method | Purpose | Response Time SLA |
 |----------|--------|---------|-------------------|
+| `/health` | GET | Legacy basic health check | <100ms |
 | `/health/live` | GET | Kubernetes liveness probe | <100ms |
 | `/health/ready` | GET | Kubernetes readiness probe | <500ms |
 | `/metrics` | GET | Prometheus metrics | <200ms |
-| `/api-info` | GET | API feature flags | <50ms |
 
 ### Liveness Probe (`/health/live`)
 Returns 200 if the server process is alive.
@@ -145,57 +146,44 @@ Returns a structured health status with real readiness checks (Phase 11 enhancem
 ### Metrics Endpoint (`/metrics`)
 Prometheus-compatible metrics endpoint (Phase 11: protected by `METRICS_TOKEN`).
 
-**Authentication:** Requires either `?token=<METRICS_TOKEN>` query parameter or `Authorization: Bearer <token>` header. Without valid token, returns HTTP 401.
+**Authentication:** Requires the `Authorization: Bearer <token>` header; query-parameter tokens were removed to avoid leaking secrets in URLs. Without a valid token, returns HTTP 401. If `METRICS_TOKEN` is unset in production, `/metrics` returns HTTP 503 (fail-closed); in development it stays unauthenticated.
 
 ```bash
-# Access with token
-curl -H "Authorization: Bearer my-metrics-token" http://localhost:3000/metrics
-# Or via query param
-curl "http://localhost:3000/metrics?token=my-metrics-token"
+# Access with token (backend default port 3001)
+curl -H "Authorization: Bearer my-metrics-token" http://localhost:3001/metrics
 ```
 
-**Exposed metrics (Phase 11):**
+**Exposed metrics (per `backend/src/middleware/metrics.ts`):**
 
 | Metric | Type | Description | Labels |
 |--------|------|-------------|--------|
-| `http_requests_total` | counter | Total HTTP requests | method, path, status |
-| `http_request_duration_ms` | histogram | Request duration in milliseconds | method, path |
-| `http_errors_total` | counter | Total HTTP errors | method, path, errorType |
+| `http_requests_total` | counter | Total HTTP requests | method, status, endpoint |
+| `http_request_duration_seconds` | histogram | Request duration in seconds | method, status, endpoint |
+| `http_errors_total` | counter | Total HTTP errors (4xx/5xx) | status_class |
 | `db_errors_total` | counter | Database query errors | - |
-| `job_duration_seconds` | histogram | Background job duration in seconds | jobId, jobType, status |
-| `job_failures_total` | counter | Background job failures | jobId, jobType |
-| `integration_sync_status` | gauge | Integration sync status (1=ok, 0=error) | integration |
-| `app_uptime_seconds` | gauge | Server uptime in seconds | - |
+| `job_run_duration_seconds` | histogram | Background job run duration in seconds | jobId, status |
+| `job_runs_failed_total` | counter | Failed background jobs | jobId |
+| `integration_sync_status` | gauge | Integration sync status (1=ok, 0=error, -1=unknown) | integration |
 
 **Example output:**
 
 ```prometheus
 # HELP http_requests_total Total HTTP requests
 # TYPE http_requests_total counter
-http_requests_total{method="GET",path="/api/assets",status="200"} 1500
-http_requests_total{method="POST",path="/api/assets",status="201"} 50
+http_requests_total{method="GET",endpoint="/api/v1/assets",status="200"} 1500
+http_requests_total{method="POST",endpoint="/api/v1/assets",status="201"} 50
 
-# HELP http_request_duration_ms Request duration in milliseconds
-# TYPE http_request_duration_ms histogram
-http_request_duration_ms_bucket{method="GET",path="/api/assets",le="50"} 1200
-http_request_duration_ms_bucket{method="GET",path="/api/assets",le="100"} 1400
-http_request_duration_ms_bucket{method="GET",path="/api/assets",le="200"} 1480
-http_request_duration_ms_bucket{method="GET",path="/api/assets",le="500"} 1495
-http_request_duration_ms_bucket{method="GET",path="/api/assets",le="1000"} 1500
-http_request_duration_ms_bucket{method="GET",path="/api/assets",le="+Inf"} 1500
+# HELP http_request_duration_seconds HTTP request duration in seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",endpoint="/api/v1/assets",status="200",le="0.05"} 1200
+http_request_duration_seconds_bucket{method="GET",endpoint="/api/v1/assets",status="200",le="0.1"} 1400
+http_request_duration_seconds_bucket{method="GET",endpoint="/api/v1/assets",status="200",le="0.25"} 1480
+http_request_duration_seconds_bucket{method="GET",endpoint="/api/v1/assets",status="200",le="+Inf"} 1500
 
-# HELP uptime_seconds Server uptime in seconds
-# TYPE uptime_seconds gauge
-uptime_seconds 86400
-
-# HELP webhook_queue_size Current number of pending webhook deliveries
-# TYPE webhook_queue_size gauge
-webhook_queue_size 3
-
-# HELP webhook_delivery_failures_total Total failed webhook deliveries
-# TYPE webhook_delivery_failures_total counter
-webhook_delivery_failures_total{event="asset.created"} 2
-webhook_delivery_failures_total{event="risk.assessed"} 0
+# HELP http_errors_total Total number of HTTP error responses (4xx and 5xx).
+# TYPE http_errors_total counter
+http_errors_total{status_class="4xx"} 7
+http_errors_total{status_class="5xx"} 1
 ```
 
 ---
@@ -222,16 +210,17 @@ All logs are emitted as JSON objects:
 ```
 
 ### Security
-- **No secrets or tokens are logged.** Headers like `authorization`, `cookie`, and body fields matching patterns (`password`, `token`, `secret`, `apiKey`) are redacted.
-- Request bodies are hashed (not stored) for audit purposes only.
+- **No secrets or tokens are logged.** The access log itself only contains method, path, status, duration, user agent, IP and content-length headers; sensitive request headers (`authorization`, `cookie`, …) are never part of the log entry (see `backend/src/middleware/jsonLogger.ts`).
+- > Status note (2026-10-30): earlier revisions claimed request bodies were "hashed for audit purposes" — the logging middleware does not read or hash request bodies at all.
 
 ### Log Levels
+The access logger assigns levels solely by status code (`jsonLogger.ts:109-114`):
+
 | Level | Usage | Example |
 |-------|-------|---------|
 | error | System errors, 5xx responses | Database connection failure |
-| warn | Client errors (4xx), degraded services | Rate limit exceeded |
+| warn | Client errors (4xx) | Rate limit exceeded |
 | info | Normal operations | Request completed successfully |
-| debug | Detailed diagnostic information | Query parameters parsed |
 
 ### Log Aggregation
 In production, pipe logs to your logging service:
@@ -271,18 +260,20 @@ All log entries for a request share the same `correlationId`, enabling full trac
 scrape_configs:
   - job_name: 'asset-management'
     metrics_path: '/metrics'
+    authorization_credentials: '<METRICS_TOKEN>'   # /metrics requires Bearer auth
     static_configs:
-      - targets: ['backend:3000']
+      - targets: ['backend:3001']
     scrape_interval: 15s
 ```
 
 ### Key Alerts
 | Alert | Condition | Severity |
 |-------|-----------|----------|
-| HighErrorRate | `rate(http_requests_total{status=~"5.."}[5m]) > 0.05` | P0 |
-| SlowResponse | `histogram_quantile(0.95, rate(http_request_duration_ms_bucket[5m])) > 1000` | P1 |
+| HighErrorRate | `rate(http_errors_total{status_class="5xx"}[5m]) > 0.05` | P0 |
+| SlowResponse | `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1` | P1 |
 | DatabaseDown | `up{job="asset-management"} == 0` for 30s | P0 |
-| WebhookQueueBacklog | `webhook_queue_size > 100` for 5m | P2 |
+
+> Status note (2026-10-30): the previous "WebhookQueueBacklog" alert referenced a `webhook_queue_size` metric that the backend does not expose; it was removed. The duration histogram is in seconds (`http_request_duration_seconds`, `metrics.ts:24-29`).
 
 ---
 
@@ -315,21 +306,23 @@ tar -czf /backups/config-$(date +%Y%m%d).tar.gz \
 
 #### Full Database Restore
 ```bash
-# 1. Stop application
-kubectl rollout pause deployment/asset-mgmt-backend
+# 1. Stop the backend container (Compose-based deployment)
+docker compose stop backend
 
 # 2. Restore from backup
 pg_restore -h $DB_HOST -U $DB_USER -d $DB_NAME --clean --if-exists /backups/asset-mgmt-20260719.dump
 
-# 3. Verify integrity
-npx prisma migrate status --schema=backend/prisma/schema.prisma
+# 3. Verify migration state (in the backend workspace; loads backend/.env automatically)
+npm run db:deploy --workspace backend   # or: npx prisma migrate status --schema=backend/prisma/schema.prisma
 
 # 4. Restart application
-kubectl rollout resume deployment/asset-mgmt-backend
+docker compose start backend
 
-# 5. Run readiness check
-curl -f http://localhost:3000/health/ready || echo "RESTORE FAILED"
+# 5. Run readiness check (health endpoints are at the root path on the backend port)
+curl -f http://localhost:3001/health/ready || echo "RESTORE FAILED"
 ```
+
+> Status note (2026-10-30): the previous example referenced a Kubernetes deployment (`kubectl rollout …`) and `http://localhost:3000/health/ready`; this project ships a Docker Compose stack and the backend listens on port 3001.
 
 #### Restore Test Schedule
 | Frequency | Type | Responsible |
@@ -361,31 +354,25 @@ curl -f http://localhost:3000/health/ready || echo "RESTORE FAILED"
 ### Rotation Procedure
 
 #### JWT Secret Rotation
+The backend verifies tokens with a single `JWT_SECRET` (there is no `JWT_SECRET_OLD` dual-signing support in the code), so rotation invalidates all outstanding access tokens; refresh sessions are re-established on next login/refresh.
+
 ```bash
-# 1. Generate new secret (keep old one for grace period)
+# 1. Generate new secret
 NEW_JWT_SECRET=$(openssl rand -base64 32)
 
-# 2. Deploy with both secrets (dual-signing period: 24h)
-kubectl set env deployment/asset-mgmt-backend \
-  JWT_SECRET=$NEW_JWT_SECRET \
-  JWT_SECRET_OLD=$OLD_JWT_SECRET
+# 2. Update JWT_SECRET in the deployment environment and restart the backend
+docker compose up -d backend
 
-# 3. Wait for all pods to restart
-kubectl rollout status deployment/asset-mgmt-backend
-
-# 4. Verify all clients re-authenticated with new token
-curl -s http://localhost:3000/health/ready | jq .checks
-
-# 5. After grace period, remove old secret
-kubectl set env deployment/asset-mgmt-backend JWT_SECRET_OLD-
-
-# 6. Rotate client tokens
+# 3. Verify readiness (root-path endpoint on the backend port)
+curl -s http://localhost:3001/health/ready | jq .checks
 ```
 
+> Status note (2026-10-30): replaced the previous Kubernetes/dual-signing example, which did not match this deployment model or the code.
+
 #### Service Account Token Regeneration
-Via API:
+Via API (admin-authenticated, path includes the `/api/v1` prefix):
 ```bash
-curl -X POST https://api.example.com/service-accounts/{id}/regenerate-token \
+curl -X POST https://your-host/api/v1/service-accounts/{id}/regenerate-token \
   -H "Authorization: Bearer {admin-token}" \
   | jq .newToken
 ```
@@ -473,43 +460,28 @@ securityContext:
 ## 10. Graceful Shutdown
 
 ### Shutdown Process
-```typescript
-// src/index.ts (simplified)
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+Implemented in `backend/src/middleware/gracefulShutdown.ts` (registered via `setupGracefulShutdown(server)` in `src/index.ts:376`):
 
-async function gracefulShutdown(signal: string) {
-  logger.info({ signal }, 'Received shutdown signal');
-  
-  // 1. Stop accepting new requests
+```typescript
+// gracefulShutdown.ts (simplified)
+process.on('SIGTERM', () => gracefulShutdown(server, signalTimeout, dbTimeout));
+process.on('SIGINT', () => gracefulShutdown(server, signalTimeout, dbTimeout));
+
+async function gracefulShutdown(server, signalTimeout = 30000, dbTimeout = 10000) {
+  // Force-exit timer (signalTimeout, default 30s) armed first
+  // 1. Stop accepting new connections
   server.close();
-  
-  // 2. Close database connection
-  await prisma.$disconnect();
-  
-  // 3. Drain webhook queue
-  await webhookService.drainQueue();
-  
-  // 4. Wait for in-flight requests (max 30s)
-  setTimeout(() => process.exit(1), 30000);
-  
-  logger.info('Graceful shutdown complete');
-  process.exit(0);
+  // 2. Stop idempotency cleanup interval + webhook queue worker
+  stopIdempotencyCleanup();
+  stopWebhookQueueWorker();
+  // 3. Disconnect Prisma with a bounded timeout (dbTimeout, default 10s)
+  await Promise.race([prisma.$disconnect(), timeout(dbTimeout)]);
 }
 ```
 
-### Kubernetes Pod Disruption Budget
-```yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: asset-mgmt-pdb
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: asset-mgmt-backend
-```
+`uncaughtException`/`unhandledRejection` also trigger the same shutdown path (`gracefulShutdown.ts:34-44`).
+
+> Status note (2026-10-30): the previous pseudo-code claimed `webhookService.drainQueue()` and a Kubernetes PodDisruptionBudget; the actual code stops the webhook queue worker via `stopWebhookQueueWorker()`, and this project deploys with Docker Compose rather than Kubernetes. The PDB example was removed.
 
 ---
 
@@ -540,17 +512,17 @@ PR Created → CI Runs (G1-G11) → Code Review → Merge to develop
 ```
 
 ### Rollback Procedure
+With the Docker Compose stack, roll back by redeploying the previous image tag and restarting the backend service:
+
 ```bash
-# 1. Identify last known good version
-kubectl rollout history deployment/asset-mgmt-backend
-
-# 2. Rollback to previous revision
-kubectl rollout undo deployment/asset-mgmt-backend
-
-# 3. Verify rollback
-kubectl rollout status deployment/asset-mgmt-backend
-curl -s http://localhost:3000/health/ready | jq .
+# 1. Point docker-compose.yml (or your registry tag) at the last known good image
+# 2. Recreate the backend container
+docker compose up -d backend
+# 3. Verify readiness (root-path endpoint on the backend port)
+curl -s http://localhost:3001/health/ready | jq .
 ```
+
+> Status note (2026-10-30): replaced the previous `kubectl rollout` example, which does not match this deployment model.
 
 ---
 
@@ -640,18 +612,18 @@ The response must show required status checks enabled and include the
 
 ### Issue: High Error Rate
 ```bash
-# 1. Check health endpoints
-curl http://localhost:3000/health/live
-curl http://localhost:3000/health/ready
+# 1. Check health endpoints (root path, backend port)
+curl http://localhost:3001/health/live
+curl http://localhost:3001/health/ready
 
-# 2. Check logs for correlation IDs
-grep 'error' /var/log/asset-mgmt.log | tail -50
+# 2. Check logs for correlation IDs (Compose ships logs to stdout)
+docker compose logs backend --since 30m | grep error | tail -50
 
 # 3. Check database connectivity
 pg_isready -h $DB_HOST -p 5432
 
 # 4. Restart if necessary
-kubectl rollout restart deployment/asset-mgmt-backend
+docker compose restart backend
 ```
 
 ### Issue: Database Connection Pool Exhaustion
@@ -668,33 +640,36 @@ DATABASE_URL="postgresql://user:pass@host:5432/assetmgmt?connection_limit=20"
 
 ### Issue: Webhook Delivery Failures
 ```bash
-# 1. Check webhook queue metrics
-curl http://localhost:3000/metrics | grep webhook_queue_size
+# 1. Check job metrics (failed webhook queue runs are tracked with jobType 'webhook')
+curl -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:3001/metrics | grep job_runs_failed_total
 
-# 2. List failed webhooks (via API)
-curl https://api.example.com/webhooks?filter=failed \
+# 2. List recent deliveries (via API, admin/service-account auth)
+curl https://your-host/api/v1/webhooks/deliveries \
   -H "Authorization: Bearer {token}"
 
-# 3. Retry specific webhook delivery
-curl -X POST https://api.example.com/webhooks/{id}/test \
+# 3. Test a specific webhook configuration
+curl -X POST https://your-host/api/v1/webhooks/{id}/test \
   -H "Authorization: Bearer {token}"
 ```
+
+> Status note (2026-10-30): the previous example used a non-existent `webhook_queue_size` metric and un-prefixed `/webhooks` URLs; delivery history is exposed via `GET /api/v1/webhooks/deliveries`.
 
 ---
 
 ## Appendix A: API Scopes Reference
 
+Service-account scopes (validated by the service-account routes) map to the `/api/v1` route groups; all `/api/v1/webhooks` and `/api/v1/service-accounts` management routes additionally require an `admin`-authenticated or scoped service-account principal:
+
 | Scope | Description | Endpoints |
 |-------|-------------|-----------|
-| `assets:read` | View assets | GET /api/assets* |
-| `assets:write` | Create/update assets | POST/PATCH/DELETE /api/assets* |
-| `risks:read` | View risks | GET /api/risks* |
-| `risks:write` | Manage risks | POST/PATCH/DELETE /api/risks* |
-| `webhooks:read` | View webhooks | GET /api/webhooks* |
-| `webhooks:write` | Manage webhooks | POST/PATCH/DELETE /api/webhooks* |
-| `serviceaccounts:read` | View service accounts | GET /api/service-accounts* |
-| `serviceaccounts:write` | Manage service accounts | POST/PATCH/DELETE /api/service-accounts* |
-| `admin` | Full administrative access | All endpoints |
+| `assets:read` | View assets | GET /api/v1/assets* |
+| `assets:write` | Create/update assets | POST/PATCH/DELETE /api/v1/assets* |
+| `risks:read` | View risks | GET /api/v1/risks* |
+| `risks:write` | Manage risks | POST/PATCH/DELETE /api/v1/risks* |
+| `webhooks:read` | View webhooks | GET /api/v1/webhooks* |
+| `webhooks:write` | Manage webhooks | POST/PATCH/DELETE /api/v1/webhooks* |
+| `serviceaccounts:read` | View service accounts | GET /api/v1/service-accounts* |
+| `serviceaccounts:write` | Manage service accounts | POST/PATCH/DELETE /api/v1/service-accounts* |
 
 ## Appendix B: Webhook Events Reference
 
@@ -713,12 +688,13 @@ curl -X POST https://api.example.com/webhooks/{id}/test \
 Background jobs use PostgreSQL advisory locks for cluster-safety. When multiple backend instances run simultaneously, only one instance acquires the advisory lock per job type and executes the handler; others are skipped and tracked as `skipped` in the `job_runs` table.
 
 ### 14.2 Job Types
-| Job Type | Scheduler File | Schedule | Description |
+| Job ID | Scheduler File | Schedule | Description |
 |----------|---------------|----------|-------------|
-| `intune_sync` | `backend/src/services/intune.scheduler.ts` | Configurable interval | Syncs devices from Microsoft Intune/Graph API |
-| `reminder_send` | `backend/src/services/reminder.scheduler.ts` | Configurable interval | Sends due reminders (e.g., due-date, risk treatment) |
+| `intune-full-sync` / `intune-incremental-sync` | `backend/src/services/intune.scheduler.ts` | Configurable interval | Syncs devices from Microsoft Intune/Graph API |
+| `reminder-scheduler` | `backend/src/services/reminder.scheduler.ts` | Configurable interval | Sends due reminders (e.g., due-date, risk treatment) |
 | `ticket-email-gateway` | `backend/src/services/emailGateway.scheduler.ts` | Configurable interval (admin-configured mailbox poll) | Polls the inbound IMAP/Exchange Online mailbox and converts e-mails into tickets with Message-ID deduplication |
 | `sla-breach-scan` | `backend/src/services/sla.scheduler.ts` | Configurable interval | Scans for SLA-breached tickets and triggers escalation notifications via SMTP |
+| `ai-assistant` | `backend/src/services/ai.scheduler.ts` | Configurable interval | Runs scheduled AI assistant tasks (ticket triage notes / knowledge drafts) |
 
 All tracked jobs run through `executeTrackedJob` (`backend/src/services/jobRunner.service.ts`), which acquires the advisory lock, records the run in `job_runs`, and marks concurrent instances as `skipped`. Webhook delivery retries are also recorded with `jobType: webhook` via `backend/src/services/webhookQueue.service.ts`.
 
@@ -752,7 +728,9 @@ SELECT * FROM job_runs WHERE status = 'skipped' ORDER BY scheduledAt DESC;
 
 | Requirement ID | Feature | Implementation | Test Reference |
 |---------------|---------|----------------|----------------|
-| OPS-001 | Health checks | `/health/live`, `/health/ready` | `src/__tests__/health.test.ts` |
-| OPS-002 | Structured logging | JSON logger middleware | `src/__tests__/jsonLogger.test.ts` |
-| OPS-003 | Correlation IDs | Correlation ID middleware | `src/__tests__/correlationId.test.ts` |
-| SEC-006 | API scopes | Scope-based authorization | `src/__tests__/apiScopes.test.ts` |
+| OPS-001 | Health checks | `/health/live`, `/health/ready` | `src/__tests__/phase8.health.test.ts`, `src/__tests__/phase11.health-readiness.test.ts` |
+| OPS-002 | Structured logging | JSON logger middleware | `backend/src/middleware/jsonLogger.ts` |
+| OPS-003 | Correlation IDs | Correlation ID middleware | `src/__tests__/phase8.correlation-id.test.ts` |
+| SEC-006 | API scopes | Scope-based authorization | `src/__tests__/serviceAccount.webhook.auth.test.ts` |
+
+> Status note (2026-10-30): corrected the test-file references; the previously cited `health.test.ts`, `jsonLogger.test.ts`, `correlationId.test.ts` and `apiScopes.test.ts` do not exist in `backend/src/__tests__/`.

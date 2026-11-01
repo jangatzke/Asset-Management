@@ -19,8 +19,13 @@ jest.mock('../config/database', () => {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     },
-    supplierRiskRelation: { findMany: jest.fn().mockResolvedValue([]) },
-    risk: { findMany: jest.fn().mockResolvedValue([]) },
+    supplierRiskRelation: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'rel-1', ...data })),
+      findFirst: jest.fn(),
+      delete: jest.fn(),
+    },
+    risk: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
   };
   return { prisma };
 });
@@ -87,6 +92,70 @@ describe('NIS2 mandatory risk assessment for suppliers (soft variant)', () => {
     const updated = await supplierService.update('sup-1', { nis2Relevant: true }, 'user-1');
 
     expect(updated.nis2RiskAssessmentWarning).toBeTruthy();
+  });
+});
+
+/**
+ * Phase 3.1 — Supplier risk linkage validation through the existing relation
+ * field (`SupplierRiskRelation.riskId`), since no `supplierRiskAssessmentId`
+ * column exists on `Supplier`. The service validates the referenced risk in
+ * `addRiskRelation` (ticket.service.ts reference-validation pattern): an
+ * unknown or archived risk throws `AppError('Risk not found or archived', 404)`.
+ */
+describe('Supplier risk linkage validation (Phase 3.1, existing relation field)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.supplierRiskRelation.findMany.mockResolvedValue([]);
+    mockPrisma.supplierRiskRelation.create.mockImplementation(async ({ data }: any) => ({ id: 'rel-1', ...data }));
+    mockPrisma.risk.findMany.mockResolvedValue([]);
+    mockPrisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1', displayId: 'SUP-1', status: 'active', nis2Relevant: true, isArchived: false });
+  });
+
+  it('flags nis2Relevant=true without any risk assessment relation (warning envelope)', async () => {
+    const created = await supplierService.create({ legalName: 'Provider', nis2Relevant: true }, 'user-1');
+
+    expect(created.nis2RiskAssessmentWarning).toBe(
+      'NIS2-relevant supplier without risk assessment: link at least one non-archived risk via supplier risk relations to complete the mandatory risk assessment (NIS2 Art. 26/30).',
+    );
+    expect(mockPrisma.supplierRiskRelation.findMany).toHaveBeenCalledWith({ where: { supplierId: 'sup-1' } });
+  });
+
+  it('rejects nis2Relevant=true linking an unknown risk id (invalid reference)', async () => {
+    mockPrisma.risk.findUnique.mockResolvedValue(null);
+
+    await expect(
+      supplierService.addRiskRelation('sup-1', 'risk-does-not-exist', {}, 'user-1'),
+    ).rejects.toThrow('Risk not found or archived');
+
+    expect(mockPrisma.supplierRiskRelation.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects nis2Relevant=true linking an archived risk id (invalid reference)', async () => {
+    mockPrisma.risk.findUnique.mockResolvedValue({ id: 'risk-archived', displayId: 'RSK-1', isArchived: true });
+
+    await expect(
+      supplierService.addRiskRelation('sup-1', 'risk-archived', {}, 'user-1'),
+    ).rejects.toThrow('Risk not found or archived');
+
+    expect(mockPrisma.supplierRiskRelation.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts nis2Relevant=true linking a valid risk id (success)', async () => {
+    mockPrisma.risk.findUnique.mockResolvedValue({ id: 'risk-1', displayId: 'RSK-1', isArchived: false });
+
+    const relation = await supplierService.addRiskRelation('sup-1', 'risk-1', {}, 'user-1');
+
+    expect(relation).toMatchObject({ supplierId: 'sup-1', riskId: 'risk-1' });
+    expect(mockPrisma.supplierRiskRelation.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ supplierId: 'sup-1', riskId: 'risk-1' }) }),
+    );
+  });
+
+  it('does not validate or warn for nis2Relevant=false without a risk relation', async () => {
+    const created = await supplierService.create({ legalName: 'Provider', nis2Relevant: false }, 'user-1');
+
+    expect(created.nis2RiskAssessmentWarning).toBeUndefined();
+    expect(mockPrisma.supplierRiskRelation.findMany).not.toHaveBeenCalled();
   });
 });
 

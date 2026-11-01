@@ -1,5 +1,7 @@
 # Refactoring Baseline
 
+> **As-of note (2026-10-30):** This baseline is a point-in-time snapshot from 2026-07-26 (pre-Phase 1) and is intentionally not updated afterwards. Raw command outputs are stored in `docs/baseline-artifacts/`; files with a `-final` suffix (e.g. `prisma-validate-final.txt`, `backend-build-final.txt`) contain the re-run after Phase 0 fixes, the un-suffixed files the original baseline runs; `phase0-docs-test.txt` contains the Phase 0 docs-consistency test run.
+
 | Kategorie | Ergebnis |
 |---|---|
 | Commit SHA | 772d868f50ba641f5a10355fb05bc3b11c1fd574 |

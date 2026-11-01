@@ -18,6 +18,8 @@ IT asset management and ISMS application for asset inventory, risk and control m
 - [Development, Tests, and Build](#development-tests-and-build)
 - [API and OpenAPI](#api-and-openapi)
 - [Operations, Security, and Compliance](#operations-security-and-compliance)
+- [Email-to-Ticket / Email Gateway](#email-to-ticket--email-gateway)
+- [Operational Modules and Admin Configuration](#operational-modules-and-admin-configuration)
 - [Cost Planning and Fiscal Year Setup](#cost-planning-and-fiscal-year-setup)
 - [Documentation](#documentation)
 - [Roadmap and Project Status](#roadmap-and-project-status)
@@ -37,7 +39,7 @@ The project is structured as an npm workspace with `backend`, `frontend`, and `s
 - OpenAPI specification at [`docs/api/openapi.yaml`](docs/api/openapi.yaml).
 - Project documentation for requirements, architecture, operations, security, and compliance under [`docs`](docs).
 
-The main functional areas visible in the repository are asset management, risk and control management, business processes, incidents, ticket management, contracts, licenses, evidence, document control, framework/NIS 2 features, ISMS operations modules, cost planning, fiscal year configuration, action center, supplier management, business continuity management, email-to-ticket processing, reminders, and integrations for Microsoft Intune, VMware vCenter, and Proxmox.
+The main functional areas visible in the repository are asset management, risk and control management, business processes, incidents, ticket management (including SLA escalation), contracts, licenses, evidence, document control, knowledge base, framework/NIS 2 features, ISMS operations modules, cost planning, fiscal year configuration, action center, supplier management, business continuity management, KRI dashboard, service catalog, supply chain overview, risk aggregation, control coverage matrix, email-to-ticket processing, AI assistant, reminders, database administration, and integrations for Microsoft Intune, VMware vCenter, and Proxmox.
 
 ---
 
@@ -54,7 +56,7 @@ The main functional areas visible in the repository are asset management, risk a
 
 ### Backend Routes and Cross-Cutting Features
 
-The API registers resources under `/api/v1/*` as well as health/monitoring endpoints. Visibly registered areas include auth, users, assets, risks, controls, incidents, tickets, action center, organization, admin, audit logs, Intune, VMware, Proxmox, contracts, licenses, processes, treatments, methods, imports, frameworks, evidence, documents, NIS 2, Phase 6/ISMS operations, catalog, cost planning, webhooks, service accounts, email gateway, and global search.
+The API registers resources under `/api/v1/*` as well as health/monitoring endpoints. Visibly registered areas include auth, users, assets, risks, controls, incidents, tickets, action center, organization, admin (including OIDC configuration at `/api/v1/admin/oidc/config` and SLA escalation under `/api/v1/admin/sla-escalation/*`), audit logs, Intune, VMware, Proxmox, contracts, licenses, processes, treatments, methods, imports, frameworks, evidence, documents, knowledge base (`/api/v1/knowledge`), navigation configuration (`/api/v1/navigation`), NIS 2, Phase 6/ISMS operations, catalog, cost planning, webhooks, service accounts, email gateway, and global search.
 
 Cross-cutting features according to the current repository state:
 
@@ -63,7 +65,8 @@ Cross-cutting features according to the current repository state:
 - ETag support for central resource routes.
 - Idempotency middleware for webhooks and service accounts.
 - Scope audit, central error handling, and graceful shutdown setup.
-- Background services for Intune synchronization, reminder scheduling, and email gateway polling.
+- Cluster-safe background job execution via `executeTrackedJob` ([`backend/src/services/jobRunner.service.ts`](backend/src/services/jobRunner.service.ts), [`backend/src/services/jobLock.service.ts`](backend/src/services/jobLock.service.ts)), which uses lease-based job locks so scheduled jobs run exactly once across multiple backend instances.
+- Background services for Intune synchronization, reminder scheduling, email gateway polling, SLA escalation ([`backend/src/services/sla.scheduler.ts`](backend/src/services/sla.scheduler.ts)), and the AI assistant ([`backend/src/services/ai.scheduler.ts`](backend/src/services/ai.scheduler.ts)).
 
 ### Data Model
 
@@ -80,12 +83,12 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | Frontend | React 18, TypeScript, Vite |
 | UI | Material UI v9 (@mui/material), Tailwind CSS, Headless UI v2 (@headlessui/react), Heroicons |
 | Routing/State | React Router DOM v7 (^7.18.2), Zustand |
-| Forms/i18n/Charts | React Hook Form, react-i18next v17, Recharts |
+| i18n | react-i18next v17 |
 | HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect, cors, helmet |
 | Tests | Jest, ts-jest, Supertest, Vitest, Playwright |
 | Tooling | npm Workspaces, ESLint, Prettier, TypeScript (~5.9.0 backend, ^5.3.3 frontend/shared) |
 | Deployment | Docker (multi-stage builds), Docker Compose, Nginx 1.27 (frontend), Portainer (optional stack management) |
-| Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, otplib, prom-client, qrcode, redis, @azure/msal-node, multer, imapflow, mailparser, openid-client, express-rate-limit |
+| Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, @otplib/v12-adapter, prom-client, qrcode, redis, @azure/msal-node, multer, imapflow, mailparser, openid-client, express-rate-limit |
 | Icon Library (Frontend) | @emotion/react, @emotion/styled, @headlessui/react, @heroicons/react, @mui/icons-material |
 
 ---
@@ -142,7 +145,7 @@ asset-management-isms/
 npm install
 ```
 
-The root workspace installs dependencies for `backend`, `frontend`, and `shared`.
+The root workspace installs dependencies for `backend`, `frontend`, and `shared`. A root `postinstall` hook then automatically runs `npm run db:generate --workspace backend` (error-tolerant via `|| true`), so the Prisma client is generated as part of `npm install`. Step 3 can therefore be skipped in most cases; it is kept here for explicitness and re-runs.
 
 ### 2. Configure the Backend Environment
 
@@ -261,7 +264,7 @@ All services include Docker health checks:
 - **db**: `pg_isready` every 10s
 - **redis**: `redis-cli ping` every 10s
 - **backend**: HTTP GET `/health/live` every 30s (20s start period)
-- **frontend**: HTTP GET `/` every 30s (5s start period)
+- **frontend**: `wget --no-verbose --tries=1 --spider http://127.0.0.1/` every 30s (5s start period)
 
 The `depends_on` configuration uses `condition: service_healthy` to ensure proper startup ordering.
 
@@ -312,8 +315,8 @@ docker compose --env-file .env.production up -d
 # Check all services are healthy
 docker compose ps
 
-# Test backend health
-curl http://localhost:8080/api/v1/health/live
+# Test backend health (health endpoints are served at the root path, not under /api)
+docker compose exec backend node -e "require('http').get('http://localhost:3001/health/live', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Test frontend
 curl -I http://localhost:8080/
@@ -622,6 +625,8 @@ The API is versioned under `/api/v1`. Registered routes in the backend include, 
 | Organization and administration | `/api/v1/organization`, `/api/v1/admin` |
 | Audit and evidence | `/api/v1/audit-logs`, `/api/v1/evidence`, `/api/v1/documents` |
 | ISMS/Compliance | `/api/v1/frameworks`, `/api/v1/nis2`, `/api/v1/phase6`, `/api/v1/isms-operations`, `/api/v1/catalog` |
+| Knowledge base | `/api/v1/knowledge` (knowledge articles, linked to tickets/assets) |
+| Navigation configuration | `/api/v1/navigation` (user-configurable navigation order, see `navigationConfig.service.ts`) |
 | Business objects | `/api/v1/contracts`, `/api/v1/licenses`, `/api/v1/cost-planning` |
 | Business processes and risk workflows | `/api/v1/processes`, `/api/v1/treatments`, `/api/v1/methods` |
 | Action center | `/api/v1/action-center` |
@@ -652,6 +657,34 @@ The OpenAPI specification is located at [`docs/api/openapi.yaml`](docs/api/opena
 - **Organization Compliance Assessment:** The organization has implemented controls and can provide evidence.
 
 Status information in the repository should therefore be read as technical project/application coverage, not as organizational certification.
+
+---
+
+## Email-to-Ticket / Email Gateway
+
+The email gateway ([`backend/src/services/emailGateway.service.ts`](backend/src/services/emailGateway.service.ts), scheduler in [`backend/src/services/emailGateway.scheduler.ts`](backend/src/services/emailGateway.scheduler.ts)) turns inbound e-mails into tickets:
+
+- **Inbound providers:** IMAP (via `imapflow`) and Exchange Online via OAuth2 client credentials flow (MSAL `@azure/msal-node`, `acquireTokenByClientCredential`). The provider is selected with `inboundProvider` (`imap` or `exchange`).
+- **Sender mapping:** Inbound senders are mapped to local users case-insensitively via `User.email`, so tickets get a valid requester when the sender is a known active user.
+- **Deduplication:** Every inbound message is deduplicated by its RFC 822 `Message-ID` before ticket creation, preventing duplicate tickets on repeated polls or reconnects.
+- **Audit trail:** Inbound messages and their processing results are persisted as `EmailMessage` audit records (see [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma)).
+- **Cluster-safe polling:** The scheduler polls via `executeTrackedJob` ([`backend/src/services/jobRunner.service.ts`](backend/src/services/jobRunner.service.ts)), which uses lease-based job locks so polling runs exactly once even with multiple backend instances.
+
+Administration is available in the frontend under `/admin/email-gateway` ([`frontend/src/pages/AdminEmailGateway.tsx`](frontend/src/pages/AdminEmailGateway.tsx)). Mailbox and SMTP secrets are never returned to clients; sanitized configuration responses only expose boolean flags such as `*Configured`.
+
+---
+
+## Operational Modules and Admin Configuration
+
+The following operational modules are part of the current repository state:
+
+- **Knowledge base:** Backend routes under `/api/v1/knowledge` ([`backend/src/routes/knowledge.routes.ts`](backend/src/routes/knowledge.routes.ts), [`backend/src/services/knowledge.service.ts`](backend/src/services/knowledge.service.ts)) and frontend page [`frontend/src/pages/KnowledgeBase.tsx`](frontend/src/pages/KnowledgeBase.tsx).
+- **AI assistant:** [`backend/src/services/ai.service.ts`](backend/src/services/ai.service.ts) with a cluster-safe scheduler [`backend/src/services/ai.scheduler.ts`](backend/src/services/ai.scheduler.ts) (executed via `executeTrackedJob`); admin configuration page [`frontend/src/pages/AdminAI.tsx`](frontend/src/pages/AdminAI.tsx).
+- **SLA escalation:** Admin endpoints under `/api/v1/admin/sla-escalation/*` (config, `test-smtp`, `run-now`, logs) in [`backend/src/routes/admin.routes.ts`](backend/src/routes/admin.routes.ts), scheduler [`backend/src/services/sla.scheduler.ts`](backend/src/services/sla.scheduler.ts), and frontend pages [`frontend/src/pages/AdminSlaEscalation.tsx`](frontend/src/pages/AdminSlaEscalation.tsx) / [`frontend/src/pages/AdminTicketSla.tsx`](frontend/src/pages/AdminTicketSla.tsx).
+- **OIDC admin configuration:** `/api/v1/admin/oidc/config` (GET/PUT in [`backend/src/routes/admin.routes.ts`](backend/src/routes/admin.routes.ts)) with frontend page [`frontend/src/pages/AdminOIDC.tsx`](frontend/src/pages/AdminOIDC.tsx).
+- **Navigation configuration:** Backend service [`backend/src/services/navigationConfig.service.ts`](backend/src/services/navigationConfig.service.ts) exposed under `/api/v1/navigation`, edited in the frontend via [`frontend/src/pages/AdminNavigation.tsx`](frontend/src/pages/AdminNavigation.tsx) and [`frontend/src/components/NavigationOrderEditor.tsx`](frontend/src/components/NavigationOrderEditor.tsx).
+- **Cluster-safe job runner:** `executeTrackedJob` ([`backend/src/services/jobRunner.service.ts`](backend/src/services/jobRunner.service.ts)) with lease-based locks ([`backend/src/services/jobLock.service.ts`](backend/src/services/jobLock.service.ts)) is the shared foundation for all scheduled jobs (Intune sync, reminders, email gateway polling, SLA escalation, AI scheduler).
+- **Database administration:** Admin page [`frontend/src/pages/AdminDatabase.tsx`](frontend/src/pages/AdminDatabase.tsx) for database/backup-related operations.
 
 ---
 

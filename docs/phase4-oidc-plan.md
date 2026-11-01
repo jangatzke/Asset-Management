@@ -1,5 +1,7 @@
 # Phase 4 OIDC consolidation plan
 
+> **Status update (2026-10-30):** Completed (commit `a83383f`). The "Baseline inspection" below is the pre-Phase 4 state and is historical. Current code matches this plan: `OidcLoginState`/`OidcAccountLink` models exist in `backend/prisma/schema.prisma`, `openid-client` ^6.8.4 remains the dependency, and PKCE S256 + nonce + single-use hashed state are enforced in `backend/src/services/oidc.service.ts`.
+
 ## Baseline inspection
 - `git status --short` returned no output at start, so the working tree was clean before Phase 4 edits.
 - Current backend dependency set already contains `openid-client` `^6.8.4`; backend TypeScript emits CommonJS, so Phase 4 will use a dynamic import adapter rather than downgrading unless build verification proves incompatibility.

@@ -1,0 +1,4 @@
+{
+  "_comment": "Known documentation gaps accepted for Phase 1.5. Every entry must reference a prefix registered in backend/src/index.ts and state why the prefix currently has no documented path. Any prefix without a documented path and without an allowlist entry fails the drift check with exit code 1. The list is intentionally empty: the four previously undocumented prefixes (organization, navigation, knowledge, isms-operations) were documented from provable router forms instead of being allowlisted.",
+  "allowlist": []
+}

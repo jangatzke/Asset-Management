@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { assetApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { focusRing } from '../styles/tokens';
 import { GraphNode, GraphEdge, AssetGraphProps, NODE_TEXT_START_OFFSET, NODE_RIGHT_PADDING, MIN_ZOOM, MAX_ZOOM, GRAPH_VIEWBOX_WIDTH, GRAPH_VIEWBOX_HEIGHT, GRAPH_CENTER, NEUTRAL_EDGE_COLOR, CRITICALITY_COLORS, ensureFocusAssetNode, GraphDirectionFilter, CriticalityThreshold, CRITICALITY_THRESHOLDS, extractGraphPayload, getEdgeSource, getEdgeTarget, createNodeEndpointLookup, resolveEdgeEndpoint, buildVisualEdges, filterGraphForVisibleNodes, getNodeLabel, getNodeMetadata, buildSelectedAssetFields, buildSelectedAssetMetadataFields, buildSelectedAssetConnections, getCardSize, getNodeCardBounds, calculateNodePositions, buildDependencyFallbackGraph, getFillColor, getStrokeColor, getNodeInitials, truncateTextToWidth, truncateNodeLabel, getConnectorPath, getEdgeLabelPlacement } from './AssetGraphUtils';
 
 export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNodes, edges: propEdges, fallbackNode, focusAssetId, heightClassName = 'h-[32rem]', height = '512px' }) => {
@@ -420,8 +421,9 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
           role="group"
           tabIndex={0}
           aria-label={t('graph.ariaLabel')}
+          aria-roledescription={t('graph.a11y.roleDescription')}
           onKeyDown={handleGraphKeyDown}
-          className={`relative w-full ${heightClassName} overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900`}
+          className={`relative w-full ${heightClassName} overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${focusRing}`}
           style={{ height }}
         >
           <canvas

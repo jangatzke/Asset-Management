@@ -1,5 +1,7 @@
 # Intune Integration Service - Technical Specification
 
+> **Status update (2026-10-30):** Implemented. Evidence: [`backend/src/services/intune.service.ts`](../backend/src/services/intune.service.ts), [`intune.auth.ts`](../backend/src/services/intune.auth.ts) (MSAL `ConfidentialClientApplication`, certificate credentials — not the hand-rolled JWT flow of Section 2), [`intune.config.ts`](../backend/src/services/intune.config.ts), [`intune.client.ts`](../backend/src/services/intune.client.ts) (axios + retry/Retry-After), [`intune.scheduler.ts:178`](../backend/src/services/intune.scheduler.ts:178) (cluster-safe `executeTrackedJob`, not plain `setInterval` as in Section 6), [`backend/src/routes/intune.routes.ts`](../backend/src/routes/intune.routes.ts) guarded by `requireAdminAccess`, Prisma models `IntuneDeviceSync`/`IntuneDetectedApp`/`IntuneSyncStatus`/`IntuneSyncConfig`/`IntuneAppCredentials` ([`schema.prisma:3041`](../backend/prisma/schema.prisma:3041)), and admin UI [`frontend/src/pages/AdminIntune.tsx`](../frontend/src/pages/AdminIntune.tsx) (Section 13 "Future" is done). Env-var names in Section 3 drifted — see dated note there. Deleted-device handling (Section 5) was NOT implemented as written: devices are marked `syncStatus='missing'/'stale'` and assets `status='stale'`, never auto-archived ([`intune.service.ts:321`](../backend/src/services/intune.service.ts:321)).
+
 ## Overview
 
 This document specifies the architecture for a Microsoft Intune integration service that synchronizes managed devices as assets into the Asset Management system. The service uses Microsoft Graph API v1.0 with certificate-based authentication against Microsoft Entra ID.
@@ -247,6 +249,8 @@ model IntuneSyncConfig {
 
 ## 2. Authentication Service (`intune.auth.ts`)
 
+> **Status update (2026-10-30):** The implemented auth does not manually build/sign a JWT. It uses `@azure/msal-node` `ConfidentialClientApplication` with certificate credentials and the `.default` Graph scope ([`intune.auth.ts:12`](../backend/src/services/intune.auth.ts:12)), loading private key/x5c material via a SecretStore abstraction (`env:` / `file:` refs). The flow below is kept as historical design.
+
 ### Certificate-Based Authentication Flow
 
 1. Load PEM certificate from file path (configured via env var)
@@ -283,6 +287,8 @@ class IntuneAuthService {
 ## 3. Configuration Management (`intune.config.ts`)
 
 ### Environment Variables
+
+> **Status update (2026-10-30):** Actual variable names per [`intune.config.ts:56`](../backend/src/services/intune.config.ts:56) and [`backend/.env.example:76`](../backend/.env.example:76): the certificate is referenced via `INTUNE_CERT_PRIVATE_KEY_SECRET_REF` (SecretStore ref; legacy `INTUNE_CERT_PATH` accepted as fallback) with optional `INTUNE_CERT_X5C_SECRET_REF`; the thumbprint variable is `INTUNE_CERT_THUMBPRINT` (misspelled `INTUNE_CERT_THUMPRINT` still honored as fallback). Additionally supported: `INTUNE_RETRY_DELAY_MS` and `INTUNE_BATCH_SIZE`. Validation ranges: full-sync interval 1–168 h, incremental 10–1440 min, retries 1–10.
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -437,14 +443,13 @@ interface IntuneDeviceToAssetMapping {
 
 ### Deleted Device Handling
 
-1. Mark device with `isArchived = true` and `syncStatus = 'deleted'`
-2. Link to existing asset (if any) and mark asset as `archived`
-3. Keep archive for configurable grace period (default: 7 days)
-4. After grace period, mark as fully archived (but keep in DB for audit)
+> **Status update (2026-10-30):** Not implemented this way. `markStaleDevices` ([`intune.service.ts:321`](../backend/src/services/intune.service.ts:321)) marks disappeared devices `syncStatus='missing'` inside the grace period and `'stale'` after it, sets linked (non-archived) assets to `status='stale'`, and **never auto-archives** anything; archiving is a manual admin action (`DELETE /intune/devices/:id/archive` → [`archiveDevice`](../backend/src/services/intune.service.ts:370)).
 
 ## 6. Background Sync Scheduler
 
 ### Implementation
+
+> **Status update (2026-10-30):** The implemented scheduler ([`intune.scheduler.ts`](../backend/src/services/intune.scheduler.ts)) does use interval timers, but each sync runs through `executeTrackedJob` with advisory locks and JobRun history for cluster safety ([`intune.scheduler.ts:178`](../backend/src/services/intune.scheduler.ts:178)); it also runs a periodic health check. The sketch below is historical.
 
 Uses `setInterval` with dynamic intervals from config:
 
@@ -493,6 +498,8 @@ if (intuneConfig.isEnabled()) {
 ## 7. Admin Routes (`intune.routes.ts`)
 
 ### Endpoints
+
+> **Status update (2026-10-30):** The implemented router additionally exposes `GET /health`, `POST /scheduler/start`, `POST /scheduler/stop`, and CRUD for app credentials (`GET|POST|PUT|DELETE /credentials`) ([`intune.routes.ts:129`](../backend/src/routes/intune.routes.ts:129)); all routes require admin access.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -635,6 +642,8 @@ function updateHealthStatus(): 'healthy' | 'degraded' | 'unhealthy' {
 5. **Memory management**: Process devices in batches, not all at once
 
 ## 13. Frontend Integration (Future)
+
+> **Status update (2026-10-30):** Implemented — [`frontend/src/pages/AdminIntune.tsx`](../frontend/src/pages/AdminIntune.tsx) provides status/health viewing, manual sync triggers, device listing and configuration.
 
 The admin routes will support a future frontend section for:
 - Viewing sync status and health

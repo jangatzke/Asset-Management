@@ -1,6 +1,8 @@
 # Technical Implementation Plan: Cost Planning and Fiscal-Year Reporting
 
-**Scope:** Architecture and implementation plan only. No production code changes are included in this plan.  
+> **Status update (2026-10-30):** Implemented end-to-end. Evidence: Prisma models `FiscalYearConfig`/`CostPlan`/`CostPlanItem` ([`backend/prisma/schema.prisma:2102`](../backend/prisma/schema.prisma:2102)), [`backend/src/services/fiscalYear.service.ts`](../backend/src/services/fiscalYear.service.ts) + `fiscalYear.service.test.ts`, [`backend/src/services/costPlanning.service.ts`](../backend/src/services/costPlanning.service.ts) + `costPlanning.service.test.ts`, [`backend/src/routes/costPlanning.routes.ts`](../backend/src/routes/costPlanning.routes.ts) mounted at `/api/v1/cost-planning` ([`backend/src/index.ts:264`](../backend/src/index.ts:264)), fiscal-year admin endpoints in [`admin.routes.ts:204`](../backend/src/routes/admin.routes.ts:204), frontend pages [`CostPlanning.tsx`](../frontend/src/pages/CostPlanning.tsx) (route `/cost-planning`), [`AdminFiscalYear.tsx`](../frontend/src/pages/AdminFiscalYear.tsx) (route `/admin/fiscal-year`) and the dashboard cost report in [`Dashboard.tsx:188`](../frontend/src/pages/Dashboard.tsx:188). Deviations from this plan (see dated notes): authorization reuses `bcm.read`/`bcm.write` via an `costPlanning` entity-type mapping instead of dedicated `costPlanning.*` permissions ([`authorization.service.ts:398`](../backend/src/services/authorization.service.ts:398)), and the router additionally exposes supplier lookup/create endpoints (`GET|POST /cost-planning/suppliers`).
+
+**Scope:** Architecture and implementation plan only. No production code changes are included in this plan.
 **Primary feature areas:** Fiscal-year admin setting, cost-planning menu and workflows, derived investment-relevant positions, yearly cost-plan takeover, manual planned acquisitions, category filtering and CSV export, acquisition completion metadata, dashboard cost report.  
 **Security context:** The P0/P1 findings from [`docs/repository-assessment.md`](../docs/repository-assessment.md) are mandatory constraints for the implementation.
 
@@ -306,6 +308,8 @@ Add frontend client methods to [`frontend/src/services/api.ts`](../frontend/src/
 
 ### 6.2 Cost-planning endpoints
 
+> **Status update (2026-10-30):** All listed endpoints exist as specified ([`costPlanning.routes.ts`](../backend/src/routes/costPlanning.routes.ts)); the implementation adds `GET /api/v1/cost-planning/suppliers` (active-supplier search, requires `suppliers.read`) and `POST /api/v1/cost-planning/suppliers` (inline supplier creation, requires `suppliers.write`).
+
 All endpoints require authentication plus explicit cost-planning entity permission.
 
 - `GET /api/v1/cost-planning/years`
@@ -351,6 +355,8 @@ Use [`zod`](../backend/src/routes/asset.routes.ts) patterns already present in r
 ## 7. Authorization and security plan
 
 ### 7.1 New permission domain
+
+> **Status update (2026-10-30):** Implemented differently: `'costPlanning'` was added to the `EntityType` union, but no dedicated `costPlanning.*` granular permissions exist — the service maps the entity type onto existing BCM permissions (`permissionForAction` uses entity `bcm`; read resolves to `bcm.read`, see [`authorization.service.ts:398`](../backend/src/services/authorization.service.ts:398)). Routes guard with `authorizeEntityRead/Write('costPlanning')`.
 
 Extend `EntityPermissions` in [`backend/src/services/authorization.service.ts`](../backend/src/services/authorization.service.ts) to include:
 
@@ -666,12 +672,14 @@ flowchart TD
 
 ## 18. Implementation checklist for code mode
 
-- [ ] Extend authorization permissions with explicit `costPlanning` support.
-- [ ] Add Prisma migration for fiscal-year config, cost plans, and cost-plan items.
-- [ ] Implement fiscal-year service and tests.
-- [ ] Implement cost-planning service and routes with validation.
-- [ ] Add audit logging and CSV export.
-- [ ] Update API client, routing, navigation, localization, and admin fiscal-year UI.
-- [ ] Implement cost-planning page with candidates, yearly plan, manual item flow, filters, export, and completion modals.
-- [ ] Extend dashboard with cost report cards and historical graph.
-- [ ] Update OpenAPI and run backend/frontend regression tests.
+> **Status update (2026-10-30):** All items below were completed (see the top status banner for file evidence), except that "explicit `costPlanning` support" was realized via the `bcm.*` permission mapping rather than new permission strings.
+
+- [x] Extend authorization permissions with explicit `costPlanning` support.
+- [x] Add Prisma migration for fiscal-year config, cost plans, and cost-plan items.
+- [x] Implement fiscal-year service and tests.
+- [x] Implement cost-planning service and routes with validation.
+- [x] Add audit logging and CSV export.
+- [x] Update API client, routing, navigation, localization, and admin fiscal-year UI.
+- [x] Implement cost-planning page with candidates, yearly plan, manual item flow, filters, export, and completion modals.
+- [x] Extend dashboard with cost report cards and historical graph.
+- [x] Update OpenAPI and run backend/frontend regression tests. (cost-planning paths are documented in [`docs/api/openapi.yaml:2526`](../docs/api/openapi.yaml:2526))

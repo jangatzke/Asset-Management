@@ -1,5 +1,7 @@
 # Phase 7: Domain Services & Business Rule Hardening
 
+> **Status update (2026-10-30):** Completed (commit `94a3648`). The "Current State Analysis" below is the pre-Phase 7 snapshot and is historical; line-number references (e.g. `phase6.service.ts:14`) refer to that state. Implemented deliverables exist today: `backend/src/services/statusTransition.ts`, supplier/bcm/correctiveaction/training services, explicit domain routes in `backend/src/routes/phase6.routes.ts`, and tests in `backend/src/__tests__/statusTransition.test.ts`. The generic `Phase6Service` (`backend/src/services/phase6.service.ts`) and `PHASE6_MODEL_MAP` (`backend/src/services/phase6.resources.ts`) remain for backward compatibility as planned.
+
 ## Scope
 
 Phase 7 extracts explicit domain services from the generic `Phase6Service` CRUD monolith for ISMS business domains covered by the Phase-6 baseline, and hardens business-rule validation, status-transition automata, and cross-entity constraints. The goal is to replace implicit/generic behavior with explicit, testable domain logic while preserving API compatibility.

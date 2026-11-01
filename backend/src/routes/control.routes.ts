@@ -6,7 +6,9 @@ import { authorizationService } from '../services/authorization.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams } from '../middleware/validation';
 import { AppError } from '../middleware/errorHandler';
-import { ApproveRiskTreatmentSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, GenerateIso27001SoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
+import { ApproveRiskTreatmentSchema, BulkArchiveIdsSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, GenerateIso27001SoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
+import { setPaginationHeader } from '../utils/pagination';
+import { idempotency } from '../middleware/idempotency';
 
 export const controlRouter = Router();
 
@@ -17,6 +19,7 @@ export const controlRouter = Router();
 controlRouter.get('/', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
   try {
     const result = await controlService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'controls') as any, await authorizationService.buildControlImplementationReadFilter(req.userId!));
+    setPaginationHeader(res, result);
     res.json(result);
   } catch (error) {
     next(error);
@@ -67,6 +70,18 @@ controlRouter.get('/soa/diff', authenticate, requirePermission('controls.read'),
     const to = req.query.to as string;
     if (!from || !to) throw new AppError('Query parameters "from" and "to" are required', 400);
     res.json(await controlService.diffSoA(from, to));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Phase 3.3 – static route /soa/pending-justifications must be before parametric
+// /soa/:id routes (same convention as /soa and /soa/diff above).
+// Read-only report object: no idempotency(), no X-Total-Count (not a D1 list).
+controlRouter.get('/soa/pending-justifications', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
+  try {
+    const report = await controlService.buildPendingJustificationReport({ scopeId: req.query.scopeId as string | undefined });
+    res.json(report);
   } catch (error) {
     next(error);
   }
@@ -145,6 +160,40 @@ controlRouter.post('/tests', authenticate, requirePermission('controls.test'), v
 controlRouter.get('/coverage-matrix', authenticate, requirePermission('controls.read'), async (req: AuthRequest, res, next) => {
   try {
     res.json(await controlService.coverageMatrix(req.query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk archive (soft-delete) — Phase 2.1 / D4. Mirrors the Assets bulk archive
+// (asset.routes.ts). Per-item authorization + per-item archive so a single
+// failure never aborts the other ids. Placed before the parametric /:id routes
+// so the static path is matched first.
+controlRouter.post('/bulk-archive', authenticate, requirePermission('controls.write'), idempotency(), validateBody(BulkArchiveIdsSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    const succeeded: Array<{ id: string; status: number }> = [];
+    const failed: Array<{ id: string; error: string; status: number }> = [];
+
+    for (const id of ids) {
+      try {
+        // Mirror the single delete guard (authorizeEntityDelete → controls.write).
+        await authorizationService.requireForEntity(req.userId!, 'controls.write', 'controls', id);
+        await controlService.delete(id, req.userId);
+        succeeded.push({ id, status: 200 });
+      } catch (error: any) {
+        const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+        failed.push({ id, error: error?.message ?? 'Archive failed', status });
+      }
+    }
+
+    res.status(200).json({
+      succeeded,
+      failed,
+      total: ids.length,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    });
   } catch (error) {
     next(error);
   }

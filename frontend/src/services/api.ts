@@ -5,6 +5,7 @@ import type {
   AssetQueryDTO,
   AssessIncidentDTO,
   BulkArchiveAssetsDTO,
+  BulkArchiveIdsDTO,
   ChangeIncidentStatusDTO,
   ChangeKnowledgeTimeDTO,
   CloseIncidentDTO,
@@ -93,6 +94,8 @@ export interface Nis2Sector { key: string; nameDe: string; nameEn: string; subSe
 export interface Nis2QuestionnaireV2 { version: string; title: string; description: string; questions: Nis2Question[]; scoringRules: Record<string, { condition: string; labelDe: string; labelEn: string }>; }
 export interface Nis2Assessment { id: string; organizationUnitId?: string | null; questionnaireVersion: string; answers?: Record<string, Nis2Answer>; preliminaryResult?: string | null; result?: string | null; justification?: string | null; status: string; submittedForApprovalAt?: string | null; approvedAt?: string | null; createdAt: string; updatedAt: string; }
 export interface Nis2RegistrationChange { id: string; registrationId: string; changeType: string; description: string; changedData: Record<string, string>; notificationDeadline?: string | null; submittedAt?: string | null; submissionProof?: string | null; status: string; createdAt: string; }
+export interface Nis2CrosswalkArticle { articleId: string; article: string; titleDe: string; titleEn: string; controls: string[]; validControls: string[]; missingControls: string[]; unknownControls: string[]; }
+export interface Nis2CrosswalkCompleteness { articleCount: number; controlCount: number; mappedControlCount: number; isComplete: boolean; articles: Nis2CrosswalkArticle[]; missingControls: string[]; unknownControls: string[]; unmappedArticles: string[]; unmappedControls: string[]; }
 export interface Nis2Registration { id: string; assessmentId?: string | null; entityType: string; registrationDate?: string | null; deadline?: string | null; contactPerson?: string | null; contactDetails?: string | null; submissionProof?: string | null; bsiConfirmation?: string | null; status: string; createdAt: string; updatedAt: string; assessment?: Pick<Nis2Assessment, 'id' | 'organizationUnitId' | 'questionnaireVersion' | 'result' | 'status'> | null; changes?: Nis2RegistrationChange[]; }
 
 /** Standardized API error types for client-side error handling */
@@ -114,12 +117,200 @@ export interface ApiErrorResponse {
 
 export type ApiEntity = Record<string, JsonValue | undefined>;
 
-/** Typed response wrappers for specific entity types */
-export type AssetResponse = Record<string, unknown> & { type?: string; criticality?: string; displayId?: string };
-export type RiskResponse = Record<string, unknown> & { riskLevel?: string; status?: string };
-export type ControlResponse = Record<string, unknown> & { status?: string; catalogId?: string };
-export type IncidentResponse = Record<string, unknown> & { severity?: string; status?: string };
-export type DeleteResponse = { success: boolean };
+/**
+ * Typed response wrappers for the core entities. The backend serializes the
+ * Prisma model (plus the includes declared in `asset/risk/control/incident`
+ * services) to JSON-safe ISO strings — no shared Zod *response* schema exists
+ * (shared DTO schemas only cover request bodies), so these interfaces mirror
+ * the actual serialized fields instead of falling back to
+ * `Record<string, unknown>`.
+ */
+export interface AssetResponse {
+  id: string;
+  displayId: string;
+  name: string;
+  description?: string | null;
+  assetTypeId: string;
+  assetSubtypeId?: string | null;
+  inventoryNumber?: string | null;
+  subType?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+  serialNumber?: string | null;
+  externalId?: string | null;
+  organizationUnitId?: string | null;
+  locationId?: string | null;
+  technicalOperatorId?: string | null;
+  businessOwnerId?: string | null;
+  informationSecurityResponsibleId?: string | null;
+  licenseInfo?: string | null;
+  contractEndsAt?: string | null;
+  licenseExpiresAt?: string | null;
+  personnelSafetyRelevance: string;
+  regulatoryRelevance: string;
+  financialDamagePotential: string;
+  productionDowntimeImpact: string;
+  lifecycleStatus: string;
+  purchaseDate?: string | null;
+  commissioningDate?: string | null;
+  endOfSaleDate?: string | null;
+  endOfLifeDate?: string | null;
+  endOfSupportDate?: string | null;
+  confidentialityNeed: string;
+  integrityNeed: string;
+  availabilityNeed: string;
+  dataProtectionRelevance: boolean;
+  criticality: string;
+  complianceRelevance: boolean;
+  archivedAt?: string | null;
+  disposalDate?: string | null;
+  disposalMethod?: string | null;
+  disposalResponsible?: string | null;
+  dataSource?: string | null;
+  lastDetectedAt?: string | null;
+  status: string;
+  version: string;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  assetType?: { id: string; name: string; inventoryEnabled?: boolean; inventoryPattern?: string | null } | null;
+  assetSubtype?: { id: string; name: string } | null;
+  organizationUnit?: { id: string; name: string } | null;
+  location?: { id: string; name: string } | null;
+  networkAddresses?: Array<Record<string, unknown>>;
+  processLinks?: Array<{ process?: { id: string; displayId: string; name: string } | null }>;
+  serviceLinks?: Array<{ service?: { id: string; displayId: string; name: string } | null }>;
+  contractLinks?: Array<{ contract?: { id: string; displayId: string; name: string } | null }>;
+  licenseLinks?: Array<{ license?: { id: string; displayId: string; name: string } | null }>;
+}
+
+export interface RiskResponse {
+  id: string;
+  displayId: string;
+  title: string;
+  description: string;
+  organizationUnitId?: string | null;
+  threatId?: string | null;
+  vulnerabilityId?: string | null;
+  possibleImpact: string;
+  likelihood: number;
+  impact: number;
+  inherentRisk: string;
+  residualRisk: string;
+  targetRisk: string;
+  riskOwnerId: string;
+  assessorId: string;
+  assessmentDate: string;
+  nextReviewDate: string;
+  evaluationJustification?: string | null;
+  businessProcessId?: string | null;
+  status: string;
+  version: string;
+  riskMethodVersionId?: string | null;
+  scenarioId?: string | null;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  organizationUnit?: { id: string; name: string } | null;
+  scenario?: Record<string, unknown> | null;
+  threat?: Record<string, unknown> | null;
+  vulnerability?: Record<string, unknown> | null;
+  causes?: Array<Record<string, unknown>>;
+  impacts?: Array<Record<string, unknown>>;
+  riskAssets?: Array<{ asset?: { id: string; displayId: string; name: string } | null }>;
+  processLinks?: Array<{ process?: { id: string; displayId: string; name: string } | null }>;
+  serviceLinks?: Array<{ service?: { id: string; displayId: string; name: string } | null }>;
+}
+
+export interface ControlResponse {
+  id: string;
+  catalogId: string;
+  catalogVersion: string;
+  title: string;
+  description: string;
+  controlGoal: string;
+  responsibleId?: string | null;
+  applicability: string;
+  applicabilityJustification?: string | null;
+  implementationStatus: string;
+  maturityLevel: number;
+  implementationDescription?: string | null;
+  testMethod?: string | null;
+  testFrequency?: string | null;
+  lastEffectivenessReview?: string | null;
+  nextTestDate?: string | null;
+  findings?: string | null;
+  actions?: string | null;
+  status: string;
+  version: string;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  requirementMappings?: Array<Record<string, unknown>>;
+  implementations?: Array<Record<string, unknown>>;
+}
+
+export interface IncidentResponse {
+  id: string;
+  displayId: string;
+  title: string;
+  description: string;
+  detectionTime: string;
+  knowledgeTime: string;
+  reporterId?: string | null;
+  reporterSource?: string | null;
+  confidentialityImpact: string;
+  integrityImpact: string;
+  availabilityImpact: string;
+  operationalImpact?: string | null;
+  financialImpact?: number | string | null;
+  legalImpact?: string | null;
+  personalDataImpact: boolean;
+  affectedCustomers: string[];
+  affectedThirdParties: string[];
+  suspectedCause?: string | null;
+  isIntentional?: boolean | null;
+  hasCrossBorderImpact?: boolean | null;
+  indicatorsOfCompromise: string[];
+  immediateActions: string[];
+  incidentManagerId: string;
+  status: string;
+  severity: string;
+  notificationStatus: string;
+  nis2Relevant?: boolean;
+  nis2Severity?: string | null;
+  nis2ReportedAt?: string | null;
+  nis2ReportDeadline?: string | null;
+  nis2FinalReportDue?: string | null;
+  significanceRuleVersionId?: string | null;
+  isSignificant: boolean;
+  significanceReasons: string[];
+  rootCause?: string | null;
+  lessonsLearned?: string | null;
+  measuresEvaluation?: string | null;
+  closureSummary?: string | null;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  ticketId?: string | null;
+  version: string;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  reports?: Array<Record<string, unknown>>;
+  escalations?: Array<Record<string, unknown>>;
+}
+
+export interface DeleteResponse {
+  success: boolean;
+}
 
 export type IncidentReportType = 'early_warning_24h' | 'incident_notification_72h' | 'interim_report' | 'monthly_final_report';
 
@@ -308,10 +499,61 @@ export const refreshAccessToken = (): Promise<string> => {
   return refreshPromise;
 };
 
+/**
+ * Phase 1.3 (D2): Mutating core-entity routes that need replay protection.
+ * GET/HEAD/OPTIONS and `/auth/*` must never receive an Idempotency-Key.
+ */
+const IDEMPOTENCY_MUTATION_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+// Phase 2.1 (D4): `/controls` is added so POST /controls/bulk-archive receives
+// an Idempotency-Key as well. The other four prefixes already cover the new
+// bulk-archive/transition routes (/tickets/bulk-transition etc.).
+const IDEMPOTENCY_PATH_PREFIXES = ['/assets', '/tickets', '/risks', '/incidents', '/controls'];
+
+const isIdempotencyScope = (method: string, url: string): boolean => {
+  if (!IDEMPOTENCY_MUTATION_METHODS.includes(method.toUpperCase())) return false;
+  // Normalize absolute URLs to their path so both baseURL-relative and absolute
+  // request URLs match the same prefixes.
+  const path = url.replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
+  if (path.includes('/auth/')) return false;
+  if (path === '/assets/bulk-archive') return true;
+  return IDEMPOTENCY_PATH_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+};
+
+/** RFC 4122 v4 identifier for the Idempotency-Key header. */
+const generateRequestIdempotencyKey = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID (older jsdom/node).
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'));
+    return `${hex[0]}${hex[1]}${hex[2]}${hex[3]}-${hex[4]}${hex[5]}-${hex[6]}${hex[7]}-${hex[8]}${hex[9]}-${hex[10]}${hex[11]}${hex[12]}${hex[13]}${hex[14]}${hex[15]}`;
+  }
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+};
+
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const method = (config.method ?? 'GET').toUpperCase();
+  const url = config.url ?? '';
+  if (isIdempotencyScope(method, url)) {
+    // Retry stability: the 401 refresh interceptor re-sends the SAME config
+    // object (api(originalRequest)), so this header survives the retry. Only
+    // generate a key when one is not already attached to this logical operation.
+    config.headers = config.headers ?? {};
+    const existing = config.headers['Idempotency-Key'];
+    if (!existing) {
+      config.headers['Idempotency-Key'] = generateRequestIdempotencyKey();
+    }
   }
   return config;
 });
@@ -421,6 +663,7 @@ export const riskApi = {
   create: (data: CreateRiskDTO) => api.post('/risks', data),
   update: (id: string, data: UpdateRiskDTO) => api.put(`/risks/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/risks/${id}`),
+  bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/risks/bulk-archive', data),
   createTreatmentPlan: (riskId: string, data: any) => api.post(`/risks/${riskId}/treatment`, data),
   createAssessment: (data: CreateRiskAssessmentDTO) => api.post('/risks/assessments', data),
   listAssessments: (riskId: string) => api.get(`/risks/${riskId}/assessments`),
@@ -463,6 +706,28 @@ export interface SoADiffResponse {
   summary: { addedCount: number; removedCount: number; changedCount: number; unchangedCount: number };
 }
 
+export type PendingJustificationReason = 'placeholder_pending_justification' | 'pending_applicability_decision' | 'empty_justification';
+
+export interface PendingJustificationEntry {
+  soaItemId: string;
+  soaId: string;
+  soaVersion: number;
+  approvalStatus: string;
+  scopeId: string;
+  controlId: string | null;
+  catalogId: string | null;
+  controlTitle: string | null;
+  requirementId: string | null;
+  applicability: string;
+  reason: PendingJustificationReason;
+}
+
+export interface PendingJustificationReport {
+  generatedAt: string;
+  totalPending: number;
+  entries: PendingJustificationEntry[];
+}
+
 export interface CoverageMatrixControl {
   id: string;
   title: string;
@@ -499,6 +764,7 @@ export const controlApi = {
   create: (data: CreateControlDTO | { catalogId: string; catalogVersion: string; title: string; description: string; controlGoal: string; applicability?: string }) => api.post('/controls', data),
   update: (id: string, data: UpdateControlDTO) => api.put(`/controls/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/controls/${id}`),
+  bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/controls/bulk-archive', data),
   createImplementation: (data: ControlImplementationDTO) => api.post('/controls/implementations', data),
   listImplementationRisks: (implementationId: string, params?: RiskControlAssessmentListQueryDTO) => api.get(`/controls/implementations/${implementationId}/risks`, { params }),
   createTest: (data: CreateControlTestDTO) => api.post('/controls/tests', data),
@@ -510,6 +776,7 @@ export const controlApi = {
   approveSoA: (id: string, data?: any) => api.post(`/controls/soa/${id}/approve`, data ?? {}),
   exportSoA: (id: string, format: 'csv' | 'html') => api.get(`/controls/soa/${id}/export`, { params: { format } }),
   diffSoA: (from: string, to: string) => api.get<SoADiffResponse>('/controls/soa/diff', { params: { from, to } }),
+  pendingJustifications: (params?: { scopeId?: string }) => api.get<PendingJustificationReport>('/controls/soa/pending-justifications', { params }),
   history: (id: string, params?: EntityHistoryParams) => api.get<PaginatedResponse<EntityHistoryEntry> | EntityHistoryEntry[]>(`/controls/${id}/history`, { params }),
 };
 
@@ -675,6 +942,8 @@ export const ticketApi = {
   getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
+  bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/tickets/bulk-archive', data),
+  bulkTransition: (ids: string[], toStatus: string, justification?: string) => api.post<BulkOperationResult>('/tickets/bulk-transition', { ids, toStatus, justification }),
   changeType: (id: string, data: { type: 'service_request' | 'problem' | 'change' }) => api.post<TicketResponse>(`/tickets/${id}/type`, data),
   convertFromIncident: (id: string, data: { targetType: 'problem' | 'change'; title?: string }) => api.post<TicketResponse>(`/tickets/${id}/convert`, data),
   updateProblem: (id: string, data: TicketProblemExtension) => api.put<TicketResponse>(`/tickets/${id}/problem`, data),
@@ -727,6 +996,7 @@ export const incidentApi = {
   create: (data: CreateIncidentDTO) => api.post('/incidents', data),
   update: (id: string, data: UpdateIncidentDTO) => api.put(`/incidents/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/incidents/${id}`),
+  bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/incidents/bulk-archive', data),
   assess: (id: string, data: AssessIncidentDTO) => api.post(`/incidents/${id}/assess`, data),
   changeStatus: (id: string, data: ChangeIncidentStatusDTO) => api.post(`/incidents/${id}/status`, data),
   decideNonReportableApproval: (id: string, data: { decision: 'approve' | 'reject'; returnReason?: string }) => api.post(`/incidents/${id}/non-reportable-approval`, data),
@@ -762,6 +1032,7 @@ export const nis2Api = {
   createRegistration: (data: { assessmentId: string; entityType: string; deadline: string; registrationDate?: string; contactPerson?: string; contactDetails?: string; submissionProof?: string; bsiConfirmation?: string }) => api.post<Nis2Registration>('/nis2/registrations', data),
   recordRegistrationChange: (id: string, data: { changeType: string; description: string; changedData: Record<string, string>; notificationDeadline?: string; submittedAt?: string; submissionProof?: string }) => api.post<Nis2RegistrationChange>(`/nis2/registrations/${id}/changes`, data),
   ensureMeasuresCatalogue: () => api.post('/nis2/measures-catalogue/ensure'),
+  getCrosswalk: () => api.get<Nis2CrosswalkCompleteness>('/nis2/crosswalk'),
   listSectors: () => api.get<Nis2Sector[]>('/nis2/sectors'),
   getQuestionnaireV2: () => api.get<Nis2QuestionnaireV2>('/nis2/questionnaire/v2'),
   ensureV2Questionnaire: () => api.post('/nis2/questionnaire/v2/ensure'),

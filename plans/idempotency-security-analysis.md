@@ -1,5 +1,7 @@
 # Idempotency Middleware Security Analysis & Remediation Plan
 
+> **Status update (2026-10-30):** All three remediations have been implemented. Evidence in [`backend/src/middleware/idempotency.ts`](../backend/src/middleware/idempotency.ts): atomic reservation via Redis SET NX **before** `next()` (see the "CRITICAL FIX" note at [`idempotency.ts:112`](../backend/src/middleware/idempotency.ts:112)), trusted-principal extraction that never falls back to raw headers and returns 401 `MISSING_PRINCIPAL` without a trusted principal ([`idempotency.ts:79`](../backend/src/middleware/idempotency.ts:79)), and key-format validation. Recursive canonical hashing is in [`idempotency.service.ts:76`](../backend/src/services/idempotency.service.ts:76) (`canonicalizeObject`, used by `generateRequestBodyHash`). Route registration follows the recommended "Option B": `authenticate, authorize('admin'), idempotency()` precede the webhook/service-account routers ([`backend/src/index.ts:275`](../backend/src/index.ts:275)). The proposed concurrency/security test files were consolidated into [`backend/src/__tests__/idempotency.integration.test.ts`](../backend/src/__tests__/idempotency.integration.test.ts) (duplicate-request, body-mismatch 409, non-caching of 4xx/5xx, distributed Redis polling scenarios). The "current implementation" code excerpts below describe the pre-fix state and are kept as historical analysis.
+
 ## Executive Summary
 
 This document analyzes three critical issues in the idempotency/reservation middleware system and provides concrete, code-level remediation plans. The issues are:
@@ -829,6 +831,8 @@ describe('Principal extraction security', () => {
 ---
 
 ## Summary of Changes
+
+> **Status update (2026-10-30):** All rows below are done, with two naming deviations: the Redis reservation logic lives in [`backend/src/services/idempotency-redis-client.ts`](../backend/src/services/idempotency-redis-client.ts) (in addition to `idempotency-redis-store.ts`), and the new tests were written as `idempotency.integration.test.ts` instead of separate `idempotency.concurrency.test.ts` / `idempotency.security.test.ts` files.
 
 | Issue | File | Change |
 |-------|------|--------|

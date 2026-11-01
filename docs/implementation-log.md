@@ -1,5 +1,7 @@
 # Implementation Log
 
+> **Status update (2026-10-30):** Historical entries below are point-in-time records; file paths, test names and line numbers inside them may refer to state at the time of the entry. Known drift found in this audit: `backend/src/routes/metrics.routes.ts` (Phase 11 entry) no longer exists — `/metrics` is wired directly in `backend/src/index.ts` via `createMetricsAuthMiddleware()`/`metricsEndpoint()` from `backend/src/middleware/metrics.ts`; `frontend/src/pages/RiskDetail.test.tsx` (Phase 8 entry) and `scripts/__tests__/ci-config.test.ts` (Phase 12 plan; actual location is `backend/src/__tests__/ci-config.test.ts`) likewise no longer match the tree. The Phase 11/12 "Commit: Pending" markers were later fulfilled (`0c6498e`, `0daa75c`; see the Phase Commit List at the end of this log).
+
 ## 2026-10-25 — Global Full-Text Search and Performance Indexes
 
 | Field | Value |

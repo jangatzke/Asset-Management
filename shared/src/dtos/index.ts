@@ -228,6 +228,14 @@ export const BulkArchiveAssetsSchema = z.object({
 
 export type BulkArchiveAssetsDTO = z.infer<typeof BulkArchiveAssetsSchema>;
 
+// Generic bulk archive DTO for tickets, risks, controls and incidents.
+// Same per-item envelope semantics as the Assets bulk archive (Phase 2.1 / D4).
+export const BulkArchiveIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'At least one id is required').max(100, 'Maximum 100 ids per bulk operation'),
+});
+
+export type BulkArchiveIdsDTO = z.infer<typeof BulkArchiveIdsSchema>;
+
 // Disposal proof DTO (AST-031)
 export const DisposalProofSchema = z.object({
   disposalDate: z.coerce.date(),
@@ -1880,6 +1888,22 @@ export const ChangeTicketStatusSchema = z.object({
   justification: z.string().max(500).optional(),
 });
 export type ChangeTicketStatusDTO = z.infer<typeof ChangeTicketStatusSchema>;
+
+// Phase 2.1 (D4): bulk ticket status transition. The target status must be one
+// of the known ticket statuses; per-ticket validity is enforced by the shared
+// state machine in ticketTransitions.ts (getAllowedTicketTransitions), never by
+// a local transition table.
+export const BulkTransitionTicketsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'At least one ticket id is required').max(100, 'Maximum 100 tickets per bulk operation'),
+  toStatus: z.enum([
+    'new', 'under_investigation', 'contained', 'resolved', 'closed',
+    'in_progress', 'pending', 'on_hold', 'fulfilled', 'cancelled',
+    'investigating', 'identified', 'workaround',
+    'draft', 'assessment', 'approval', 'approved', 'rejected', 'implemented', 'reviewing',
+  ]),
+  justification: z.string().max(500).optional(),
+});
+export type BulkTransitionTicketsDTO = z.infer<typeof BulkTransitionTicketsSchema>;
 
 export const ChangeTicketTypeSchema = z.object({
   type: z.enum(['service_request', 'problem', 'change']),

@@ -1,5 +1,7 @@
 # Technical Consolidation and Hardening Refactoring Plan
 
+> **Status update (2026-10-30):** The phase list below is the original plan snapshot. After the Phase 5 review gate, Phases 6–14 were explicitly authorized and all have since been implemented and verified (see `docs/implementation-log.md`, section "Phase Commit List (All Phases 0–14)", commits `1250be6` … `f833852`). The "Reserved pending post-gate decision" placeholders for Phases 6–14 are therefore obsolete; per-phase plans exist as `docs/phase6-dto-api-contract-plan.md` through `docs/phase14-code-quality-plan.md`. Known items still open today: real-browser e2e is not wired into CI, the NIS2 frontend still uses `ensureDefaultQuestionnaire`, and a `RiskEvidenceLinker` placeholder remains in `frontend/src/pages/RiskDetail.tsx`.
+
 ## Mandatory per-phase workflow
 
 Every phase must use this workflow before moving to the next phase:

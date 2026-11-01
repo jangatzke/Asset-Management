@@ -228,6 +228,12 @@ export class AssetService {
 
     const effectiveWhere: Prisma.AssetWhereInput = Object.keys(authzWhere).length ? { AND: [where, authzWhere] } : where;
 
+    // Phase 2.5 read-path projection: the list response only renders name-level
+    // relation data (Assets.tsx table + CSV export), while the edit/detail views
+    // load full relations through getById. Keep the top-level include keys (they
+    // are pinned by asset.crud.test.ts) but narrow each nested relation to the
+    // fields the frontend contract declares, so list rows no longer carry the
+    // complete related models.
     const [assets, total] = await Promise.all([
       prisma.asset.findMany({
         where: effectiveWhere,
@@ -235,15 +241,35 @@ export class AssetService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          assetType: true,
-          assetSubtype: true,
-          organizationUnit: true,
-          location: true,
+          assetType: { select: { id: true, name: true, inventoryEnabled: true, inventoryPattern: true } },
+          assetSubtype: { select: { id: true, name: true } },
+          organizationUnit: { select: { id: true, name: true } },
+          location: { select: { id: true, name: true, address: true } },
           networkAddresses: true,
-          processLinks: { include: { process: true } },
-          serviceLinks: { include: { service: true } },
-          contractLinks: { include: { contract: true } },
-          licenseLinks: { include: { license: true } },
+          processLinks: {
+            select: {
+              processId: true,
+              process: { select: { id: true, displayId: true, name: true } },
+            },
+          },
+          serviceLinks: {
+            select: {
+              serviceId: true,
+              service: { select: { id: true, displayId: true, name: true } },
+            },
+          },
+          contractLinks: {
+            select: {
+              contractId: true,
+              contract: { select: { id: true, displayId: true, title: true } },
+            },
+          },
+          licenseLinks: {
+            select: {
+              licenseId: true,
+              license: { select: { id: true, displayId: true, title: true } },
+            },
+          },
         } as any,
       }),
       prisma.asset.count({ where: effectiveWhere }),
@@ -261,24 +287,58 @@ export class AssetService {
   }
 
   async getById(id: string) {
+    // Phase 2.5 read-path optimization: this is the eager-loading hot spot
+    // (11 nested relations). It stays a single findUnique, but every nested
+    // relation is narrowed to the fields the frontend contract actually reads
+    // (Assets.tsx edit form, AssetDetail.tsx, graph fallback, CSV/table cells)
+    // instead of loading the complete related models. Response keys and the
+    // D1 envelope/entity contract are unchanged.
     const asset = await prisma.asset.findUnique({
       where: { id },
       include: {
-        assetType: true,
-        assetSubtype: true,
-        organizationUnit: true,
-        location: true,
+        assetType: { select: { id: true, name: true, inventoryEnabled: true, inventoryPattern: true } },
+        assetSubtype: { select: { id: true, name: true } },
+        organizationUnit: { select: { id: true, name: true } },
+        location: { select: { id: true, name: true, address: true } },
         networkAddresses: true,
         sourceRelations: {
-          include: { targetAsset: true },
+          select: {
+            targetAssetId: true,
+            relationshipType: true,
+            targetAsset: { select: { id: true, displayId: true, name: true } },
+          },
         },
         targetRelations: {
-          include: { sourceAsset: true },
+          select: {
+            sourceAssetId: true,
+            relationshipType: true,
+            sourceAsset: { select: { id: true, displayId: true, name: true } },
+          },
         },
-        processLinks: { include: { process: true } },
-        serviceLinks: { include: { service: true } },
-        contractLinks: { include: { contract: true } },
-        licenseLinks: { include: { license: true } },
+        processLinks: {
+          select: {
+            processId: true,
+            process: { select: { id: true, displayId: true, name: true } },
+          },
+        },
+        serviceLinks: {
+          select: {
+            serviceId: true,
+            service: { select: { id: true, displayId: true, name: true } },
+          },
+        },
+        contractLinks: {
+          select: {
+            contractId: true,
+            contract: { select: { id: true, displayId: true, title: true } },
+          },
+        },
+        licenseLinks: {
+          select: {
+            licenseId: true,
+            license: { select: { id: true, displayId: true, title: true } },
+          },
+        },
       } as any,
     });
 

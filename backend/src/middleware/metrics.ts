@@ -37,6 +37,19 @@ const httpErrorsTotal = new Counter({
   registers: [register],
 });
 
+/**
+ * Per-route server error counter (D3 / Phase 1.4b).
+ * Incremented only from the central error path for status >= 500 so the rate is
+ * meaningful and never double-counted with `http_errors_total` (which is driven
+ * by `res.on('finish')` for every 4xx/5xx response). No Sentry/OTel vendor.
+ */
+const httpRouteErrorsTotal = new Counter({
+  name: 'http_route_errors_total',
+  help: 'Total number of server errors (status >= 500) per route.',
+  labelNames: ['method', 'route'],
+  registers: [register],
+});
+
 /** Database errors counter. */
 const dbErrorsTotal = new Counter({
   name: 'db_errors_total',
@@ -173,6 +186,19 @@ function classifyEndpoint(normalizedPath: string): string {
     }
   }
   return '__unknown__';
+}
+
+/**
+ * Record a server error against the classified route (Phase 1.4b / D3).
+ * Called only from the central error path. 4xx responses are intentionally
+ * ignored here because `httpErrorsTotal` already counts every 4xx/5xx once via
+ * the `res.on('finish')` hook; incrementing here too would double-count.
+ */
+export function recordRouteError(req: Request, statusCode: number): void {
+  if (statusCode < 500) return;
+  const normalizedPath = normalizePath(req.path || '/');
+  const route = classifyEndpoint(normalizedPath);
+  httpRouteErrorsTotal.inc({ method: req.method, route });
 }
 
 // ==================== Metrics Middleware ====================
@@ -332,4 +358,4 @@ export function attachDbErrorHook(prismaClient: DbErrorEmitter): void {
 
 // ==================== Export All Metrics for External Use ====================
 
-export { register, httpRequestsTotal, httpRequestDuration, httpErrorsTotal, dbErrorsTotal };
+export { register, httpRequestsTotal, httpRequestDuration, httpErrorsTotal, dbErrorsTotal, httpRouteErrorsTotal };

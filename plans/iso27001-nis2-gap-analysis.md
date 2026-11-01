@@ -5,6 +5,15 @@
 **Methode:** Codebase-Ist-Analyse (Backend-Service/Routen/Schema, Frontend-Seiten/API, DTOs, Seed)
 **Ergebnis:** Ein großer Teil der Kernfunktionalität ist **bereits umgesetzt** — teils sogar weiterentwickelt als im Plan von 2026-08-19 angenommen. Die verbleibenden Lücken sind konkreter und kleiner als im ursprünglichen Gap-Report angenommen.
 
+> **Status update (2026-10-30):** Dieser Gap-Report ist ein historischer Snapshot vom 2026-08-22. Mehrere damals offene Punkte sind inzwischen umgesetzt:
+> - **§2.3 NIS2-Artikel-Catalog + Crosswalk:** existiert jetzt als Catalog `NIS2 Obligation Catalogue (NIS-2 RL / BSIG)` — Daten in [`nis2UmsuCGArticles.ts`](backend/src/data/nis2UmsuCGArticles.ts) (`NIS2_ARTICLES` mit `isoCrosswalk`), idempotenter Upsert in [`catalog.service.ts`](backend/src/services/catalog.service.ts:140).
+> - **§3 Klausel 5 (ISMS-Policy):** das `PolicyDocument`-Modell (Versionen, Freigabe, Review) existiert inzwischen in [`schema.prisma`](backend/prisma/schema.prisma:2195); die Klausel-4-Registry stützt sich auf [`InterestedParty`](backend/prisma/schema.prisma:547).
+> - **§4.2 SoA-Risk-Linkage:** realisiert über die Junction-Tabelle [`SoAItemRiskAssessment`](backend/prisma/schema.prisma:1726) und `riskAssessmentIds` in [`control.service.ts`](backend/src/services/control.service.ts:569).
+> - **§4.3 SoA-Export:** Route `GET /soa/:id/export?format=csv|html` in [`control.routes.ts`](backend/src/routes/control.routes.ts:100), Frontend-Export in [`Controls.tsx`](frontend/src/pages/Controls.tsx:311).
+> - **§4.4 SoA-Diff:** `diffSoA()` plus Route `GET /soa/diff` in [`control.routes.ts`](backend/src/routes/control.routes.ts:64), Tests in `backend/src/__tests__/controlService.soa-diff.test.ts`.
+>
+> Unverändert offen laut heutigem Stand: **§2.1 Frontend an v2.0-Fragebogen binden** — die v2-Wrapper existieren in [`api.ts`](frontend/src/services/api.ts:766) (`getQuestionnaireV2`, `ensureV2Questionnaire`), werden aber von [`NIS2.tsx`](frontend/src/pages/NIS2.tsx) weiterhin nicht genutzt (die Seite verwendet `ensureDefaultQuestionnaire`). Die Prioritäten-Tabelle unten ist daher teilweise überholt; die Zeilenangaben im Text können durch spätere Änderungen verschoben sein.
+
 ---
 
 ## Kurzfassung (Status-Ballung)

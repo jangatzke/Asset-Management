@@ -1,8 +1,10 @@
 # Phase 11: Health Readiness and Metrics Hardening Plan
 
-**Date:** 2026-07-26  
-**Status:** In Progress  
+**Date:** 2026-07-26
+**Status:** Completed (commit `0c6498e`, verified in Final Verification 2026-07-28)
 **Preceded by:** Phase 10 (Background Jobs Cluster-Safety) — commit `e1933ec`
+
+> **Status update (2026-10-30):** Implemented. Deviations from this plan found in current code: `/metrics` is wired directly in `backend/src/index.ts` via `createMetricsAuthMiddleware()`/`metricsEndpoint()` from `backend/src/middleware/metrics.ts` (no separate `metrics.routes.ts` file exists today); the metrics auth middleware accepts **only** `Authorization: Bearer <token>` (query-parameter tokens were removed to avoid leakage) and fails closed with 503 in production when `METRICS_TOKEN` is unset.
 
 ## Objective
 

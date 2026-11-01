@@ -22,6 +22,7 @@ const mockListAssessments = vi.fn();
 const mockListRegistrations = vi.fn();
 const mockEnsureMeasuresCatalogue = vi.fn();
 const mockEnsureDefaultQuestionnaire = vi.fn();
+const mockGetCrosswalk = vi.fn();
 
 vi.mock('../services/api', () => ({
   nis2Api: {
@@ -30,6 +31,7 @@ vi.mock('../services/api', () => ({
     listRegistrations: (...args: unknown[]) => mockListRegistrations(...args),
     ensureMeasuresCatalogue: (...args: unknown[]) => mockEnsureMeasuresCatalogue(...args),
     ensureDefaultQuestionnaire: (...args: unknown[]) => mockEnsureDefaultQuestionnaire(...args),
+    getCrosswalk: (...args: unknown[]) => mockGetCrosswalk(...args),
   },
 }));
 
@@ -48,6 +50,19 @@ describe('NIS2 component', () => {
     mockListActiveQuestionnaires.mockResolvedValue({ data: [] });
     mockListAssessments.mockResolvedValue({ data: [] });
     mockListRegistrations.mockResolvedValue({ data: [] });
+    mockGetCrosswalk.mockResolvedValue({
+      data: {
+        articleCount: 6,
+        controlCount: 93,
+        mappedControlCount: 47,
+        isComplete: true,
+        articles: [],
+        missingControls: [],
+        unknownControls: [],
+        unmappedArticles: [],
+        unmappedControls: [],
+      },
+    });
   });
 
   afterEach(() => {
@@ -547,6 +562,60 @@ describe('NIS2 component', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/nis2\.questionnaireLabels\.required_field \*/)).toBeInTheDocument();
+      });
+    });
+  
+    describe('Crosswalk completeness', () => {
+      it('shows the complete message when no findings exist', async () => {
+        mockGetCrosswalk.mockResolvedValue({
+          data: {
+            articleCount: 6,
+            controlCount: 93,
+            mappedControlCount: 93,
+            isComplete: true,
+            articles: [],
+            missingControls: [],
+            unknownControls: [],
+            unmappedArticles: [],
+            unmappedControls: [],
+          },
+        });
+  
+        renderNIS2();
+  
+        await waitFor(() => {
+          expect(screen.getByText('nis2.crosswalkTitle')).toBeInTheDocument();
+        });
+        expect(screen.getByText('nis2.crosswalkComplete')).toBeInTheDocument();
+        expect(screen.queryByText('nis2.crosswalkFindings')).not.toBeInTheDocument();
+      });
+  
+      it('shows the finding count and missing control IDs when findings exist', async () => {
+        mockGetCrosswalk.mockResolvedValue({
+          data: {
+            articleCount: 6,
+            controlCount: 93,
+            mappedControlCount: 44,
+            isComplete: false,
+            articles: [],
+            missingControls: ['A.9.99', 'A.9.98'],
+            unknownControls: ['NOT-AN-ISO-CONTROL'],
+            unmappedArticles: [],
+            unmappedControls: ['A.5.2'],
+          },
+        });
+  
+        renderNIS2();
+  
+        await waitFor(() => {
+          expect(screen.getByText(/nis2\.crosswalkFindings/)).toBeInTheDocument();
+        });
+        // Findings total: 2 missing + 1 unknown + 0 unmapped articles + 1 unmapped control = 4
+        expect(screen.getByText(/nis2\.crosswalkFindings: 4/)).toBeInTheDocument();
+        expect(screen.getByText('A.9.99')).toBeInTheDocument();
+        expect(screen.getByText('A.9.98')).toBeInTheDocument();
+        expect(screen.getByText('nis2.crosswalkMissingControls: 2')).toBeInTheDocument();
+        expect(screen.queryByText('nis2.crosswalkComplete')).not.toBeInTheDocument();
       });
     });
   });

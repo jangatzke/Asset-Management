@@ -6,6 +6,7 @@ import type { CreateIncidentDTO, UpdateIncidentDTO } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { Modal } from '../components/Modal';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { useDraftForm } from '../hooks/useDraftForm';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
@@ -14,8 +15,12 @@ import { normalizeIncidentStatusFilter, matchesIncidentStatusFilter } from './in
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useToast } from '../components/useToast';
 import { exportCsv } from '../utils/csvExport';
 import { formatDate, formatDateTime } from '../utils/formatDate';
+import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { buttonPrimary } from '../styles/tokens';
 
 interface HistoryEntry {
   id: string;
@@ -115,6 +120,7 @@ const actionIconClassName = 'h-4 w-4';
 
 const Incidents = () => {
   const { t } = useI18n();
+  const { addToast } = useToast();
   const currentUser = useAuthStore((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -123,13 +129,37 @@ const Incidents = () => {
   // Seed from ?search= so the global search "show all" deep-link works.
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState(() => normalizeIncidentStatusFilter(searchParams.get('status')));
+
+  // Bulk selection (archive several incidents at once). Page-scoped: cleared
+  // whenever the search term or status filter changes (same contract as Assets).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [search, statusFilter]);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
   const form = useDirtyForm<IncidentForm>(initialIncidentForm(currentUser?.id || ''));
+  // Phase 2.3: versioned, TTL-bounded draft of the (long) incident create form.
+  // Debounced auto-save (750 ms); only meaningful for the create flow.
+  const draft = useDraftForm<IncidentForm>({
+    formKey: 'incidents.create',
+    schemaVersion: 1,
+    value: form.values,
+    // Editing an existing incident must never overwrite the create draft.
+    autoSave: !editingIncident,
+  });
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const pendingClose = useRef<(() => void) | null>(null);
+  // Separate state from `discardConfirmOpen`: restoring a draft is a distinct
+  // conflict ("restore draft" vs "discard changes"), so its dialog cannot
+  // collide with the Modal's dirty-guard dialog. Both reuse the same component.
+  const [draftRestoreOpen, setDraftRestoreOpen] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<IncidentForm | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -226,8 +256,40 @@ const Incidents = () => {
     setAffectedAssets([]);
     setAffectedProcesses([]);
     setError(null);
+    // Resolve the draft conflict BEFORE opening the form modal, so the Modal's
+    // Escape/backdrop handler and the dialog never run simultaneously.
+    const record = draft.loadRecord();
+    if (record) {
+      setPendingDraft(record.value);
+      setDraftRestoreOpen(true);
+    } else {
+      setModalOpen(true);
+    }
+  }, [form, currentUser, draft]);
+
+  const restoreDraft = useCallback(() => {
+    if (!pendingDraft) return;
+    // The restored draft becomes the new snapshot: isDirty stays false because
+    // useDirtyForm compares values against the snapshot it was given.
+    form.setFormValues(pendingDraft);
+    setIncidentManager(pendingDraft.incidentManagerId ? { id: pendingDraft.incidentManagerId, label: t('incidents.fields.incidentManagerId') } : null);
+    setDraftRestoreOpen(false);
+    setPendingDraft(null);
     setModalOpen(true);
-  }, [form, currentUser]);
+  }, [form, pendingDraft, t]);
+
+  const discardDraft = useCallback(() => {
+    draft.clear();
+    setDraftRestoreOpen(false);
+    setPendingDraft(null);
+    setModalOpen(true);
+  }, [draft]);
+
+  // Clear the draft once a save succeeds. Kept in a helper so a rejected save
+  // leaves the draft intact.
+  const clearDraftAfterSave = useCallback(() => {
+    draft.clear();
+  }, [draft]);
 
   const openEditModal = useCallback((incident: Incident) => {
     setEditingIncident(incident);
@@ -305,6 +367,8 @@ const Incidents = () => {
         await incidentApi.create(payload);
         setActionMessage(t('incidents.createSuccess'));
       }
+      // Only clear the draft after a confirmed successful save.
+      if (!editingIncident) clearDraftAfterSave();
       setModalOpen(false);
       setEditingIncident(null);
       form.resetForm();
@@ -391,6 +455,50 @@ const Incidents = () => {
     });
   }, [filteredIncidents, sort]);
 
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((current) => {
+      const pageIds = sortedIncidents.map((incident) => incident.id);
+      const allSelected = pageIds.length > 0 && pageIds.every((id) => current.has(id));
+      const next = new Set(current);
+      pageIds.forEach((id) => {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = [...selectedIds];
+    setBulkConfirmOpen(false);
+    setBulkArchiving(true);
+    try {
+      const result = (await incidentApi.bulkArchive({ ids })).data;
+      if (result.failedCount === 0) {
+        addToast('success', t('bulk.success', { count: result.succeededCount }));
+      } else if (result.succeededCount > 0) {
+        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
+      } else {
+        addToast('error', t('bulk.failed'));
+      }
+    } catch (err: unknown) {
+      addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
+    } finally {
+      setBulkArchiving(false);
+      setSelectedIds(new Set());
+      await loadIncidents();
+    }
+  };
+
   const exportVisibleIncidents = () => exportCsv('incidents', [
     t('incidents.columns.title'),
     t('incidents.columns.status'),
@@ -461,9 +569,27 @@ const Incidents = () => {
       </div>
 
       <DataTableShell onExport={exportVisibleIncidents} exportLabel="Export CSV" rowCount={sortedIncidents.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
+            </div>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
+              <th className="px-6 py-3 w-10">
+                <input
+                  type="checkbox"
+                  aria-label={t('bulk.selectAll')}
+                  checked={sortedIncidents.length > 0 && sortedIncidents.every((incident) => selectedIds.has(incident.id))}
+                  onChange={toggleSelectAllOnPage}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+              </th>
               <SortableTh column="title" label={t('incidents.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="status" label={t('incidents.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="severity" label={t('incidents.columns.severity')} activeColumn={sort.column} direction={sort.column === 'severity' ? sort.direction : ''} onSort={toggleSort} />
@@ -477,13 +603,22 @@ const Incidents = () => {
           <tbody className="bg-white dark:bg-card divide-y divide-gray-200 dark:divide-gray-700">
             {sortedIncidents.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                 {t('incidents.noIncidents')}
                 </td>
               </tr>
             ) : (
               sortedIncidents.map((incident) => (
                 <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label={t('bulk.select')}
+                      checked={selectedIds.has(incident.id)}
+                      onChange={() => toggleSelected(incident.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
                     <Link to={`/incidents/${incident.id}`} className="hover:text-primary-600 hover:underline">{incident.title}</Link>
                   </td>
@@ -507,13 +642,13 @@ const Incidents = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEditModal(incident)} aria-label={`${t('common.edit')}: ${incident.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
+                      <button onClick={() => openEditModal(incident)} aria-label={`${t('common.edit')}: ${incident.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => createEarlyWarning(incident)} aria-label={`${t('incidents.warningDraft')}: ${incident.title}`} title={t('incidents.warningDraft')} className={`${actionButtonClassName} text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300`}>
+                      <button onClick={() => createEarlyWarning(incident)} aria-label={`${t('incidents.warningDraft')}: ${incident.title}`} title={t('incidents.warningDraft')} className={`${actionButtonClassName} text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200`}>
                         <DocumentPlusIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => openHistory(incident.id)} aria-label={`${t('incidents.history.viewHistory')}: ${incident.title}`} title={t('incidents.history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                      <button onClick={() => openHistory(incident.id)} aria-label={`${t('incidents.history.viewHistory')}: ${incident.title}`} title={t('incidents.history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -524,6 +659,16 @@ const Incidents = () => {
           </tbody>
         </table>
       </DataTableShell>
+
+      <ConfirmDialog
+        isOpen={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={handleBulkArchive}
+        danger
+        title={t('bulk.confirmTitle')}
+        message={t('bulk.confirmMessage', { count: selectedIds.size })}
+        confirmLabel={t('bulk.archive')}
+      />
 
       <Modal isOpen={modalOpen} onClose={handleModalClose} title={editingIncident ? t('incidents.editIncident') : t('incidents.createIncident')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
@@ -776,6 +921,19 @@ const Incidents = () => {
         }}
         titleKey="Discard Changes"
         messageKey="You have unsaved changes. Are you sure you want to discard them?"
+      />
+
+      {/* Draft restore conflict — deliberately a separate state/dialog from the
+          dirty-guard above. Same component, draft-specific labels. */}
+      <DiscardConfirmationDialog
+        open={draftRestoreOpen}
+        onClose={discardDraft}
+        onDiscard={restoreDraft}
+        titleKey="draft.found"
+        messageKey="draft.restoreMessage"
+        cancelLabelKey="draft.discard"
+        confirmLabelKey="draft.restore"
+        confirmColor="primary"
       />
     </div>
   );

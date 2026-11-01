@@ -419,6 +419,9 @@
     "exportJson": "Exportar JSON",
     "filters": "Filtros",
     "group": "Grupo",
+    "help": {
+      "ariaLabel": "Más información sobre este campo"
+    },
     "id": "ID",
     "inactive": "Inactivo",
     "loading": "Cargando...",
@@ -432,6 +435,7 @@
     "page": "Página",
     "pageNumber": "Página {page}",
     "removeFilter": "Quitar filtro",
+    "referenceId": "Ref: {id}",
     "required": "Obligatorio",
     "requiredField": "Este campo es obligatorio",
     "role": "Rol",
@@ -596,6 +600,18 @@
       "soaPlaceholder": "Seleccione una Declaración de Aplicabilidad",
       "success": "Borrador de SoA de ISO/IEC 27001:2022 creado con {count} controles del Anexo A. Revise la aplicabilidad y reemplace cada justificación pendiente antes del envío.",
       "title": "Generar SoA del Anexo A de ISO/IEC 27001:2022"
+    },
+    "soaPending": {
+      "title": "Auditoría de justificaciones pendientes",
+      "description": "Marca los elementos del SoA que aún no pueden enviarse: justificación vacía, la justificación de marcador generada o una decisión de aplicabilidad aún en revisión.",
+      "loadButton": "Comprobar justificaciones pendientes",
+      "loading": "Comprobando…",
+      "empty": "Sin justificaciones pendientes: cada elemento del SoA tiene una justificación específica del ámbito.",
+      "summary": "{count} elemento(s) del SoA aún no pueden enviarse.",
+      "error": "No se pudo cargar el informe de justificaciones pendientes",
+      "reasonPlaceholder": "Justificación de marcador generada aún presente",
+      "reasonApplicability": "Decisión de aplicabilidad aún en revisión",
+      "reasonEmpty": "La justificación está vacía"
     },
     "stats": {
       "evidenceItems": "Elementos de evidencia",
@@ -941,7 +957,8 @@
       "focusAnnouncement": "Enfoque: {name} (criticidad: {criticality})",
       "focusAnnouncementPlain": "Enfoque: {name}",
       "listLabel": "Nodos del gráfico",
-      "keyboardHint": "Use las flechas para moverse entre los activos, Enter para ver los detalles y Escape para salir."
+      "keyboardHint": "Use las flechas para moverse entre los activos, Enter para ver los detalles y Escape para salir.",
+      "roleDescription": "Gráfico de dependencias interactivo: use las flechas para recorrer los nodos"
     },
     "impact": {
       "title": "Análisis de impacto",
@@ -1657,6 +1674,15 @@
     "contactPerson": "Persona de contacto",
     "createDraftAssessment": "Crear evaluación en borrador",
     "createRegistration": "Crear registro",
+    "crosswalkTitle": "Integridad del cruce NIS-2 ↔ ISO 27001:2022 Anexo A",
+    "crosswalkDescription": "Informe de solo lectura derivado del catálogo de obligaciones NIS-2 y del catálogo de controles del Anexo A de ISO. Enumera referencias faltantes, desconocidas y no asignadas sin inventar asignaciones.",
+    "crosswalkComplete": "Cruce completo: cada artículo NIS-2 referencia solo controles existentes del Anexo A de ISO y cada control está asignado.",
+    "crosswalkFindings": "Hallazgos del cruce",
+    "crosswalkMissingControls": "Controles faltantes",
+    "crosswalkUnknownControls": "Controles desconocidos",
+    "crosswalkUnmappedArticles": "Artículos no asignados",
+    "crosswalkUnmappedControls": "Controles no asignados",
+    "crosswalkLoadError": "No se pudo cargar el informe de integridad del cruce.",
     "defaultQuestionnaireLoaded": "Cuestionario predeterminado cargado. Ahora puede completar las respuestas a continuación.",
     "description": "Descripción *",
     "emptyQuestionnaireExplanation": "Actualmente no hay ningún cuestionario activo disponible. Sin un cuestionario no puede crear una evaluación. Use el punto final de cuestionario predeterminado para crear uno primero y luego vuelva aquí para completar las respuestas y enviar.",
@@ -2209,9 +2235,17 @@
       "description": "Descripción",
       "impact": "Impacto (1-5)",
       "justification": "Justificación de la evaluación",
+      "mitigationDimension": {
+        "label": "Dimensión de mitigación",
+        "description": "Dimensión del riesgo que reduce el control vinculado: probabilidad, impacto o ambas."
+      },
       "likelihood": "Probabilidad (1-5)",
       "nextReviewDate": "Próxima fecha de revisión",
       "possibleImpact": "Impacto posible",
+      "riskClasses": {
+        "label": "Clases de riesgo",
+        "description": "Definición JSON específica del método de las clases de riesgo que asignan las puntuaciones calculadas a umbrales de clase."
+      },
       "riskOwnerId": "ID del responsable del riesgo",
       "title": "Título"
     },
@@ -3056,5 +3090,12 @@
       "e_g_draft_in_review_approved": "p. ej., draft, in_review, approved",
       "e_g_suppliers_bias_auditplans": "p. ej., suppliers, bias, auditPlans"
     }
+  },
+  "draft": {
+    "found": "Borrador guardado encontrado",
+    "restoreMessage": "Se ha guardado un borrador de sus cambios en este dispositivo. Restáurelo o descártelo antes de empezar de nuevo.",
+    "restore": "Restaurar borrador",
+    "discard": "Descartar borrador",
+    "saved": "Los cambios se guardan automáticamente como borrador local."
   }
 }

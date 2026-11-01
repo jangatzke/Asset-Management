@@ -1,9 +1,11 @@
 # Phase 12: CI/CD Release Gates Plan
 
-**Phase:** 12  
-**Date:** 2026-07-27  
-**Status:** In Progress  
+**Phase:** 12
+**Date:** 2026-07-27
+**Status:** Completed (commit `0daa75c`, verified in Final Verification 2026-07-28)
 **Commit Message Target:** `Phase 12: enforce CI/CD release gates`
+
+> **Status update (2026-10-30):** Implemented. Deviations from this plan found in current code: the CI config validation tests live at `backend/src/__tests__/ci-config.test.ts`, not `scripts/__tests__/ci-config.test.ts`; Semgrep uses `--sarif -o semgrep-results.sarif` and uploads via `github/codeql-action/upload-sarif@v4` (not v3); the dependency scan runs `npm audit --omit=dev --audit-level=high` (the deprecated `--production` flag was replaced); CI pins Node 22 via `NODE_VERSION: '22'`.
 
 ## Requirements
 

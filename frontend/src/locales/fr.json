@@ -419,6 +419,9 @@
     "exportJson": "Exporter JSON",
     "filters": "Filtres",
     "group": "Groupe",
+    "help": {
+      "ariaLabel": "Plus d'informations sur ce champ"
+    },
     "id": "ID",
     "inactive": "Inactif",
     "loading": "Chargement...",
@@ -432,6 +435,7 @@
     "page": "Page",
     "pageNumber": "Page {page}",
     "removeFilter": "Retirer le filtre",
+    "referenceId": "Réf : {id}",
     "required": "Obligatoire",
     "requiredField": "Ce champ est obligatoire",
     "role": "Rôle",
@@ -596,6 +600,18 @@
       "soaPlaceholder": "Sélectionnez une Déclaration d'Applicabilité",
       "success": "Brouillon de SoA ISO/IEC 27001:2022 créé avec {count} contrôles de l'Annexe A. Revoyez l'applicabilité et remplacez chaque justification en attente avant la soumission.",
       "title": "Générer la SoA de l'Annexe A de ISO/IEC 27001:2022"
+    },
+    "soaPending": {
+      "title": "Audit des justifications en attente",
+      "description": "Signale les éléments de la SoA qui ne peuvent pas encore être soumis : justification vide, justification de remplacement générée ou décision d'applicabilité encore en cours d'examen.",
+      "loadButton": "Vérifier les justifications en attente",
+      "loading": "Vérification…",
+      "empty": "Aucune justification en attente : chaque élément de la SoA possède une justification propre à la portée.",
+      "summary": "{count} élément(s) de la SoA ne peuvent pas encore être soumis.",
+      "error": "Le rapport des justifications en attente n'a pas pu être chargé",
+      "reasonPlaceholder": "Justification de remplacement générée encore présente",
+      "reasonApplicability": "Décision d'applicabilité encore en cours d'examen",
+      "reasonEmpty": "La justification est vide"
     },
     "stats": {
       "evidenceItems": "Éléments de preuve",
@@ -941,7 +957,8 @@
       "focusAnnouncement": "Focus : {name} (criticité : {criticality})",
       "focusAnnouncementPlain": "Focus : {name}",
       "listLabel": "Nœuds du graphe",
-      "keyboardHint": "Utilisez les flèches pour passer d'un actif à l'autre, Entrée pour afficher les détails et Échap pour quitter."
+      "keyboardHint": "Utilisez les flèches pour passer d'un actif à l'autre, Entrée pour afficher les détails et Échap pour quitter.",
+      "roleDescription": "Graphe de dépendances interactif : utilisez les flèches pour parcourir les nœuds"
     },
     "impact": {
       "title": "Analyse d'impact",
@@ -1657,6 +1674,15 @@
     "contactPerson": "Personne de contact",
     "createDraftAssessment": "Créer une évaluation en brouillon",
     "createRegistration": "Créer l'enregistrement",
+    "crosswalkTitle": "Intégrité du croisement NIS-2 ↔ ISO 27001:2022 Annexe A",
+    "crosswalkDescription": "Rapport en lecture seule dérivé du catalogue d'obligations NIS-2 et du catalogue de contrôles de l'Annexe A ISO. Il liste les références manquantes, inconnues et non associées sans inventer de correspondances.",
+    "crosswalkComplete": "Croisement complet : chaque article NIS-2 ne référence que des contrôles existants de l'Annexe A ISO et chaque contrôle est associé.",
+    "crosswalkFindings": "Constats du croisement",
+    "crosswalkMissingControls": "Contrôles manquants",
+    "crosswalkUnknownControls": "Contrôles inconnus",
+    "crosswalkUnmappedArticles": "Articles non associés",
+    "crosswalkUnmappedControls": "Contrôles non associés",
+    "crosswalkLoadError": "Impossible de charger le rapport d'intégrité du croisement.",
     "defaultQuestionnaireLoaded": "Questionnaire par défaut chargé. Vous pouvez maintenant remplir les réponses ci-dessous.",
     "description": "Description *",
     "emptyQuestionnaireExplanation": "Aucun questionnaire actif n'est actuellement disponible. Sans questionnaire, vous ne pouvez pas créer une évaluation. Utilisez le point de terminaison du questionnaire par défaut pour en créer un d'abord, puis revenez ici pour remplir les réponses et soumettre.",
@@ -2209,9 +2235,17 @@
       "description": "Description",
       "impact": "Impact (1-5)",
       "justification": "Justification de l'évaluation",
+      "mitigationDimension": {
+        "label": "Dimension d'atténuation",
+        "description": "Dimension du risque réduite par le contrôle associé : probabilité, impact ou les deux."
+      },
       "likelihood": "Probabilité (1-5)",
       "nextReviewDate": "Prochaine date de revue",
       "possibleImpact": "Impact possible",
+      "riskClasses": {
+        "label": "Classes de risque",
+        "description": "Définition JSON propre à la méthode des classes de risque qui associe les scores calculés aux seuils de classe."
+      },
       "riskOwnerId": "ID du responsable du risque",
       "title": "Titre"
     },
@@ -3056,5 +3090,12 @@
       "e_g_draft_in_review_approved": "p. ex., draft, in_review, approved",
       "e_g_suppliers_bias_auditplans": "p. ex., suppliers, bias, auditPlans"
     }
+  },
+  "draft": {
+    "found": "Brouillon enregistré trouvé",
+    "restoreMessage": "Un brouillon de vos modifications a été enregistré sur cet appareil. Restaurez-le ou supprimez-le avant de recommencer.",
+    "restore": "Restaurer le brouillon",
+    "discard": "Supprimer le brouillon",
+    "saved": "Les modifications sont enregistrées automatiquement comme brouillon local."
   }
 }

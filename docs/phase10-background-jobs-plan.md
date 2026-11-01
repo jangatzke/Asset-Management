@@ -1,5 +1,7 @@
 # Phase 10: Background Jobs Cluster-Safety Plan
 
+> **Status update (2026-10-30):** Completed (commit `e1933ec`). Implemented as planned: `JobRun` tracking model, `backend/src/services/jobLock.service.ts`, and `executeTrackedJob()` in `backend/src/services/jobRunner.service.ts`. Note on current drift: schedulers are now wired through `backend/src/services/intervalScheduler.ts` (cluster-safe polling via `executeTrackedJob`), and additional job types (e.g. `email-gateway`, `sla-breach`) were added after this phase; line-number references below (e.g. `index.ts:223`) are historical. The verification checklist below reflects the run at implementation time.
+
 ## Objective
 
 Make existing background/scheduled jobs cluster-safe using PostgreSQL advisory locks and add a `JobRun` tracking model for observability. No new job queue or health/metrics endpoints are introduced in this phase.

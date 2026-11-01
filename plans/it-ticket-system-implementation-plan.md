@@ -1,5 +1,7 @@
 # IT Ticket System ‒ Implementation Plan
 
+> **Status update (2026-10-30):** Implemented end-to-end. Evidence: [`shared/src/ticketTransitions.ts`](../shared/src/ticketTransitions.ts), [`shared/src/types/ticket.ts`](../shared/src/types/ticket.ts), ticket DTOs in [`shared/src/dtos/index.ts`](../shared/src/dtos/index.ts) (`CreateTicketSchema`, `ChangeTicketStatusSchema`, …), Prisma models `Ticket`/`TicketAsset`/`TicketComment`/`TicketLink`/`TicketHistoryEntry`/`TicketTypeConfig`/`TicketEscalation`/`ServiceCatalogItem` + type extensions in [`backend/prisma/schema.prisma:3911`](../backend/prisma/schema.prisma:3911), [`backend/src/services/ticket.service.ts`](../backend/src/services/ticket.service.ts) (validates requester/assignee/manager are active users and asset references), [`backend/src/routes/ticket.routes.ts`](../backend/src/routes/ticket.routes.ts) mounted at `/api/v1/tickets` ([`backend/src/index.ts:233`](../backend/src/index.ts:233)), seeded roles in [`backend/prisma/seed.ts:27`](../backend/prisma/seed.ts:27), frontend pages [`Tickets.tsx`](../frontend/src/pages/Tickets.tsx)/[`TicketDetail.tsx`](../frontend/src/pages/TicketDetail.tsx)/[`TicketWorkload.tsx`](../frontend/src/pages/TicketWorkload.tsx)/[`AdminTicketSla.tsx`](../frontend/src/pages/AdminTicketSla.tsx), and e2e tests in [`frontend/e2e/tickets.spec.ts`](../frontend/e2e/tickets.spec.ts). Deviations from this plan (see dated notes below): the state machines gained ITIL-4 reopen transitions; `tickets.assign`/`tickets.context` were added instead of `tickets.manage`; a fifth role `ticket_coordinator` was seeded; ticket-type and service-catalog routes live under `/tickets/types` and `/tickets/service-catalog` (no separate `/ticket-types` router); there is no `NewTicket.tsx` page (creation happens in the Tickets list dialog) and no `DELETE /tickets/:id`; extra endpoints exist (`/workload`, `/:id/type`, `/:id/convert`, `/:id/problem`, `/:id/change`, `/:id/risks`, `/:id/requester-comment`, `/:id/assets`). The line reference to the `Incident` model in Section 1.1 is stale (it now starts near [`backend/prisma/schema.prisma:1780`](../backend/prisma/schema.prisma:1780)).
+
 > **Scope:** Planning only. No code, schema, or migration files are modified by this document.
 > **Deliverable:** A single, phased implementation plan to add a generic IT ticket system to the Asset Management ISMS application, generalizing the existing **Incident** domain into a **Ticket** entity with a `type` field, aligned to **ITIL 4**, **ISO/IEC 27001:2022**, and **EU NIS2 (2022/2555)**.
 
@@ -347,6 +349,8 @@ A single additive migration `2026MMDDHHMMSS_it_ticket_system`:
 
 New file [`shared/src/ticketTransitions.ts`](Asset-Management/shared/src/ticketTransitions.ts) following the exact pattern of [`shared/src/incidentTransitions.ts`](Asset-Management/shared/src/incidentTransitions.ts):
 
+> **Status update (2026-10-30):** The implemented matrix in [`shared/src/ticketTransitions.ts:27`](../shared/src/ticketTransitions.ts:27) is broader than the draft below: `incident` extends `INCIDENT_TRANSITIONS` with an ITIL-4 reopen (`resolved → new`); `service_request` allows direct `new → fulfilled/cancelled`, `in_progress → fulfilled`, `pending → fulfilled` and reopens `fulfilled → new`; `problem` allows `new/investigating → resolved` and reopens `resolved → investigating`; `change` allows closure/cancellation from most states and reopens `closed → in_progress`. The module additionally exports `CLOSE_TARGET_STATUS`, `INITIAL_TICKET_STATUS`, `REOPEN_TARGET_STATUS`, and a `closed`-status special case inside `getAllowedTicketTransitions` ([`ticketTransitions.ts:116`](../shared/src/ticketTransitions.ts:116)).
+
 ```typescript
 export const TICKET_TRANSITIONS: Readonly<Record<TicketType, Readonly<Record<string, readonly string[]>>>> = {
   incident: INCIDENT_TRANSITIONS, // reuse existing incident matrix verbatim
@@ -459,9 +463,13 @@ tickets.read, tickets.write, tickets.close, tickets.escalate, tickets.approve, t
 serviceCatalog.read, serviceCatalog.manage
 ```
 
+> **Status update (2026-10-30):** The implemented permission set differs: `tickets.assign` and `tickets.context` (asset-context editing) were added, and `tickets.manage` was not — see the seeded role→permission map in [`backend/prisma/seed.ts:27`](../backend/prisma/seed.ts:27) and the route guards in [`ticket.routes.ts`](../backend/src/routes/ticket.routes.ts).
+
 ### 5.2 New built-in roles
 
 Seeded in [`backend/prisma/seed.ts`](Asset-Management/backend/prisma/seed.ts) (mirroring the existing `ROLE_PERMISSIONS` + `seedRoles` pattern), each with `isBuiltIn: true` and a legacy `entityPermissions` entry `tickets: 'readonly'|'readwrite'` for backward compatibility:
+
+> **Status update (2026-10-30):** Actual seeded roles in [`backend/prisma/seed.ts:134`](../backend/prisma/seed.ts:134): `ticket_viewer`, `service_desk_agent` (incl. `tickets.assign/close/escalate/context`), `it_manager` (adds `tickets.approve`), `service_catalog_manager`, **plus an additional role `ticket_coordinator`** (`tickets.read/write/assign/context`) not in this plan.
 
 | Role | Granular permissions | `entityPermissions.tickets` | Description |
 |------|----------------------|------------------------------|-------------|
@@ -489,6 +497,8 @@ New ticket routes use the existing factories from [`entityAuth.ts`](Asset-Manage
 ## 6. API Design
 
 All routes mounted at `/api/v1/tickets` (and `/api/v1/ticket-types`, `/api/v1/service-catalog`) in [`backend/src/index.ts`](Asset-Management/backend/src/index.ts), following `incident.routes.ts` conventions exactly. New file: [`backend/src/routes/ticket.routes.ts`](Asset-Management/backend/src/routes/ticket.routes.ts); new service: [`backend/src/services/ticket.service.ts`](Asset-Management/backend/src/services/ticket.service.ts).
+
+> **Status update (2026-10-30):** The table below is the design draft; the actual router ([`ticket.routes.ts`](../backend/src/routes/ticket.routes.ts), mounted only at `/api/v1/tickets`) differs: type config lives at `GET /tickets/types` and catalog CRUD at `/tickets/service-catalog*`; there is no `DELETE /tickets/:id` and no `GET /tickets/:id/comments`. Implemented extras: `GET /tickets/workload`, `POST /tickets/:id/type`, `POST /tickets/:id/convert` (Incident→Problem/Change), `PUT /tickets/:id/problem|change`, `POST|DELETE /tickets/:id/risks*`, `POST /tickets/:id/requester-comment`, `POST /tickets/:id/escalations` (not `/escalate`), and asset-context endpoints `GET|POST|DELETE /tickets/:id/assets` guarded by `tickets.context`. Status transitions use `requireEntityPermission('tickets.write','tickets')` as designed.
 
 ### 6.1 Endpoints & permission checks
 
@@ -555,6 +565,8 @@ Response for `GET /tickets/:id` returns the `Ticket` core plus the matching exte
 ## 7. Frontend Design
 
 ### 7.1 New pages & routes
+
+> **Status update (2026-10-30):** Implemented pages: [`Tickets.tsx`](../frontend/src/pages/Tickets.tsx) (creation dialog is embedded here — there is no `NewTicket.tsx`), [`TicketDetail.tsx`](../frontend/src/pages/TicketDetail.tsx), plus additional pages not in this plan: [`TicketWorkload.tsx`](../frontend/src/pages/TicketWorkload.tsx) and [`AdminTicketSla.tsx`](../frontend/src/pages/AdminTicketSla.tsx).
 
 | Route | Page | File |
 |-------|------|------|
@@ -669,6 +681,9 @@ Per Section 10.
 - `api.test.ts` ‒ `ticketApi` request/response mapping.
 
 ### 9.5 E2E (Playwright)
+
+> **Status update (2026-10-30):** The e2e suite was implemented as [`frontend/e2e/tickets.spec.ts`](../frontend/e2e/tickets.spec.ts) (create service_request, ITIL transitions incl. fulfilled-reopen, assign + multi-asset `TicketAsset` linking, inactive-user validation), not `ticket-workflows.spec.ts`.
+
 - `frontend/e2e/ticket-workflows.spec.ts`:
   1. Service Desk Agent creates a `service_request` from catalog, transitions to `fulfilled`, adds an internal comment.
   2. IT Manager creates a `change`, approves via CAB, transitions to `closed`.
@@ -681,6 +696,8 @@ Full backend suite + `npx prisma validate` + frontend build + Playwright must pa
 ---
 
 ## 10. Compliance Documentation Updates
+
+> **Status update (2026-10-30):** Not done — `docs/compliance-matrix.yml` contains no `TCKT-*` entries (verified by search), and the ticket code itself is fully implemented regardless. This section remains an open documentation task.
 
 | File | Change |
 |------|--------|

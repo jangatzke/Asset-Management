@@ -3,6 +3,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { authorizeEntityRead, authorizeEntityWrite } from '../middleware/entityAuth';
 import { validateBody } from '../middleware/validation';
 import { nis2Service } from '../services/nis2.service';
+import { validateCrosswalkCompleteness } from '../services/nis2Crosswalk.service';
 import { z } from 'zod';
 
 export const nis2Router = Router();
@@ -118,6 +119,17 @@ nis2Router.post('/measures-catalogue/ensure', authenticate, authorizeEntityWrite
   try {
     const result = await nis2Service.ensureMeasuresCatalogue(req.userId);
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// NIS2 ↔ ISO/IEC 27001:2022 Annex A crosswalk completeness (read-only report).
+// Pure computation over static catalogues; no idempotency, no X-Total-Count
+// (this is a report, not a paginated list). Findings are returned honestly.
+nis2Router.get('/crosswalk', authenticate, authorizeEntityRead('controls'), (_req: AuthRequest, res, next) => {
+  try {
+    res.json(validateCrosswalkCompleteness());
   } catch (error) {
     next(error);
   }

@@ -4,6 +4,8 @@
 
 This document is the implementation source of truth for the next E2E stage. It specifies **only** the work required to introduce five database-backed, browser-to-database workflows. It does not implement tests, scripts, CI configuration, database schema changes, or product behavior.
 
+> **Status update (2026-10-30):** This plan remains unimplemented. The only E2E specs in the repository are still the three mocked browser-contract specs under [`frontend/e2e`](../frontend/e2e) (`core-workflows.spec.ts`, `nis2-reporting.spec.ts`, `tickets.spec.ts`); no real-E2E config, scripts (`e2e:real`, `e2e:db:reset`, …), E2E seed, or `real-e2e` CI job exists. [`frontend/package.json`](../frontend/package.json:12) exposes only `e2e`, `e2e:ui`, and `e2e:report`; [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) contains no Playwright job. Line references in the baseline section below were re-verified against current code on 2026-10-30.
+
 The target path for each test is:
 
 ```mermaid
@@ -42,12 +44,12 @@ All specs under [`frontend/e2e`](../frontend/e2e) run against the Vite dev serve
 
 ## Repository baseline and constraints
 
-- The frontend sends relative `/api/v1` requests through Vite proxying to `127.0.0.1:3001` in [`vite.config.ts`](../frontend/vite.config.ts:21); the real-E2E setup must make the proxy target configurable rather than assume the current default.
-- [`index.ts`](../backend/src/index.ts:66) starts Express outside Jest, exposes `/health/ready` at [`index.ts`](../backend/src/index.ts:143), and starts initialization/schedulers/workers at [`index.ts`](../backend/src/index.ts:227). The E2E server must be readiness-checked and must not send external traffic or allow uncontrolled background mutation.
-- Prisma uses PostgreSQL and `DATABASE_URL` in [`schema.prisma`](../backend/prisma/schema.prisma:5). Existing scripts expose migration deployment and seeding in [`backend/package.json`](../backend/package.json:14).
+- The frontend sends relative `/api/v1` requests through Vite proxying to `127.0.0.1:3001` in [`vite.config.ts`](../frontend/vite.config.ts:39); the real-E2E setup must make the proxy target configurable rather than assume the current default.
+- [`index.ts`](../backend/src/index.ts:75) starts Express outside Jest (`app.listen` at [`index.ts:290`](../backend/src/index.ts:290)), exposes `/health/ready` at [`index.ts:213`](../backend/src/index.ts:213), and starts initialization/schedulers/workers at [`index.ts:331-340`](../backend/src/index.ts:331). The E2E server must be readiness-checked and must not send external traffic or allow uncontrolled background mutation.
+- Prisma uses PostgreSQL and `DATABASE_URL` in [`schema.prisma`](../backend/prisma/schema.prisma:5). Existing scripts expose migration deployment and seeding in [`backend/package.json`](../backend/package.json:16) (`db:deploy`, `db:seed`).
 - [`seed.ts`](../backend/prisma/seed.ts:551) is a general development seed with fixed demonstration data and two development users. It is not an E2E isolation contract and must not become one by conditionally mixing E2E records into it.
-- CI already provisions PostgreSQL for integration and empty-database migration jobs in [`ci.yml`](../.github/workflows/ci.yml:188) and [`ci.yml`](../.github/workflows/ci.yml:473), but has no Playwright install, browser test, or full-stack server orchestration job.
-- The frontend provides real routes for risk/incident and operations workflows in [`App.tsx`](../frontend/src/App.tsx:55), including the audit/CAPA workspace at [`App.tsx`](../frontend/src/App.tsx:73). The plan validates only controls currently reachable in the UI; an unavailable UI step is a product gap to resolve before calling its journey browser E2E complete, not a reason to invoke the API from the test.
+- CI already provisions PostgreSQL for the Prisma-validation, integration, and empty-database migration jobs in [`ci.yml`](../.github/workflows/ci.yml:126), [`ci.yml`](../.github/workflows/ci.yml:212), and [`ci.yml`](../.github/workflows/ci.yml:497), but has no Playwright install, browser test, or full-stack server orchestration job.
+- The frontend provides real routes for risk/incident and operations workflows in [`App.tsx`](../frontend/src/App.tsx:84), including the audit/CAPA workspace at [`App.tsx`](../frontend/src/App.tsx:107). The plan validates only controls currently reachable in the UI; an unavailable UI step is a product gap to resolve before calling its journey browser E2E complete, not a reason to invoke the API from the test.
 
 ## Dedicated disposable E2E database
 
@@ -71,7 +73,7 @@ All specs under [`frontend/e2e`](../frontend/e2e) run against the Vite dev serve
 | `JWT_SECRET` | Express authentication | An E2E-only, long random CI/local value; required for real login/token issuance. |
 | `PORT`, `HOST` | Express | Reserved E2E backend endpoint, for example `3101` and `127.0.0.1`. |
 | `CORS_ORIGINS` | Express | Exact E2E frontend origin, for example `http://127.0.0.1:3100`. |
-| `VITE_API_PROXY_TARGET` | Vite configuration to be added | `http://127.0.0.1:3101`, replacing the fixed proxy target in [`vite.config.ts`](../frontend/vite.config.ts:24). |
+| `VITE_API_PROXY_TARGET` | Vite configuration to be added | `http://127.0.0.1:3101`, replacing the fixed proxy target in [`vite.config.ts`](../frontend/vite.config.ts:39). |
 | `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_PORT` | Real Playwright config | E2E frontend URL/port; retain current config values only for the mocked suite. |
 | `REFRESH_TOKEN_COOKIE_SECURE`, `REFRESH_TOKEN_SAME_SITE` | Auth/cookie configuration | Local HTTP-safe E2E values, e.g. `false` and `lax`, so browser login is real and deterministic. |
 | `REDIS_HOST` | Server | Unset for the initial single-process suite; current idempotency implementation falls back to in-memory storage when it is unset, per [`idempotency.ts`](../backend/src/middleware/idempotency.ts:581). |
@@ -95,12 +97,12 @@ Create separate mock and real Playwright entry points. Keep [`playwright.config.
 The real suite sequence is:
 
 1. Load E2E environment, preflight the E2E database, reset, deploy migrations, generate Prisma client, and run the dedicated E2E baseline seed.
-2. Start Express with the guarded E2E environment on `127.0.0.1:3101`; wait for [`/health/ready`](../backend/src/index.ts:143), not only for an open TCP port. Capture structured backend logs to the test-results directory.
+2. Start Express with the guarded E2E environment on `127.0.0.1:3101`; wait for [`/health/ready`](../backend/src/index.ts:213), not only for an open TCP port. Capture structured backend logs to the test-results directory.
 3. Start Vite on `127.0.0.1:3100` (or the chosen `PLAYWRIGHT_PORT`) with `VITE_API_PROXY_TARGET` set to that Express endpoint; wait for its HTTP URL.
 4. Start Playwright Chromium. Each spec logs in using the real form at [`Login.tsx`](../frontend/src/pages/Login.tsx:50), records its generated run prefix, performs UI-only mutations, reloads/revisits, and makes no `page.route()` calls for `/api/**`.
 5. Stop frontend/backend processes reliably, then run always-cleanup. Preserve Playwright trace/video/screenshot plus frontend/backend logs on failure.
 
-Before enabling the suite, introduce a server-safe E2E runtime control for schedulers, reminders, webhook queue worker, and external integrations. It must disable outbound/background side effects while leaving the real HTTP, authentication, authorization, service, Prisma, and transaction paths intact. Do not rely on `NODE_ENV=test` alone: [`index.ts`](../backend/src/index.ts:244) currently starts these services after startup.
+Before enabling the suite, introduce a server-safe E2E runtime control for schedulers, reminders, webhook queue worker, and external integrations. It must disable outbound/background side effects while leaving the real HTTP, authentication, authorization, service, Prisma, and transaction paths intact. Do not rely on `NODE_ENV=test` alone: [`index.ts`](../backend/src/index.ts:331) currently starts these services after startup.
 
 ## Test identities and RBAC
 
@@ -153,7 +155,7 @@ All unique names include the run prefix. All lifecycle mutations use the `system
 
 **Browser flow and assertions:**
 
-1. Create a supplier in ISMS Operations and navigate using the real detail route [`App.tsx`](../frontend/src/App.tsx:75); reload and verify its display identifier and metadata.
+1. Create a supplier in ISMS Operations and navigate using the real detail route [`App.tsx`](../frontend/src/App.tsx:109); reload and verify its display identifier and metadata.
 2. Create a supplier assessment with a high/critical finding and recommended action. Reload the supplier/assessment detail and verify the assessment and finding are persisted.
 3. Generate a CAPA through the supplier-origin workflow; verify the CAPA source references the supplier and is visible from the related detail/workspace.
 4. Move only through state controls the UI exposes in this journey; no direct backend lifecycle API calls.
@@ -163,7 +165,7 @@ All unique names include the run prefix. All lifecycle mutations use the `system
 
 ### 4. BIA → BCP → Exercise → CAPA
 
-**Prerequisites:** Use current BCM routes in [`App.tsx`](../frontend/src/App.tsx:74) and APIs served by [`phase6.routes.ts`](../backend/src/routes/phase6.routes.ts:206). If BIA/BCP/exercise creation is not exposed by the UI, record it as a blocking product UI gap; this journey cannot be labeled real browser E2E until it is reachable without API arrangement.
+**Prerequisites:** Use current BCM routes in [`App.tsx`](../frontend/src/App.tsx:108) and APIs served by [`phase6.routes.ts`](../backend/src/routes/phase6.routes.ts:206). If BIA/BCP/exercise creation is not exposed by the UI, record it as a blocking product UI gap; this journey cannot be labeled real browser E2E until it is reachable without API arrangement.
 
 **Browser flow and assertions:**
 
@@ -201,7 +203,7 @@ Add a dedicated `real-e2e` job to [`ci.yml`](../.github/workflows/ci.yml:25), se
 4. Launch Express and Vite with separate ports and capture each process log. Poll Express `/health/ready`, then the frontend URL.
 5. Execute the five serial real-E2E journeys. Retain the existing mocked Playwright suite as a separate fast job/step, so a full-stack environment failure cannot disguise loss of browser-contract coverage.
 6. In `always()`, stop servers, run guarded cleanup, and upload `frontend/playwright-report`, `frontend/test-results`, E2E seed/reset logs, and frontend/backend logs. Include all artifacts on test, readiness, migration, or cleanup failure.
-7. Add `real-e2e` to [`release-gates`](../.github/workflows/ci.yml:571) only after the acceptance criteria below are met and the job is required for relevant backend/frontend/Prisma/E2E/CI changes. Extend the preflight path filters to include `docs/e2e-testing.md` only if documentation-only changes are intended to exercise validation; otherwise do not make docs-only edits run the full suite.
+7. Add `real-e2e` to [`release-gates`](../.github/workflows/ci.yml:596) only after the acceptance criteria below are met and the job is required for relevant backend/frontend/Prisma/E2E/CI changes. Extend the preflight path filters to include `docs/e2e-testing.md` only if documentation-only changes are intended to exercise validation; otherwise do not make docs-only edits run the full suite.
 
 ## Incremental acceptance criteria
 

@@ -13,7 +13,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { SavedViewsBar } from '../components/SavedViewsBar';
 import { useSavedViews } from '../hooks/useSavedViews';
 import { exportCsv } from '../utils/csvExport';
-import { extractApiError } from '../utils/apiError';
+import { extractApiError, formatToastMessage } from '../utils/apiError';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import { useToast } from '../components/useToast';
@@ -21,6 +21,7 @@ import { usePersistedView } from '../hooks/usePersistedView';
 import { useListQuery } from '../hooks/useListQuery';
 import { formatDateTime } from '../utils/formatDate';
 import { buttonPrimary, inputField, selectField } from '../styles/tokens';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const ticketTypes = ['incident', 'service_request', 'problem', 'change'];
 
@@ -57,6 +58,12 @@ export default function Tickets() {
 
   const { run } = useListQuery();
 
+  // Bulk selection (archive several tickets at once). Page-scoped: cleared
+  // whenever the visible page or filters change (same contract as Assets).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
+
   const { views, saveView, deleteView } = useSavedViews('tickets');
   const hasActiveFilters = Boolean(type || statusGroup || scope);
   const applySavedView = useCallback((viewFilters: Record<string, string>) => {
@@ -85,7 +92,9 @@ export default function Tickets() {
         }
         setError(null);
       },
-      onError: (err: any) => { setError(extractApiError(err, t('tickets.loadError')).message); },
+      onError: (err: any) => {
+        setError(formatToastMessage(extractApiError(err, t('tickets.loadError')), t('common.referenceId')));
+      },
       onSettled: () => setLoading(false),
     });
   }, [page, debouncedQuery, run, scope, statusGroup, t, type]);
@@ -135,6 +144,55 @@ export default function Tickets() {
   ], sortedTickets.map((ticket) => [
     `${ticket.displayId} — ${ticket.title}`, t(`tickets.types.${ticket.type}`), t(`tickets.priorities.${ticket.priority}`), ticket.status, ticket.resolutionDueAt ? formatDateTime(ticket.resolutionDueAt) : '', ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '', ticket.openedAt ?? ticket.createdAt ?? '', ticket.updatedAt ?? '',
   ]));
+
+  // Page-scoped selection reset: filters or page changes clear the selection.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, type, statusGroup, scope, debouncedQuery]);
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((current) => {
+      const pageIds = sortedTickets.map((ticket) => ticket.id);
+      const allSelected = pageIds.length > 0 && pageIds.every((id) => current.has(id));
+      const next = new Set(current);
+      pageIds.forEach((id) => {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = [...selectedIds];
+    setBulkConfirmOpen(false);
+    setBulkArchiving(true);
+    try {
+      const result = (await ticketApi.bulkArchive({ ids })).data;
+      if (result.failedCount === 0) {
+        addToast('success', t('bulk.success', { count: result.succeededCount }));
+      } else if (result.succeededCount > 0) {
+        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
+      } else {
+        addToast('error', t('bulk.failed'));
+      }
+    } catch (err: unknown) {
+      addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
+    } finally {
+      setBulkArchiving(false);
+      setSelectedIds(new Set());
+      await load();
+    }
+  };
 
   const handleClearView = useCallback(() => {
     clearView();
@@ -216,9 +274,27 @@ export default function Tickets() {
           <ActiveFilters labelKey="tickets.filterTitle" clearAllKey="common.clearAll" onClearView={handleClearView} chips={chips} />
         </div>
       )}
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
+            </div>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
+              <th className="px-6 py-3 w-10">
+                <input
+                  type="checkbox"
+                  aria-label={t('bulk.selectAll')}
+                  checked={sortedTickets.length > 0 && sortedTickets.every((ticket) => selectedIds.has(ticket.id))}
+                  onChange={toggleSelectAllOnPage}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+              </th>
               <SortableTh column="ticket" label={t('tickets.headings.ticket')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
               <SortableTh column="type" label={t('tickets.headings.type')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
               <SortableTh column="priority" label={t('tickets.headings.priority')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
@@ -230,12 +306,12 @@ export default function Tickets() {
             </tr>
           </thead>
           {loading ? (
-            <SkeletonTable columns={8} rows={8} />
+            <SkeletonTable columns={9} rows={8} />
           ) : (
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {tickets.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8">
+                <td colSpan={9} className="px-4 py-8">
                   <EmptyState
                     titleKey="tickets.emptyTitle"
                     descriptionKey="tickets.emptyDescription"
@@ -247,6 +323,15 @@ export default function Tickets() {
               </tr>
             ) : sortedTickets.map((ticket) => (
                <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-6 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    aria-label={t('bulk.select')}
+                    checked={selectedIds.has(ticket.id)}
+                    onChange={() => toggleSelected(ticket.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <Link to={`/tickets/${ticket.id}`} className="font-semibold text-primary-700 hover:underline dark:text-primary-300">{ticket.displayId}</Link>
                   <div className="max-w-sm truncate text-sm text-gray-900 dark:text-gray-100">{ticket.title}</div>
@@ -265,6 +350,15 @@ export default function Tickets() {
         </table>
       <PaginationControls page={page} totalPages={pagination.totalPages} onPageChange={setPage} />
     </DataTableShell>
+    <ConfirmDialog
+      isOpen={bulkConfirmOpen}
+      onClose={() => setBulkConfirmOpen(false)}
+      onConfirm={handleBulkArchive}
+      danger
+      title={t('bulk.confirmTitle')}
+      message={t('bulk.confirmMessage', { count: selectedIds.size })}
+      confirmLabel={t('bulk.archive')}
+    />
     <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={t('tickets.newTicket')}>
       <form onSubmit={submit} className="space-y-4">
         <label className="block text-sm font-medium">{t('tickets.typeLabel')}

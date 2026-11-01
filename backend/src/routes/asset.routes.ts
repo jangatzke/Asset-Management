@@ -7,6 +7,8 @@ import { assetGraphService } from '../services/asset.graph';
 import { authorizationService } from '../services/authorization.service';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import { ArchiveAssetSchema, AssetGraphQuerySchema, AssetImpactQuerySchema, AssetQuerySchema, AssetRelationCreateSchema, BulkArchiveAssetsSchema, ConfirmAssetResponsibilitySchema, CreateAssetSchema, DisposalProofSchema, EntityHistoryQuerySchema, IdParamSchema, LifecycleTransitionSchema, SubResourceListQuerySchema, UpdateAssetSchema, CreateAssetSubtypeSchema } from 'shared';
+import { setPaginationHeader } from '../utils/pagination';
+import { idempotency } from '../middleware/idempotency';
 
 
 
@@ -20,13 +22,14 @@ export const assetRouter = Router();
 assetRouter.get('/', authenticate, requirePermission('assets.read'), validateQuery(AssetQuerySchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await assetService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'assets') as any);
+    setPaginationHeader(res, result);
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-assetRouter.post('/', authenticate, authorizeEntityWrite('assets'), validateBody(CreateAssetSchema), async (req: AuthRequest, res, next) => {
+assetRouter.post('/', authenticate, authorizeEntityWrite('assets'), idempotency(), validateBody(CreateAssetSchema), async (req: AuthRequest, res, next) => {
   try {
     const asset = await assetService.create(req.body, req.userId);
     res.status(201).json(asset);
@@ -92,7 +95,7 @@ assetRouter.get('/incomplete', authenticate, requireAdminAccess, async (_req, re
 
 // Bulk archive (soft-delete) — per-item entity permission checks.
 // Placed before the parametric /:id routes so the static path is matched first.
-assetRouter.post('/bulk-archive', authenticate, requirePermission('assets.read'), validateBody(BulkArchiveAssetsSchema), async (req: AuthRequest, res, next) => {
+assetRouter.post('/bulk-archive', authenticate, requirePermission('assets.read'), idempotency(), validateBody(BulkArchiveAssetsSchema), async (req: AuthRequest, res, next) => {
   try {
     const { ids, reason } = req.body as { ids: string[]; reason?: string };
     const succeeded: Array<{ id: string; status: number }> = [];
@@ -147,7 +150,7 @@ assetRouter.get('/:id/history', authenticate, requireEntityPermission('assets.re
   }
 });
 
-assetRouter.put('/:id', authenticate, authorizeEntityWrite('assets'), validateParams(IdParamSchema), validateBody(UpdateAssetSchema), async (req: AuthRequest, res, next) => {
+assetRouter.put('/:id', authenticate, authorizeEntityWrite('assets'), idempotency(), validateParams(IdParamSchema), validateBody(UpdateAssetSchema), async (req: AuthRequest, res, next) => {
   try {
     const asset = await assetService.update(req.params.id, req.body, req.userId);
     res.json(asset);
@@ -157,7 +160,7 @@ assetRouter.put('/:id', authenticate, authorizeEntityWrite('assets'), validatePa
 });
 
 // Delete delegates to archive (soft-delete)
-assetRouter.delete('/:id', authenticate, authorizeEntityDelete('assets'), validateParams(IdParamSchema), async (req: AuthRequest, res, next) => {
+assetRouter.delete('/:id', authenticate, authorizeEntityDelete('assets'), idempotency(), validateParams(IdParamSchema), async (req: AuthRequest, res, next) => {
   try {
     const result = await assetService.delete(req.params.id, req.userId);
     res.json(result);

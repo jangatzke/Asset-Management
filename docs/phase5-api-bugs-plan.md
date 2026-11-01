@@ -1,5 +1,7 @@
 # Phase 5 API Bugs Plan
 
+> **Status update (2026-10-30):** Completed (commit `9a885a3`). The "Baseline inspection" below is the pre-Phase 5 state and is historical. Current code matches this plan: static-before-param route ordering is enforced across the listed routers, organization units have a real list endpoint (`backend/src/routes/organization.routes.ts`), and regression coverage exists in `backend/src/__tests__/phase5.api-bugs.test.ts` and `frontend/src/services/phase5-api-bugs.test.ts`.
+
 ## Scope
 
 Execute only Phase 5 concrete bug fixes and API consistency work. Phase 6+ service/module work, universal entity picker work, audit hash chains, jobs, health/metrics, CI gates, and broad DTO overhauls are explicitly out of scope.

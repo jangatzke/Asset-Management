@@ -1,5 +1,7 @@
 # Phase 8: UI Consolidation Plan
 
+> **Status update (2026-10-30):** Completed (commit `4b55ea6`). Deliverables exist today: `frontend/src/components/EntityPicker.tsx`, `frontend/src/services/entityPickerApi.ts`, EntityPicker usage in `frontend/src/pages/ISMSPhase6.tsx`, and the tabbed `frontend/src/pages/RiskDetail.tsx` (note: a `RiskEvidenceLinker` placeholder still exists in that file, and the `frontend/src/pages/RiskDetail.test.tsx` test mentioned in the implementation log is no longer present in the tree). The verification checklist below reflects the run at implementation time.
+
 ## Overview
 
 Phase 8 consolidates entity selection UI across the frontend, replacing raw UUID inputs with reusable `EntityPicker` components and replacing raw JSON textareas with structured UI forms. This phase focuses on improving UX for ISMS Phase 6 entities while maintaining backend permissions as the authoritative access control mechanism.

@@ -22,10 +22,12 @@ import { PaginationControls } from '../components/PaginationControls';
 import { SavedViewsBar } from '../components/SavedViewsBar';
 import { useSavedViews } from '../hooks/useSavedViews';
 import { exportCsv } from '../utils/csvExport';
-import { extractApiError } from '../utils/apiError';
+import { extractApiError, formatToastMessage } from '../utils/apiError';
 import { useI18n } from '../context/I18nContext';
 import { useToast } from '../components/useToast';
 import { useAuthStore } from '../store/auth';
+import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
+import { canRestoreAssets } from '../utils/permissions';
 import {
   iconButtonEdit,
   iconButtonView,
@@ -78,7 +80,13 @@ interface AssetRelation {
 
 const actionIconClassName = 'h-4 w-4';
 const PAGE_SIZE = 50;
-const messageFrom = (error: unknown, fallback: string) => extractApiError(error, fallback).message;
+/**
+ * Compose the user-facing error text, appending the localized correlation
+ * reference (Phase 1.4) so support can quote it. The reference is plain text in
+ * the toast body, so it can be selected/copied like any other toast content.
+ */
+const messageFrom = (error: unknown, fallback: string, referenceTemplate: string) =>
+  formatToastMessage(extractApiError(error, fallback), referenceTemplate);
 
 interface CreateAssetForm {
   name: string;
@@ -144,10 +152,13 @@ const Assets = () => {
   const filterType = filters.type ?? '';
   const filterCriticality = filters.criticality ?? '';
   const filterStatus = filters.status ?? '';
-  // Restore (undo of delete) is admin-only on the backend, so the Undo action
-  // in the toast is only offered to users who can actually perform it.
+  // Restore (undo of delete/archive) is admin-only on the backend, so the Undo
+  // action in the toast is only offered to users who can actually perform it.
+  // Permission source: granular `administration.access` when the session carries
+  // permissions, otherwise the legacy `system_admin` role (see utils/permissions).
   const { user } = useAuthStore();
-  const isAdmin = Boolean(user?.roles?.includes('system_admin'));
+  const canRestore = canRestoreAssets(user);
+  const undoable = useUndoableAction();
   const { views, saveView, deleteView } = useSavedViews('assets');
   const hasActiveFilters = Boolean(filterType || filterCriticality || filterStatus);
   const applySavedView = useCallback((viewFilters: Record<string, string>) => {
@@ -295,7 +306,7 @@ const Assets = () => {
       if (isStale()) return;
       // Aborted requests (superseded or unmount) are silent by design.
       if (err?.name === 'CanceledError' || controller.signal.aborted) return;
-      const message = messageFrom(err, t('common.saveError'));
+      const message = messageFrom(err, t('common.saveError'), t('common.referenceId'));
       setError(message);
       addToast('error', message);
     } finally {
@@ -490,7 +501,7 @@ const Assets = () => {
       addToast('success', editingId ? t('assets.updateSuccess') : t('assets.createSuccess'));
       await refreshCurrentQuery();
     } catch (err: any) {
-      const message = messageFrom(err, t('common.saveError'));
+      const message = messageFrom(err, t('common.saveError'), t('common.referenceId'));
       setError(message);
       addToast('error', message);
     } finally {
@@ -545,7 +556,7 @@ const Assets = () => {
       openEditor(res.data);
     } catch (err: any) {
       console.error('Failed to load asset details for editing:', err);
-      const message = messageFrom(err, t('assets.loadDetailsError'));
+      const message = messageFrom(err, t('assets.loadDetailsError'), t('common.referenceId'));
       setError(message);
       addToast('error', message);
     }
@@ -556,24 +567,18 @@ const Assets = () => {
     try {
       await assetApi.delete(id);
       await refreshCurrentQuery();
-      if (isAdmin) {
-        // Delete is a soft-delete (archive); offer undo for users allowed to restore.
-        addToast('success', t('assets.deleteSuccess'), 6000, undefined, {
-          label: t('undo.label'),
-          onClick: () => {
-            assetApi.restore(id, {})
-              .then(async () => {
-                addToast('success', t('undo.done'));
-                await refreshCurrentQuery();
-              })
-              .catch((err: unknown) => addToast('error', messageFrom(err, t('common.deleteError'))));
-          },
-        });
-      } else {
-        addToast('success', t('assets.deleteSuccess'));
-      }
+      // Delete is a soft-delete (archive); offer Undo only when the user can
+      // actually restore. When `canRestore` is false the toast carries text only
+      // (no action button).
+      undoable.offerUndo({
+        successMessage: t('assets.deleteSuccess'),
+        undoFailureMessage: t('common.deleteError'),
+        canUndo: canRestore,
+        restore: () => assetApi.restore(id, {}),
+        onUndone: refreshCurrentQuery,
+      });
     } catch (err: any) {
-      const message = messageFrom(err, t('common.deleteError'));
+      const message = messageFrom(err, t('common.deleteError'), t('common.referenceId'));
       setError(message);
       addToast('error', message);
     }
@@ -619,15 +624,24 @@ const Assets = () => {
     try {
       const response = await assetApi.bulkArchive({ ids });
       const result = response.data;
-      if (result.failedCount === 0) {
-        addToast('success', t('bulk.success', { count: result.succeededCount }));
-      } else if (result.succeededCount > 0) {
-        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
-      } else {
+      if (result.succeededCount === 0) {
         addToast('error', t('bulk.failed'));
+        return;
       }
+      // Undo restores exactly the assets the backend confirmed as archived.
+      // IDs listed in `failed` were never archived and are skipped.
+      undoable.offerUndo({
+        toastType: result.failedCount === 0 ? 'success' : 'warning',
+        successMessage: result.failedCount === 0
+          ? t('bulk.success', { count: result.succeededCount })
+          : t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }),
+        undoFailureMessage: t('bulk.failed'),
+        canUndo: canRestore,
+        restore: () => restoreSucceededIds(result, (id) => assetApi.restore(id, {})),
+        onUndone: refreshCurrentQuery,
+      });
     } catch (err: unknown) {
-      addToast('error', messageFrom(err, t('bulk.failed')));
+      addToast('error', messageFrom(err, t('bulk.failed'), t('common.referenceId')));
     } finally {
       setBulkArchiving(false);
       setSelectedIds(new Set());

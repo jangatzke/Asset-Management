@@ -419,6 +419,9 @@
     "exportJson": "JSON exportieren",
     "filters": "Filter",
     "group": "Gruppe",
+    "help": {
+      "ariaLabel": "Weitere Informationen zu diesem Feld"
+    },
     "id": "ID",
     "inactive": "Inaktiv",
     "loading": "Wird geladen...",
@@ -432,6 +435,7 @@
     "page": "Seite",
     "pageNumber": "Seite {page}",
     "removeFilter": "Filter entfernen",
+    "referenceId": "Ref: {id}",
     "required": "Erforderlich",
     "requiredField": "Dieses Feld ist erforderlich",
     "role": "Rolle",
@@ -596,6 +600,18 @@
       "soaPlaceholder": "Anwendbarkeitserklärung auswählen",
       "success": "ISO/IEC 27001:2022-SoA-Entwurf mit {count} Annex-A-Kontrollen erstellt. Prüfen Sie die Anwendbarkeit und ersetzen Sie alle ausstehenden Begründungen vor der Einreichung.",
       "title": "ISO/IEC 27001:2022 Annex-A-SoA generieren"
+    },
+    "soaPending": {
+      "title": "Prüfung ausstehender Begründungen",
+      "description": "Markiert SoA-Punkte, die noch nicht eingereicht werden können: leere Begründung, die generierte Platzhalter-Begründung oder eine noch in Prüfung befindliche Anwendbarkeitsentscheidung.",
+      "loadButton": "Ausstehende Begründungen prüfen",
+      "loading": "Wird geprüft…",
+      "empty": "Keine ausstehenden Begründungen – jeder SoA-Punkt hat eine standortbezogene Begründung.",
+      "summary": "{count} SoA-Punkt(e) können noch nicht eingereicht werden.",
+      "error": "Der Bericht zu ausstehenden Begründungen konnte nicht geladen werden",
+      "reasonPlaceholder": "Generierte Platzhalter-Begründung noch vorhanden",
+      "reasonApplicability": "Anwendbarkeitsentscheidung noch in Prüfung",
+      "reasonEmpty": "Begründung ist leer"
     },
     "stats": {
       "evidenceItems": "Nachweise",
@@ -941,7 +957,8 @@
       "focusAnnouncement": "Fokus: {name} (Kritikalität: {criticality})",
       "focusAnnouncementPlain": "Fokus: {name}",
       "listLabel": "Diagrammknoten",
-      "keyboardHint": "Pfeiltasten zum Wechseln zwischen Assets verwenden, Enter für Details und Escape zum Verlassen."
+      "keyboardHint": "Pfeiltasten zum Wechseln zwischen Assets verwenden, Enter für Details und Escape zum Verlassen.",
+      "roleDescription": "Interaktives Abhängigkeitsdiagramm: Pfeiltasten zum Durchwechseln der Knoten"
     },
     "impact": {
       "title": "Auswirkungsanalyse",
@@ -1657,6 +1674,15 @@
     "contactPerson": "Kontaktperson",
     "createDraftAssessment": "Entwurf der Bewertung erstellen",
     "createRegistration": "Registrierung erstellen",
+    "crosswalkTitle": "Vollständigkeit des NIS-2 ↔ ISO 27001:2022 Anhang A Crosswalks",
+    "crosswalkDescription": "Schreibgeschützter Bericht, abgeleitet aus dem NIS-2-Pflichtenkatalog und dem ISO-Anhang-A-Kontrollkatalog. Er listet fehlende, unbekannte und nicht zugeordnete Referenzen auf, ohne Zuordnungen zu erfinden.",
+    "crosswalkComplete": "Crosswalk vollständig: Jeder NIS-2-Artikel referenziert nur vorhandene ISO-Anhang-A-Kontrollen und jede Kontrolle ist zugeordnet.",
+    "crosswalkFindings": "Crosswalk-Befunde",
+    "crosswalkMissingControls": "Fehlende Kontrollen",
+    "crosswalkUnknownControls": "Unbekannte Kontrollen",
+    "crosswalkUnmappedArticles": "Nicht zugeordnete Artikel",
+    "crosswalkUnmappedControls": "Nicht zugeordnete Kontrollen",
+    "crosswalkLoadError": "Der Vollständigkeitsbericht des Crosswalks konnte nicht geladen werden.",
     "defaultQuestionnaireLoaded": "Standardfragebogen geladen. Sie können nun die Antworten unten ausfüllen.",
     "description": "Beschreibung *",
     "emptyQuestionnaireExplanation": "Derzeit ist kein aktiver Fragebogen verfügbar. Ohne Fragebogen können Sie keine Bewertung erstellen. Verwenden Sie den Standardfragebogen-Endpunkt, um einen zu erstellen, und kehren Sie hierher zurück, um die Antworten auszufüllen.",
@@ -2209,9 +2235,17 @@
       "description": "Beschreibung",
       "impact": "Auswirkung (1-5)",
       "justification": "Bewertungsbegründung",
+      "mitigationDimension": {
+        "label": "Minderungsdimension",
+        "description": "Risiko-Dimension, die die verknüpfte Kontrolle reduziert: Eintrittswahrscheinlichkeit, Auswirkung oder beides."
+      },
       "likelihood": "Eintrittswahrscheinlichkeit (1-5)",
       "nextReviewDate": "Nächstes Review-Datum",
       "possibleImpact": "Mögliche Auswirkung",
+      "riskClasses": {
+        "label": "Risikoklassen",
+        "description": "Methodenspezifische JSON-Definition der Risikoklassen, die berechnete Risiko-Scores auf Klassenschwellen abbildet."
+      },
       "riskOwnerId": "Risikoeigentümer-ID",
       "title": "Titel"
     },
@@ -3056,5 +3090,12 @@
       "e_g_draft_in_review_approved": "z. B. draft, in_review, approved",
       "e_g_suppliers_bias_auditplans": "z. B. suppliers, bias, auditPlans"
     }
+  },
+  "draft": {
+    "found": "Gespeicherter Entwurf gefunden",
+    "restoreMessage": "Ein Entwurf Ihrer Änderungen wurde auf diesem Gerät gespeichert. Stellen Sie ihn wieder her oder verwerfen Sie ihn, bevor Sie neu beginnen.",
+    "restore": "Entwurf wiederherstellen",
+    "discard": "Entwurf verwerfen",
+    "saved": "Änderungen werden automatisch als lokaler Entwurf gespeichert."
   }
 }

@@ -1,5 +1,14 @@
 # Backend API Structure Analysis & Frontend Usability Implications
 
+> **Status update (2026-10-30):** Historical analysis; several findings are no longer accurate. Verified against the current code:
+> - **ISSUE-17 (ETag not applied) — FIXED.** `etag()` is mounted for assets, risks, controls, incidents, tickets and search in [`index.ts`](backend/src/index.ts:229).
+> - **ISSUE-19 (no rate limiting) — FIXED.** `express-rate-limit` provides a strict auth limiter and a general API limiter ([`index.ts`](backend/src/index.ts:150)); webhooks/service-account auth have their own limits.
+> - **ISSUE-20 (no CORS) — FIXED.** CORS is configured with an allowlist from env in [`index.ts`](backend/src/index.ts:182). Response compression (`compression`) is also enabled ([`index.ts`](backend/src/index.ts:5)), contradicting the "Response compression not configured" row in §8.2.
+> - **ISSUE-11 (no response typing) — PARTIALLY FIXED.** Shared DTO types such as `RiskControlDto` are now imported and used as response generics in [`api.ts`](frontend/src/services/api.ts:31), and the flat `Record<string, unknown>` aliases were tightened ([line 118](frontend/src/services/api.ts:118)). Full response-DTO coverage (Recommendation 3) remains incomplete.
+> - **ISSUE-4/§7 (legacy aliases, OpenAPI coverage)** — still accurate; [`docs/api/openapi.yaml`](docs/api/openapi.yaml) remains partial and legacy aggregate aliases remain in [`risk.routes.ts`](backend/src/routes/risk.routes.ts).
+> - **ISSUE-18 (frontend sends no `Idempotency-Key`)** — still accurate: the frontend API layer does not attach idempotency keys, although backend idempotency middleware is now Redis-backed and applied to webhook/service-account routes ([`index.ts`](backend/src/index.ts:275)).
+> - Recommendations 1 (unified error schema), 2 (pagination middleware wiring), 5–8 and 9–12 were not implemented as proposed. **The referenced pagination middleware was deleted** — `backend/src/middleware/pagination.ts` does not exist. Pagination is implemented in the service layer: primary list routes return `{ data, pagination: { page, limit, total, totalPages } }` **and now also set `X-Total-Count`** (Phase 1.1) via [`utils/pagination.ts`](backend/src/utils/pagination.ts:1). Only the knowledge list route still returns a bare array and therefore has no envelope/header.
+
 ## Executive Summary
 
 This analysis examines the backend API of the Asset Management application (ISO 27001 compliance platform) across 27 route modules, 50+ service files, 14 middleware components, and a 3600-line Prisma schema. The API demonstrates strong architectural foundations with Zod-based validation, entity-level authorization, and comprehensive domain modeling. However, several gaps in API design directly impact frontend usability, including inconsistent pagination, missing query capabilities, ad-hoc parameter parsing, and response structure inconsistencies.

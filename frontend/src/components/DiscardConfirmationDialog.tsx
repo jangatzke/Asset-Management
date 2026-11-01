@@ -7,6 +7,14 @@ interface DiscardConfirmationProps {
   onDiscard: () => void;
   titleKey: string;
   messageKey: string;
+  /**
+   * Optional label overrides. Draft restoration reuses this dialog but the
+   * two actions mean "discard draft" and "restore draft", not "cancel" and
+   * "discard changes"; defaults preserve the existing discard-changes copy.
+   */
+  cancelLabelKey?: string;
+  confirmLabelKey?: string;
+  confirmColor?: 'error' | 'primary';
 }
 
 /**
@@ -19,6 +27,9 @@ export const DiscardConfirmationDialog: React.FC<DiscardConfirmationProps> = ({
   onDiscard,
   titleKey,
   messageKey,
+  cancelLabelKey = 'common.cancel',
+  confirmLabelKey = 'common.discard',
+  confirmColor = 'error',
 }) => {
   const { t } = useI18n();
 
@@ -29,9 +40,9 @@ export const DiscardConfirmationDialog: React.FC<DiscardConfirmationProps> = ({
         <Typography variant="body2" sx={{ pt: 1 }}>{t(messageKey)}</Typography>
       </DialogContent>
       <DialogActions sx={{ px: 2, pb: 2 }}>
-        <Button onClick={onClose} color="inherit">{t('common.cancel')}</Button>
-        <Button onClick={onDiscard} variant="contained" color="error" autoFocus>
-          {t('common.discard')}
+        <Button onClick={onClose} color="inherit">{t(cancelLabelKey)}</Button>
+        <Button onClick={onDiscard} variant="contained" color={confirmColor} autoFocus>
+          {t(confirmLabelKey)}
         </Button>
       </DialogActions>
     </Dialog>

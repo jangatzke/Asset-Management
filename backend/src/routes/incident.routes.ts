@@ -4,21 +4,24 @@ import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, r
 import { validateBody } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';
 import { authorizationService } from '../services/authorization.service';
-import { AssessIncidentSchema, ChangeIncidentStatusSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
+import { AssessIncidentSchema, BulkArchiveIdsSchema, ChangeIncidentStatusSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
 import { z } from 'zod';
+import { setPaginationHeader } from '../utils/pagination';
+import { idempotency } from '../middleware/idempotency';
 
 export const incidentRouter = Router();
 
 incidentRouter.get('/', authenticate, requirePermission('incidents.read'), async (req: AuthRequest, res, next) => {
   try {
     const result = await incidentService.list(req.query, await authorizationService.buildReadFilter(req.userId!, 'incidents') as any);
+    setPaginationHeader(res, result);
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-incidentRouter.post('/', authenticate, authorizeEntityWrite('incidents'), validateBody(CreateIncidentSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.post('/', authenticate, authorizeEntityWrite('incidents'), idempotency(), validateBody(CreateIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
     const incident = await incidentService.create(req.body, req.userId);
     res.status(201).json(incident);
@@ -27,7 +30,7 @@ incidentRouter.post('/', authenticate, authorizeEntityWrite('incidents'), valida
   }
 });
 
-incidentRouter.put('/:id', authenticate, authorizeEntityWrite('incidents'), validateBody(UpdateIncidentSchema), async (req: AuthRequest, res, next) => {
+incidentRouter.put('/:id', authenticate, authorizeEntityWrite('incidents'), idempotency(), validateBody(UpdateIncidentSchema), async (req: AuthRequest, res, next) => {
   try {
     const incident = await incidentService.update(req.params.id, req.body, req.userId);
     res.json(incident);
@@ -36,7 +39,41 @@ incidentRouter.put('/:id', authenticate, authorizeEntityWrite('incidents'), vali
   }
 });
 
-incidentRouter.delete('/:id', authenticate, authorizeEntityDelete('incidents'), async (req: AuthRequest, res, next) => {
+// Bulk archive (soft-delete) — Phase 2.1 / D4. Mirrors the Assets bulk archive
+// (asset.routes.ts). Per-item authorization + per-item archive so a single
+// failure never aborts the other ids. Placed before the parametric /:id routes
+// so the static path is matched first.
+incidentRouter.post('/bulk-archive', authenticate, requirePermission('incidents.write'), idempotency(), validateBody(BulkArchiveIdsSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    const succeeded: Array<{ id: string; status: number }> = [];
+    const failed: Array<{ id: string; error: string; status: number }> = [];
+
+    for (const id of ids) {
+      try {
+        // Mirror the single delete guard (authorizeEntityDelete → incidents.write).
+        await authorizationService.requireForEntity(req.userId!, 'incidents.write', 'incidents', id);
+        await incidentService.delete(id);
+        succeeded.push({ id, status: 200 });
+      } catch (error: any) {
+        const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+        failed.push({ id, error: error?.message ?? 'Archive failed', status });
+      }
+    }
+
+    res.status(200).json({
+      succeeded,
+      failed,
+      total: ids.length,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+incidentRouter.delete('/:id', authenticate, authorizeEntityDelete('incidents'), idempotency(), async (req: AuthRequest, res, next) => {
   try {
     const result = await incidentService.delete(req.params.id);
     res.json(result);

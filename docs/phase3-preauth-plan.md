@@ -1,5 +1,7 @@
 # Phase 3 Pre-Authentication Plan
 
+> **Status update (2026-10-30):** Completed (commit `48aad03`). One factual correction vs. current code: the pre-auth token expiry is configured via `PREAUTH_TOKEN_EXPIRES_SECONDS` (`backend/src/services/auth.service.ts`, default 5×60 seconds), not `PREAUTH_TOKEN_EXPIRES_IN` as written below.
+
 ## Scope
 Implement only Phase 3 pre-authentication for MFA and expired-password flows. Phase 4+ OIDC consolidation, risk possibleImpact, UI entity picker, audit hash chain, jobs, health/metrics, CI gates, and new ISMS modules are explicitly out of scope.
 

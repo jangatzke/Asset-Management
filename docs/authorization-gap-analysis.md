@@ -8,6 +8,8 @@
 
 ---
 
+> **Status update (2026-10-30):** The three asset-scope gaps described below were remediated as recorded in section 11 and re-verified against the current code: scope validation exists in [`asset.service.ts`](backend/src/services/asset.service.ts) at lines 298-303 (create), 475-490 (update), 1009-1011 (relation target), and the relation route passes `req.userId` ([`asset.routes.ts:247`](backend/src/routes/asset.routes.ts:247)). Line numbers in sections 3-5 refer to the pre-fix code and are outdated; section 11 carries re-verified references. The recommended negative integration tests (11.7) still do not exist — `requireForScope`/`requireForEntity` are only mocked in [`asset.crud.test.ts:72-75`](backend/src/__tests__/asset.crud.test.ts:72).
+
 ## 1. Executive Summary
 
 The current authorization system implements scoped permissions via `organizationUnitId`, `locationId` (site), `legalEntityId`, and `scopeId` constraints on role assignments. However, three critical gaps allow users with scoped write permissions to bypass those scope constraints:
@@ -462,9 +464,9 @@ The risk service pattern should be replicated for assets to maintain consistency
 
 | File | Changes |
 |------|---------|
-| [`backend/src/services/asset.service.ts`](backend/src/services/asset.service.ts) | Add scope validation to `create()`, `update()`, and `createRelation()` methods |
-| [`backend/src/routes/asset.routes.ts`](backend/src/routes/asset.routes.ts) | Pass `req.userId` to `createRelation()` |
-| [`backend/src/__tests__/asset-authorization.test.ts`](backend/src/__tests__/asset-authorization.test.ts) | **New file** — Tests for asset scope validation |
+| [`backend/src/services/asset.service.ts`](backend/src/services/asset.service.ts) | Add scope validation to `create()`, `update()`, and `createRelation()` methods — **applied** (see section 11) |
+| [`backend/src/routes/asset.routes.ts`](backend/src/routes/asset.routes.ts) | Pass `req.userId` to `createRelation()` — **applied** ([`asset.routes.ts:247`](backend/src/routes/asset.routes.ts:247)) |
+| ~~[`backend/src/__tests__/asset-authorization.test.ts`](backend/src/__tests__/asset-authorization.test.ts)~~ | **Not created.** As of 2026-10-30 no dedicated asset-scope test file exists; the authz service is only mocked in [`asset.crud.test.ts:72-75`](backend/src/__tests__/asset.crud.test.ts:72). Negative scope tests remain a recommended follow-up (see 11.7). |
 
 ---
 
@@ -484,7 +486,7 @@ All three authorization gaps have been remediated. The following changes were ma
 
 ### 11.1 Asset Service — Scope Validation Helpers
 
-**File:** [`backend/src/services/asset.service.ts:7-20`](backend/src/services/asset.service.ts:7-20)
+**File:** [`backend/src/services/asset.service.ts:11-20`](backend/src/services/asset.service.ts:11) (line references re-verified 2026-10-30)
 
 Added two helper functions to resolve `ScopeConstraints` from organization unit and location IDs:
 
@@ -513,7 +515,7 @@ async function resolveLocationScope(locationId: string): Promise<ScopeConstraint
 
 ### 11.2 Asset Creation — Target Scope Validation
 
-**File:** [`backend/src/services/asset.service.ts:272-279`](backend/src/services/asset.service.ts:272-279)
+**File:** [`backend/src/services/asset.service.ts:298-303`](backend/src/services/asset.service.ts:298) (line references re-verified 2026-10-30)
 
 Added scope validation before asset creation:
 
@@ -532,7 +534,7 @@ async create(data: CreateAssetData, createdBy?: string) {
 
 ### 11.3 Asset Update — Scope Change Detection
 
-**File:** [`backend/src/services/asset.service.ts:419-430`](backend/src/services/asset.service.ts:419-430)
+**File:** [`backend/src/services/asset.service.ts:475-490`](backend/src/services/asset.service.ts:475) (line references re-verified 2026-10-30)
 
 Added scope change detection before applying updates:
 
@@ -558,7 +560,7 @@ async update(id: string, data: UpdateAssetData, updatedBy?: string) {
 
 ### 11.4 Asset Relations — Target Asset Authorization
 
-**File:** [`backend/src/services/asset.service.ts:868-886`](backend/src/services/asset.service.ts:868-886)
+**File:** [`backend/src/services/asset.service.ts:1009-1011`](backend/src/services/asset.service.ts:1009) (line references re-verified 2026-10-30; relation-sync paths additionally enforce `assets.read` on targets at [`asset.service.ts:404-406`](backend/src/services/asset.service.ts:404) and [`:630-632`](backend/src/services/asset.service.ts:630))
 
 Added target asset write permission validation:
 
@@ -576,13 +578,13 @@ async createRelation(assetId: string, relationData: {...}, userId?: string) {
 
 ### 11.5 Asset Routes — Pass userId to Service Methods
 
-**File:** [`backend/src/routes/asset.routes.ts`](backend/src/routes/asset.routes.ts)
+**File:** [`backend/src/routes/asset.routes.ts`](backend/src/routes/asset.routes.ts) (line references re-verified 2026-10-30)
 
 | Route | Line | Change |
 |-------|------|--------|
-| `POST /assets` | 32 | Already passes `req.userId` as `createdBy` |
-| `PUT /assets/:id` | 120 | Already passes `req.userId` as `updatedBy` |
-| `POST /assets/:id/relations` | 214 | Updated to pass `req.userId` as third argument |
+| `POST /assets` | 29 | Already passes `req.userId` as `createdBy` |
+| `PUT /assets/:id` | 150 | Already passes `req.userId` as `updatedBy` |
+| `POST /assets/:id/relations` | 247 | Updated to pass `req.userId` as third argument |
 
 ### 11.6 Verification
 
@@ -608,7 +610,7 @@ Entity-level scoped filtering for Action Center Phase-6 sources is **deferred**.
 
 ## Why `authorizationService.buildReadFilter()` cannot be safely applied
 
-`buildReadFilter()` only generates entity-level predicates for `assets`, `risks`, `controls`, and `incidents`. Its scoped-filter implementation intentionally returns no predicate for `suppliers`, `bcm`, and `audits`; a scoped role consequently receives the deny-all sentinel. Extending only the resource mapping would not solve the schema problem.
+`buildReadFilter()` only generates entity-level predicates for `assets`, `risks`, `controls`, `tickets`, and `incidents` (as of 2026-10-30; tickets was added after this decision — [`authorization.service.ts:329-341`](backend/src/services/authorization.service.ts:329)). Its scoped-filter implementation intentionally returns no predicate for `suppliers`, `bcm`, and `audits`; a scoped role consequently receives the deny-all sentinel. Extending only the resource mapping would not solve the schema problem.
 
 The Action Center Phase-6 models do not expose a common, relational scope path that can support each scoped-role constraint:
 

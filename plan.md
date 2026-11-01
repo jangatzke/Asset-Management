@@ -1,20 +1,22 @@
 # ISO 27001 Gap Analysis - Asset Management System
 
-**Date:** 2026-07-16  
-**Analyzer:** Technical Architecture Review  
-**Scope:** IT-Asset-Management (Section 6) + Risk Management (Section 8)  
+**Date:** 2026-07-16
+**Analyzer:** Technical Architecture Review
+**Scope:** IT-Asset-Management (Section 6) + Risk Management (Section 8)
+
+> **Status update (verified against the current codebase):** This document is a historical gap analysis. Most gaps listed below have since been implemented: the `Contract`, `License`, and `BusinessProcess` Prisma models; junction tables (`AssetContract`, `AssetLicense`, `AssetProcess`, `AssetService`, `RiskAsset`, `RiskProcess`, `IncidentAsset`, `VulnerabilityAsset`); the AST-004 extended rating fields on `Asset`; the `BACKED_UP_BY` relationship type in [`shared/src/types/asset.ts`](shared/src/types/asset.ts); risk aggregation endpoints in [`backend/src/routes/risk.routes.ts`](backend/src/routes/risk.routes.ts) with [`backend/src/services/risk.aggregation.ts`](backend/src/services/risk.aggregation.ts); and the corresponding frontend pages (`Contracts.tsx`, `Licenses.tsx`, `Processes.tsx`, `RiskAggregation.tsx`). Status markers below have been updated accordingly; the original recommendations are kept for context.
 
 ---
 
 ## Executive Summary
 
-The current codebase has a **strong foundational structure** for ISO 27001 compliance. The Prisma schema covers most core entities, and the shared TypeScript types align well with requirements. However, several significant gaps exist in:
+The current codebase has a **strong foundational structure** for ISO 27001 compliance. The Prisma schema covers most core entities, and the shared TypeScript types align well with requirements. At the time of this analysis, gaps existed in:
 
-1. **Asset fields** - missing contract/license info, additional rating dimensions, linked risks/vulnerabilities/incidents as proper relations
-2. **Risk model** - missing process-based assessment support, aggregated view endpoints, linked evidence as proper relation
+1. **Asset fields** - contract/license info, additional rating dimensions, linked risks/vulnerabilities/incidents as proper relations → since implemented (junction tables + AST-004 fields in [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma))
+2. **Risk model** - process-based assessment support and aggregated view endpoints → since implemented (`BusinessProcess`/`RiskScenario` models, `/api/v1/risks/aggregated/*` endpoints); evidence linking is handled via the generic `EvidenceLink` model
 3. **Graph visualization** (AST-011) and **impact analysis** (AST-012) - completed
 
-4. **Frontend components** for dependency graph, impact analysis, and risk aggregation views
+4. **Frontend components** for dependency graph, impact analysis, and risk aggregation views → since implemented (`AssetGraph.tsx`, `AssetImpactAnalysis.tsx`, `RiskAggregation.tsx`)
 
 ---
 
@@ -63,27 +65,27 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 | Technical Operator | [`technicalOperatorId`](backend/prisma/schema.prisma:250) | `String?` | ✅ | User reference |
 | Business Owner | [`businessOwnerId`](backend/prisma/schema.prisma:251) | `String?` | ✅ | User reference |
 | IS Security Responsible | [`informationSecurityResponsibleId`](backend/prisma/schema.prisma:252) | `String?` | ✅ | User reference |
-| Related Business Process | [`businessProcessId`](backend/prisma/schema.prisma:253) | `String?` | ⚠️ | Single FK only - should support multiple processes |
-| Related Service | [`serviceId`](backend/prisma/schema.prisma:254) | `String?` | ⚠️ | Single FK only - should support multiple services |
+| Related Business Process | [`AssetProcess`](backend/prisma/schema.prisma:3368) junction table | Relation | ✅ | M:N via junction table (replaces single FK) |
+| Related Service | [`AssetService`](backend/prisma/schema.prisma:3381) junction table | Relation | ✅ | M:N via junction table (replaces single FK) |
 | Lifecycle Status | [`lifecycleStatus`](backend/prisma/schema.prisma:255) | `String` | ✅ | Enum in shared types covers 11 states |
 | Procurement Date | [`purchaseDate`](backend/prisma/schema.prisma:256) | `DateTime?` | ✅ | |
 | Commissioning Date | [`commissioningDate`](backend/prisma/schema.prisma:257) | `DateTime?` | ✅ | |
-- Contract/License Info | - | - | ❌ **MISSING** | No contractId/licenseId fields or relations |
+| Contract/License Info | [`AssetContract`](backend/prisma/schema.prisma:3394) / [`AssetLicense`](backend/prisma/schema.prisma:3407) junction tables + `licenseInfo`/`contractEndsAt`/`licenseExpiresAt` fields | Relation | ✅ | Implemented as M:N junction tables instead of single FKs |
 | EOS/EOL/EOS Dates | [`endOfSaleDate`](backend/prisma/schema.prisma:258), [`endOfLifeDate`](backend/prisma/schema.prisma:259), [`endOfSupportDate`](backend/prisma/schema.prisma:260) | `DateTime?` | ✅ | All three covered |
 | CIA Ratings | [`confidentialityNeed`](backend/prisma/schema.prisma:261), [`integrityNeed`](backend/prisma/schema.prisma:262), [`availabilityNeed`](backend/prisma/schema.prisma:263) | `String` | ✅ | Low/Medium/High |
 | Data Protection Relevance | [`dataProtectionRelevance`](backend/prisma/schema.prisma:264) | `Boolean` | ✅ | |
 | Criticality | [`criticality`](backend/prisma/schema.prisma:265) | `String` | ✅ | Low/Medium/High/Critical |
-| Network Addresses | [`networkAddresses`](backend/prisma/schema.prisma:266) | `String[]` | ✅ | Array of strings |
-| DNS Names | [`dnsNames`](backend/prisma/schema.prisma:267) | `String[]` | ✅ | Array of strings |
+| Network Addresses | [`NetworkAddress`](backend/prisma/schema.prisma:748) model | Relation | ✅ | Normalized model replaced the `String[]` array |
+| DNS Names | - | - | ⚠️ | DNS names are stored via the `NetworkAddress` model; no separate `dnsNames` field remains on Asset |
 | Data Source | [`dataSource`](backend/prisma/schema.prisma:268) | `String?` | ✅ | |
 | Detection Time | [`lastDetectedAt`](backend/prisma/schema.prisma:269) | `DateTime?` | ✅ | |
-| Assigned Risks | [`risks`](backend/prisma/schema.prisma:285) | Relation | ⚠️ | Bidirectional relation exists but Risk uses `affectedAssetIds` array (denormalized). Should use proper many-to-many. |
+| Assigned Risks | [`RiskAsset`](backend/prisma/schema.prisma:3329) junction table | Relation | ✅ | Proper many-to-many; the denormalized `affectedAssetIds` array was removed |
 | Assigned Controls | [`controls`](backend/prisma/schema.prisma:286) | Relation | ✅ | Proper relation to Control |
-| Vulnerabilities | - | - | ❌ **MISSING** | No vulnerability relation on Asset |
-| Incidents | - | - | ❌ **MISSING** | No incident relation on Asset (Incident uses `affectedAssetIds` array) |
-| Documents/Evidence | - | - | ❌ **MISSING** | No evidence/document relation on Asset |
+| Vulnerabilities | [`VulnerabilityAsset`](backend/prisma/schema.prisma:3342) junction table | Relation | ✅ | Implemented as many-to-many junction table |
+| Incidents | [`IncidentAsset`](backend/prisma/schema.prisma:3355) junction table | Relation | ✅ | Implemented; Incident's `affectedAssetIds` array was removed |
+| Documents/Evidence | [`AssetDocument`](backend/prisma/schema.prisma:3316) + generic [`EvidenceLink`](backend/prisma/schema.prisma:2034) (`entityType`/`entityId`) | Relation | ✅ | Implemented via document junction and the entity-type-generic evidence link mechanism |
 
-**Verdict:** ⚠️ **PARTIALLY COVERED** - 20/25 fields present. Missing: contract/license info, vulnerability/incident/evidence relations. Business process and service links limited to single FK.
+**Verdict:** ✅ **COVERED** - The previously missing contract/license, vulnerability, incident, and evidence relations are now modeled as proper junction tables; business process/service links use M:N junction tables.
 
 ---
 
@@ -103,12 +105,12 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 
 | Required Dimension | Current Status | Gap |
 |---|---|---|
-| Personnel safety relevance | ❌ **MISSING** | No field in Asset model |
-| Regulatory compliance relevance | ❌ **MISSING** | Only `dataProtectionRelevance` exists (GDPR-specific) |
-| Financial damage potential | ❌ **MISSING** | No financial impact rating on assets |
-| Production downtime impact | ❌ **MISSING** | No operational impact rating on assets |
+| Personnel safety relevance | ✅ [`personnelSafetyRelevance`](backend/prisma/schema.prisma:653) | Field exists with low/medium/high |
+| Regulatory compliance relevance | ✅ [`regulatoryRelevance`](backend/prisma/schema.prisma:654) | Field exists in addition to `dataProtectionRelevance` |
+| Financial damage potential | ✅ [`financialDamagePotential`](backend/prisma/schema.prisma:655) | Field exists |
+| Production downtime impact | ✅ [`productionDowntimeImpact`](backend/prisma/schema.prisma:656) | Field exists |
 
-**Verdict:** ❌ **NOT COVERED** - Need 4 additional fields on Asset model for extended risk dimensions.
+**Verdict:** ✅ **COVERED** - All 4 extended rating dimensions exist on the Asset model and are editable in [`frontend/src/pages/Assets.tsx`](frontend/src/pages/Assets.tsx).
 
 ---
 
@@ -120,7 +122,7 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 | "communicates with" | [`COMMUNICATES_WITH`](shared/src/types/asset.ts:53) | ✅ |
 | "uses" | [`USES`](shared/src/types/asset.ts:54) | ✅ |
 | "contains" | [`CONTAINS`](shared/src/types/asset.ts:55) | ✅ |
-| "is backed up by" | ❌ **MISSING** | No `BACKED_UP_BY` enum value. Closest is `PROTECTED_BY` which is semantically different. |
+| "is backed up by" | [`BACKED_UP_BY`](shared/src/types/asset.ts:63) | ✅ |
 | "is part of" | [`IS_PART_OF`](shared/src/types/asset.ts:57) | ✅ |
 | "processes information" | [`PROCESSES_INFORMATION`](shared/src/types/asset.ts:58) | ✅ |
 | "supports business process" | [`SUPPORTS_BUSINESS_PROCESS`](shared/src/types/asset.ts:59) | ✅ |
@@ -130,7 +132,7 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 
 **Schema Model:** [`AssetRelation`](backend/prisma/schema.prisma:291-304) exists with `sourceAssetId`, `targetAssetId`, `relationshipType`, and `description`.
 
-**Verdict:** ⚠️ **MOSTLY COVERED** - 10/11 relationship types present. Missing `BACKED_UP_BY` type.
+**Verdict:** ✅ **COVERED** - All listed relationship types, including `BACKED_UP_BY`, are present in the enum.
 
 ---
 
@@ -168,13 +170,13 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 | Title | [`title`](backend/prisma/schema.prisma:333) | `String` | ✅ | |
 | Description | [`description`](backend/prisma/schema.prisma:334) | `String` | ✅ | |
 | Affected org unit | [`organizationUnitId`](backend/prisma/schema.prisma:335) | `String?` | ✅ | FK to OrganizationUnit |
-| Affected assets | [`affectedAssetIds`](backend/prisma/schema.prisma:336) + [`assets`](backend/prisma/schema.prisma:362) | `String[]` + Relation | ⚠️ | Dual storage - both array AND relation. Should standardize on proper many-to-many relation only. |
-| Affected processes | [`affectedProcessIds`](backend/prisma/schema.prisma:337) | `String[]` | ✅ | Array of process IDs |
-| Affected services | [`affectedServiceIds`](backend/prisma/schema.prisma:338) | `String[]` | ✅ | Array of service IDs |
-| Threat | [`threatId`](backend/prisma/schema.prisma:339) | `String?` | ⚠️ | FK exists but no relation defined. Should add `Threat threat? @relation(...)` |
-| Vulnerability/Cause | [`vulnerabilityId`](backend/prisma/schema.prisma:340) | `String?` | ⚠️ | Same as threat - FK without relation |
+| Affected assets | [`RiskAsset`](backend/prisma/schema.prisma:3329) junction table + `assets` relation | Relation | ✅ | The redundant `affectedAssetIds` array was removed; proper many-to-many only |
+| Affected processes | [`RiskProcess`](backend/prisma/schema.prisma:3433) junction table | Relation | ✅ | Array replaced by junction table |
+| Affected services | [`RiskService`](backend/prisma/schema.prisma) junction table (`serviceLinks`) | Relation | ✅ | Array replaced by junction table |
+| Threat | [`threat`](backend/prisma/schema.prisma:1006) relation to `Threat` model | Relation | ✅ | Proper Prisma relation defined (legacy FK kept as `threatId`) |
+| Vulnerability/Cause | [`vulnerability`](backend/prisma/schema.prisma:1007) relation to `Vulnerability` model + `causes` (`RiskCauseLink`) | Relation | ✅ | Proper Prisma relations defined |
 | Potential impact | [`possibleImpact`](backend/prisma/schema.prisma:341) | `String` | ✅ | Free-text description |
-| Existing controls | [`existingControls`](backend/prisma/schema.prisma:342) | `String[]` | ⚠️ | Array of control IDs. Also has proper relation to Control model. Redundant storage. |
+| Existing controls | [`riskControls`](backend/prisma/schema.prisma:995) (`RiskControl` junction) | Relation | ✅ | Redundant array removed; junction table only |
 | Probability | [`likelihood`](backend/prisma/schema.prisma:343) | `Int` | ✅ | Numeric scale |
 | Severity | [`impact`](backend/prisma/schema.prisma:344) | `Int` | ✅ | Numeric scale |
 | Inherent risk | [`inherentRisk`](backend/prisma/schema.prisma:345) | `String` | ✅ | Calculated field |
@@ -185,10 +187,10 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 | Assessment date | [`assessmentDate`](backend/prisma/schema.prisma:350) | `DateTime` | ✅ | |
 | Next review date | [`nextReviewDate`](backend/prisma/schema.prisma:351) | `DateTime` | ✅ | |
 | Justification | [`evaluationJustification`](backend/prisma/schema.prisma:352) | `String?` | ✅ | |
-| Linked evidence | - | - | ❌ **MISSING** | No evidence relation on Risk. Evidence model has `relatedRiskIds` array but no back-relation from Risk. |
+| Linked evidence | Generic [`EvidenceLink`](backend/prisma/schema.prisma:2034) (`entityType`/`entityId`) | Relation | ✅ | Implemented via the entity-type-generic evidence link mechanism rather than a Risk-specific junction |
 | Status | [`status`](backend/prisma/schema.prisma:353) | `String` | ✅ | Enum in shared types covers 6 states |
 
-**Verdict:** ⚠️ **MOSTLY COVERED** - 21/23 fields present. Missing: linked evidence relation. Several fields have redundant storage (both array and relation).
+**Verdict:** ✅ **COVERED** - All listed fields are modeled; the redundant array+relation dual storage was cleaned up in favor of junction tables.
 
 ---
 
@@ -197,15 +199,14 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 | Requirement | Current Status | Gap |
 |---|---|---|
 | Asset-based risk assessment | ✅ Supported via `affectedAssetIds` and Asset→Risk relation | The current model supports linking risks to assets |
-| Process/scenario-based risk assessment | ⚠️ **PARTIAL** | `affectedProcessIds` exists but there is no dedicated `BusinessProcess` model with proper relations. Processes are stored as string IDs in arrays without a process entity to reference. |
+| Process/scenario-based risk assessment | ✅ **IMPLEMENTED** | [`BusinessProcess`](backend/prisma/schema.prisma:3285) model with `/api/v1/processes` routes ([`businessprocess.routes.ts`](backend/src/routes/businessprocess.routes.ts)); risks link to processes via the `RiskProcess` junction table and a direct `businessProcessId` relation. A [`RiskScenario`](backend/prisma/schema.prisma:1266) model supports scenario-based assessment (threat + vulnerability context). |
 
-**Gap Analysis:**
-- No `BusinessProcess` model in schema (despite being listed in the architecture plan)
-- Process-based risks use free-text IDs in `affectedProcessIds` array
-- No scenario-based assessment workflow - risks are always tied to threat+vulnerability pairs
-- Missing ability to create "pure process risk" without asset linkage
+**Gap Analysis (original, resolved):**
+- ~~No `BusinessProcess` model in schema~~ → now present with CRUD routes and service ([`businessprocess.service.ts`](backend/src/services/businessprocess.service.ts))
+- ~~Process-based risks use free-text IDs~~ → replaced by the `RiskProcess` junction table
+- ~~No scenario-based assessment workflow~~ → `RiskScenario` + `RiskCauseLink`/`RiskImpactLink` models exist and are referenced from Risk via `scenarioId`
 
-**Verdict:** ⚠️ **PARTIALLY COVERED** - Asset-based works. Process-based needs a proper BusinessProcess model and relations.
+**Verdict:** ✅ **COVERED** - Asset-based and process/scenario-based assessment are both supported.
 
 ---
 
@@ -213,17 +214,19 @@ The current codebase has a **strong foundational structure** for ISO 27001 compl
 
 | Required View | Current Status | Gap |
 |---|---|---|
-| Risks by location | ❌ **NOT IMPLEMENTED** | No API endpoint for aggregation by Site/location. Risk has no direct site link (only via assets). |
-| Risks by company/org unit | ⚠️ **PARTIAL** | [`organizationUnitId`](backend/prisma/schema.prisma:335) exists and filter is supported in [`list()`](backend/src/services/risk.service.ts:70). But no aggregation/summary endpoint. |
-| Risks by process | ❌ **NOT IMPLEMENTED** | No aggregation endpoint for `affectedProcessIds` |
-| Risks by asset type | ❌ **NOT IMPLEMENTED** | Would require join through Asset→AssetType. No endpoint exists. |
-| Risks by ISMS scope | ❌ **NOT IMPLEMENTED** | IsmsScope model exists but no relation to Risk. No filtering/aggregation by scope. |
+| Risks by location | ✅ **IMPLEMENTED** | `GET /api/v1/risks/aggregated/by-location` ([`risk.routes.ts`](backend/src/routes/risk.routes.ts:144), [`risk.aggregation.ts`](backend/src/services/risk.aggregation.ts)) |
+| Risks by company/org unit | ✅ **IMPLEMENTED** | `GET /api/v1/risks/aggregated/by-org-unit` |
+| Risks by process | ✅ **IMPLEMENTED** | `GET /api/v1/risks/aggregated/by-process` |
+| Risks by asset type | ✅ **IMPLEMENTED** | `GET /api/v1/risks/aggregated/by-asset-type` |
+| Risks by ISMS scope | ✅ **IMPLEMENTED** | `GET /api/v1/risks/aggregated/by-scope`; additional dimensions exist (`by-service`, `by-risk-class`, `by-status`) |
 
-**Verdict:** ❌ **MOSTLY NOT COVERED** - Basic org unit filtering exists in list endpoint. No aggregation endpoints, summary statistics, or dashboard data for any dimension.
+**Verdict:** ✅ **COVERED** - Aggregation endpoints for all requested dimensions exist (admin-protected), with a frontend dashboard in [`frontend/src/pages/RiskAggregation.tsx`](frontend/src/pages/RiskAggregation.tsx).
 
 ---
 
 ## 3. Recommended Schema Changes
+
+> **Status:** The schema changes recommended in this section have largely been implemented, as noted per item below. Implementation deviated in places (junction tables instead of single FKs/arrays; generic `EvidenceLink` instead of a Risk-specific junction).
 
 ### 3.1 Asset Model Additions
 
@@ -356,12 +359,13 @@ evidenceLinks    RiskEvidence[]
 ### 3.3 Schema Improvements for Existing Models
 
 #### AssetRelation - Add missing relationship type
-Add `BACKED_UP_BY = 'backed_up_by'` to [`AssetRelationshipType`](shared/src/types/asset.ts:51) enum.
+✅ **DONE** — `BACKED_UP_BY = 'backed_up_by'` exists in the [`AssetRelationshipType`](shared/src/types/asset.ts:63) enum.
 
 #### Risk Model - Clean up redundant storage
-- Remove `affectedAssetIds` array (use proper many-to-many relation via new junction table)
-- Add proper relations for Threat and Vulnerability (currently FKs without relation definitions)
-- Add `evidenceLinks` relation to Evidence
+✅ **DONE** (implemented differently than sketched):
+- ~~Remove `affectedAssetIds` array~~ — removed; the `RiskAsset` junction table is used instead
+- ~~Add proper relations for Threat and Vulnerability~~ — real Prisma relations now exist on `Risk` (`threat`, `vulnerability`)
+- ~~Add `evidenceLinks` relation to Evidence~~ — evidence linking is handled by the generic [`EvidenceLink`](backend/prisma/schema.prisma:2034) model (`entityType`/`entityId`), not a dedicated `RiskEvidence` junction table
 
 ```prisma
 // New junction table for Risk-Assets (replaces affectedAssetIds array):
@@ -387,30 +391,34 @@ riskAssets       RiskAsset[]
 
 ## 4. New API Endpoints Required
 
+> **Status:** All endpoints listed in this section are implemented and registered in [`backend/src/index.ts`](backend/src/index.ts).
+
 ### Asset Management APIs
 
 | Endpoint | Method | Purpose | Requirement |
 |---|---|---|---|
-| `/api/v1/assets/:id/graph` | GET | Return adjacency list for graph visualization | AST-011 |
-| `/api/v1/assets/:id/impact-analysis` | POST | Calculate blast radius along dependencies | AST-012 |
-| `/api/v1/assets/:id/dependencies` | GET | List all upstream/downstream dependencies | AST-011, AST-012 |
-| `/api/v1/contracts` | CRUD | Contract management | AST-002 |
-| `/api/v1/licenses` | CRUD | License management | AST-002 |
+| `/api/v1/assets/:id/graph` | GET | Return adjacency list for graph visualization | AST-011 — ✅ implemented ([`asset.routes.ts`](backend/src/routes/asset.routes.ts:259)) |
+| `/api/v1/assets/:id/impact-analysis` | GET | Calculate blast radius along dependencies | AST-012 — ✅ implemented ([`asset.routes.ts`](backend/src/routes/asset.routes.ts:275); GET, not POST) |
+| `/api/v1/assets/:id/dependencies` | GET | List all upstream/downstream dependencies | AST-011, AST-012 — ✅ implemented (plus `/:id/upstream`, `/:id/downstream`) |
+| `/api/v1/contracts` | CRUD | Contract management | AST-002 — ✅ implemented ([`contract.routes.ts`](backend/src/routes/contract.routes.ts)) |
+| `/api/v1/licenses` | CRUD | License management | AST-002 — ✅ implemented ([`license.routes.ts`](backend/src/routes/license.routes.ts)) |
 
 ### Risk Management APIs
 
 | Endpoint | Method | Purpose | Requirement |
 |---|---|---|---|
-| `/api/v1/risks/aggregated/by-location` | GET | Risks grouped by site/location | RSK-011 |
-| `/api/v1/risks/aggregated/by-org-unit` | GET | Risks grouped by organization unit | RSK-011 |
-| `/api/v1/risks/aggregated/by-process` | GET | Risks grouped by business process | RSK-011 |
-| `/api/v1/risks/aggregated/by-asset-type` | GET | Risks grouped by asset type | RSK-011 |
-| `/api/v1/risks/aggregated/by-scope` | GET | Risks within ISMS scope | RSK-011 |
-| `/api/v1/processes` | CRUD | Business process management | RSK-010 |
+| `/api/v1/risks/aggregated/by-location` | GET | Risks grouped by site/location | RSK-011 — ✅ implemented |
+| `/api/v1/risks/aggregated/by-org-unit` | GET | Risks grouped by organization unit | RSK-011 — ✅ implemented |
+| `/api/v1/risks/aggregated/by-process` | GET | Risks grouped by business process | RSK-011 — ✅ implemented |
+| `/api/v1/risks/aggregated/by-asset-type` | GET | Risks grouped by asset type | RSK-011 — ✅ implemented |
+| `/api/v1/risks/aggregated/by-scope` | GET | Risks within ISMS scope | RSK-011 — ✅ implemented (plus `by-service`, `by-risk-class`, `by-status`) |
+| `/api/v1/processes` | CRUD | Business process management | RSK-010 — ✅ implemented ([`businessprocess.routes.ts`](backend/src/routes/businessprocess.routes.ts)) |
 
 ---
 
 ## 5. Frontend Components Needed
+
+> **Status (verified against `frontend/src/pages` and `frontend/src/components`):** Status markers below reflect the current codebase.
 
 ### Asset Management UI
 
@@ -418,53 +426,57 @@ riskAssets       RiskAsset[]
 |---|---|---|---|
 | `AssetDependencyGraph` | Interactive graph visualization of asset relationships using React Flow or similar | AST-011 | ✅ Implemented |
 | `AssetImpactAnalysis` | What-if scenario analysis panel showing cascading effects | AST-012 | ✅ Implemented |
-| `ContractManagement` | CRUD interface for contracts linked to assets | AST-002 | ❌ Not implemented |
-| `LicenseManagement` | CRUD interface for licenses linked to assets | AST-002 | ❌ Not implemented |
-| `AssetExtendedRatings` | Form section for additional rating dimensions (personnel safety, regulatory, financial, downtime) | AST-004 | ❌ Not implemented |
+| `ContractManagement` | CRUD interface for contracts linked to assets | AST-002 | ✅ Implemented ([`Contracts.tsx`](frontend/src/pages/Contracts.tsx)) |
+| `LicenseManagement` | CRUD interface for licenses linked to assets | AST-002 | ✅ Implemented ([`Licenses.tsx`](frontend/src/pages/Licenses.tsx)) |
+| `AssetExtendedRatings` | Form section for additional rating dimensions (personnel safety, regulatory, financial, downtime) | AST-004 | ✅ Implemented in [`Assets.tsx`](frontend/src/pages/Assets.tsx) |
 
 ### Risk Management UI
 
 | Component | Purpose | Requirement | Status |
 |---|---|---|---|
-| `RiskAggregationDashboard` | Dashboard with aggregated risk views by location, org unit, process, asset type, scope | RSK-011 | ❌ Not implemented |
-| `ProcessBasedRiskAssessment` | Workflow for creating process/scenario-based risks without asset linkage | RSK-010 | ❌ Not implemented |
-| `BusinessProcessRegistry` | CRUD interface for business processes | RSK-010 | ❌ Not implemented |
-| `RiskEvidenceLinker` | UI to link evidence items to risk records | Risk Model Gap | ❌ Not implemented |
+| `RiskAggregationDashboard` | Dashboard with aggregated risk views by location, org unit, process, asset type, scope | RSK-011 | ✅ Implemented ([`RiskAggregation.tsx`](frontend/src/pages/RiskAggregation.tsx)) |
+| `ProcessBasedRiskAssessment` | Workflow for creating process/scenario-based risks without asset linkage | RSK-010 | ⚠️ Partial — process selection exists in the risk form ([`Risks.tsx`](frontend/src/pages/Risks.tsx)); no dedicated scenario workflow UI |
+| `BusinessProcessRegistry` | CRUD interface for business processes | RSK-010 | ✅ Implemented ([`Processes.tsx`](frontend/src/pages/Processes.tsx)) |
+| `RiskEvidenceLinker` | UI to link evidence items to risk records | Risk Model Gap | ❌ Not implemented (the evidence tab in [`RiskDetail.tsx`](frontend/src/pages/RiskDetail.tsx) is a placeholder; backend linking via `EvidenceLink` exists) |
 
 ---
 
 ## 6. Summary of Gaps by Priority
 
+> **Status:** Resolved/closed markers reflect the current codebase (verified against `backend/prisma/schema.prisma`, backend routes/services, and frontend pages).
+
 ### Critical Gaps (Block ISO 27001 Compliance)
 
-| # | Gap | Requirement | Effort |
+| # | Gap | Requirement | Status |
 |---|---|---|---|
-| 1 | No graph visualization for asset dependencies | AST-011 | High |
-| 2 | No impact analysis along dependency chains | AST-012 | High |
-| 3 | No process/scenario-based risk assessment workflow | RSK-010 | Medium |
-| 4 | No aggregated risk views by dimension | RSK-011 | Medium |
+| 1 | No graph visualization for asset dependencies | AST-011 | ✅ Closed ([`AssetGraph.tsx`](frontend/src/components/AssetGraph.tsx), `/graph` endpoints) |
+| 2 | No impact analysis along dependency chains | AST-012 | ✅ Closed ([`AssetImpactAnalysis.tsx`](frontend/src/components/AssetImpactAnalysis.tsx), `impact-analysis` endpoint) |
+| 3 | No process/scenario-based risk assessment workflow | RSK-010 | ✅ Mostly closed (models + API done; dedicated scenario UI still open) |
+| 4 | No aggregated risk views by dimension | RSK-011 | ✅ Closed (aggregation endpoints + `RiskAggregation.tsx`) |
 
 ### Important Gaps (Data Model Completeness)
 
-| # | Gap | Requirement | Effort |
+| # | Gap | Requirement | Status |
 |---|---|---|---|
-| 5 | Missing contract/license fields and models on Asset | AST-002 | Medium |
-| 6 | Missing additional rating dimensions on Asset | AST-004 | Low |
-| 7 | Missing evidence linkage from Risk model | Risk Model | Low |
-| 8 | Missing `BACKED_UP_BY` relationship type | AST-010 | Trivial |
-| 9 | Redundant storage patterns (arrays + relations) | Data Quality | Medium |
+| 5 | Missing contract/license fields and models on Asset | AST-002 | ✅ Closed (`Contract`/`License` models + junction tables) |
+| 6 | Missing additional rating dimensions on Asset | AST-004 | ✅ Closed (fields present in schema, shared types, and UI) |
+| 7 | Missing evidence linkage from Risk model | Risk Model | ✅ Closed via generic `EvidenceLink`; frontend linker UI still open |
+| 8 | Missing `BACKED_UP_BY` relationship type | AST-010 | ✅ Closed (enum value present) |
+| 9 | Redundant storage patterns (arrays + relations) | Data Quality | ✅ Closed (arrays removed in favor of junction tables) |
 
 ### Enhancement Opportunities
 
-| # | Gap | Requirement | Effort |
+| # | Gap | Requirement | Status |
 |---|---|---|---|
-| 10 | Single FK for business process/service - should support multiple | AST-002 | Low |
-| 11 | Threat/Vulnerability FKs without Prisma relations | Data Quality | Low |
-| 12 | No BusinessProcess model in schema | RSK-010 | Medium |
+| 10 | Single FK for business process/service - should support multiple | AST-002 | ✅ Closed (`AssetProcess`/`AssetService` junction tables) |
+| 11 | Threat/Vulnerability FKs without Prisma relations | Data Quality | ✅ Closed (real relations on `Risk`) |
+| 12 | No BusinessProcess model in schema | RSK-010 | ✅ Closed (`BusinessProcess` model + routes/service/UI) |
 
 ---
 
 ## 7. Implementation Roadmap
+
+> **Status:** Phases 1–2 are complete (schema foundation and backend services, as verified per item in Sections 3–5 above). Phase 3 is largely complete; the only open frontend item is a dedicated evidence-linking / scenario workflow UI. Phase 4 items are tracked in `docs/e2e-testing.md` and the test suites rather than in this document.
 
 ### Phase 1: Schema Foundation (Data Model)
 1. Add missing fields to Asset model (AST-004 dimensions, contract/license FKs)
@@ -563,5 +575,5 @@ flowchart TD
 
 ---
 
-**Document End**  
-*This gap analysis identifies 12 specific gaps across the ISO 27001 requirements. The current codebase covers approximately 75% of the required functionality at the data model level, but lacks critical visualization and analysis features.*
+**Document End**
+*This historical gap analysis identified a set of specific gaps across the ISO 27001 requirements. As of the status update above, nearly all of them have been closed in the current codebase; the remaining open items are frontend workflow conveniences (dedicated risk-evidence linker and scenario-assessment UI), not data-model or API gaps.*

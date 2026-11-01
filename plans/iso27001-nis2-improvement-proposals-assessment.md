@@ -4,6 +4,15 @@
 **Prüfmethodik:** Direktes Nachlesen von Code, Routen, Tests und i18n-Konfiguration im aktuellen Codebase-Stand (Commit-Vergleich via `git status`). Jede Behauptung des Proposals wurde gegen den tatsächlichen Implementierungsstand verifiziert.
 **Ergebnis:** **~45 % des Proposals sind bereits umgesetzt**, überwiegend in den Abschnitten 2.1 (NIS2-Schwellenwerte) und 4.1 (SoA-Generierung). Die größten verbleibenden Lücken sind die Klauseln 4/5/7 (ISMS-Prozesse), NIS2-Incident-Reporting (24h) und der vollständige ISO-27001-Control-Catalog.
 
+> **Status update (2026-10-30):** Historischer Snapshot vom 2026-08-23; mehrere „nicht umgesetzt"-Bewertungen sind überholt bzw. waren bereits damals teils fehlerhaft (die parallele Analyse [`plans/iso27001-nis2-gap-analysis.md`](plans/iso27001-nis2-gap-analysis.md) vom 2026-08-22 belegte die NIS2-Incident-Felder bereits über die Migration `20260820164600_nis2_incident_reporting`). Heutiger Stand:
+> - **§2.2 Incident-Reporting:** implementiert — `markNis2Relevant`, `submitNis2EarlyWarning`, `submitNis2Notification`, `submitNis2FinalReport`, `getNis2ReportingStatus` in [`incident.service.ts`](backend/src/services/incident.service.ts:831).
+> - **§2.3 NIS2-Control-Catalog:** implementiert — [`nis2UmsuCGArticles.ts`](backend/src/data/nis2UmsuCGArticles.ts) (`NIS2_ARTICLES` mit `isoCrosswalk`), Upsert in [`catalog.service.ts`](backend/src/services/catalog.service.ts:140).
+> - **§1 Control-Catalog:** vollständig — 93 Kontrollen (A.5.1–A.8.34) in [`iso27001AnnexA2022.ts`](backend/src/data/iso27001AnnexA2022.ts).
+> - **§3 ISMS Process Workspace:** `ismsProcessWorkspace.tsx` ist build-fähig, geroutet unter `/isms-operations/process` ([`App.tsx`](frontend/src/App.tsx:106)) und funktional (Klausel-4/5/7-Tabs).
+> - **§4.2–4.4:** alle implementiert — `SoAItemRiskAssessment`-Junction in [`schema.prisma`](backend/prisma/schema.prisma:1726), Export-Route `GET /soa/:id/export?format=csv|html` ([`control.routes.ts`](backend/src/routes/control.routes.ts:100)), Diff via `diffSoA()` + Route `GET /soa/diff` ([`control.routes.ts`](backend/src/routes/control.routes.ts:64)).
+>
+> Die „Empfohlene nächste Schritte"-Liste ist damit gegenstandslos.
+
 ---
 
 ## 1. Executive-Summary-Matrix

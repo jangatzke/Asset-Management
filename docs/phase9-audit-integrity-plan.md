@@ -1,5 +1,7 @@
 # Phase 9: Audit Log Integrity Plan
 
+> **Status update (2026-10-30):** Completed (commit `7d1467a`). Implemented as planned: hash-chain fields on `AuditLog` plus `AuditCheckpoint` in `backend/prisma/schema.prisma`, `backend/src/services/auditIntegrity.service.ts`, the `GET /admin/audit-integrity` route in `backend/src/routes/admin.routes.ts`, and tests in `backend/src/__tests__/audit.integrity.test.ts`. Line-number references below (e.g. `schema.prisma:1865`) are historical; `AuditLog` is at a different line today.
+
 ## Objective
 Harden the existing `AuditLog` model with hash-chain fields for tamper-evident audit logging, enabling detection of modified or missing entries.
 

@@ -4,7 +4,7 @@
 # ============================================================================
 
 # ---------- Stage 1: Install dependencies ----------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY frontend/package.json ./frontend/
 RUN npm ci --workspace=shared --workspace=frontend
 
 # ---------- Stage 2: Build ----------
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
