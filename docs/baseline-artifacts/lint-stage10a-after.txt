@@ -1,0 +1,46 @@
+
+> frontend@1.0.0 lint
+> eslint src --ext .ts,.tsx && node scripts/check-design-tokens.cjs
+
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\components\DataTableShell.tsx
+  13:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  17:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  31:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  35:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\components\Dialog.test.tsx
+   35:43  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+   45:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+   64:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  158:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  164:43  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  175:44  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  198:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  226:37  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  239:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  245:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+  254:35  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\components\FormRow.tsx
+  40:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  68:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\pages\AdminReminders.tsx
+  93:6  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\pages\AdminRoles.tsx
+  42:6  warning  React Hook useCallback has a missing dependency: 'messageFrom'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\pages\AdminSlaEscalation.tsx
+  112:6  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\pages\Incidents.tsx
+  394:6  warning  React Hook useCallback has a missing dependency: 'clearDraftAfterSave'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+c:\Users\jan\Documents\Visual Studio Code\Asset Management\frontend\src\test\jest-dom-vitest.d.ts
+  18:23  warning  'R' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 22 problems (0 errors, 22 warnings)
+
+design-token guardrail OK: 2323 grandfathered legacy violation(s), no regressions.

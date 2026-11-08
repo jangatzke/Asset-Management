@@ -4,9 +4,13 @@ import { riskAggregationApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { formatApiError } from '../utils/apiError';
+import { statusBadgeClass, type StatusKind } from '../utils/statusHelpers';
+import { MetricCard } from '../components/MetricCard';
+// Stage 10b (LT-4): shared chart language — semantic series tones + track.
+import { chartSeriesTone, chartTrackClass } from '../styles/chartLanguage';
 
 interface AggregationGroup {
   name: string;
@@ -24,6 +28,8 @@ type TabKey = 'location' | 'orgUnit' | 'process' | 'assetType' | 'scope';
 
 const RiskAggregation = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
   const [activeTab, setActiveTab] = useState<TabKey>('location');
   const [data, setData] = useState<Record<TabKey, AggregationGroup[]>>({ location: [], orgUnit: [], process: [], assetType: [], scope: [] });
   const [loading, setLoading] = useState(true);
@@ -111,15 +117,17 @@ const RiskAggregation = () => {
     group.low || 0,
   ]));
 
-  const severityBg = (level: string) => {
+  // Stage 8 (MT-6): severity colors go through the semantic status tokens.
+  const severityKind = (level: string): StatusKind => {
     switch (level?.toLowerCase()) {
-      case 'very_high': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-      case 'critical': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-      case 'high': return 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200';
-      case 'medium': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      default: return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
+      case 'very_high':
+      case 'critical': return 'critical';
+      case 'high': return 'warn';
+      case 'medium': return 'info';
+      default: return 'ok';
     }
   };
+  const severityBg = (level: string) => statusBadgeClass(severityKind(level));
 
   // Calculate totals for summary cards
   const totals = currentData.reduce((acc, g) => ({
@@ -133,7 +141,7 @@ const RiskAggregation = () => {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('riskAggregation.title')}</h1>
+        <h1 className="text-2xl font-bold text-text-primary dark:text-white mb-6">{t('riskAggregation.title')}</h1>
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
@@ -143,38 +151,23 @@ const RiskAggregation = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('riskAggregation.title')}</h1>
+      <h1 className="text-2xl font-bold text-text-primary dark:text-white mb-6">{t('riskAggregation.title')}</h1>
 
       {error && (
-        <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">{error}</div>
+        <div className="bg-status-critical-bg dark:bg-status-critical-bg text-status-critical-fg dark:text-status-critical-fg p-3 rounded mb-4">{error}</div>
       )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">{totals.totalRisks}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">{t('riskAggregation.summary.totalRisks')}</div>
-        </div>
-        <div className={`rounded-lg shadow p-4 text-center ${severityBg('critical')}`}>
-          <div className="text-2xl font-bold">{totals.critical}</div>
-          <div className="text-sm">{t('riskAggregation.summary.critical')}</div>
-        </div>
-        <div className={`rounded-lg shadow p-4 text-center ${severityBg('high')}`}>
-          <div className="text-2xl font-bold">{totals.high}</div>
-          <div className="text-sm">{t('riskAggregation.summary.high')}</div>
-        </div>
-        <div className={`rounded-lg shadow p-4 text-center ${severityBg('medium')}`}>
-          <div className="text-2xl font-bold">{totals.medium}</div>
-          <div className="text-sm">{t('riskAggregation.summary.medium')}</div>
-        </div>
-        <div className={`rounded-lg shadow p-4 text-center ${severityBg('low')}`}>
-          <div className="text-2xl font-bold">{totals.low}</div>
-          <div className="text-sm">{t('riskAggregation.summary.low')}</div>
-        </div>
+      {/* Summary Cards â€” shared MetricCard with semantic tones (MT-6) */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-section-gap mb-6">
+        <MetricCard label={t('riskAggregation.summary.totalRisks')} value={totals.totalRisks} tone="neutral" />
+        <MetricCard label={t('riskAggregation.summary.critical')} value={totals.critical} tone="critical" />
+        <MetricCard label={t('riskAggregation.summary.high')} value={totals.high} tone="warn" />
+        <MetricCard label={t('riskAggregation.summary.medium')} value={totals.medium} tone="info" />
+        <MetricCard label={t('riskAggregation.summary.low')} value={totals.low} tone="ok" />
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div className="border-b border-border-subtle dark:border-border-subtle mb-6">
         <nav className="-mb-px flex space-x-8 overflow-x-auto">
           {tabs.map(tab => (
             <button
@@ -183,7 +176,7 @@ const RiskAggregation = () => {
               className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${
                 activeTab === tab.key
                   ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                  : 'border-transparent text-text-muted hover:text-text-secondary dark:hover:text-text-muted hover:border-border-strong'
               }`}
             >
               {tab.label}
@@ -192,52 +185,49 @@ const RiskAggregation = () => {
         </nav>
       </div>
 
-      {/* Heatmap / Bar Chart */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('riskAggregation.distribution')}</h2>
+      {/* Heatmap / Bar Chart — chart language (LT-4): max. 3 semantic series
+          (critical → warn → info; "low" folds into the info series) on a sunken
+          track. The detailed table below remains the text alternative. */}
+      <div className="bg-surface-default border border-border-subtle rounded-lg shadow-e1 p-card-pad mb-6">
+        <h2 className="text-h3 text-text-primary mb-4">{t('riskAggregation.distribution')}</h2>
         {currentData.length === 0 ? (
-          <p className="text-center py-8 text-gray-500 dark:text-gray-400">{t('riskAggregation.noData')}</p>
+          <p className="text-center py-8 text-body2 text-text-muted">{t('riskAggregation.noData')}</p>
         ) : (
           <div className="space-y-3">
             {currentData.map((group, i) => {
               const max = Math.max(group.critical || 0, group.high || 0, group.medium || 0, group.low || 0, group.veryHigh || 0, 1);
               return (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="w-40 text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{group.name}</div>
-                  <div className="flex-1 flex h-6 rounded overflow-hidden bg-gray-100 dark:bg-gray-900">
+                  <div className="w-40 text-body2 font-medium text-text-secondary truncate">{group.name}</div>
+                  {/* Track = sunken surface; series use the chartLanguage tones. */}
+                  <div className={`flex-1 flex h-6 rounded overflow-hidden ${chartTrackClass}`} role="img" aria-label={`${group.name}: ${t('riskAggregation.table.critical')} ${group.critical || group.veryHigh || 0}, ${t('riskAggregation.table.high')} ${group.high || 0}, ${t('riskAggregation.table.medium')} ${(group.medium || 0) + (group.low || 0)}`}>
                     {((group.veryHigh || group.critical) || 0) > 0 && (
-                      <div className="bg-red-500 flex items-center justify-center text-xs text-white" style={{ width: `${(((group.veryHigh || 0) + (group.critical || 0)) / max) * 25}%` }}>
+                      <div className={`${chartSeriesTone('critical')} flex items-center justify-center text-caption tabular-nums text-surface-default`} style={{ width: `${(((group.veryHigh || 0) + (group.critical || 0)) / max) * 25}%` }}>
                         {group.veryHigh || group.critical}
                       </div>
                     )}
                     {(group.high || 0) > 0 && (
-                      <div className="bg-orange-500 flex items-center justify-center text-xs text-white" style={{ width: `${(group.high / max) * 25}%` }}>
+                      <div className={`${chartSeriesTone('warn')} flex items-center justify-center text-caption tabular-nums text-surface-default`} style={{ width: `${(group.high / max) * 25}%` }}>
                         {group.high}
                       </div>
                     )}
-                    {(group.medium || 0) > 0 && (
-                      <div className="bg-yellow-500 flex items-center justify-center text-xs text-white" style={{ width: `${(group.medium / max) * 25}%` }}>
-                        {group.medium}
-                      </div>
-                    )}
-                    {(group.low || 0) > 0 && (
-                      <div className="bg-green-500 flex items-center justify-center text-xs text-white" style={{ width: `${(group.low / max) * 25}%` }}>
-                        {group.low}
+                    {((group.medium || 0) + (group.low || 0)) > 0 && (
+                      <div className={`${chartSeriesTone('info')} flex items-center justify-center text-caption tabular-nums text-surface-default`} style={{ width: `${(((group.medium || 0) + (group.low || 0)) / max) * 25}%` }}>
+                        {(group.medium || 0) + (group.low || 0)}
                       </div>
                     )}
                   </div>
-                  <div className="w-16 text-sm text-gray-500 dark:text-gray-400 text-right">{group.totalRisks || 0}</div>
+                  <div className="w-16 text-body2 tabular-nums text-text-muted text-right">{group.totalRisks || 0}</div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
-
       {/* Detailed Table */}
       <DataTableShell onExport={exportVisibleAggregation} exportLabel="Export CSV" rowCount={sortedData.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+        <table className="min-w-full divide-y divide-border-subtle">
+          <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
             <tr>
               <SortableTh column="group" label={t('riskAggregation.table.group')} activeColumn={sort.column} direction={sort.column === 'group' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="total" label={t('riskAggregation.table.total')} activeColumn={sort.column} direction={sort.column === 'total' ? sort.direction : ''} onSort={toggleSort} />
@@ -247,15 +237,15 @@ const RiskAggregation = () => {
               <SortableTh column="low" label={t('riskAggregation.table.low')} activeColumn={sort.column} direction={sort.column === 'low' ? sort.direction : ''} onSort={toggleSort} className="text-center" />
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className="bg-surface-default divide-y divide-border-subtle">
             {sortedData.map((group, i) => (
-              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{group.name}</td>
-                <td className="px-6 py-4 text-sm text-center text-gray-900 dark:text-white">{group.totalRisks || 0}</td>
-                <td className="px-6 py-4 text-sm text-center"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('critical')}`}>{group.critical || group.veryHigh || 0}</span></td>
-                <td className="px-6 py-4 text-sm text-center"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('high')}`}>{group.high || 0}</span></td>
-                <td className="px-6 py-4 text-sm text-center"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('medium')}`}>{group.medium || 0}</span></td>
-                <td className="px-6 py-4 text-sm text-center"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('low')}`}>{group.low || 0}</span></td>
+              <tr key={i} className="transition-colors duration-fast hover:bg-surface-hover">
+                <td className={`${cellClass} text-body2 font-medium text-text-primary`}>{group.name}</td>
+                <td className={`${cellClass} text-body2 tabular-nums text-center text-text-primary`}>{group.totalRisks || 0}</td>
+                <td className={`${cellClass} text-body2 tabular-nums text-center`}><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('critical')}`}>{group.critical || group.veryHigh || 0}</span></td>
+                <td className={`${cellClass} text-body2 tabular-nums text-center`}><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('high')}`}>{group.high || 0}</span></td>
+                <td className={`${cellClass} text-body2 tabular-nums text-center`}><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('medium')}`}>{group.medium || 0}</span></td>
+                <td className={`${cellClass} text-body2 tabular-nums text-center`}><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${severityBg('low')}`}>{group.low || 0}</span></td>
               </tr>
             ))}
           </tbody>
@@ -264,19 +254,19 @@ const RiskAggregation = () => {
 
       {/* Top Risks per Group */}
       {currentData.some(g => g.risks && g.risks.length > 0) && (
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('riskAggregation.topRisks')}</h2>
+        <div className="mt-6 bg-surface-default border border-border-subtle rounded-lg shadow-e1 p-card-pad">
+          <h2 className="text-h3 text-text-primary mb-4">{t('riskAggregation.topRisks')}</h2>
           <div className="space-y-6">
             {currentData.filter(g => g.risks && g.risks.length > 0).map((group, i) => (
               <div key={i}>
-                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-2">{group.name}</h3>
+                <h3 className="text-body1 font-medium text-text-secondary mb-2">{group.name}</h3>
                 <ul className="space-y-1">
                   {(group.risks || []).slice(0, 5).map((risk: any) => (
                     <li key={risk.id} className="flex items-center gap-2 text-sm">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${severityBg(risk.inherentRisk || 'medium')}`}>
                         {risk.inherentRisk}
                       </span>
-                      <span className="text-gray-700 dark:text-gray-300">{risk.displayId}: {risk.title}</span>
+                      <span className="text-text-secondary">{risk.displayId}: {risk.title}</span>
                     </li>
                   ))}
                 </ul>

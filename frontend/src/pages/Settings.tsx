@@ -298,42 +298,42 @@ const Settings = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+      <h1 className="text-2xl font-bold text-text-primary mb-6">
         {t('settings.title')}
       </h1>
 
-      <div className="bg-white dark:bg-card rounded-lg shadow p-6 max-w-2xl">
+      <div className="bg-surface-default rounded-lg shadow p-6 max-w-2xl">
         <div className="space-y-6">
           {user?.mustChangePasswordOnNext && (
-            <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-700 p-4 text-sm text-yellow-800 dark:text-yellow-200">
+            <div className="rounded-md border border-border-subtle bg-status-warn-bg p-4 text-sm text-status-warn-fg">
               {t('settings.mustChangeTemporaryPassword')}
             </div>
           )}
 
           {/* Account Information */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <h3 className="text-lg font-medium text-text-primary mb-4">
               {t('settings.accountInfo')}
             </h3>
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-4 space-y-2">
+            <div className="bg-surface-sunken rounded-md p-4 space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-text-muted">
                   {t('settings.email')}
                 </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                <span className="text-sm font-medium text-text-primary">
                   {user?.email}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-text-muted">
                   {t('settings.name')}
                 </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                <span className="text-sm font-medium text-text-primary">
                   {user?.firstName} {user?.lastName}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-text-muted">
                   {t('settings.accountType')}
                 </span>
                 <span className="text-sm font-medium">
@@ -347,17 +347,17 @@ const Settings = () => {
                       )}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-sunken text-text-primary">
                       {t('settings.localAccount')}
                     </span>
                   )}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-text-muted">
                   {t('settings.roles')}
                 </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                <span className="text-sm font-medium text-text-primary">
                   {user?.roles?.join(', ')}
                 </span>
               </div>
@@ -366,77 +366,77 @@ const Settings = () => {
 
           {!user?.isOidcLinked && (
             <>
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">{t('settings.mfaTitle')}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            <div className="border-t border-border-subtle pt-6">
+              <h3 className="text-lg font-medium text-text-primary mb-4">{t('settings.mfaTitle')}</h3>
+              <p className="text-sm text-text-secondary mb-4">
                 {user?.mfaEnabled ? t('settings.mfaEnabled') : t('settings.mfaDisabled')}
               </p>
               {mfaSetup && (
                 <div className="space-y-3 mb-4">
                   <img src={mfaSetup.qrCodeDataUrl} alt={t('settings.mfaQrAlt')} className="w-48 h-48" />
-                  <p className="break-all text-xs text-gray-500">{mfaSetup.otpauthUrl}</p>
+                  <p className="break-all text-xs text-text-muted">{mfaSetup.otpauthUrl}</p>
                 </div>
               )}
               <input
                 value={mfaToken}
                 onChange={(e) => setMfaToken(e.target.value)}
                 placeholder={t('settings.mfaCode')}
-                className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm mb-3"
+                className="block w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md shadow-sm mb-3"
               />
-              {mfaError && <div className="text-sm text-red-600 dark:text-red-400 mb-2">{mfaError}</div>}
-              {mfaMessage && <div className="text-sm text-green-600 dark:text-green-400 mb-2">{mfaMessage}</div>}
+              {mfaError && <div className="text-sm text-status-critical-fg mb-2">{mfaError}</div>}
+              {mfaMessage && <div className="text-sm text-status-ok-fg mb-2">{mfaMessage}</div>}
               <div className="flex gap-2">
                 {!user?.mfaEnabled && !mfaSetup && <button type="button" onClick={beginMfaSetup} className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700">{t('settings.mfaSetup')}</button>}
-                {!user?.mfaEnabled && mfaSetup && <button type="button" onClick={confirmMfaSetup} className="px-4 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700">{t('settings.mfaConfirm')}</button>}
-                {user?.mfaEnabled && <button type="button" onClick={disableMfa} className="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700">{t('settings.mfaDisable')}</button>}
+                {!user?.mfaEnabled && mfaSetup && <button type="button" onClick={confirmMfaSetup} className="px-4 py-2 rounded-md bg-ok-600 text-white text-sm font-medium hover:bg-ok-700">{t('settings.mfaConfirm')}</button>}
+                {user?.mfaEnabled && <button type="button" onClick={disableMfa} className="px-4 py-2 rounded-md bg-critical-600 text-white text-sm font-medium hover:bg-critical-700">{t('settings.mfaDisable')}</button>}
               </div>
             </div>
-            <form onSubmit={handlePasswordChange} className="border-t border-gray-200 dark:border-gray-700 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <form onSubmit={handlePasswordChange} className="border-t border-border-subtle pt-6">
+              <h3 className="text-lg font-medium text-text-primary mb-4">
                 {t('settings.changePassword')}
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-text-primary mb-1">
                     {t('settings.currentPassword')}
                   </label>
                   <input
                     type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="block w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-text-primary mb-1">
                     {t('settings.newPassword')}
                   </label>
                   <input
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="block w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     required
                   />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-text-muted">
                     {t('settings.passwordRequirements')}
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-text-primary mb-1">
                     {t('settings.confirmNewPassword')}
                   </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="block w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     required
                   />
                 </div>
-                {passwordError && <div className="text-sm text-red-600 dark:text-red-400">{passwordError}</div>}
-                {passwordMessage && <div className="text-sm text-green-600 dark:text-green-400">{passwordMessage}</div>}
+                {passwordError && <div className="text-sm text-status-critical-fg">{passwordError}</div>}
+                {passwordMessage && <div className="text-sm text-status-ok-fg">{passwordMessage}</div>}
                 <button
                   type="submit"
                   disabled={isChangingPassword}
@@ -451,13 +451,13 @@ const Settings = () => {
 
           {/* Language Setting */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               {t('settings.language')}
             </label>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value as 'en' | 'de' | 'es' | 'fr')}
-              className="block w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="block w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="en">English</option>
               <option value="de">Deutsch</option>
@@ -468,13 +468,13 @@ const Settings = () => {
 
           {/* Theme Setting */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               {t('settings.theme')}
             </label>
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleDarkMode}
-                className="flex items-center px-4 py-2 border border-gray-300 dark:border-card rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="flex items-center px-4 py-2 border border-border-subtle bg-surface-default rounded-md shadow-sm text-sm font-medium text-text-primary hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {darkMode ? (
                   <>
@@ -492,29 +492,29 @@ const Settings = () => {
                   </>
                 )}
               </button>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
+              <span className="text-sm text-text-muted">
                 {darkMode ? t('settings.darkMode') : t('settings.lightMode')}
               </span>
             </div>
           </div>
 
           {/* Navigation views (personal views + order/visibility editor) */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
+          <div className="border-t border-border-subtle pt-6">
+            <h3 className="text-lg font-medium text-text-primary mb-1">
               {t('settings.navigationOrderTitle')}
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+            <p className="text-sm text-text-secondary mb-3">
               {t('settings.navigationOrderDescription')}
             </p>
             <div className="flex flex-wrap items-center gap-3 mb-4">
-              <label htmlFor="settings-nav-view-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="settings-nav-view-select" className="text-sm font-medium text-text-primary">
                 {t('navViews.scopeLabel')}
               </label>
               <select
                 id="settings-nav-view-select"
                 value={navScope}
                 onChange={(event) => selectNavScope(event.target.value)}
-                className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-primary-500 focus:border-primary-500"
+                className="rounded-md border-border-subtle bg-surface-default text-text-primary text-sm focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value={DEFAULT_SCOPE}>{t('navViews.defaultScope')}</option>
                 {navViews.map((view) => (
@@ -525,12 +525,12 @@ const Settings = () => {
               </select>
             </div>
             {navScope === DEFAULT_SCOPE && (
-              <div className={`mb-4 inline-flex items-center px-2 py-1 rounded text-xs font-medium ${hasPersonalNavOverride || hasPersonalHiddenOverride ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+              <div className={`mb-4 inline-flex items-center px-2 py-1 rounded text-xs font-medium ${hasPersonalNavOverride || hasPersonalHiddenOverride ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200' : 'bg-surface-sunken text-text-primary'}`}>
                 {hasPersonalNavOverride || hasPersonalHiddenOverride ? t('navigationOrder.overrideActive') : t('navigationOrder.usingGlobal')}
               </div>
             )}
             {navLoading ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+              <p className="text-sm text-text-muted">{t('common.loading')}</p>
             ) : (
               <>
                 <NavigationOrderEditor
@@ -557,24 +557,24 @@ const Settings = () => {
                       type="button"
                       onClick={clearNavOverride}
                       disabled={!(hasPersonalNavOverride || hasPersonalHiddenOverride) || navSaving}
-                      className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                      className="px-4 py-2 rounded-md border border-border-subtle text-sm font-medium text-text-primary hover:bg-surface-hover disabled:opacity-50 disabled:pointer-events-none"
                     >
                       {t('navigationOrder.useGlobal')}
                     </button>
                   )}
-                  {navDirty && <span className="text-xs text-amber-600 dark:text-amber-400">{t('navigationOrder.unsavedChanges')}</span>}
+                  {navDirty && <span className="text-xs text-status-warn-fg">{t('navigationOrder.unsavedChanges')}</span>}
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('navViews.personalTitle')}</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t('navViews.personalDescription')}</p>
+                <div className="mt-6 pt-4 border-t border-border-subtle">
+                  <h4 className="text-sm font-semibold text-text-primary mb-2">{t('navViews.personalTitle')}</h4>
+                  <p className="text-xs text-text-muted mb-3">{t('navViews.personalDescription')}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
                       value={newViewName}
                       onChange={(event) => setNewViewName(event.target.value)}
                       placeholder={t('navViews.newViewPlaceholder')}
-                      className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-primary-500 focus:border-primary-500"
+                      className="rounded-md border-border-subtle bg-surface-default text-text-primary text-sm focus:ring-primary-500 focus:border-primary-500"
                     />
                     <button
                       type="button"
@@ -591,7 +591,7 @@ const Settings = () => {
                           type="button"
                           onClick={setDefaultNavView}
                           disabled={navSaving || selectedNavView?.isDefault}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border-subtle text-sm font-medium text-text-primary hover:bg-surface-hover disabled:opacity-50 disabled:pointer-events-none"
                         >
                           <StarIcon className="h-4 w-4" />
                           {t('navViews.setDefault')}
@@ -600,7 +600,7 @@ const Settings = () => {
                           type="button"
                           onClick={deleteNavView}
                           disabled={navSaving}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-red-300 dark:border-red-700 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:pointer-events-none"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-critical-300 text-sm font-medium text-critical-700 hover:bg-critical-50 disabled:opacity-50 disabled:pointer-events-none"
                         >
                           <TrashIcon className="h-4 w-4" />
                           {t('navViews.delete')}

@@ -1,31 +1,45 @@
 /**
  * Shared status color helpers for risk and control UI components.
  * Extracted from Risks.tsx, Controls.tsx, ISMSPhase6.tsx to reduce duplication.
+ * The severity/traffic-light class maps themselves live in `styles/severity.ts`
+ * (documented design intention — see the module header there).
  */
+
+import { RISK_LEVEL_TONE, CONTROL_STATUS_TONE, NEUTRAL_BADGE_TONE } from '../styles/severity';
 
 export type RiskLevel = 'very_high' | 'high' | 'medium' | 'low' | string;
 export type ControlStatus = 'implemented' | 'planned' | 'in_progress' | 'under_review' | string;
 
+/**
+ * Semantic status kinds (Stage 2 / QW-3). These map to the mode-switchable
+ * Tailwind utilities `bg-status-<kind>-bg` + `text-status-<kind>-fg` defined
+ * via design-tokens.json — no `dark:` variants are needed.
+ */
+export type StatusKind = 'critical' | 'warn' | 'ok' | 'info' | 'idle';
+
+/**
+ * Central badge mapping: semantic status kind -> Tailwind classes for a badge
+ * (background + foreground). Used by Dashboard, Contracts, Licenses, Processes,
+ * Incidents and ActionCenter instead of per-page raw-palette color maps.
+ */
+export const statusBadgeClass = (kind: StatusKind): string => {
+  switch (kind) {
+    case 'critical': return 'bg-status-critical-bg text-status-critical-fg';
+    case 'warn': return 'bg-status-warn-bg text-status-warn-fg';
+    case 'ok': return 'bg-status-ok-bg text-status-ok-fg';
+    case 'info': return 'bg-status-info-bg text-status-info-fg';
+    default: return 'bg-status-idle-bg text-status-idle-fg';
+  }
+};
+
 /** Tailwind classes for risk level badges. */
 export const getRiskColor = (riskLevel: RiskLevel): string => {
-  switch (riskLevel?.toLowerCase()) {
-    case 'very_high': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-    case 'high': return 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200';
-    case 'medium': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-    case 'low': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-    default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-  }
+  return RISK_LEVEL_TONE[riskLevel?.toLowerCase() as keyof typeof RISK_LEVEL_TONE] ?? NEUTRAL_BADGE_TONE;
 };
 
 /** Tailwind classes for control implementation status badges. */
 export const getControlStatusColor = (status: ControlStatus): string => {
-  switch (status?.toLowerCase()) {
-    case 'implemented': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-    case 'planned': return 'bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200';
-    case 'in_progress': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-    case 'under_review': return 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200';
-    default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-  }
+  return CONTROL_STATUS_TONE[status?.toLowerCase() as keyof typeof CONTROL_STATUS_TONE] ?? NEUTRAL_BADGE_TONE;
 };
 
 /** Unified status color getter that auto-detects risk vs control. */

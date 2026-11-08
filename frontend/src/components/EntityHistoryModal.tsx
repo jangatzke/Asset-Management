@@ -151,20 +151,20 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
     <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidthClassName="max-w-4xl">
       <div className="space-y-4">
         {error && (
-          <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded">
+          <div className="bg-status-critical-bg border border-status-critical-fg/30 text-status-critical-fg px-4 py-3 rounded">
             {error}
           </div>
         )}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="entity-history-action-filter">
+          <label className="text-sm font-medium text-text-primary" htmlFor="entity-history-action-filter">
             {t('history.actionFilter')}
           </label>
           <select
             id="entity-history-action-filter"
             value={actionFilter}
             onChange={(event) => setActionFilter(event.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="flex-1 px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">{t('common.all')}</option>
             {actions.map((action) => <option key={action} value={action}>{actionLabel(action)}</option>)}
@@ -172,9 +172,9 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
         </div>
 
         {loading ? (
-          <div className="text-center py-4 text-gray-500 dark:text-gray-400">{t('history.loading')}</div>
+          <div className="text-center py-4 text-text-muted">{t('history.loading')}</div>
         ) : entries.length === 0 ? (
-          <div className="text-center py-4 text-gray-500 dark:text-gray-400">{t('history.empty')}</div>
+          <div className="text-center py-4 text-text-muted">{t('history.empty')}</div>
         ) : (
           <div className="max-h-[32rem] overflow-y-auto space-y-3">
             {entries.map((entry) => {
@@ -190,7 +190,7 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                 : undefined;
 
               return (
-                <div key={entry.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                <div key={entry.id} className="border border-border-subtle rounded-lg p-3 bg-surface-sunken">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
@@ -199,11 +199,11 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                             {t('history.ticket').replace('{ticket}', ticketDisplayId)}
                           </span>
                         )}
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{actionLabel(entry.action)}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{new Date(entry.createdAt).toLocaleString()}</span>
-                        <span className="text-xs text-gray-400 dark:text-gray-500" title={actorDisplay}>{t('history.byActor').replace('{actor}', actorDisplay)}</span>
+                        <span className="text-sm font-semibold text-text-primary">{actionLabel(entry.action)}</span>
+                        <span className="text-xs text-text-muted">{new Date(entry.createdAt).toLocaleString()}</span>
+                        <span className="text-xs text-text-muted" title={actorDisplay}>{t('history.byActor').replace('{actor}', actorDisplay)}</span>
                       </div>
-                      {entry.summary && <p className="text-sm text-gray-700 dark:text-gray-300">{entry.summary}</p>}
+                      {entry.summary && <p className="text-sm text-text-primary">{entry.summary}</p>}
                       {hasVisibleChanges && (
                         <div className="mt-2">
                           <button type="button" onClick={() => toggleExpanded(entry.id)} className="text-xs text-primary-600 dark:text-primary-400 hover:underline">
@@ -212,11 +212,11 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                           {expanded && (
                             <div className="mt-2 overflow-x-auto">
                               <table className="min-w-full text-sm">
-                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                <thead className="bg-surface-sunken">
                                   <tr>
-                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('history.field')}</th>
-                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('history.oldValue')}</th>
-                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('history.newValue')}</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-primary">{t('history.field')}</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-primary">{t('history.oldValue')}</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-primary">{t('history.newValue')}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -224,10 +224,10 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
                                     const oldValue = isPlainObject(change) ? change.old ?? change.oldValue ?? change.from : undefined;
                                     const newValue = isPlainObject(change) ? change.new ?? change.newValue ?? change.to : change;
                                     return (
-                                      <tr key={field} className="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                                        <td className="py-1 pr-3 align-top text-gray-700 dark:text-gray-300">{fieldLabel(field)}</td>
-                                        <td className="py-1 pr-3 align-top text-gray-500 dark:text-gray-400 break-words">{formatValue(oldValue, t('history.emptyValue'))}</td>
-                                        <td className="py-1 align-top text-gray-500 dark:text-gray-400 break-words">{formatValue(newValue, t('history.emptyValue'))}</td>
+                                      <tr key={field} className="border-b border-border-subtle last:border-b-0">
+                                        <td className="py-1 pr-3 align-top text-text-primary">{fieldLabel(field)}</td>
+                                        <td className="py-1 pr-3 align-top text-text-muted break-words">{formatValue(oldValue, t('history.emptyValue'))}</td>
+                                        <td className="py-1 align-top text-text-muted break-words">{formatValue(newValue, t('history.emptyValue'))}</td>
                                       </tr>
                                     );
                                   })}
@@ -246,7 +246,7 @@ export const EntityHistoryModal = ({ isOpen, onClose, entityId, entityName, load
         )}
 
         <div className="flex justify-end pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+          <button type="button" onClick={onClose} className="px-4 py-2 border border-border-subtle rounded-md text-text-primary hover:bg-surface-hover">
             {t('common.close')}
           </button>
         </div>

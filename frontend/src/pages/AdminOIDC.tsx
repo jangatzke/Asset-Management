@@ -70,7 +70,7 @@ const AdminOIDC = () => {
 
   if (loading) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-text-muted">
         {t('common.loading')}
       </div>
     );
@@ -78,7 +78,7 @@ const AdminOIDC = () => {
 
   if (!config) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-text-muted">
         {t('oidc.noConfig')}
       </div>
     );
@@ -86,25 +86,25 @@ const AdminOIDC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+      <h1 className="text-2xl font-bold text-text-primary mb-6">
         {t('navigation.oidcConfig')}
       </h1>
 
       {error && (
-        <div role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
+        <div role="alert" className="mb-4 rounded-md border border-border-subtle bg-status-critical-bg p-4 text-status-critical-fg">
           {error}
         </div>
       )}
 
-      <div className="bg-white dark:bg-card rounded-lg shadow p-6 max-w-3xl">
+      <div className="bg-surface-default rounded-lg shadow p-6 max-w-3xl">
         <div className="space-y-6">
           {/* Enable/Disable */}
-          <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between pb-4 border-b border-border-subtle">
             <div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              <h3 className="text-lg font-medium text-text-primary">
                 {t('oidc.enableOidc')}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-text-muted">
                 {t('oidc.enableOidcDescription')}
               </p>
             </div>
@@ -115,7 +115,7 @@ const AdminOIDC = () => {
                 onChange={(e) => handleChange('enabled', e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"></div>
+              <div className="w-11 h-6 bg-surface-sunken peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border-subtle after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
             </label>
           </div>
 
@@ -123,18 +123,18 @@ const AdminOIDC = () => {
             <>
               {/* Provider Settings */}
               <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                <h3 className="text-lg font-medium text-text-primary mb-4">
                   {t('oidc.providerSettings')}
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-text-primary mb-1">
                       {t('oidc.provider')}
                     </label>
                     <select
                       value={config.providerName || 'entra_id'}
                       onChange={(e) => handleChange('providerName', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="entra_id">{t('oidc.providerEntra')}</option>
                       <option value="authentik">{t('oidc.providerAuthentik')}</option>
@@ -143,19 +143,19 @@ const AdminOIDC = () => {
                   </div>
                   {config.providerName === 'entra_id' ? (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-text-primary mb-1">
                         {t('oidc.tenantId')}
                       </label>
                       <input
                         type="text"
                         value={config.tenantId || ''}
                         onChange={(e) => handleChange('tenantId', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-text-primary mb-1">
                         {t('oidc.issuerUrl')}
                       </label>
                       <input
@@ -163,44 +163,44 @@ const AdminOIDC = () => {
                         value={config.issuerUrl || ''}
                         onChange={(e) => handleChange('issuerUrl', e.target.value)}
                         placeholder="https://auth.example.com/application/o/asset-management/"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-text-muted">
                         {t('oidc.issuerUrlDescription')}
                       </p>
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-text-primary mb-1">
                       {t('oidc.clientId')}
                     </label>
                     <input
                       type="text"
                       value={config.clientId || ''}
                       onChange={(e) => handleChange('clientId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-text-primary mb-1">
                       {t('oidc.clientSecret')}
                     </label>
                     <input
                       type="password"
                       value={config.clientSecret || ''}
                       onChange={(e) => handleChange('clientSecret', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-text-primary mb-1">
                       {t('oidc.redirectUri')}
                     </label>
                     <input
                       type="text"
                       value={config.redirectUri || ''}
                       onChange={(e) => handleChange('redirectUri', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                 </div>
@@ -208,11 +208,11 @@ const AdminOIDC = () => {
 
               {/* Allowed Domains */}
               <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                <h3 className="text-lg font-medium text-text-primary mb-4">
                   {t('oidc.allowedDomains')}
                 </h3>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-text-primary mb-1">
                     {t('oidc.allowedDomainsDescription')}
                   </label>
                   <input
@@ -224,7 +224,7 @@ const AdminOIDC = () => {
                         e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
                       )
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="contoso.com, partner.org"
                   />
                 </div>
@@ -232,7 +232,7 @@ const AdminOIDC = () => {
 
               {/* Auto-Provisioning */}
               <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                <h3 className="text-lg font-medium text-text-primary mb-4">
                   {t('oidc.autoProvisioning')}
                 </h3>
                 <div className="space-y-4">
@@ -244,26 +244,26 @@ const AdminOIDC = () => {
                       onChange={(e) => handleChange('autoProvisioning', e.target.checked)}
                       className="mr-2"
                     />
-                    <label htmlFor="autoProvisioning" className="text-sm text-gray-700 dark:text-gray-300">
+                    <label htmlFor="autoProvisioning" className="text-sm text-text-primary">
                       {t('oidc.autoProvisioningDescription')}
                     </label>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-text-primary mb-1">
                       {t('oidc.defaultRole')}
                     </label>
                     <input
                       type="text"
                       value={config.defaultRoleForNewUsers || ''}
                       onChange={(e) => handleChange('defaultRoleForNewUsers', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Local Login */}
-              <div className="flex items-center pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center pt-4 border-t border-border-subtle">
                 <input
                   type="checkbox"
                   id="enableLocalLogin"
@@ -271,7 +271,7 @@ const AdminOIDC = () => {
                   onChange={(e) => handleChange('enableLocalLogin', e.target.checked)}
                   className="mr-2"
                 />
-                <label htmlFor="enableLocalLogin" className="text-sm text-gray-700 dark:text-gray-300">
+                <label htmlFor="enableLocalLogin" className="text-sm text-text-primary">
                   {t('oidc.enableLocalLogin')}
                 </label>
               </div>
@@ -279,10 +279,10 @@ const AdminOIDC = () => {
           )}
 
           {/* Save Button */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between pt-4 border-t border-border-subtle">
             <div>
               {saved && (
-                <span className="text-sm text-green-600 dark:text-green-400">
+                <span className="text-sm text-status-ok-fg">
                   {t('common.saved')}
                 </span>
               )}

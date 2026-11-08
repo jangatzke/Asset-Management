@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import { useI18n } from '../context/I18nContext';
 
 export interface HelpTooltipProps {
@@ -63,7 +63,8 @@ const HelpTooltip = ({ labelKey, bodyKey, children: fallback, ariaLabelKey }: He
         onMouseLeave={() => setOpen(false)}
         className="ml-1 align-middle text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
       >
-        <InfoOutlinedIcon fontSize="inherit" aria-hidden="true" />
+        {/* MT-7: Heroicons instead of MUI icons (icon is decorative, button keeps its aria-label). */}
+        <InformationCircleIcon className="h-4 w-4" aria-hidden="true" />
       </IconButton>
     </Tooltip>
   );

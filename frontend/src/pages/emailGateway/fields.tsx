@@ -14,12 +14,15 @@
 import type { ChangeEvent, ReactNode } from 'react';
 import HelpTooltip from '../../components/HelpTooltip';
 import { useI18n } from '../../context/I18nContext';
+import { fieldControlClass } from '../../components/FormRow';
 
-const inputClass =
-  'mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500';
-const inputErrorClass = 'border-red-500 dark:border-red-400';
-const helpClass = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
-const errorClass = 'mt-1 text-xs font-medium text-red-700 dark:text-red-300';
+// Stage 8 (MT-5): control visuals come from the shared `fieldControlClass`
+// helper so this admin form matches the app-wide Field styling. The ID wiring
+// below (`<id>-help` / `<id>-error`) is intentionally kept — existing tests
+// assert on those ids.
+const helpClass = 'mt-1 text-body2 text-text-muted';
+const errorClass = 'mt-1 text-body2 font-medium text-status-critical-fg';
+const labelClass = 'block text-body2 font-medium text-text-secondary';
 
 const describedBy = (id: string, helpKey?: string, errorKey?: string | null): string | undefined => {
   const ids: string[] = [];
@@ -64,7 +67,7 @@ function FieldError({ id, errorKey }: { id: string; errorKey?: string | null }) 
 function FieldLabel({ id, labelKey, helpKey }: FieldChromeProps) {
   const { t } = useI18n();
   return (
-    <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <span className={labelClass}>
       <label htmlFor={id}>{t(labelKey)}</label>
       {helpKey ? <HelpTooltip bodyKey={helpKey} /> : null}
     </span>
@@ -111,7 +114,7 @@ export function TextField({
         id={id}
         name={name}
         type={type}
-        className={`${inputClass} ${errorKey ? inputErrorClass : ''} ${inputClassName ?? ''}`.trim()}
+        className={`${fieldControlClass(Boolean(errorKey))} ${inputClassName ?? ''}`.trim()}
         value={value}
         onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -155,14 +158,14 @@ export function CheckboxField({
           id={id}
           name={name}
           type="checkbox"
-          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+          className="h-4 w-4 rounded border-border-strong bg-surface-default text-primary-600 focus:ring-2 focus:ring-primary-500"
           checked={checked}
           disabled={disabled}
           onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.checked)}
           aria-invalid={errorKey ? true : undefined}
           aria-describedby={describedBy(id, helpKey, errorKey)}
         />
-        <label htmlFor={id} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label htmlFor={id} className={labelClass}>
           {t(labelKey)}
         </label>
         {helpKey ? <HelpTooltip bodyKey={helpKey} /> : null}
@@ -205,7 +208,7 @@ export function SelectField({
       <select
         id={id}
         name={name}
-        className={`${inputClass} ${errorKey ? inputErrorClass : ''}`.trim()}
+        className={fieldControlClass(Boolean(errorKey))}
         value={value}
         disabled={disabled}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)}
@@ -237,7 +240,7 @@ function FieldGroup({
   const { t } = useI18n();
   return (
     <fieldset className={`space-y-4 ${className}`.trim()}>
-      <legend className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t(legendKey)}</legend>
+      <legend className="text-h3 text-text-primary">{t(legendKey)}</legend>
       {children}
     </fieldset>
   );

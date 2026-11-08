@@ -2,32 +2,135 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+ * MIRROR OF src/styles/design-tokens.json (semantic.{light,dark}) — Stage 1.
+ * Do not edit values here in isolation: change the JSON first, then mirror it.
+ *
+ * Semantic colors are stored as "R G B" triplets so tailwind.config.js can
+ * expose them as `rgb(var(--color-*) / <alpha-value>)`; utilities like
+ * `bg-surface-default` switch automatically when DarkModeContext toggles the
+ * `.dark` class on <html>. Legacy variable names (--background-color, …) are
+ * kept as derived aliases because existing rules in this file reference them.
+ * ========================================================================== */
+
 :root {
-  --primary-color: #2563eb;
-  --secondary-color: #1e40af;
-  --background-color: #ffffff;
-  --text-color: #1f2937;
-  --card-bg: #ffffff;
-  --border-color: #e5e7eb;
-  --hover-bg: #f9fafb;
-  --form-bg: #ffffff;
-  --form-text: #111827;
-  --form-placeholder: #6b7280;
-  --form-border: #d1d5db;
+  /* --- semantic tokens (light) — mirror of design-tokens.json ------------- */
+  --color-surface-canvas: 246 247 249; /* #F6F7F9 */
+  --color-surface-default: 255 255 255; /* #FFFFFF */
+  --color-surface-sunken: 242 244 247; /* #F2F4F7 */
+  --color-surface-hover: 238 242 247; /* #EEF2F7 */
+  --color-surface-raised: 255 255 255; /* #FFFFFF */
+  --color-surface-disabled: 228 231 236; /* #E4E7EC — disabled control fill, darker than sunken/hover */
+  --color-border-subtle: 129 138 153; /* #818A99 — Stage 9 MT-9: raised to WCAG AA 3:1 for UI edges on all light surfaces */
+  --color-border-strong: 117 127 141; /* #757F8D — Stage 9 MT-9: raised to WCAG AA 3:1 for UI edges on all light surfaces */
+  --color-text-primary: 16 24 40; /* #101828 */
+  --color-text-secondary: 71 84 103; /* #475467 */
+  --color-text-muted: 102 112 133; /* #667085 */
+  --color-focus-ring: 37 99 235; /* brand-600 #2563EB */
+  --color-focus-ring-offset: 255 255 255; /* #FFFFFF */
+
+  /* status pairs (badge bg/fg) — mirror of design-tokens.json */
+  --color-status-critical-bg: 254 228 226; /* #FEE4E2 */
+  --color-status-critical-fg: 145 32 24; /* #912018 */
+  --color-status-warn-bg: 254 240 199; /* #FEF0C7 */
+  --color-status-warn-fg: 147 55 13; /* #93370D */
+  --color-status-ok-bg: 209 250 223; /* #D1FADF */
+  --color-status-ok-fg: 8 93 58; /* #085D3A */
+  --color-status-info-bg: 224 234 255; /* #E0EAFF */
+  --color-status-info-fg: 29 58 138; /* #1D3A8A */
+  --color-status-idle-bg: 234 236 240; /* #EAECF0 */
+  --color-status-idle-fg: 71 84 103; /* #475467 */
+
+  /* --- derived conveniences ------------------------------------------------ */
+  --focus-ring-color: rgb(var(--color-focus-ring));
+  --focus-ring-offset-color: rgb(var(--color-focus-ring-offset));
+
+  /* --- legacy aliases (same values, kept for rules below) ------------------ */
+  --primary-color: rgb(var(--color-focus-ring)); /* brand-600 */
+  --secondary-color: #1e40af; /* brand-800 */
+  --background-color: rgb(var(--color-surface-canvas));
+  --text-color: rgb(var(--color-text-primary));
+  --card-bg: rgb(var(--color-surface-default));
+  --border-color: rgb(var(--color-border-subtle));
+  --hover-bg: rgb(var(--color-surface-hover));
+  --form-bg: rgb(var(--color-surface-default));
+  --form-text: rgb(var(--color-text-primary));
+  --form-placeholder: rgb(var(--color-text-muted));
+  --form-border: rgb(var(--color-border-strong));
+
+  color-scheme: light;
 }
 
 .dark {
-  --primary-color: #3b82f6;
-  --secondary-color: #60a5fa;
-  --background-color: #111827;
-  --text-color: #f9fafb;
-  --card-bg: #1f2937;
-  --border-color: #374151;
-  --hover-bg: #374151;
-  --form-bg: #374151;
-  --form-text: #f9fafb;
-  --form-placeholder: #9ca3af;
-  --form-border: #4b5563;
+  /* --- semantic tokens (dark) — mirror of design-tokens.json --------------- */
+  --color-surface-canvas: 11 15 20; /* #0B0F14 */
+  --color-surface-default: 17 24 32; /* #111820 */
+  --color-surface-sunken: 14 20 27; /* #0E141B */
+  --color-surface-hover: 24 33 48; /* #182130 */
+  --color-surface-raised: 24 33 48; /* #182130 */
+  --color-surface-disabled: 42 52 65; /* #2A3441 — disabled control fill, lighter than hover/raised */
+  --color-border-subtle: 110 126 150; /* #6E7E96 — Stage 9 MT-9: raised to WCAG AA 3:1 for UI edges on all dark surfaces */
+  --color-border-strong: 130 146 171; /* #8292AB — Stage 9 MT-9: raised to WCAG AA 3:1 for UI edges on all dark surfaces */
+  --color-text-primary: 242 245 249; /* #F2F5F9 */
+  --color-text-secondary: 182 194 210; /* #B6C2D2 */
+  --color-text-muted: 138 151 168; /* #8A97A8 */
+  --color-focus-ring: 96 165 250; /* brand-400 #60A5FA */
+  --color-focus-ring-offset: 11 15 20; /* #0B0F14 */
+
+  --color-status-critical-bg: 78 29 29; /* #4E1D1D */
+  --color-status-critical-fg: 253 162 155; /* #FDA29B */
+  --color-status-warn-bg: 74 53 21; /* #4A3515 */
+  --color-status-warn-fg: 254 200 75; /* #FEC84B */
+  --color-status-ok-bg: 18 53 42; /* #12352A */
+  --color-status-ok-fg: 117 224 167; /* #75E0A7 */
+  --color-status-info-bg: 24 42 74; /* #182A4A */
+  --color-status-info-fg: 132 173 255; /* #84ADFF */
+  --color-status-idle-bg: 31 41 55; /* #1F2937 */
+  --color-status-idle-fg: 195 205 218; /* #C3CDDA */
+
+  color-scheme: dark;
+}
+
+/* ============================================================================
+ * Stage 10c / LT-6: High-Contrast variant.
+ * Applied via `.contrast-high` on <html> (DarkModeContext, persisted in
+ * localStorage 'am.contrast'). Pure CSS-variable overrides — no component or
+ * Tailwind changes required; every token consumer (bg-surface-*, text-text-*,
+ * borders, focus ring) picks the stronger values up automatically.
+ * Cascade: `.contrast-high` (0,1,0) wins over `:root`; `.dark.contrast-high`
+ * (0,2,0) wins over `.dark`, so light and dark high-contrast stay consistent.
+ * ========================================================================== */
+.contrast-high {
+  /* Light high contrast: pure black text, white canvas, near-black edges. */
+  --color-surface-canvas: 255 255 255; /* clean paper canvas */
+  --color-surface-default: 255 255 255;
+  --color-surface-sunken: 240 242 246;
+  --color-surface-hover: 229 231 235;
+  --color-surface-raised: 255 255 255;
+  --color-border-subtle: 55 65 81; /* #374151 — AA-strong UI edges */
+  --color-border-strong: 17 24 39; /* #111827 */
+  --color-text-primary: 0 0 0; /* #000000 */
+  --color-text-secondary: 17 24 39; /* #111827 */
+  --color-text-muted: 31 41 55; /* #1F2937 */
+}
+
+.dark.contrast-high {
+  /* Dark high contrast: pure white text on black canvas, bright edges. */
+  --color-surface-canvas: 0 0 0; /* true-black canvas */
+  --color-surface-default: 10 12 16;
+  --color-surface-sunken: 0 0 0;
+  --color-surface-hover: 30 41 59;
+  --color-surface-raised: 30 41 59;
+  --color-border-subtle: 148 163 184; /* #94A3B8 */
+  --color-border-strong: 203 213 225; /* #CBD5E1 */
+  --color-text-primary: 255 255 255; /* #FFFFFF */
+  --color-text-secondary: 229 231 235; /* #E5E7EB */
+  --color-text-muted: 203 213 225; /* #CBD5E1 */
+}
+
+/* Thicker focus indicator while high contrast is active. */
+.contrast-high :focus-visible {
+  outline-width: 4px;
 }
 
 * {
@@ -36,14 +139,43 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  /* Mirror of design-tokens.json typography.fontFamily.sans. */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--background-color);
   color: var(--text-color);
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+::selection {
+  /* brand-600 tint at ~25% alpha (static rgba mirrors the primitive). */
+  background: rgb(37 99 235 / 0.25);
+}
+
+/* Token-consistent scrollbars (thin, surface/border colors from tokens). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border-strong)) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border-strong));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-text-muted));
+  background-clip: content-box;
 }
 
 button,
@@ -80,7 +212,7 @@ summary {
 
 @layer base {
   :focus-visible {
-    outline: 3px solid #2563eb;
+    outline: 3px solid var(--focus-ring-color);
     outline-offset: 2px;
   }
 
@@ -104,12 +236,10 @@ summary {
     padding-bottom: 0.5rem;
   }
 
-  button,
-  input,
-  select,
-  textarea {
-    min-height: 2.75rem;
-  }
+  /* QW-6: the former global `min-height: 2.75rem` on form controls was removed.
+     Control heights are now explicit per-context conventions (see styles/tokens.ts):
+     standard controls use `controlHeightStandard` (36px), compact ones use
+     `controlHeightCompact` (32px). No global selector may reintroduce a min-height. */
 
   button:disabled {
     cursor: not-allowed;

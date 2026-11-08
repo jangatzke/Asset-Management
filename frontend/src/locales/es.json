@@ -407,6 +407,9 @@
     "deleteConfirm": "¿Está seguro de que desea eliminar este elemento?",
     "deleteError": "Error al eliminar",
     "deleteSuccess": "Eliminado correctamente",
+    "density": "Densidad",
+    "densityComfortable": "Cómoda",
+    "densityCompact": "Compacta",
     "description": "Descripción",
     "discard": "Descartar",
     "discardChangesMessage": "Tiene cambios sin guardar. ¿Está seguro de que desea descartarlos?",
@@ -463,7 +466,10 @@
     "vendor": "Proveedor",
     "view": "Ver",
     "yes": "Sí",
-    "previous": "Anterior"
+    "previous": "Anterior",
+    "highContrast": "Contraste alto",
+    "highContrastOn": "Contraste alto activado",
+    "highContrastOff": "Contraste alto desactivado"
   },
   "contracts": {
     "deleteConfirm": "¿Está seguro de que desea eliminar este contrato?",
@@ -1672,6 +1678,15 @@
     "signInPrompt": "Inicie sesión en su cuenta",
     "verifyCode": "Verificar código"
   },
+  "nav": {
+    "group": {
+      "overview": "Resumen",
+      "assetsRisks": "Activos y riesgos",
+      "complianceIsm": "Cumplimiento e ISMS",
+      "operations": "Operaciones",
+      "administration": "Administración"
+    }
+  },
   "navigation": {
     "actionCenter": "Centro de acciones",
     "admin": "Administración",
@@ -1691,6 +1706,8 @@
     "ismsOperations": "Operaciones ISMS",
     "ismsProcessWorkspace": "Proceso ISMS",
     "jobRuns": "Ejecuciones de jobs",
+    "collapseSidebar": "Contraer barra lateral",
+    "expandSidebar": "Expandir barra lateral",
     "kriDashboard": "Panel KRI",
     "knowledgeBase": "Base de conocimiento",
     "licenses": "Licencias",
@@ -1712,6 +1729,7 @@
     "supplyChain": "Visión general de proveedores",
     "ticketSlaSettings": "SLA de tickets",
     "tickets": "Tickets",
+    "ticketWorkload": "Carga de trabajo de tickets",
     "toggleMenu": "Alternar menú de navegación",
     "userManagement": "Gestión de usuarios",
     "userMenu": "Menú de usuario",
@@ -2807,7 +2825,12 @@
       "unassigned": "Sin asignar",
       "unlinkRisk": "Desvincular",
       "updatePlaceholder": "Registre una actualización.",
-      "workaroundLabel": "Solución provisional"
+      "workaroundLabel": "Solución provisional",
+      "tabs": {
+        "details": "Detalles",
+        "history": "Historial",
+        "assets": "Activos"
+      }
     },
     "empty": "No se encontraron tickets.",
     "emptyAction": "Crear nuevo ticket",

@@ -29,6 +29,9 @@ import {
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { ChipProps } from '@mui/material';
+// MT-7 documented exception: this screen is a pure MUI module; every icon below
+// feeds an MUI component slot (`Chip icon=`, `Button startIcon=`) that expects a
+// Material icon for sizing/coloring. Tailwind pages must not import MUI icons.
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import HealthIcon from '@mui/icons-material/Favorite';

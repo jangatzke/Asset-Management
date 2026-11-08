@@ -15,6 +15,7 @@
 import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers';
 
 declare module 'vitest' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Type parameter name R must match Vitest's `Assertion<R>` declaration exactly; interface merging requires identical type-parameter names, so it cannot be renamed or removed.
   interface Assertion<R extends void | Promise<void> = void, T = unknown>
     extends TestingLibraryMatchers<any, T> {}
   interface AsymmetricMatchersContaining

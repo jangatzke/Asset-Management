@@ -112,21 +112,21 @@ const AdminDatabase = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('databaseAdmin.title')}</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('databaseAdmin.description')}</p>
+        <h1 className="text-2xl font-bold text-text-primary">{t('databaseAdmin.title')}</h1>
+        <p className="mt-1 text-sm text-text-secondary">{t('databaseAdmin.description')}</p>
       </div>
 
-      {message && <div className="rounded bg-blue-50 p-3 text-sm text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">{message}</div>}
-      {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
+      {message && <div className="rounded bg-status-info-bg p-3 text-sm text-status-info-fg">{message}</div>}
+      {error && <div className="rounded bg-status-critical-bg p-3 text-sm text-status-critical-fg">{error}</div>}
 
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+      <section className="bg-surface-default rounded-lg shadow p-6 space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('databaseAdmin.configTitle')}</h2>
-          <button onClick={loadConfig} disabled={loadingConfig} className="px-3 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
+          <h2 className="text-lg font-semibold text-text-primary">{t('databaseAdmin.configTitle')}</h2>
+          <button onClick={loadConfig} disabled={loadingConfig} className="px-3 py-2 rounded bg-surface-sunken text-text-primary hover:bg-surface-hover disabled:opacity-50">
             {loadingConfig ? t('common.loading') : t('databaseAdmin.refreshConfig')}
           </button>
         </div>
-        {loadingConfig && <p className="text-sm text-gray-600 dark:text-gray-300">{t('common.loading')}</p>}
+        {loadingConfig && <p className="text-sm text-text-secondary">{t('common.loading')}</p>}
         {config && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             {[
@@ -137,15 +137,15 @@ const AdminDatabase = () => {
               [t('databaseAdmin.prismaSchema'), config.prismaSchema],
               [t('databaseAdmin.jsonCompatibilityMode'), config.jsonCompatibilityMode],
             ].map(([label, value]) => (
-              <div key={label} className="rounded border border-gray-200 p-3 dark:border-gray-700">
-                <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
-                <div className="mt-1 break-words text-gray-900 dark:text-gray-100">{value}</div>
+              <div key={label} className="rounded border border-border-subtle p-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-text-muted">{label}</div>
+                <div className="mt-1 break-words text-text-primary">{value}</div>
               </div>
             ))}
             {config.limitations.length > 0 && (
-              <div className="md:col-span-2 rounded border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-900/20">
-                <div className="text-xs font-medium uppercase tracking-wide text-yellow-800 dark:text-yellow-200">{t('databaseAdmin.limitations')}</div>
-                <ul className="mt-2 list-disc pl-5 text-sm text-yellow-900 dark:text-yellow-100">
+              <div className="md:col-span-2 rounded border border-border-subtle bg-status-warn-bg p-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-status-warn-fg">{t('databaseAdmin.limitations')}</div>
+                <ul className="mt-2 list-disc pl-5 text-sm text-status-warn-fg">
                   {config.limitations.map((item) => <li key={item}>{item}</li>)}
                 </ul>
               </div>
@@ -154,65 +154,65 @@ const AdminDatabase = () => {
         )}
       </section>
 
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('databaseAdmin.exportTitle')}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t('databaseAdmin.exportDescription')}</p>
-        <button onClick={handleExport} disabled={exporting} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">
+      <section className="bg-surface-default rounded-lg shadow p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-text-primary">{t('databaseAdmin.exportTitle')}</h2>
+        <p className="text-sm text-text-secondary">{t('databaseAdmin.exportDescription')}</p>
+        <button onClick={handleExport} disabled={exporting} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-surface-disabled disabled:text-text-muted">
           {exporting ? t('databaseAdmin.exporting') : t('databaseAdmin.exportButton')}
         </button>
       </section>
 
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('databaseAdmin.importTitle')}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t('databaseAdmin.importDescription')}</p>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+      <section className="bg-surface-default rounded-lg shadow p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-text-primary">{t('databaseAdmin.importTitle')}</h2>
+        <p className="text-sm text-text-secondary">{t('databaseAdmin.importDescription')}</p>
+        <label className="block text-sm font-medium text-text-primary">
           {t('databaseAdmin.backupFile')}
-          <input type="file" accept="application/json,.json" onChange={handleFileChange} className="mt-1 block w-full text-sm text-gray-700 dark:text-gray-200" />
+          <input type="file" accept="application/json,.json" onChange={handleFileChange} className="mt-1 block w-full text-sm text-text-primary" />
         </label>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+        <label className="block text-sm font-medium text-text-primary">
           {t('databaseAdmin.importMode')}
-          <select value={mode} onChange={(event) => { setMode(event.target.value as DatabaseImportMode); setReplaceConfirmation(''); }} className="mt-1 w-full rounded border-gray-300 dark:bg-gray-700 dark:text-white">
+          <select value={mode} onChange={(event) => { setMode(event.target.value as DatabaseImportMode); setReplaceConfirmation(''); }} className="mt-1 w-full rounded border-border-subtle">
             <option value="dryRun">{t('databaseAdmin.modes.dryRun')}</option>
             <option value="append">{t('databaseAdmin.modes.append')}</option>
             <option value="replace">{t('databaseAdmin.modes.replace')}</option>
           </select>
         </label>
         {mode === 'replace' && (
-          <div className="rounded border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-900/20">
-            <p className="text-sm font-medium text-red-800 dark:text-red-200">{t('databaseAdmin.replaceWarning')}</p>
-            <label className="mt-3 block text-sm font-medium text-red-900 dark:text-red-100">
+          <div className="rounded border border-border-subtle bg-status-critical-bg p-4">
+            <p className="text-sm font-medium text-status-critical-fg">{t('databaseAdmin.replaceWarning')}</p>
+            <label className="mt-3 block text-sm font-medium text-status-critical-fg">
               {t('databaseAdmin.replaceConfirmationLabel')}
-              <input value={replaceConfirmation} onChange={(event) => setReplaceConfirmation(event.target.value)} className="mt-1 w-full rounded border-red-300 dark:bg-gray-700 dark:text-white" />
+              <input value={replaceConfirmation} onChange={(event) => setReplaceConfirmation(event.target.value)} className="mt-1 w-full rounded border-critical-300" />
             </label>
           </div>
         )}
-        <button onClick={handleImport} disabled={importing || !backupFile || !replaceConfirmed} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">
+        <button onClick={handleImport} disabled={importing || !backupFile || !replaceConfirmed} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-surface-disabled disabled:text-text-muted">
           {importing ? t('databaseAdmin.importing') : t('databaseAdmin.importButton')}
         </button>
       </section>
 
       {result && (
-        <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('databaseAdmin.resultTitle')}</h2>
+        <section className="bg-surface-default rounded-lg shadow p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-text-primary">{t('databaseAdmin.resultTitle')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><span className="font-medium dark:text-white">{t('databaseAdmin.resultMode')}:</span> <span className="dark:text-gray-200">{result.dryRun ? t('databaseAdmin.modes.dryRun') : result.mode}</span></div>
-            <div><span className="font-medium dark:text-white">{t('databaseAdmin.resultChecksum')}:</span> <span className="break-all dark:text-gray-200">{result.checksum}</span></div>
-            <div><span className="font-medium dark:text-white">{t('databaseAdmin.resultFormat')}:</span> <span className="dark:text-gray-200">{result.format}</span></div>
-            <div><span className="font-medium dark:text-white">{t('databaseAdmin.validation')}:</span> <span className="text-green-700 dark:text-green-300">{t('databaseAdmin.validationOk')}</span></div>
+            <div><span className="font-medium text-text-primary">{t('databaseAdmin.resultMode')}:</span> <span>{result.dryRun ? t('databaseAdmin.modes.dryRun') : result.mode}</span></div>
+            <div><span className="font-medium text-text-primary">{t('databaseAdmin.resultChecksum')}:</span> <span className="break-all">{result.checksum}</span></div>
+            <div><span className="font-medium text-text-primary">{t('databaseAdmin.resultFormat')}:</span> <span>{result.format}</span></div>
+            <div><span className="font-medium text-text-primary">{t('databaseAdmin.validation')}:</span> <span className="text-status-ok-fg">{t('databaseAdmin.validationOk')}</span></div>
           </div>
           <div>
-            <h3 className="font-medium text-gray-900 dark:text-white">{t('databaseAdmin.rowCounts')}</h3>
-            <div className="mt-2 max-h-72 overflow-auto rounded border border-gray-200 dark:border-gray-700">
-              <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
+            <h3 className="font-medium text-text-primary">{t('databaseAdmin.rowCounts')}</h3>
+            <div className="mt-2 max-h-72 overflow-auto rounded border border-border-subtle">
+              <table className="min-w-full divide-y divide-border-subtle text-sm">
+                <thead className="bg-surface-sunken">
                   <tr>
-                    <SortableTh column="model" label={t('databaseAdmin.table.model')} activeColumn={sort.column} direction={sort.column === 'model' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200" />
-                    <SortableTh column="count" label={t('databaseAdmin.table.count')} activeColumn={sort.column} direction={sort.column === 'count' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200" />
+                    <SortableTh column="model" label={t('databaseAdmin.table.model')} activeColumn={sort.column} direction={sort.column === 'model' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-primary" />
+                    <SortableTh column="count" label={t('databaseAdmin.table.count')} activeColumn={sort.column} direction={sort.column === 'count' ? sort.direction : ''} onSort={toggleSort} className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-primary" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                <tbody className="divide-y divide-border-subtle">
                   {sortedRowCountEntries.map(([model, count]) => (
-                    <tr key={model}><td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{model}</td><td className="px-3 py-2 text-right text-gray-700 dark:text-gray-200">{count}</td></tr>
+                    <tr key={model}><td className="px-3 py-2 font-medium text-text-primary">{model}</td><td className="px-3 py-2 text-right text-text-primary">{count}</td></tr>
                   ))}
                 </tbody>
               </table>

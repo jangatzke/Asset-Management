@@ -32,6 +32,9 @@ import {
 } from '@mui/material';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+// MT-7 documented exception: pure MUI module — all icons feed MUI slots
+// (Button startIcon=, IconButton children) sized via fontSize props.
+// Tailwind-only pages must not import MUI icons; this page is not one.
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import DeleteIcon from '@mui/icons-material/Delete';

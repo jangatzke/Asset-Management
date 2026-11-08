@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useI18n } from '../context/I18nContext';
 
 interface EntityOption {
@@ -234,10 +235,10 @@ const EntitySearchSelect: React.FC<EntitySearchSelectProps> = ({
                 role="listitem"
                 onClick={() => handleRemove(v.id)}
                 aria-label={`${v.label} ${t('common.removeFilter')}`}
-                className="ml-1 hover:text-red-600 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 rounded-full"
+                className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:text-red-600 dark:hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
                 disabled={disabled}
               >
-                ×
+                <XMarkIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </span>
           ))}

@@ -15,8 +15,21 @@ import {
 } from '@heroicons/react/24/outline';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { statusBadgeClass, type StatusKind } from '../utils/statusHelpers';
+
+const costStatusKind = (status: string): StatusKind => {
+  switch (String(status).toLowerCase()) {
+    case 'done': return 'ok';
+    case 'acquired': return 'info';
+    case 'ordered': return 'warn';
+    default: return 'idle';
+  }
+};
 
 type Supplier = { id: string; legalName: string; displayId: string };
 type ManualItem = { title: string; category: string; investmentType: string; plannedAmount: string; currency: string; supplierId: string; supplierName: string; quoteNumber: string; remark: string };
@@ -60,6 +73,9 @@ const apiErrorMessage = (error: unknown, fallback: string, referenceTemplate: st
 
 const CostPlanning = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
+  const breadcrumbs = useBreadcrumbs();
   const [years, setYears] = useState<any[]>([]);
   const [fiscalYearLabel, setFiscalYearLabel] = useState('');
   const [plan, setPlan] = useState<any>(null);
@@ -415,33 +431,36 @@ const CostPlanning = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('costPlanning.title')}</h1>
-        <div className="flex items-center gap-2">
-          <label htmlFor="fiscal-year-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('costPlanning.fiscalYear')}:</label>
-          <select
-            id="fiscal-year-select"
-            value={fiscalYearLabel}
-            onChange={(e) => setFiscalYearLabel(e.target.value)}
-            className="rounded-lg border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          >
-            {years.map((year) => <option key={year.label} value={year.label}>{year.label}</option>)}
-          </select>
-        </div>
-      </div>
-      {message && <div role="alert" className="rounded bg-yellow-50 p-3 text-yellow-800">{message}</div>}
+      <PageHeader
+        title={t('costPlanning.title')}
+        breadcrumbs={breadcrumbs}
+        actions={(
+          <div className="flex items-center gap-2">
+            <label htmlFor="fiscal-year-select" className="text-sm font-medium text-text-secondary">{t('costPlanning.fiscalYear')}:</label>
+            <select
+              id="fiscal-year-select"
+              value={fiscalYearLabel}
+              onChange={(e) => setFiscalYearLabel(e.target.value)}
+              className="rounded-lg border-border-subtle  px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              {years.map((year) => <option key={year.label} value={year.label}>{year.label}</option>)}
+            </select>
+          </div>
+        )}
+      />
+      {message && <div role="alert" className="rounded bg-status-warn-bg p-3 text-status-warn-fg">{message}</div>}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[[t('costPlanning.planned'), summary.plannedAmount], [t('costPlanning.known'), summary.knownAmount], [t('costPlanning.acquired'), summary.acquiredAmount], [t('costPlanning.open'), summary.openAmount]].map(([label, value]) => <div key={label} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4"><h3 className="text-sm text-gray-500 dark:text-gray-400">{label}</h3><p className="text-2xl font-bold dark:text-white">{money(value, plan?.currency || 'EUR')}</p></div>)}
+        {[[t('costPlanning.planned'), summary.plannedAmount], [t('costPlanning.known'), summary.knownAmount], [t('costPlanning.acquired'), summary.acquiredAmount], [t('costPlanning.open'), summary.openAmount]].map(([label, value]) => <div key={label} className="bg-surface-default rounded-lg shadow p-4"><h3 className="text-sm text-text-muted">{label}</h3><p className="text-2xl font-bold text-text-primary tabular-nums ">{money(value, plan?.currency || 'EUR')}</p></div>)}
       </div>
       <DataTableShell
-        toolbar={<h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('costPlanning.yearlyPlanItems')}</h2>}
+        toolbar={<h2 className="text-lg font-semibold text-text-primary">{t('costPlanning.yearlyPlanItems')}</h2>}
         filterLabel={t('common.filters')}
         filters={(
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div className="relative"><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.search')}</label><div className="relative"><MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" /><input type="text" value={filters.search} onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))} placeholder={t('costPlanning.searchPlaceholder')} className="w-full rounded border-gray-300 py-2 pl-8 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div></div>
-            <div><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.status')}</label><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} className="w-full rounded border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('costPlanning.allStatuses')}</option><option value="planned">{t('costPlanning.statusPlanned')}</option><option value="acquired">{t('costPlanning.statusAcquired')}</option><option value="done">{t('costPlanning.statusDone')}</option><option value="ordered">{t('costPlanning.statusOrdered')}</option></select></div>
-            <div><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.category')}</label><select value={filters.category} onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"><option value="">{t('costPlanning.allCategories')}</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>
-            <div><label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('costPlanning.supplier')}</label><input type="text" value={filters.supplierName} onChange={(e) => setFilters((prev) => ({ ...prev, supplierName: e.target.value }))} placeholder={t('costPlanning.supplierFilterPlaceholder')} className="w-full rounded border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div>
+            <div className="relative"><label className="mb-1 block text-xs text-text-muted">{t('costPlanning.search')}</label><div className="relative"><MagnifyingGlassIcon className="absolute left-2 top-2.5 h-4 w-4 text-text-muted" /><input type="text" value={filters.search} onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))} placeholder={t('costPlanning.searchPlaceholder')} className="w-full rounded border-border-subtle py-2 pl-8 pr-3 text-sm " /></div></div>
+            <div><label className="mb-1 block text-xs text-text-muted">{t('costPlanning.status')}</label><select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} className="w-full rounded border-border-subtle px-3 py-2 text-sm "><option value="">{t('costPlanning.allStatuses')}</option><option value="planned">{t('costPlanning.statusPlanned')}</option><option value="acquired">{t('costPlanning.statusAcquired')}</option><option value="done">{t('costPlanning.statusDone')}</option><option value="ordered">{t('costPlanning.statusOrdered')}</option></select></div>
+            <div><label className="mb-1 block text-xs text-text-muted">{t('costPlanning.category')}</label><select value={filters.category} onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))} className="w-full rounded border-border-subtle px-3 py-2 text-sm "><option value="">{t('costPlanning.allCategories')}</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>
+            <div><label className="mb-1 block text-xs text-text-muted">{t('costPlanning.supplier')}</label><input type="text" value={filters.supplierName} onChange={(e) => setFilters((prev) => ({ ...prev, supplierName: e.target.value }))} placeholder={t('costPlanning.supplierFilterPlaceholder')} className="w-full rounded border-border-subtle px-3 py-2 text-sm " /></div>
             <button type="button" onClick={clearFilters} className="text-left text-sm font-medium text-primary-600 hover:underline dark:text-primary-300">{t('costPlanning.clearAll')}</button>
           </div>
         )}
@@ -450,51 +469,51 @@ const CostPlanning = () => {
       >
         {/* Legacy toolbar/filter controls have moved into DataTableShell. */}
         {false && <>
-          <h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.yearlyPlanItems')}</h2>
+          <h2 className="text-lg font-semibold ">{t('costPlanning.yearlyPlanItems')}</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 py-2 rounded flex items-center gap-1 text-sm ${showFilters ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+              className={`px-3 py-2 rounded flex items-center gap-1 text-sm ${showFilters ? 'bg-primary-100 dark:bg-primary-900 text-text-secondary' : 'bg-surface-sunken text-text-secondary'}`}
               title={t('costPlanning.filter')}
             >
               <FunnelIcon className="w-4 h-4" />
               {t('costPlanning.filter')}
               {hasActiveFilters && <span className="ml-1 bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5">{Object.values(filters).filter(Boolean).length}</span>}
             </button>
-            <button onClick={exportCsv} className="px-3 py-2 rounded bg-gray-700 text-white flex items-center gap-1" title={t('costPlanning.csvExport')}>
+            <button onClick={exportCsv} className="px-3 py-2 rounded border border-border-subtle bg-surface-hover text-text-primary flex items-center gap-1" title={t('costPlanning.csvExport')}>
               <DocumentArrowDownIcon className="w-4 h-4" />
               {t('costPlanning.csvExport')}
             </button>
           </div>
         {/* Filter Panel */}
         {showFilters && (
-          <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-700">
+          <div className="mb-4 p-4 bg-surface-sunken rounded-lg border">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-semibold dark:text-white">{t('costPlanning.filterTitle')}</h3>
+              <h3 className="text-sm font-semibold ">{t('costPlanning.filterTitle')}</h3>
               <button onClick={clearFilters} className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
                 {t('costPlanning.clearAll')}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="relative">
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('costPlanning.search')}</label>
+                <label className="block text-xs text-text-muted mb-1">{t('costPlanning.search')}</label>
                 <div className="relative">
-                  <MagnifyingGlassIcon className="w-4 h-4 absolute left-2 top-2.5 text-gray-400" />
+                  <MagnifyingGlassIcon className="w-4 h-4 absolute left-2 top-2.5 text-text-muted" />
                   <input
                     type="text"
                     value={filters.search}
                     onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
                     placeholder={t('costPlanning.searchPlaceholder')}
-                    className="w-full pl-8 pr-3 py-2 text-sm rounded border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                    className="w-full pl-8 pr-3 py-2 text-sm rounded border-border-subtle "
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('costPlanning.status')}</label>
+                <label className="block text-xs text-text-muted mb-1">{t('costPlanning.status')}</label>
                 <select
                   value={filters.status}
                   onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm rounded border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  className="w-full px-3 py-2 text-sm rounded border-border-subtle "
                 >
                   <option value="">{t('costPlanning.allStatuses')}</option>
                   <option value="planned">{t('costPlanning.statusPlanned')}</option>
@@ -504,24 +523,24 @@ const CostPlanning = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('costPlanning.category')}</label>
+                <label className="block text-xs text-text-muted mb-1">{t('costPlanning.category')}</label>
                 <select
                   value={filters.category}
                   onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm rounded border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  className="w-full px-3 py-2 text-sm rounded border-border-subtle "
                 >
                   <option value="">{t('costPlanning.allCategories')}</option>
                   {categories.map((category) => <option key={category} value={category}>{category}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('costPlanning.supplier')}</label>
+                <label className="block text-xs text-text-muted mb-1">{t('costPlanning.supplier')}</label>
                 <input
                   type="text"
                   value={filters.supplierName}
                   onChange={(e) => setFilters((prev) => ({ ...prev, supplierName: e.target.value }))}
                   placeholder={t('costPlanning.supplierFilterPlaceholder')}
-                  className="w-full px-3 py-2 text-sm rounded border-gray-300 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  className="w-full px-3 py-2 text-sm rounded border-border-subtle "
                 />
               </div>
             </div>
@@ -530,8 +549,8 @@ const CostPlanning = () => {
 
         </>}
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className="min-w-full divide-y divide-border-subtle">
+            <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
               <tr>
                 <SortableTh column="displayId" label={t('costPlanning.item')} activeColumn={sort.column} direction={sort.column === 'displayId' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="title" label={t('costPlanning.titleField')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
@@ -540,49 +559,44 @@ const CostPlanning = () => {
                 <SortableTh column="knownAmount" label={t('costPlanning.amount')} activeColumn={sort.column} direction={sort.column === 'knownAmount' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="dueDate" label={t('costPlanning.due')} activeColumn={sort.column} direction={sort.column === 'dueDate' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="supplierName" label={t('costPlanning.supplier')} activeColumn={sort.column} direction={sort.column === 'supplierName' ? sort.direction : ''} onSort={toggleSort} />
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('costPlanning.quoteNumber')}</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('costPlanning.remark')}</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">{t('costPlanning.actions')}</th>
+                <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('costPlanning.quoteNumber')}</th>
+                <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('costPlanning.remark')}</th>
+                <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('costPlanning.actions')}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-surface-default divide-y divide-border-subtle">
               {sortedItems?.map((item: CostPlanItem) => (
-                <tr key={item.id} className="border-t dark:border-gray-700">
-                  <td className="py-2 dark:text-white font-medium">{item.displayId}</td>
-                  <td className="py-2 dark:text-white">{item.title}</td>
-                  <td className="py-2">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      item.status === 'done' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                      item.status === 'acquired' ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-300' :
-                      item.status === 'ordered' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>{item.status}</span>
+                <tr key={item.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass} text-body2 font-medium tabular-nums`}>{item.displayId}</td>
+                  <td className={`${cellClass} text-body2`}>{item.title}</td>
+                  <td className={`${cellClass} text-body2`}>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(costStatusKind(item.status))}`}>{item.status}</span>
                   </td>
-                  <td className="py-2 dark:text-white">{item.category}</td>
-                  <td className="py-2 dark:text-white">{money(item.knownAmount || item.plannedAmount, item.currency)}</td>
-                  <td className="py-2 dark:text-white">{item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '—'}</td>
-                  <td className="py-2 dark:text-white">{item.supplierName || '—'}</td>
-                  <td className="py-2 dark:text-white">{item.quoteNumber || '—'}</td>
-                  <td className="py-2 dark:text-white max-w-xs truncate">{item.remark || '—'}</td>
-                  <td className="py-2">
+                  <td className={`${cellClass} text-body2`}>{item.category}</td>
+                  <td className={`${cellClass} text-body2 tabular-nums`}>{money(item.knownAmount || item.plannedAmount, item.currency)}</td>
+                  <td className={`${cellClass} text-body2 tabular-nums`}>{item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '—'}</td>
+                  <td className={`${cellClass} text-body2`}>{item.supplierName || '—'}</td>
+                  <td className={`${cellClass} text-body2`}>{item.quoteNumber || '—'}</td>
+                  <td className={`${cellClass} text-body2 max-w-xs truncate`}>{item.remark || '—'}</td>
+                  <td className={`${cellClass} text-body2`}>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditModal(item)}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-primary-600 dark:text-primary-400"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover outline-focus-ring text-primary-600"
                         title={t('costPlanning.edit')}
                       >
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => markAcquired(item.id)}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-amber-600 dark:text-amber-400"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover outline-focus-ring text-status-warn-fg"
                         title={t('costPlanning.markAcquired')}
                       >
                         <CurrencyDollarIcon className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => markDone(item.id)}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-green-600 dark:text-green-400"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover outline-focus-ring text-status-ok-fg"
                         title={t('costPlanning.done')}
                       >
                         <CheckIcon className="w-4 h-4" />
@@ -593,8 +607,8 @@ const CostPlanning = () => {
               ))}
               {sortedItems?.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-gray-500 dark:text-gray-400">
-                    {t('costPlanning.noItems')}
+                  <td colSpan={10} className="px-4 py-8">
+                    <EmptyState titleKey="costPlanning.noItems" />
                   </td>
                 </tr>
               )}
@@ -604,33 +618,33 @@ const CostPlanning = () => {
       </DataTableShell>
 
       {/* Manual Planned Acquisition */}
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <h2 className="text-lg font-semibold dark:text-white mb-3">{t('costPlanning.manualPlannedAcquisition')}</h2>
+      <section className="bg-surface-default rounded-lg shadow p-4">
+        <h2 className="text-lg font-semibold  mb-3">{t('costPlanning.manualPlannedAcquisition')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-          <input aria-label={t('costPlanning.titleField')} placeholder={t('costPlanning.titleField')} value={manual.title} onChange={(e) => setManual({ ...manual, title: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
-          <select aria-label={t('costPlanning.category')} value={manual.category} onChange={(e) => setManual({ ...manual, category: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white">{categories.map((category) => <option key={category}>{category}</option>)}</select>
-          <input aria-label={t('costPlanning.amount')} inputMode="decimal" placeholder={t('costPlanning.amount')} value={manual.plannedAmount} onChange={(e) => setManual({ ...manual, plannedAmount: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
+          <input aria-label={t('costPlanning.titleField')} placeholder={t('costPlanning.titleField')} value={manual.title} onChange={(e) => setManual({ ...manual, title: e.target.value })} className="rounded border-border-subtle " />
+          <select aria-label={t('costPlanning.category')} value={manual.category} onChange={(e) => setManual({ ...manual, category: e.target.value })} className="rounded border-border-subtle ">{categories.map((category) => <option key={category}>{category}</option>)}</select>
+          <input aria-label={t('costPlanning.amount')} inputMode="decimal" placeholder={t('costPlanning.amount')} value={manual.plannedAmount} onChange={(e) => setManual({ ...manual, plannedAmount: e.target.value })} className="rounded border-border-subtle " />
           <div className="space-y-1">
-            <input aria-label={t('costPlanning.supplierSearch')} list="cost-plan-suppliers" placeholder={t('costPlanning.supplierSearch')} value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); setManual((current) => ({ ...current, supplierId: '', supplierName: e.target.value })); }} onBlur={() => { const supplier = suppliers.find((candidate) => candidate.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()); if (supplier) setManual((current) => ({ ...current, supplierId: supplier.id, supplierName: supplier.legalName })); }} className="w-full rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
+            <input aria-label={t('costPlanning.supplierSearch')} list="cost-plan-suppliers" placeholder={t('costPlanning.supplierSearch')} value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); setManual((current) => ({ ...current, supplierId: '', supplierName: e.target.value })); }} onBlur={() => { const supplier = suppliers.find((candidate) => candidate.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()); if (supplier) setManual((current) => ({ ...current, supplierId: supplier.id, supplierName: supplier.legalName })); }} className="w-full rounded border-border-subtle " />
             <datalist id="cost-plan-suppliers">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.legalName}>{supplier.displayId}</option>)}</datalist>
-            {supplierSearch.trim() && !suppliers.some((supplier) => supplier.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()) && <button type="button" onClick={createSupplier} disabled={isCreatingSupplier} className="text-sm text-primary-600 disabled:text-gray-400">{isCreatingSupplier ? '…' : `${t('costPlanning.createSupplier')}: ${supplierSearch.trim()}`}</button>}
+            {supplierSearch.trim() && !suppliers.some((supplier) => supplier.legalName.toLocaleLowerCase() === supplierSearch.trim().toLocaleLowerCase()) && <button type="button" onClick={createSupplier} disabled={isCreatingSupplier} className="text-sm text-primary-600 disabled:text-text-muted">{isCreatingSupplier ? '…' : `${t('costPlanning.createSupplier')}: ${supplierSearch.trim()}`}</button>}
           </div>
-          <input aria-label={t('costPlanning.quoteNumber')} placeholder={t('costPlanning.quoteNumber')} value={manual.quoteNumber} onChange={(e) => setManual({ ...manual, quoteNumber: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
-          <input aria-label={t('costPlanning.remark')} placeholder={t('costPlanning.remark')} value={manual.remark} onChange={(e) => setManual({ ...manual, remark: e.target.value })} className="rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
+          <input aria-label={t('costPlanning.quoteNumber')} placeholder={t('costPlanning.quoteNumber')} value={manual.quoteNumber} onChange={(e) => setManual({ ...manual, quoteNumber: e.target.value })} className="rounded border-border-subtle " />
+          <input aria-label={t('costPlanning.remark')} placeholder={t('costPlanning.remark')} value={manual.remark} onChange={(e) => setManual({ ...manual, remark: e.target.value })} className="rounded border-border-subtle " />
         </div>
         <div className="mt-2">
-          <button onClick={createManual} disabled={isSubmitting || !plan} className="rounded bg-primary-600 text-white px-4 py-2 disabled:bg-gray-400">{isSubmitting ? '…' : t('costPlanning.add')}</button>
+          <button onClick={createManual} disabled={isSubmitting || !plan} className="rounded bg-primary-600 text-white px-4 py-2 disabled:bg-surface-hover">{isSubmitting ? '…' : t('costPlanning.add')}</button>
         </div>
       </section>
 
       {/* Candidates */}
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold dark:text-white">{t('costPlanning.candidates')}</h2><button onClick={takeover} disabled={selected.length === 0} className="px-3 py-2 rounded bg-primary-600 disabled:bg-gray-300 text-white">{t('costPlanning.takeOverSelected')}</button></div>
+      <section className="bg-surface-default rounded-lg shadow p-4">
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold text-text-primary">{t('costPlanning.candidates')}</h2><button onClick={takeover} disabled={selected.length === 0} className="px-3 py-2 rounded bg-primary-600 disabled:bg-surface-hover text-white">{t('costPlanning.takeOverSelected')}</button></div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className="min-w-full divide-y divide-border-subtle">
+            <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
               <tr>
-                <th scope="col" className="w-10 px-4 py-3 text-left">
+                <th scope="col" className="w-10 px-4 py-2.5 text-left">
                   <input
                     ref={selectAllCandidatesCheckboxRef}
                     type="checkbox"
@@ -647,14 +661,14 @@ const CostPlanning = () => {
                 <SortableTh column="amount" label={t('costPlanning.amount')} activeColumn={candidateSort.column} direction={candidateSort.column === 'amount' ? candidateSort.direction : ''} onSort={candidateToggleSort} />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-surface-default divide-y divide-border-subtle">
               {sortedCandidates.map((candidate) => (
-                <tr key={candidate.candidateKey} className="border-t dark:border-gray-700">
-                  <td className="px-4 py-2"><input type="checkbox" disabled={candidate.alreadyInPlan} checked={selected.includes(candidate.candidateKey)} onChange={(e) => toggleCandidate(candidate.candidateKey, e.target.checked)} /></td>
-                  <td className="py-2 dark:text-white">{candidate.sourceDisplayId} {candidate.sourceLabel}</td>
-                  <td>{candidate.title}</td>
-                  <td>{candidate.alreadyInPlan ? t('costPlanning.alreadyInPlan') : candidate.relevanceReason}</td>
-                  <td>{candidate.plannedAmount ? money(candidate.plannedAmount, candidate.currency) : '—'}</td>
+                <tr key={candidate.candidateKey} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass}`}><input type="checkbox" disabled={candidate.alreadyInPlan} checked={selected.includes(candidate.candidateKey)} onChange={(e) => toggleCandidate(candidate.candidateKey, e.target.checked)} /></td>
+                  <td className={`${cellClass} text-body2`}>{candidate.sourceDisplayId} {candidate.sourceLabel}</td>
+                  <td className={`${cellClass} text-body2`}>{candidate.title}</td>
+                  <td className={`${cellClass} text-body2`}>{candidate.alreadyInPlan ? t('costPlanning.alreadyInPlan') : candidate.relevanceReason}</td>
+                  <td className={`${cellClass} text-body2 tabular-nums`}>{candidate.plannedAmount ? money(candidate.plannedAmount, candidate.currency) : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -666,38 +680,38 @@ const CostPlanning = () => {
       <Modal isOpen={editModalOpen} onClose={handleEditModalClose} title={t('costPlanning.editItem')} isDirty={editForm.isDirty && !editSaving} onDiscardConfirm={handleEditDiscard}>
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
           {editForm.values.title && (
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded">
-              <span className="text-sm text-gray-500 dark:text-gray-400">{editingItem?.displayId}</span>
+            <div className="bg-surface-sunken p-3 rounded">
+              <span className="text-sm text-text-muted">{editingItem?.displayId}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.titleField')} *</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.titleField')} *</label>
             <input type="text" value={editForm.values.title || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, title: e.target.value } as any)
               }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('common.description')}</label>
             <textarea value={editForm.values.description || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, description: e.target.value } as any)} rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.category')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.category')}</label>
               <select value={editForm.values.category || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, category: e.target.value } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {categories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.status')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.status')}</label>
               <select value={editForm.values.status || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, status: e.target.value } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="planned">{t('costPlanning.statusPlanned')}</option>
                 <option value="ordered">{t('costPlanning.statusOrdered')}</option>
                 <option value="acquired">{t('costPlanning.statusAcquired')}</option>
@@ -708,51 +722,51 @@ const CostPlanning = () => {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.amount')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.amount')}</label>
               <input type="number" value={editForm.values.plannedAmount || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, plannedAmount: e.target.value } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.knownAmount')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.knownAmount')}</label>
               <input type="number" value={editForm.values.knownAmount ?? ''} onChange={(e) => editForm.handleChange({ ...editForm.values, knownAmount: e.target.value ? Number(e.target.value) : null } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.currency')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('common.currency')}</label>
               <input type="text" value={editForm.values.currency || 'EUR'} onChange={(e) => editForm.handleChange({ ...editForm.values, currency: e.target.value.toUpperCase() } as any)
                 }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.due')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.due')}</label>
             <input type="date" value={editForm.values.dueDate ? new Date(editForm.values.dueDate).toISOString().split('T')[0] : ''} onChange={(e) => editForm.handleChange({ ...editForm.values, dueDate: new Date(e.target.value).toISOString() } as any)
               }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.quoteNumber')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.quoteNumber')}</label>
             <input type="text" value={editForm.values.quoteNumber || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, quoteNumber: e.target.value } as any)
               }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.supplier')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.supplier')}</label>
             <input type="text" value={editSupplierSearch}
               onChange={(e) => handleEditSupplierSearch(e.target.value)}
               placeholder={t('costPlanning.supplierSearch')}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             {editSuppliers.length > 0 && (
-              <ul className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md mt-1 max-h-40 overflow-y-auto">
+              <ul className="absolute z-10 w-full bg-surface-default bg-surface-default text-text-primary border border-border-subtle rounded-md mt-1 max-h-40 overflow-y-auto">
                 {editSuppliers.map((supplier) => (
                   <li key={supplier.id}
                     onClick={() => selectEditSupplier(supplier)}
-                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-sm dark:text-white"
+                    className="px-3 py-2 cursor-pointer hover:bg-surface-hover text-sm "
                   >
                     {supplier.legalName} ({supplier.displayId})
                   </li>
@@ -762,16 +776,16 @@ const CostPlanning = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('costPlanning.remark')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('costPlanning.remark')}</label>
             <textarea value={editForm.values.remark || ''} onChange={(e) => editForm.handleChange({ ...editForm.values, remark: e.target.value } as any)
               }
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button onClick={() => { if (editForm.isDirty) { handleEditDiscard(); } else { handleEditModalClose(); } }}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+              className="px-4 py-2 border border-border-subtle rounded-md text-text-secondary hover:bg-surface-hover">
               {t('common.cancel')}
             </button>
             <button onClick={saveEdit} disabled={editSaving || !editForm.values.title?.trim()}

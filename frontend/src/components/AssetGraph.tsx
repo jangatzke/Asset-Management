@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { assetApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { focusRing } from '../styles/tokens';
@@ -601,7 +602,9 @@ export const AssetGraph: React.FC<AssetGraphProps> = ({ assetId, nodes: propNode
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{getNodeLabel(selectedNode)}</h3>
               {selectedNode.displayId && <p className="text-sm text-gray-500 dark:text-gray-400">{selectedNode.displayId}</p>}
             </div>
-            <button aria-label={t('common.close')} onClick={() => setSelectedNode(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xl">×</button>
+            <button aria-label={t('common.close')} onClick={() => setSelectedNode(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+              <XMarkIcon aria-hidden="true" className="h-5 w-5" />
+            </button>
           </div>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)]">
             <section className="rounded-md border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">

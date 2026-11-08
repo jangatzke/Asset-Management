@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLongDownIcon, ArrowLongRightIcon, ArrowLongUpIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { phase6Api, type KriBoardItem, type KriBoardResponse } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { formatApiError } from '../utils/apiError';
+import PageShell from '../components/PageShell';
+// Stage 10b (LT-4): shared chart language for the sparkline series color.
+import { chartSeriesTextTone } from '../styles/chartLanguage';
 
 type BoardType = 'KPI' | 'KRI' | 'KCI';
 
@@ -12,10 +16,16 @@ const statusStyles: Record<string, string> = {
   none: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
 };
 
-const trendGlyph: Record<string, string> = { up: '↑', down: '↓', stable: '→', none: '–' };
+// MT-7: real Heroicons instead of text glyphs; the accessible name stays the translated trend label.
+const TrendIcon: Record<string, typeof ArrowLongUpIcon> = {
+  up: ArrowLongUpIcon,
+  down: ArrowLongDownIcon,
+  stable: ArrowLongRightIcon,
+  none: MinusIcon,
+};
 
-function Sparkline({ points }: { points: Array<{ measuredAt: string; value: number }> }) {
-  if (points.length < 2) return <span className="text-gray-400">–</span>;
+function Sparkline({ points, label }: { points: Array<{ measuredAt: string; value: number }>; label?: string }) {
+  if (points.length < 2) return <span className="text-text-muted" role="img" aria-label={label}>–</span>;
   const width = 96;
   const height = 24;
   const values = points.map((point) => point.value);
@@ -27,7 +37,9 @@ function Sparkline({ points }: { points: Array<{ measuredAt: string; value: numb
     const y = height - ((point.value - min) / span) * height;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  return <svg width={width} height={height} role="img" aria-hidden className="text-gray-500 dark:text-gray-400"><polyline points={coords.join(' ')} fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>;
+  // Chart language (LT-4): single primary-tone series; the accessible name is
+  // the translated label so the SVG needs no visible text alternative.
+  return <svg width={width} height={height} role="img" aria-label={label} className={chartSeriesTextTone('primary')}><polyline points={coords.join(' ')} fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>;
 }
 
 export default function KriDashboard() {
@@ -64,7 +76,7 @@ export default function KriDashboard() {
 
   const statusOf = (item: KriBoardItem) => (!item.latestValue ? 'noData' : item.breachStatus);
 
-  return <main id="main-content" className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
+  return <PageShell>
     <header>
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('kri.title')}</h1>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('kri.description')}</p>
@@ -94,12 +106,12 @@ export default function KriDashboard() {
       {board && board.items.length ? <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-700">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.name')}</th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.latest')}</th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.thresholds')}</th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.trend')}</th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.history')}</th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.measuredAt')}</th>
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.name')}</th>
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.latest')}</th>
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.thresholds')}</th>
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.trend')}</th>
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.history')}</th>
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{t('kri.columns.measuredAt')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
@@ -112,13 +124,15 @@ export default function KriDashboard() {
                 <div className="mt-1">{formatValue(item.latestValue?.value, item.unit)}</div>
               </td>
               <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{thresholdLabel(item)}</td>
-              <td className="px-4 py-3 text-sm" title={t(`kri.trend.${item.trend}`)}>{trendGlyph[item.trend] ?? '–'}</td>
-              <td className="px-4 py-3"><Sparkline points={item.sparkline} /></td>
+              <td className="px-4 py-3 text-sm">
+                {(() => { const Icon = TrendIcon[item.trend] ?? MinusIcon; return (<span title={t(`kri.trend.${item.trend}`)}><Icon aria-hidden="true" className="h-4 w-4" /><span className="sr-only">{t(`kri.trend.${item.trend}`)}</span></span>); })()}
+              </td>
+              <td className="px-4 py-3"><Sparkline points={item.sparkline} label={`${item.name}: ${t('kri.columns.history')}`} /></td>
               <td className="px-4 py-3 text-sm text-gray-500">{item.latestValue ? new Date(item.latestValue.measuredAt).toLocaleDateString() : '–'}</td>
             </tr>;
           })}
         </tbody>
       </table> : <p className="p-6 text-sm text-gray-500">{busy ? t('kri.loading') : t('kri.noIndicators')}</p>}
     </section>
-  </main>;
+  </PageShell>;
 }

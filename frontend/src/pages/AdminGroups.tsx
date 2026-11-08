@@ -7,9 +7,10 @@ import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ErrorAlert } from '../components/ErrorAlert';
 
 interface Group {
   id: string;
@@ -40,6 +41,8 @@ interface GroupForm {
 
 const AdminGroups = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
   const [groups, setGroups] = useState<Group[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +203,7 @@ const AdminGroups = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-2xl font-bold text-text-primary">
           {t('navigation.groupManagement')}
         </h1>
         <button
@@ -212,41 +215,41 @@ const AdminGroups = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-gray-500">{t('common.loading')}</div>
+        <div className="text-center py-8 text-text-muted">{t('common.loading')}</div>
       ) : loadError ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{t('common.noResults')}</div>
+        <ErrorAlert message={t('common.noResults')} />
       ) : (
         <DataTableShell onExport={exportVisibleGroups} exportLabel="Export CSV">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className="w-full divide-y divide-border-subtle">
+            <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
               <tr>
                 <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="description" label={t('common.description')} activeColumn={sort.column} direction={sort.column === 'description' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="users" label={t('common.users')} activeColumn={sort.column} direction={sort.column === 'users' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="roles" label={t('common.roles')} activeColumn={sort.column} direction={sort.column === 'roles' ? sort.direction : ''} onSort={toggleSort} />
-                <th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
+                <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('common.actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="bg-surface-default divide-y divide-border-subtle">
               {sortedGroups.map((group) => (
-                <tr key={group.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                <tr key={group.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass} text-body2 font-medium text-text-primary`}>
                     {group.name}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                  <td className={`${cellClass} text-body2 text-text-secondary`}>
                     {group.description || '-'}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-gray-600 dark:text-gray-300">
+                  <td className={`${cellClass} text-body2`}>
+                    <span className="text-text-secondary tabular-nums">
                         {(group.users ?? group.userGroups ?? []).length}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-gray-600 dark:text-gray-300">
+                  <td className={`${cellClass} text-body2`}>
+                    <span className="text-text-secondary tabular-nums">
                         {(group.roles ?? group.groupRoles ?? []).length}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cellClass}`}>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => openEditModal(group)}
@@ -256,19 +259,19 @@ const AdminGroups = () => {
                       </button>
                       <button
                         onClick={() => openUsersModal(group)}
-                        className="text-green-600 dark:text-green-400 hover:underline text-xs"
+                        className="text-primary-600 hover:underline text-xs"
                       >
                         {t('groups.assignUsers')}
                       </button>
                       <button
                         onClick={() => openRolesModal(group)}
-                        className="text-purple-600 dark:text-purple-400 hover:underline text-xs"
+                        className="text-primary-600 hover:underline text-xs"
                       >
                         {t('groups.assignRoles')}
                       </button>
                       <button
                         onClick={() => handleDelete(group.id, group.name)}
-                        className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                        className="text-status-critical-fg hover:underline text-xs"
                       >
                         {t('common.delete')}
                       </button>
@@ -291,31 +294,31 @@ const AdminGroups = () => {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-text-secondary mb-1">
               {t('common.name')}
             </label>
             <input
               type="text"
               value={createForm.values.name}
               onChange={(e) => createForm.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle   rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-text-secondary mb-1">
               {t('common.description')}
             </label>
             <textarea
               value={createForm.values.description}
               onChange={(e) => createForm.handleChange({ description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle   rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
             <button
               onClick={() => { if (createForm.isDirty) { handleCreateDiscard(); } else { setCreateModalOpen(false); } }}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm text-text-secondary border border-border-subtle  rounded-md hover:bg-surface-hover "
             >
               {t('common.cancel')}
             </button>
@@ -339,31 +342,31 @@ const AdminGroups = () => {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-text-secondary mb-1">
               {t('common.name')}
             </label>
             <input
               type="text"
               value={editForm.values.name}
               onChange={(e) => editForm.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle   rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-text-secondary mb-1">
               {t('common.description')}
             </label>
             <textarea
               value={editForm.values.description}
               onChange={(e) => editForm.handleChange({ description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle   rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div className="flex justify-end space-x-2">
             <button
               onClick={() => { if (editForm.isDirty) { handleEditDiscard(); } else { setEditModalOpen(false); } }}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm text-text-secondary border border-border-subtle  rounded-md hover:bg-surface-hover "
             >
               {t('common.cancel')}
             </button>
@@ -396,12 +399,12 @@ const AdminGroups = () => {
             }}
             disabled={savingUsers}
           />
-          {assignmentError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{t('common.noResults')}</p>}
+          {assignmentError && <p role="alert" className="text-sm text-status-critical-fg">{t('common.noResults')}</p>}
           <div className="flex justify-end space-x-2">
             <button
               onClick={() => { setUsersModalOpen(false); setAssignmentError(false); }}
               disabled={savingUsers}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm text-text-secondary border border-border-subtle  rounded-md hover:bg-surface-hover "
             >
               {t('common.cancel')}
             </button>
@@ -423,7 +426,7 @@ const AdminGroups = () => {
         title={t('groups.assignRoles')}
       >
         <div className="space-y-4">
-          <div className="max-h-60 overflow-y-auto border border-gray-300 dark:border-card rounded-md p-2">
+          <div className="max-h-60 overflow-y-auto border border-border-subtle  rounded-md p-2">
             {roles.map((role) => (
               <label key={role.id} className="flex items-center py-1">
                 <input
@@ -438,7 +441,7 @@ const AdminGroups = () => {
                   }}
                   className="mr-2"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="text-sm text-text-secondary">
                   {role.name}
                 </span>
               </label>
@@ -447,7 +450,7 @@ const AdminGroups = () => {
           <div className="flex justify-end space-x-2">
             <button
               onClick={() => setRolesModalOpen(false)}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-card rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+              className="px-4 py-2 text-sm text-text-secondary border border-border-subtle  rounded-md hover:bg-surface-hover "
             >
               {t('common.cancel')}
             </button>

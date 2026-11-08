@@ -14,8 +14,11 @@ import { useAuthStore } from '../store/auth';
 import { normalizeIncidentStatusFilter, matchesIncidentStatusFilter } from './incidentStatusHelpers';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
+import { PageHeader } from '../components/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
+import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/useToast';
 import { exportCsv } from '../utils/csvExport';
 import { formatDate, formatDateTime } from '../utils/formatDate';
@@ -23,6 +26,7 @@ import { extractApiError, formatApiError, formatToastMessage } from '../utils/ap
 import { buttonPrimary } from '../styles/tokens';
 import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
 import { canRestoreEntities } from '../utils/permissions';
+import { statusBadgeClass, type StatusKind } from '../utils/statusHelpers';
 
 interface HistoryEntry {
   id: string;
@@ -117,11 +121,14 @@ const initialIncidentForm = (currentUserId = ''): IncidentForm => {
   };
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-500';
 const actionIconClassName = 'h-4 w-4';
 
 const Incidents = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
+  const breadcrumbs = useBreadcrumbs();
   const { addToast } = useToast();
   const currentUser = useAuthStore((state) => state.user);
   // Restore (undo of bulk archive) is admin-only on the backend, so the Undo
@@ -386,38 +393,42 @@ const Incidents = () => {
     } finally {
       setSaving(false);
     }
-  }, [form, editingIncident, t, buildIncidentPayload, loadIncidents]);
+  }, [form, editingIncident, t, buildIncidentPayload, loadIncidents, clearDraftAfterSave]);
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'new':
-        return 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200';
-      case 'under_investigation':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'contained':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
-      case 'resolved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'closed':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-    }
+  const getStatusColor = (status: string): string => {
+    const kind: StatusKind = (() => {
+      switch (status?.toLowerCase()) {
+        case 'new':
+          return 'info';
+        case 'under_investigation':
+          return 'warn';
+        case 'contained':
+          return 'info';
+        case 'resolved':
+          return 'ok';
+        default:
+          return 'idle';
+      }
+    })();
+    return statusBadgeClass(kind);
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity?.toLowerCase()) {
-      case 'low':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'high':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-      case 'critical':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-    }
+  const getSeverityColor = (severity: string): string => {
+    const kind: StatusKind = (() => {
+      switch (severity?.toLowerCase()) {
+        case 'low':
+          return 'ok';
+        case 'medium':
+          return 'warn';
+        case 'high':
+          return 'warn';
+        case 'critical':
+          return 'critical';
+        default:
+          return 'idle';
+      }
+    })();
+    return statusBadgeClass(kind);
   };
 
   const handleStatusFilterChange = (value: string) => {
@@ -531,30 +542,33 @@ const Incidents = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 dark:text-gray-400">{t('incidents.loading')}</div>
+        <div className="text-text-muted">{t('incidents.loading')}</div>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('incidents.title')}</h1>
-        <div className="flex gap-3">
-          <button onClick={openCreateModal} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-            {t('incidents.addIncident')}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('incidents.title')}
+        breadcrumbs={breadcrumbs}
+        actions={(
+          <div className="flex gap-3">
+            <button onClick={openCreateModal} className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+              {t('incidents.addIncident')}
+            </button>
+          </div>
+        )}
+      />
 
       {actionMessage && (
-        <div className="bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-200 px-4 py-3 rounded mb-4">
+        <div className="bg-status-ok-bg border border-border-subtle text-status-ok-fg px-4 py-3 rounded mb-4">
           {actionMessage}
         </div>
       )}
 
       {error && (
-        <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded mb-4">
+        <div className="bg-status-critical-bg border border-border-subtle text-status-critical-fg px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
@@ -563,7 +577,7 @@ const Incidents = () => {
         <input
           type="text"
           placeholder={t('incidents.searchPlaceholder')}
-          className="flex-1 px-4 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          className="flex-1 px-4 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -571,7 +585,7 @@ const Incidents = () => {
           aria-label={t('incidents.statusFilterAria')}
           value={statusFilter}
           onChange={(e) => handleStatusFilterChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-card dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          className="px-3 py-2 border border-border-strong rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         >
           <option value="">{t('common.all')}</option>
           <option value="open">{t('incidents.statusFilter.open')}</option>
@@ -585,24 +599,24 @@ const Incidents = () => {
 
       <DataTableShell onExport={exportVisibleIncidents} exportLabel="Export CSV" rowCount={sortedIncidents.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
         {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 border-t border-border-subtle">
+            <span className="text-sm text-text-primary">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-text-secondary hover:underline">{t('common.cancel')}</button>
               <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
             </div>
           </div>
         )}
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+        <table className="min-w-full divide-y divide-border-subtle">
+          <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
             <tr>
-              <th className="px-6 py-3 w-10">
+              <th scope="col" className="px-4 py-2.5 w-10">
                 <input
                   type="checkbox"
                   aria-label={t('bulk.selectAll')}
                   checked={sortedIncidents.length > 0 && sortedIncidents.every((incident) => selectedIds.has(incident.id))}
                   onChange={toggleSelectAllOnPage}
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500"
                 />
               </th>
               <SortableTh column="title" label={t('incidents.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
@@ -610,60 +624,60 @@ const Incidents = () => {
               <SortableTh column="severity" label={t('incidents.columns.severity')} activeColumn={sort.column} direction={sort.column === 'severity' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="detectionTime" label={t('incidents.columns.detectionTime')} activeColumn={sort.column} direction={sort.column === 'detectionTime' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="nis2" label={t('incidents.columns.nis2')} activeColumn={sort.column} direction={sort.column === 'nis2' ? sort.direction : ''} onSort={toggleSort} />
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">
+              <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">
                 {t('common.actions')}
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-card divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className="bg-surface-default divide-y divide-border-subtle">
             {sortedIncidents.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                {t('incidents.noIncidents')}
+                <td colSpan={7} className="px-4 py-8">
+                  <EmptyState titleKey="incidents.noIncidents" />
                 </td>
               </tr>
             ) : (
               sortedIncidents.map((incident) => (
-                <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 w-10">
+                <tr key={incident.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass} w-10`}>
                     <input
                       type="checkbox"
                       aria-label={t('bulk.select')}
                       checked={selectedIds.has(incident.id)}
                       onChange={() => toggleSelected(incident.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500"
                     />
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                  <td className={`${cellClass} text-body2 font-medium text-text-primary`}>
                     <Link to={`/incidents/${incident.id}`} className="hover:text-primary-600 hover:underline">{incident.title}</Link>
                   </td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className={`${cellClass} text-body2`}>
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(incident.status)}`}>
                       {incident.status?.replace(/_/g, ' ').toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className={`${cellClass} text-body2`}>
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getSeverityColor(incident.severity)}`}>
                       {incident.severity?.toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
+                  <td className={`${cellClass} text-body2 text-text-muted tabular-nums`}>
                     {formatDate(incident.detectionTime)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
+                  <td className={`${cellClass} text-body2 text-text-muted`}>
                     <div>{incident.isSignificant ? t('incidents.significant') : t('incidents.notSignificant')}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">{t('incidents.knowledge')}: {incident.knowledgeTime ? formatDateTime(incident.knowledgeTime) : '-'}</div>
-                    {incident.significanceReasons?.length ? <div className="text-xs text-red-600 dark:text-red-400">{incident.significanceReasons.join(', ')}</div> : null}
+                    <div className="text-xs text-text-muted tabular-nums">{t('incidents.knowledge')}: {incident.knowledgeTime ? formatDateTime(incident.knowledgeTime) : '-'}</div>
+                    {incident.significanceReasons?.length ? <div className="text-xs text-status-critical-fg">{incident.significanceReasons.join(', ')}</div> : null}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
+                  <td className={`${cellClass} text-body2 text-text-muted`}>
                     <div className="flex items-center gap-1">
                       <button onClick={() => openEditModal(incident)} aria-label={`${t('common.edit')}: ${incident.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => createEarlyWarning(incident)} aria-label={`${t('incidents.warningDraft')}: ${incident.title}`} title={t('incidents.warningDraft')} className={`${actionButtonClassName} text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200`}>
+                      <button onClick={() => createEarlyWarning(incident)} aria-label={`${t('incidents.warningDraft')}: ${incident.title}`} title={t('incidents.warningDraft')} className={`${actionButtonClassName} text-text-secondary hover:text-text-primary`}>
                         <DocumentPlusIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => openHistory(incident.id)} aria-label={`${t('incidents.history.viewHistory')}: ${incident.title}`} title={t('incidents.history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200`}>
+                      <button onClick={() => openHistory(incident.id)} aria-label={`${t('incidents.history.viewHistory')}: ${incident.title}`} title={t('incidents.history.viewHistory')} className={`${actionButtonClassName} text-text-secondary hover:text-text-primary`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -689,24 +703,24 @@ const Incidents = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.title')} *</label>
-              <input type="text" value={form.values.title} onChange={(e) => form.handleChange({ title: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.title')} *</label>
+              <input type="text" value={form.values.title} onChange={(e) => form.handleChange({ title: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.description')} *</label>
-              <textarea rows={3} value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.description')} *</label>
+              <textarea rows={3} value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.detectionTime')} *</label>
-              <input type="datetime-local" value={form.values.detectionTime} onChange={(e) => form.handleChange({ detectionTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.detectionTime')} *</label>
+              <input type="datetime-local" value={form.values.detectionTime} onChange={(e) => form.handleChange({ detectionTime: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.knowledgeTime')} *</label>
-              <input type="datetime-local" value={form.values.knowledgeTime} onChange={(e) => form.handleChange({ knowledgeTime: e.target.value })} disabled={Boolean(editingIncident)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.knowledgeTime')} *</label>
+              <input type="datetime-local" value={form.values.knowledgeTime} onChange={(e) => form.handleChange({ knowledgeTime: e.target.value })} disabled={Boolean(editingIncident)} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.severity')}</label>
-              <select value={form.values.severity} onChange={(e) => form.handleChange({ severity: e.target.value as IncidentForm['severity'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.severity')}</label>
+              <select value={form.values.severity} onChange={(e) => form.handleChange({ severity: e.target.value as IncidentForm['severity'] })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['low', 'medium', 'high', 'critical'] as const).map((severity) => <option key={severity} value={severity}>{t(`incidents.severity.${severity}`)}</option>)}
               </select>
             </div>
@@ -741,58 +755,58 @@ const Incidents = () => {
               }}
             />
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.reporterSource')}</label>
-              <input type="text" value={form.values.reporterSource} onChange={(e) => form.handleChange({ reporterSource: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.reporterSource')}</label>
+              <input type="text" value={form.values.reporterSource} onChange={(e) => form.handleChange({ reporterSource: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.confidentialityImpact')}</label>
-              <select value={form.values.confidentialityImpact} onChange={(e) => form.handleChange({ confidentialityImpact: e.target.value as IncidentForm['confidentialityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.confidentialityImpact')}</label>
+              <select value={form.values.confidentialityImpact} onChange={(e) => form.handleChange({ confidentialityImpact: e.target.value as IncidentForm['confidentialityImpact'] })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.integrityImpact')}</label>
-              <select value={form.values.integrityImpact} onChange={(e) => form.handleChange({ integrityImpact: e.target.value as IncidentForm['integrityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.integrityImpact')}</label>
+              <select value={form.values.integrityImpact} onChange={(e) => form.handleChange({ integrityImpact: e.target.value as IncidentForm['integrityImpact'] })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.availabilityImpact')}</label>
-              <select value={form.values.availabilityImpact} onChange={(e) => form.handleChange({ availabilityImpact: e.target.value as IncidentForm['availabilityImpact'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.availabilityImpact')}</label>
+              <select value={form.values.availabilityImpact} onChange={(e) => form.handleChange({ availabilityImpact: e.target.value as IncidentForm['availabilityImpact'] })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 {(['none', 'low', 'medium', 'high'] as const).map((impact) => <option key={impact} value={impact}>{t(`incidents.impact.${impact}`)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.financialImpact')}</label>
-              <input type="number" min="0" step="0.01" value={form.values.financialImpact} onChange={(e) => form.handleChange({ financialImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.financialImpact')}</label>
+              <input type="number" min="0" step="0.01" value={form.values.financialImpact} onChange={(e) => form.handleChange({ financialImpact: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.operationalImpact')}</label>
-              <textarea rows={2} value={form.values.operationalImpact} onChange={(e) => form.handleChange({ operationalImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.operationalImpact')}</label>
+              <textarea rows={2} value={form.values.operationalImpact} onChange={(e) => form.handleChange({ operationalImpact: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.legalImpact')}</label>
-              <textarea rows={2} value={form.values.legalImpact} onChange={(e) => form.handleChange({ legalImpact: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.legalImpact')}</label>
+              <textarea rows={2} value={form.values.legalImpact} onChange={(e) => form.handleChange({ legalImpact: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('incidents.fields.suspectedCause')}</label>
-              <textarea rows={2} value={form.values.suspectedCause} onChange={(e) => form.handleChange({ suspectedCause: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('incidents.fields.suspectedCause')}</label>
+              <textarea rows={2} value={form.values.suspectedCause} onChange={(e) => form.handleChange({ suspectedCause: e.target.value })} className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={form.values.personalDataImpact} onChange={(e) => form.handleChange({ personalDataImpact: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={form.values.personalDataImpact} onChange={(e) => form.handleChange({ personalDataImpact: e.target.checked })} className="rounded border-border-strong text-primary-600 focus:ring-primary-500" />
               {t('incidents.fields.personalDataImpact')}
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={form.values.isIntentional} onChange={(e) => form.handleChange({ isIntentional: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={form.values.isIntentional} onChange={(e) => form.handleChange({ isIntentional: e.target.checked })} className="rounded border-border-strong text-primary-600 focus:ring-primary-500" />
               {t('incidents.fields.isIntentional')}
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={form.values.hasCrossBorderImpact} onChange={(e) => form.handleChange({ hasCrossBorderImpact: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={form.values.hasCrossBorderImpact} onChange={(e) => form.handleChange({ hasCrossBorderImpact: e.target.checked })} className="rounded border-border-strong text-primary-600 focus:ring-primary-500" />
               {t('incidents.fields.hasCrossBorderImpact')}
             </label>
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button type="button" onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }} className="px-4 py-2 border border-border-strong rounded-md text-text-primary hover:bg-surface-hover">
               {t('common.cancel')}
             </button>
             <button type="button" onClick={saveIncident} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50">
@@ -805,7 +819,7 @@ const Incidents = () => {
       <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={t('incidents.history.title')}>
         <div className="space-y-4">
           {historyError && (
-            <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded">
+            <div className="bg-status-critical-bg border border-border-subtle text-status-critical-fg px-4 py-3 rounded">
               {historyError}
             </div>
           )}
@@ -817,7 +831,7 @@ const Incidents = () => {
               onChange={(e) => {
                 setHistoryActionFilter(e.target.value);
               }}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="flex-1 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               onBlur={() => {
                 if (editingIncident) loadHistoryPage(editingIncident.id, 0);
               }}
@@ -835,9 +849,9 @@ const Incidents = () => {
           </div>
 
           {historyLoading ? (
-            <div className="text-center py-4 text-gray-500 dark:text-gray-400">{t('incidents.history.loadingHistory')}</div>
+            <div className="text-center py-4 text-text-muted">{t('incidents.history.loadingHistory')}</div>
           ) : historyEntries.length === 0 ? (
-            <div className="text-center py-4 text-gray-500 dark:text-gray-400">{t('incidents.history.noHistory')}</div>
+            <div className="text-center py-4 text-text-muted">{t('incidents.history.noHistory')}</div>
           ) : (
             <div className="max-h-96 overflow-y-auto space-y-3">
               {historyEntries.map((entry) => {
@@ -851,22 +865,22 @@ const Incidents = () => {
                 const actorDisplay = entry.actorName || (entry.actorId ? `User ${entry.actorId}` : 'System');
 
                 return (
-                  <div key={entry.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                  <div key={entry.id} className="border border-border-subtle rounded-lg p-3 bg-surface-sunken">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          <span className="text-sm font-semibold text-text-primary">
                             {t(`incidents.history.actions.${entry.action}`) || entry.action}
                           </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-text-muted">
                             {formatDateTime(entry.createdAt)}
                           </span>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 ml-2" title={actorDisplay}>
+                          <span className="text-xs text-text-muted ml-2" title={actorDisplay}>
                             by {actorDisplay}
                           </span>
                         </div>
                         {entry.summary && (
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{entry.summary}</p>
+                          <p className="text-sm text-text-primary">{entry.summary}</p>
                         )}
                         {hasVisibleChanges && (
                           <div className="mt-2">
@@ -882,18 +896,18 @@ const Incidents = () => {
                             <div id={`changes-${entry.id}`} className="hidden mt-2">
                               <table className="min-w-full text-sm">
                                 <thead>
-                                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                                    <th className="pb-1 font-medium">{t('incidents.history.field')}</th>
-                                    <th className="pb-1 font-medium">{t('incidents.history.oldValue')}</th>
-                                    <th className="pb-1 font-medium">{t('incidents.history.newValue')}</th>
+                                  <tr className="text-left text-text-muted border-b border-border-subtle">
+                                    <th scope="col" className="pb-1 font-medium">{t('incidents.history.field')}</th>
+                                    <th scope="col" className="pb-1 font-medium">{t('incidents.history.oldValue')}</th>
+                                    <th scope="col" className="pb-1 font-medium">{t('incidents.history.newValue')}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {Object.entries(visibleFieldChanges).map(([field, change], idx) => (
-                                    <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
-                                      <td className="py-1 text-gray-700 dark:text-gray-300">{field}</td>
-                                      <td className="py-1 text-gray-500 dark:text-gray-400">{JSON.stringify((change as { old?: unknown }).old ?? '-')}</td>
-                                      <td className="py-1 text-gray-500 dark:text-gray-400">{JSON.stringify((change as { new?: unknown }).new ?? '-')}</td>
+                                    <tr key={idx} className="border-b border-border-subtle">
+                                      <td className="py-1 text-text-primary">{field}</td>
+                                      <td className="py-1 text-text-muted">{JSON.stringify((change as { old?: unknown }).old ?? '-')}</td>
+                                      <td className="py-1 text-text-muted">{JSON.stringify((change as { new?: unknown }).new ?? '-')}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -913,7 +927,7 @@ const Incidents = () => {
             <button
               type="button"
               onClick={() => setHistoryOpen(false)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="px-4 py-2 border border-border-strong rounded-md text-text-primary hover:bg-surface-hover"
             >
               {t('common.cancel')}
             </button>

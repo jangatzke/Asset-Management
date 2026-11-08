@@ -158,7 +158,16 @@ async function renderDetail() {
   await flush();
 }
 
+// The detail sections are grouped into DetailTabs; only the active panel is
+// rendered, so tests must activate the owning tab before querying its content.
+function activateTab(labelKey: string) {
+  fireEvent.click(screen.getByRole('tab', { name: labelKey }));
+}
+
 beforeEach(() => {
+  // DetailTabs mirrors the active tab into ?tab= via history.replaceState; reset
+  // the URL so one test cannot preselect a tab for the next one.
+  window.history.replaceState({}, '', '/');
   setUser(['service_desk_agent']);
   ticketApiMock.getById.mockResolvedValue({ data: incidentTicket() });
   ticketApiMock.getAssets.mockResolvedValue({ data: assetContext });
@@ -201,10 +210,13 @@ describe('TicketDetail page', () => {
     expect(ticketApiMock.getAssets).toHaveBeenCalledWith('t-1');
     expect(screen.getByRole('heading', { name: /INC-0001.*Ransomware alert/ })).toBeInTheDocument();
     expect(screen.getByText('Hosts encrypted on the file server')).toBeInTheDocument();
+    // The assignee lives in the (active by default) details tab.
     expect(screen.getByText('Alex Smith')).toBeInTheDocument();
     expect(screen.getByText('tickets.detail.notConfigured')).toBeInTheDocument();
     expect((screen.getByLabelText('tickets.detail.estimatedEffortHint') as HTMLInputElement).value).toBe('4');
 
+    // Comments were regrouped into the history tab.
+    activateTab('tickets.detail.tabs.history');
     const comment = screen.getByText('Initial triage done').closest('article');
     expect(comment).not.toBeNull();
     expect(within(comment as HTMLElement).getByText(/tickets\.detail\.internalWorkNote/)).toBeInTheDocument();
@@ -234,6 +246,7 @@ describe('TicketDetail page', () => {
     setUser(['employee'], ['tickets.read']);
 
     await renderDetail();
+    activateTab('tickets.detail.tabs.history');
 
     expect(screen.queryByLabelText('tickets.detail.status')).toBeNull();
     expect(screen.queryByRole('button', { name: 'tickets.detail.closeTicket' })).toBeNull();
@@ -347,6 +360,7 @@ describe('TicketDetail page', () => {
 
   it('renders the asset context and detaches an asset from the ticket', async () => {
     await renderDetail();
+    activateTab('tickets.detail.tabs.assets');
 
     expect(screen.getByRole('link', { name: /AST-0001.*File server/ })).toHaveAttribute('href', '/assets/asset-1');
 
@@ -358,6 +372,7 @@ describe('TicketDetail page', () => {
 
   it('attaches picked assets once at least one value is selected', async () => {
     await renderDetail();
+    activateTab('tickets.detail.tabs.assets');
 
     const attach = screen.getByRole('button', { name: 'tickets.detail.attachAssets' });
     expect(attach).toBeDisabled();
@@ -373,6 +388,7 @@ describe('TicketDetail page', () => {
 
   it('posts the work note with the internal flag from the comment form', async () => {
     await renderDetail();
+    activateTab('tickets.detail.tabs.history');
 
     fireEvent.change(screen.getByPlaceholderText('tickets.detail.updatePlaceholder'), {
       target: { value: 'Containment verified' },
@@ -391,6 +407,7 @@ describe('TicketDetail page', () => {
     setUser(['employee'], ['tickets.read'], 'u-1');
 
     await renderDetail();
+    activateTab('tickets.detail.tabs.history');
 
     fireEvent.change(screen.getByPlaceholderText('tickets.detail.requesterCommentPlaceholder'), {
       target: { value: 'Still seeing encrypted files' },

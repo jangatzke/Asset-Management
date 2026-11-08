@@ -132,7 +132,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-gray-900/50 p-4 pt-[10vh] dark:bg-black/50"
+      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh]"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"
@@ -140,11 +140,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     >
       <div
         ref={containerRef}
-        className="w-full max-w-lg overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+        className="w-full max-w-lg overflow-hidden rounded-lg border border-border-subtle bg-surface-default shadow-xl"
         onKeyDown={handleKeyDown}
       >
-        <div className="flex items-center gap-3 border-b border-gray-200 dark:border-gray-700 px-4">
-          <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+        <div className="flex items-center gap-3 border-b border-border-subtle px-4">
+          <MagnifyingGlassIcon className="h-5 w-5 text-text-muted" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
@@ -161,12 +161,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               onQueryChange?.(e.target.value);
             }}
             placeholder={placeholder ?? t('shortcuts.commandPalettePlaceholder')}
-            className="h-12 w-full bg-transparent py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white"
+            className="h-12 w-full bg-transparent py-3 text-sm text-text-primary outline-none placeholder:text-text-muted"
           />
           <button
             type="button"
             onClick={() => onClose()}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+            className="rounded p-1 text-text-muted hover:bg-surface-hover hover:text-text-secondary"
             aria-label={t('common.close')}
           >
             <XMarkIcon className="h-5 w-5" />
@@ -180,7 +180,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           className="max-h-80 overflow-y-auto p-1 text-sm"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
+            <li className="px-3 py-6 text-center text-text-muted">
               {t('commandPalette.noMatches')}
             </li>
           ) : (
@@ -191,7 +191,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               return (
                 <Fragment key={item.id}>
                   {showSection && (
-                    <li aria-hidden="true" className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <li aria-hidden="true" className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
                       <span>{item.section}</span>
                       {item.sectionActionLabel && item.onSectionAction && (
                         <button
@@ -199,7 +199,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           // Keep the palette open; the action navigates on click.
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={(e) => { e.stopPropagation(); item.onSectionAction?.(); }}
-                          className="rounded px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-gray-700"
+                          className="rounded px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-primary-600 hover:bg-primary-50 dark:text-primary-400"
                         >
                           {item.sectionActionLabel}
                         </button>
@@ -212,15 +212,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 ${
                       isActive
                         ? 'bg-primary-600 text-white'
-                        : 'text-gray-900 dark:text-gray-100'
+                        : 'text-text-primary'
                     }`}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => selectItem(item)}
                   >
-                    {Icon && <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`} aria-hidden="true" />}
+                    {Icon && <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-text-muted'}`} aria-hidden="true" />}
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     {item.description && (
-                      <span className={`truncate text-xs ${isActive ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}`}>
+                      <span className={`truncate text-xs ${isActive ? 'text-white/80' : 'text-text-muted'}`}>
                         {item.description}
                       </span>
                     )}

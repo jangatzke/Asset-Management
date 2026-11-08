@@ -407,6 +407,9 @@
     "deleteConfirm": "Are you sure you want to delete this item?",
     "deleteError": "Failed to delete",
     "deleteSuccess": "Deleted successfully",
+    "density": "Density",
+    "densityComfortable": "Comfortable",
+    "densityCompact": "Compact",
     "description": "Description",
     "discard": "Discard",
     "discardChangesMessage": "You have unsaved changes. Are you sure you want to discard them?",
@@ -463,7 +466,10 @@
     "vendor": "Vendor",
     "view": "View",
     "yes": "Yes",
-    "previous": "Previous"
+    "previous": "Previous",
+    "highContrast": "High contrast",
+    "highContrastOn": "High contrast on",
+    "highContrastOff": "High contrast off"
   },
   "contracts": {
     "deleteConfirm": "Are you sure you want to delete this contract?",
@@ -1672,6 +1678,15 @@
     "signInPrompt": "Sign in to your account",
     "verifyCode": "Verify code"
   },
+  "nav": {
+    "group": {
+      "overview": "Overview",
+      "assetsRisks": "Assets & Risks",
+      "complianceIsm": "Compliance & ISMS",
+      "operations": "Operations",
+      "administration": "Administration"
+    }
+  },
   "navigation": {
     "actionCenter": "Action Center",
     "admin": "Admin",
@@ -1691,6 +1706,8 @@
     "ismsOperations": "ISMS Operations",
     "ismsProcessWorkspace": "ISMS Process",
     "jobRuns": "Job Runs",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
     "kriDashboard": "KRI Dashboard",
     "knowledgeBase": "Knowledge Base",
     "licenses": "Licenses",
@@ -1712,6 +1729,7 @@
     "supplyChain": "Supply Chain Overview",
     "ticketSlaSettings": "Ticket SLAs",
     "tickets": "Tickets",
+    "ticketWorkload": "Ticket Workload",
     "toggleMenu": "Toggle navigation menu",
     "userManagement": "User Management",
     "userMenu": "User menu",
@@ -2807,7 +2825,12 @@
       "unassigned": "Unassigned",
       "unlinkRisk": "Remove",
       "updatePlaceholder": "Record an update.",
-      "workaroundLabel": "Workaround"
+      "workaroundLabel": "Workaround",
+      "tabs": {
+        "details": "Details",
+        "history": "History",
+        "assets": "Assets"
+      }
     },
     "empty": "No tickets found.",
     "emptyAction": "Create new ticket",

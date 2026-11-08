@@ -27,4 +27,27 @@ module.exports = {
     'react-hooks/exhaustive-deps': 'warn',
     'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
   },
+  overrides: [
+    {
+      // LT-2 guardrail (Stage 10a): business pages must style via Tailwind +
+      // semantic tokens / recipes, not MUI `sx` overrides. The documented MUI
+      // admin modules (Intune/Proxmox/VMware) are Material UI screens and are
+      // exempt — see docs/phase15-design-system.md.
+      files: ['src/pages/**/*.tsx'],
+      excludedFiles: [
+        'src/pages/AdminIntune.tsx',
+        'src/pages/AdminProxmox.tsx',
+        'src/pages/AdminVMware.tsx',
+      ],
+      rules: {
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: "JSXAttribute[name.name='sx']",
+            message: 'MUI sx overrides are not allowed in pages — use Tailwind utilities from styles/tokens.ts recipes or semantic token classes instead (docs/phase15-design-system.md).',
+          },
+        ],
+      },
+    },
+  ],
 };

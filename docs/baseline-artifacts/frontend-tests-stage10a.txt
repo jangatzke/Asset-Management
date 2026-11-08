@@ -1,0 +1,85 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mC:/Users/jan/Documents/Visual Studio Code/Asset Management/frontend[39m
+
+ [32m✓[39m src/pages/NIS2.test.tsx [2m([22m[2m26 tests[22m[2m)[22m[33m 533[2mms[22m[39m
+ [32m✓[39m src/pages/AdminReminders.page.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 494[2mms[22m[39m
+ [32m✓[39m src/components/EntityPicker.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 1142[2mms[22m[39m
+   [32m✓[39m EntityPicker [2m(7)[22m
+     [33m[2m✓[22m[39m searches and selects a single entity, passing the human-readable option through[33m 361[2mms[22m[39m
+     [33m[2m✓[22m[39m filters inactive users out of the options list[33m 340[2mms[22m[39m
+     [33m[2m✓[22m[39m adds and removes values in multi-select mode[33m 333[2mms[22m[39m
+ [32m✓[39m src/pages/Settings.page.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[33m 1873[2mms[22m[39m
+ [32m✓[39m src/pages/AdminEmailGateway.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 1894[2mms[22m[39m
+ [32m✓[39m src/pages/AdminOrganizationUnits.page.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 682[2mms[22m[39m
+ [32m✓[39m src/pages/TicketDetail.page.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[33m 804[2mms[22m[39m
+ [32m✓[39m src/pages/Tickets.undo.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 721[2mms[22m[39m
+   [32m✓[39m Tickets bulk archive undo wiring [2m(2)[22m
+     [33m[2m✓[22m[39m offers an undo action after a successful bulk archive and restores the archived ticket[33m 547[2mms[22m[39m
+ [32m✓[39m src/pages/Tickets.page.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 796[2mms[22m[39m
+ [32m✓[39m src/pages/Incidents.page.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 888[2mms[22m[39m
+ [32m✓[39m src/pages/Risks.page.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 1079[2mms[22m[39m
+ [32m✓[39m src/pages/AdminRoles.page.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 1210[2mms[22m[39m
+   [32m✓[39m AdminRoles page [2m(11)[22m
+     [33m[2m✓[22m[39m creates a role with the selected permissions and syncs admin access[33m 397[2mms[22m[39m
+ [32m✓[39m src/components/Modal.guard.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 1303[2mms[22m[39m
+   [32m✓[39m Dirty modal dismissals [2m(7)[22m
+     [33m[2m✓[22m[39m cancel/stay keeps the draft and hides discard dialog[33m 335[2mms[22m[39m
+     [33m[2m✓[22m[39m confirm discard hides dialog and calls onDiscardConfirm[33m 342[2mms[22m[39m
+ [32m✓[39m src/pages/Controls.page.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1288[2mms[22m[39m
+   [32m✓[39m Controls page [2m(10)[22m
+     [33m[2m✓[22m[39m keeps the create submit disabled until required fields exist, then sends the catalog payload[33m 348[2mms[22m[39m
+ [32m✓[39m src/pages/KnowledgeBase.page.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 746[2mms[22m[39m
+ [32m✓[39m src/pages/Assets.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 1498[2mms[22m[39m
+   [32m✓[39m Assets page [2m(12)[22m
+     [32m✓[39m initial load & server pagination [2m(2)[22m
+       [33m[2m✓[22m[39m shows pagination controls with next/prev and disabled states[33m 376[2mms[22m[39m
+ [32m✓[39m src/components/Sidebar.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 371[2mms[22m[39m
+ [32m✓[39m src/pages/Login.page.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 341[2mms[22m[39m
+ [32m✓[39m src/components/EditPage.integration.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 387[2mms[22m[39m
+ [32m✓[39m src/components/Dialog.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[32m 193[2mms[22m[39m
+ [32m✓[39m src/pages/AdminJobRuns.page.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 389[2mms[22m[39m
+ [32m✓[39m src/components/AssetGraph.test.tsx [2m([22m[2m70 tests[22m[2m)[22m[32m 212[2mms[22m[39m
+ [32m✓[39m src/components/PageShell.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 121[2mms[22m[39m
+ [32m✓[39m src/pages/AssetDetail.page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 236[2mms[22m[39m
+ [32m✓[39m src/components/PageHeader.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 241[2mms[22m[39m
+ [32m✓[39m src/components/FormRow.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[32m 130[2mms[22m[39m
+ [32m✓[39m src/components/ErrorAlert.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[32m 120[2mms[22m[39m
+ [32m✓[39m src/services/api.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/components/MetricCard.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 142[2mms[22m[39m
+ [32m✓[39m src/components/HelpTooltip.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 295[2mms[22m[39m
+ [32m✓[39m src/components/DataTableShell.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m src/locales/localeKeys.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/components/DiscardConfirmationDialog.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 258[2mms[22m[39m
+ [32m✓[39m src/hooks/useDraftForm.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/services/idempotency.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/hooks/useDirtyForm.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/services/phase5-api-bugs.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/store/auth.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/pages/ismsPhase6EntityReferences.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/hooks/useUndoableAction.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/utils/statusHelpers.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/services/entityPickerApi.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/utils/contrast.test.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/pages/rowActionAccessibility.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/components/RiskDetail.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/utils/apiError.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/components/entityPickerUtils.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/pages/IncidentDetail.status.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/pages/ActionCenter.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/pages/Dashboard.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/pages/riskControlWorkflow.utils.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/pages/CostPlanning.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/pages/ismsPhase6Routing.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/pages/Risks.helpTooltip.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/pages/OperationsWorkspace.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/pages/workflowUx.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m56 passed[39m[22m[90m (56)[39m
+[2m      Tests [22m [1m[32m609 passed[39m[22m[90m (609)[39m
+[2m   Start at [22m 09:58:13
+[2m   Duration [22m 9.63s[2m (environment 48%, import 25%, tests 16%, setup 9%, transform 1%, worker 1%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 56 times[39m[2m · 61.80s total, 48% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+

@@ -407,6 +407,9 @@
     "deleteConfirm": "Möchten Sie dieses Element wirklich löschen?",
     "deleteError": "Löschen fehlgeschlagen",
     "deleteSuccess": "Erfolgreich gelöscht",
+    "density": "Dichte",
+    "densityComfortable": "Komfortabel",
+    "densityCompact": "Kompakt",
     "description": "Beschreibung",
     "discard": "Verwerfen",
     "discardChangesMessage": "Sie haben ungespeicherte Änderungen. Möchten Sie diese wirklich verwerfen?",
@@ -463,7 +466,10 @@
     "vendor": "Anbieter",
     "view": "Anzeigen",
     "yes": "Ja",
-    "previous": "Zurück"
+    "previous": "Zurück",
+    "highContrast": "Hoher Kontrast",
+    "highContrastOn": "Hoher Kontrast ein",
+    "highContrastOff": "Hoher Kontrast aus"
   },
   "contracts": {
     "deleteConfirm": "Möchten Sie diesen Vertrag wirklich löschen?",
@@ -1672,6 +1678,15 @@
     "signInPrompt": "Melden Sie sich bei Ihrem Konto an",
     "verifyCode": "Code bestätigen"
   },
+  "nav": {
+    "group": {
+      "overview": "Übersicht",
+      "assetsRisks": "Assets & Risiken",
+      "complianceIsm": "Compliance & ISMS",
+      "operations": "Betrieb",
+      "administration": "Administration"
+    }
+  },
   "navigation": {
     "actionCenter": "Aktionszentrum",
     "admin": "Admin",
@@ -1691,6 +1706,8 @@
     "ismsOperations": "ISMS-Betrieb",
     "ismsProcessWorkspace": "ISMS-Prozess",
     "jobRuns": "Job-Läufe",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen",
     "kriDashboard": "KRI-Dashboard",
     "knowledgeBase": "Wissensdatenbank",
     "licenses": "Lizenzen",
@@ -1712,6 +1729,7 @@
     "supplyChain": "Lieferantenübersicht",
     "ticketSlaSettings": "Ticket-SLAs",
     "tickets": "Tickets",
+    "ticketWorkload": "Ticket-Auslastung",
     "toggleMenu": "Navigationsmenü umschalten",
     "userManagement": "Benutzerverwaltung",
     "userMenu": "Benutzermenü",
@@ -2807,7 +2825,12 @@
       "unassigned": "Nicht zugewiesen",
       "unlinkRisk": "Entfernen",
       "updatePlaceholder": "Aktualisierung dokumentieren.",
-      "workaroundLabel": "Workaround"
+      "workaroundLabel": "Workaround",
+      "tabs": {
+        "details": "Details",
+        "history": "Verlauf",
+        "assets": "Assets"
+      }
     },
     "empty": "Keine Tickets gefunden.",
     "emptyAction": "Neues Ticket erstellen",

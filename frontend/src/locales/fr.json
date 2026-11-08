@@ -407,6 +407,9 @@
     "deleteConfirm": "Voulez-vous vraiment supprimer cet élément ?",
     "deleteError": "Échec de la suppression",
     "deleteSuccess": "Supprimé avec succès",
+    "density": "Densité",
+    "densityComfortable": "Confortable",
+    "densityCompact": "Compacte",
     "description": "Description",
     "discard": "Abandonner",
     "discardChangesMessage": "Vous avez des modifications non enregistrées. Voulez-vous vraiment les abandonner ?",
@@ -463,7 +466,10 @@
     "vendor": "Fournisseur",
     "view": "Afficher",
     "yes": "Oui",
-    "previous": "Précédent"
+    "previous": "Précédent",
+    "highContrast": "Contraste élevé",
+    "highContrastOn": "Contraste élevé activé",
+    "highContrastOff": "Contraste élevé désactivé"
   },
   "contracts": {
     "deleteConfirm": "Voulez-vous vraiment supprimer ce contrat ?",
@@ -1672,6 +1678,15 @@
     "signInPrompt": "Connectez-vous à votre compte",
     "verifyCode": "Vérifier le code"
   },
+  "nav": {
+    "group": {
+      "overview": "Vue d'ensemble",
+      "assetsRisks": "Actifs et risques",
+      "complianceIsm": "Conformité et ISMS",
+      "operations": "Exploitation",
+      "administration": "Administration"
+    }
+  },
   "navigation": {
     "actionCenter": "Centre d'actions",
     "admin": "Administration",
@@ -1691,6 +1706,8 @@
     "ismsOperations": "Opérations ISMS",
     "ismsProcessWorkspace": "Processus ISMS",
     "jobRuns": "Exécutions de jobs",
+    "collapseSidebar": "Réduire la barre latérale",
+    "expandSidebar": "Développer la barre latérale",
     "kriDashboard": "Tableau de bord KRI",
     "knowledgeBase": "Base de connaissances",
     "licenses": "Licences",
@@ -1712,6 +1729,7 @@
     "supplyChain": "Vue d'ensemble des fournisseurs",
     "ticketSlaSettings": "SLA des tickets",
     "tickets": "Tickets",
+    "ticketWorkload": "Charge de travail des tickets",
     "toggleMenu": "Basculer le menu de navigation",
     "userManagement": "Gestion des utilisateurs",
     "userMenu": "Menu utilisateur",
@@ -2807,7 +2825,12 @@
       "unassigned": "Non affecté",
       "unlinkRisk": "Retirer",
       "updatePlaceholder": "Consignez une mise à jour.",
-      "workaroundLabel": "Solution de contournement"
+      "workaroundLabel": "Solution de contournement",
+      "tabs": {
+        "details": "Détails",
+        "history": "Historique",
+        "assets": "Actifs"
+      }
     },
     "empty": "Aucun ticket trouvé.",
     "emptyAction": "Créer un nouveau ticket",

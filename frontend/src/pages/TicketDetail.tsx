@@ -6,8 +6,12 @@ import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
 import EntityPicker from '../components/EntityPicker';
 import { Modal } from '../components/Modal';
+import DetailTabs from '../components/DetailTabs';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { formatApiError } from '../utils/apiError';
+import PageShell from '../components/PageShell';
+import { PageBreadcrumbs } from '../components/PageHeader';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 
 /** Human-readable label for an assignee (name when available, else email). */
 function assigneeLabel(assignee: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null | undefined): string {
@@ -41,6 +45,8 @@ export default function TicketDetail() {
   const [changeForm, setChangeForm] = useState<{ changeType: string; riskLevel: string; cabApproved: boolean; implementationPlan: string; rollbackPlan: string } | null>(null);
   const [riskPicker, setRiskPicker] = useState<EntityPickerResult | null>(null);
   const navigate = useNavigate();
+  // Detail leaf label comes from already-loaded page state (no extra fetch).
+  const breadcrumbs = useBreadcrumbs({ leaf: ticket?.displayId ? `${ticket.displayId} – ${ticket.title}` : null });
 
   const load = useCallback(async () => {
     if (!ticketId) return;
@@ -219,159 +225,192 @@ const addComment = async (event: FormEvent) => {
     } finally { setWorking(false); }
   };
 
-  if (!ticket && !error) return <main className="p-8 text-gray-600 dark:text-gray-300">{t('tickets.detail.loading')}</main>;
-  if (!ticket) return <main className="p-8"><Link to="/tickets" className="text-primary-700 hover:underline">← {t('navigation.tickets')}</Link><p role="alert" className="mt-4 text-red-700">{error}</p></main>;
+  if (!ticket && !error) return <PageShell noPadding><span className="text-text-secondary">{t('tickets.detail.loading')}</span></PageShell>;
+  if (!ticket) return <PageShell noPadding><Link to="/tickets" className="text-primary-700 hover:underline">← {t('navigation.tickets')}</Link><p role="alert" className="mt-4 text-status-critical-fg">{error}</p></PageShell>;
 
   const targets = getAllowedTicketTransitions(ticket.type as any, ticket.status);
   const selectableStatuses = isTerminalTicketStatus(ticket.type as any, ticket.status)
     ? [ticket.status, REOPEN_TARGET_STATUS[ticket.type]]
     : [ticket.status, ...targets];
-  return <main id="main-content" className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
+
+  // Stage 10c / LT-5: the existing sections are grouped into DetailTabs
+  // (Details = assignment + type extensions, History = comments/work notes,
+  // Assets = ticket asset context). Section content and fetch lifecycle are
+  // unchanged; the auditable-history Modal keeps its original trigger.
+  return <PageShell>
+    <PageBreadcrumbs items={breadcrumbs} />
     <Link to="/tickets" className="text-sm font-medium text-primary-700 hover:underline dark:text-primary-300">← {t('tickets.detail.allTickets')}</Link>
-    {error && <div role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
-    <header className="mt-4 rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
+    {error && <div role="alert" className="mt-4 rounded-md bg-status-critical-bg p-3 text-status-critical-fg">{error}</div>}
+    <header className="mt-4 rounded-lg bg-surface-default p-card-pad shadow-e1">
       <div className="flex flex-col justify-between gap-4 sm:flex-row">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{ticket.displayId} – {ticket.title}</h1>
-          <p className="mt-3 whitespace-pre-wrap text-gray-700 dark:text-gray-200">{ticket.description || t('tickets.detail.noDescription')}</p>
+          <h1 className="text-h2 text-text-primary">{ticket.displayId} – {ticket.title}</h1>
+          <p className="mt-3 whitespace-pre-wrap text-body2 text-text-secondary">{ticket.description || t('tickets.detail.noDescription')}</p>
         </div>
         <dl className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          <div><dt className="text-gray-500">{t('common.type')}</dt><dd>{canWrite && ticket.type !== 'incident' ? <select value={ticket.type} disabled={working} onChange={(event) => void updateType(event.target.value as 'service_request' | 'problem' | 'change')} aria-label={t('common.type')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{(['service_request', 'problem', 'change'] as const).map((type) => <option key={type} value={type}>{t(`tickets.types.${type}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.types.${ticket.type}`)}</span>}</dd></div>
-          <div><dt className="text-gray-500">{t('tickets.detail.status')}</dt><dd>{canWrite ? <select value={ticket.status} disabled={working} onChange={(event) => { if (event.target.value !== ticket.status) void transition(event.target.value); }} aria-label={t('tickets.detail.status')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{selectableStatuses.filter((status, index, values) => values.indexOf(status) === index).map((status) => <option key={status} value={status}>{t(`tickets.status.${status}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.status.${ticket.status}`)}</span>}</dd></div>
-          <div><dt className="text-gray-500">{t('tickets.detail.priority')}</dt><dd>{canWrite ? <select value={ticket.priority} disabled={working} onChange={(event) => void updatePriority(event.target.value)} aria-label={t('tickets.detail.priority')} className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{t(`tickets.priorities.${priority}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.priorities.${ticket.priority}`)}</span>}</dd></div>
-          <div><dt className="text-gray-500">{t('tickets.detail.slaTarget')}</dt><dd>{ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : t('tickets.detail.notConfigured')}</dd></div>
-          <div><dt className="text-gray-500" title={t('tickets.detail.estimatedEffortHint')}>{t('tickets.detail.estimatedEffort')}</dt><dd>{canWrite ? <input type="number" min="0" step="1" defaultValue={ticket.estimatedEffortUnits ?? ''} onBlur={(event) => void updateEstimatedEffort(event.target.value)} disabled={working} aria-label={t('tickets.detail.estimatedEffortHint')} className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /> : ticket.estimatedEffortUnits ?? '–'}</dd></div>
+          <div><dt className="text-text-muted">{t('common.type')}</dt><dd>{canWrite && ticket.type !== 'incident' ? <select value={ticket.type} disabled={working} onChange={(event) => void updateType(event.target.value as 'service_request' | 'problem' | 'change')} aria-label={t('common.type')} className="w-full rounded-md border border-border-strong bg-surface-default px-2 py-1 font-semibold text-text-primary">{(['service_request', 'problem', 'change'] as const).map((type) => <option key={type} value={type}>{t(`tickets.types.${type}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.types.${ticket.type}`)}</span>}</dd></div>
+          <div><dt className="text-text-muted">{t('tickets.detail.status')}</dt><dd>{canWrite ? <select value={ticket.status} disabled={working} onChange={(event) => { if (event.target.value !== ticket.status) void transition(event.target.value); }} aria-label={t('tickets.detail.status')} className="w-full rounded-md border border-border-strong bg-surface-default px-2 py-1 font-semibold text-text-primary">{selectableStatuses.filter((status, index, values) => values.indexOf(status) === index).map((status) => <option key={status} value={status}>{t(`tickets.status.${status}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.status.${ticket.status}`)}</span>}</dd></div>
+          <div><dt className="text-text-muted">{t('tickets.detail.priority')}</dt><dd>{canWrite ? <select value={ticket.priority} disabled={working} onChange={(event) => void updatePriority(event.target.value)} aria-label={t('tickets.detail.priority')} className="w-full rounded-md border border-border-strong bg-surface-default px-2 py-1 font-semibold text-text-primary">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{t(`tickets.priorities.${priority}`)}</option>)}</select> : <span className="font-semibold">{t(`tickets.priorities.${ticket.priority}`)}</span>}</dd></div>
+          <div><dt className="text-text-muted">{t('tickets.detail.slaTarget')}</dt><dd>{ticket.resolutionDueAt ? new Date(ticket.resolutionDueAt).toLocaleString() : t('tickets.detail.notConfigured')}</dd></div>
+          <div><dt className="text-text-muted" title={t('tickets.detail.estimatedEffortHint')}>{t('tickets.detail.estimatedEffort')}</dt><dd>{canWrite ? <input type="number" min="0" step="1" defaultValue={ticket.estimatedEffortUnits ?? ''} onBlur={(event) => void updateEstimatedEffort(event.target.value)} disabled={working} aria-label={t('tickets.detail.estimatedEffortHint')} className="w-20 rounded-md border border-border-strong bg-surface-default px-2 py-1 text-text-primary" /> : ticket.estimatedEffortUnits ?? '–'}</dd></div>
         </dl>
       </div>
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
-        <button onClick={() => void openHistory()} className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200">{t('tickets.detail.historyButton')}</button>
-        {canWrite && ticket.type === 'incident' && <button disabled={working} onClick={() => void convertTo('problem')} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">{t('tickets.detail.convertToProblem')}</button>}
-        {canWrite && ticket.type === 'incident' && <button disabled={working} onClick={() => void convertTo('change')} className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-100">{t('tickets.detail.convertToChange')}</button>}
-        {canClose && !isTerminalTicketStatus(ticket.type as any, ticket.status) && <button disabled={working} onClick={() => void close()} className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">{t('tickets.detail.closeTicket')}</button>}
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle pt-4">
+        <button onClick={() => void openHistory()} className="rounded-md border border-border-strong px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary">{t('tickets.detail.historyButton')}</button>
+        {canWrite && ticket.type === 'incident' && <button disabled={working} onClick={() => void convertTo('problem')} className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary disabled:opacity-50">{t('tickets.detail.convertToProblem')}</button>}
+        {canWrite && ticket.type === 'incident' && <button disabled={working} onClick={() => void convertTo('change')} className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary disabled:opacity-50">{t('tickets.detail.convertToChange')}</button>}
+        {canClose && !isTerminalTicketStatus(ticket.type as any, ticket.status) && <button disabled={working} onClick={() => void close()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.closeTicket')}</button>}
       </div>
     </header>
-    <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-      <div className="grid gap-6 md:grid-cols-2">
-        <div>
-          <h2 className="text-lg font-bold">{t('tickets.detail.assignmentTitle')}</h2>
-          <dl className="mt-3 text-sm">
-            <div><dt className="text-gray-500">{t('tickets.detail.assignee')}</dt><dd className="font-semibold">{assignee ? assigneeLabel(assignee) : t('tickets.detail.unassigned')}</dd></div>
-          </dl>
-          {canAssign && <div className="mt-3">
-            <EntityPicker labelKey="tickets.detail.assignee" entityType="user" value={assigneePicker} onChange={setAssigneePicker} />
-            <div className="mt-2 flex gap-2">
-              <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.assign')}</button>
-              {assignee && <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200">{t('tickets.detail.unassign')}</button>}
-            </div>
-          </div>}
-        </div>
-        <div>
-          <h2 className="text-lg font-bold">{t('tickets.detail.assetContextTitle')}</h2>
-          <div className="mt-3">
-            {assetContext?.assets?.length ? (
-              <ul className="space-y-2">
-                {assetContext.assets.map((entry) => {
-                  const a = entry.asset;
-                  return <li key={entry.id} className="flex items-center justify-between rounded border p-2 dark:border-gray-700">
-                    <Link to={`/assets/${a?.id}`} className="group flex flex-1 items-center gap-2 text-primary-700 hover:underline dark:text-primary-300">
-                      <span className="font-semibold">{a?.displayId}</span> · {a?.name}
-                      <div className="text-xs text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300">{a?.assetType?.name} · {a?.manufacturer || t('tickets.detail.noManufacturer')} · {a?.status || ''}</div>
-                    </Link>
-                    {canContext && <button onClick={() => void removeAsset(a!.id)} className="text-sm text-red-700 hover:underline dark:text-red-300">{t('tickets.detail.detach')}</button>}
-                  </li>;
-                })}
-              </ul>
-            ) : <p className="text-sm text-gray-500">{t('tickets.detail.noAssets')}</p>}
-          </div>
-          {canContext && <div className="mt-3">
-            <EntityPicker labelKey="tickets.detail.attachAsset" entityType="asset" multiple values={assetPickerValues} onValuesChange={setAssetPickerValues} />
-            <div className="mt-2">
-              <button disabled={working || !assetPickerValues.length} onClick={() => void addAssets()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.attachAssets')}</button>
-            </div>
-          </div>}
-        </div>
-      </div>
-    </section>
-    {canWrite && ticket.type === 'problem' && problemForm && <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-      <h2 className="text-lg font-bold">{t('tickets.detail.problemDetailsTitle')}</h2>
-      <div className="mt-3 grid gap-4">
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="problem-root-cause">{t('tickets.detail.rootCauseLabel')}</label>
-          <textarea id="problem-root-cause" rows={3} value={problemForm.rootCause} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, rootCause: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="problem-workaround">{t('tickets.detail.workaroundLabel')}</label>
-          <textarea id="problem-workaround" rows={3} value={problemForm.workaround} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, workaround: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="problem-permanent-fix">{t('tickets.detail.permanentFixLabel')}</label>
-          <textarea id="problem-permanent-fix" rows={3} value={problemForm.permanentFix} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, permanentFix: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
-      </div>
-      <button disabled={working} onClick={() => void saveProblem()} className="mt-4 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.saveExtension')}</button>
-    </section>}
-    {canWrite && ticket.type === 'change' && changeForm && <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-      <h2 className="text-lg font-bold">{t('tickets.detail.changeDetailsTitle')}</h2>
-      <div className="mt-3 grid gap-4 md:grid-cols-2">
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-type">{t('tickets.detail.changeTypeField')}</label>
-          <select id="change-type" value={changeForm.changeType} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, changeType: event.target.value })} className="mt-1 w-full rounded-md border px-2 py-2 dark:bg-gray-700">{(['standard', 'normal', 'emergency'] as const).map((type) => <option key={type} value={type}>{t(`tickets.detail.changeTypes.${type}`)}</option>)}</select></div>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-risk-level">{t('tickets.detail.riskLevelField')}</label>
-          <select id="change-risk-level" value={changeForm.riskLevel} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, riskLevel: event.target.value })} className="mt-1 w-full rounded-md border px-2 py-2 dark:bg-gray-700">{(['low', 'medium', 'high', 'critical'] as const).map((level) => <option key={level} value={level}>{t(`tickets.priorities.${level}`)}</option>)}</select></div>
-        <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={changeForm.cabApproved} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, cabApproved: event.target.checked })} /> {t('tickets.detail.cabApprovedField')}</label>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-implementation-plan">{t('tickets.detail.implementationPlanLabel')}</label>
-          <textarea id="change-implementation-plan" rows={3} value={changeForm.implementationPlan} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, implementationPlan: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="change-rollback-plan">{t('tickets.detail.rollbackPlanLabel')}</label>
-          <textarea id="change-rollback-plan" rows={3} value={changeForm.rollbackPlan} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, rollbackPlan: event.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></div>
-      </div>
-      <button disabled={working} onClick={() => void saveChange()} className="mt-4 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.saveExtension')}</button>
-      <div className="mt-5 border-t pt-4 dark:border-gray-700">
-        <h3 className="text-base font-bold">{t('tickets.detail.riskLinksTitle')}</h3>
-        {ticket.change?.riskLinks?.length ? (
-          <ul className="mt-2 space-y-2">
-            {ticket.change.riskLinks.map((link) => (
-              <li key={link.id} className="flex items-center justify-between rounded border p-2 dark:border-gray-700">
-                <Link to={`/risks/${link.risk.id}`} className="group flex flex-1 items-center gap-2 text-primary-700 hover:underline dark:text-primary-300">
-                  <span className="font-semibold">{link.risk.displayId}</span> · {link.risk.title}
-                </Link>
-                <button disabled={working} onClick={() => void unlinkRisk(link.risk.id)} className="text-sm text-red-700 hover:underline dark:text-red-300">{t('tickets.detail.unlinkRisk')}</button>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="mt-2 text-sm text-gray-500">{t('tickets.detail.noRiskLinks')}</p>}
-        <div className="mt-3">
-          <EntityPicker labelKey="tickets.detail.linkRisk" entityType="risk" value={riskPicker} onChange={setRiskPicker} />
-          <button disabled={working || !riskPicker} onClick={() => void linkRisk()} className="mt-2 rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.linkRisk')}</button>
-        </div>
-      </div>
-    </section>}
-    <section className="mt-6 rounded-lg bg-white p-5 shadow-sm dark:bg-gray-800">
-        <h2 className="text-lg font-bold">{t('tickets.detail.commentsTitle')}</h2>
-        <div className="mt-4 space-y-3">
-          {ticket.comments?.length ? ticket.comments.map((entry) => (
-            <article key={entry.id} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-              <div className="mb-1 text-xs font-semibold text-gray-500">
-                {entry.isInternal ? t('tickets.detail.internalWorkNote') : t('tickets.detail.requesterComment')}
-                · {entry.authorName ? `${t('tickets.detail.by')} ${entry.authorName}` : t('tickets.detail.anonymous')}
-                · {new Date(entry.createdAt).toLocaleString()}
+    <DetailTabs
+      className="mt-section-gap"
+      ariaLabel={ticket.displayId}
+      syncUrlParam
+      tabs={[
+        {
+          id: 'details',
+          label: t('tickets.detail.tabs.details'),
+          content: (
+            <>
+              <section className="rounded-lg bg-surface-default p-card-pad shadow-e1">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <h2 className="text-h3 text-text-primary">{t('tickets.detail.assignmentTitle')}</h2>
+                    <dl className="mt-3 text-sm">
+                      <div><dt className="text-text-muted">{t('tickets.detail.assignee')}</dt><dd className="font-semibold">{assignee ? assigneeLabel(assignee) : t('tickets.detail.unassigned')}</dd></div>
+                    </dl>
+                    {canAssign && <div className="mt-3">
+                      <EntityPicker labelKey="tickets.detail.assignee" entityType="user" value={assigneePicker} onChange={setAssigneePicker} />
+                      <div className="mt-2 flex gap-2">
+                        <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.assign')}</button>
+                        {assignee && <button disabled={working} onClick={() => void assignAssignee()} className="rounded-md border border-border-strong px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary disabled:opacity-50">{t('tickets.detail.unassign')}</button>}
+                      </div>
+                    </div>}
+                  </div>
+                </div>
+              </section>
+              {canWrite && ticket.type === 'problem' && problemForm && <section className="mt-section-gap rounded-lg bg-surface-default p-card-pad shadow-e1">
+                <h2 className="text-h3 text-text-primary">{t('tickets.detail.problemDetailsTitle')}</h2>
+                <div className="mt-3 grid gap-4">
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="problem-root-cause">{t('tickets.detail.rootCauseLabel')}</label>
+                    <textarea id="problem-root-cause" rows={3} value={problemForm.rootCause} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, rootCause: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary disabled:opacity-50" /></div>
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="problem-workaround">{t('tickets.detail.workaroundLabel')}</label>
+                    <textarea id="problem-workaround" rows={3} value={problemForm.workaround} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, workaround: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary disabled:opacity-50" /></div>
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="problem-permanent-fix">{t('tickets.detail.permanentFixLabel')}</label>
+                    <textarea id="problem-permanent-fix" rows={3} value={problemForm.permanentFix} disabled={working} onChange={(event) => setProblemForm({ ...problemForm, permanentFix: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary disabled:opacity-50" /></div>
+                </div>
+                <button disabled={working} onClick={() => void saveProblem()} className="mt-4 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.saveExtension')}</button>
+              </section>}
+              {canWrite && ticket.type === 'change' && changeForm && <section className="mt-section-gap rounded-lg bg-surface-default p-card-pad shadow-e1">
+                <h2 className="text-h3 text-text-primary">{t('tickets.detail.changeDetailsTitle')}</h2>
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="change-type">{t('tickets.detail.changeTypeField')}</label>
+                    <select id="change-type" value={changeForm.changeType} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, changeType: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default px-2 py-2 text-text-primary">{(['standard', 'normal', 'emergency'] as const).map((type) => <option key={type} value={type}>{t(`tickets.detail.changeTypes.${type}`)}</option>)}</select></div>
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="change-risk-level">{t('tickets.detail.riskLevelField')}</label>
+                    <select id="change-risk-level" value={changeForm.riskLevel} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, riskLevel: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default px-2 py-2 text-text-primary">{(['low', 'medium', 'high', 'critical'] as const).map((level) => <option key={level} value={level}>{t(`tickets.priorities.${level}`)}</option>)}</select></div>
+                  <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={changeForm.cabApproved} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, cabApproved: event.target.checked })} /> {t('tickets.detail.cabApprovedField')}</label>
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="change-implementation-plan">{t('tickets.detail.implementationPlanLabel')}</label>
+                    <textarea id="change-implementation-plan" rows={3} value={changeForm.implementationPlan} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, implementationPlan: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary disabled:opacity-50" /></div>
+                  <div><label className="block text-sm font-medium text-text-secondary" htmlFor="change-rollback-plan">{t('tickets.detail.rollbackPlanLabel')}</label>
+                    <textarea id="change-rollback-plan" rows={3} value={changeForm.rollbackPlan} disabled={working} onChange={(event) => setChangeForm({ ...changeForm, rollbackPlan: event.target.value })} className="mt-1 w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary disabled:opacity-50" /></div>
+                </div>
+                <button disabled={working} onClick={() => void saveChange()} className="mt-4 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.saveExtension')}</button>
+                <div className="mt-5 border-t border-border-subtle pt-4">
+                  <h3 className="text-body1 font-bold text-text-primary">{t('tickets.detail.riskLinksTitle')}</h3>
+                  {ticket.change?.riskLinks?.length ? (
+                    <ul className="mt-2 space-y-2">
+                      {ticket.change.riskLinks.map((link) => (
+                        <li key={link.id} className="flex items-center justify-between rounded border border-border-subtle p-2">
+                          <Link to={`/risks/${link.risk.id}`} className="group flex flex-1 items-center gap-2 text-primary-700 hover:underline dark:text-primary-300">
+                            <span className="font-semibold">{link.risk.displayId}</span> · {link.risk.title}
+                          </Link>
+                          <button disabled={working} onClick={() => void unlinkRisk(link.risk.id)} className="text-sm text-status-critical-fg hover:underline">{t('tickets.detail.unlinkRisk')}</button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-2 text-sm text-text-muted">{t('tickets.detail.noRiskLinks')}</p>}
+                  <div className="mt-3">
+                    <EntityPicker labelKey="tickets.detail.linkRisk" entityType="risk" value={riskPicker} onChange={setRiskPicker} />
+                    <button disabled={working || !riskPicker} onClick={() => void linkRisk()} className="mt-2 rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.linkRisk')}</button>
+                  </div>
+                </div>
+              </section>}
+            </>
+          ),
+        },
+        {
+          id: 'history',
+          label: t('tickets.detail.tabs.history'),
+          content: (
+            <section className="rounded-lg bg-surface-default p-card-pad shadow-e1">
+                <h2 className="text-h3 text-text-primary">{t('tickets.detail.commentsTitle')}</h2>
+                <div className="mt-4 space-y-3">
+                  {ticket.comments?.length ? ticket.comments.map((entry) => (
+                    <article key={entry.id} className="rounded-md border border-border-subtle p-3">
+                      <div className="mb-1 text-xs font-semibold text-text-muted">
+                        {entry.isInternal ? t('tickets.detail.internalWorkNote') : t('tickets.detail.requesterComment')}
+                        · {entry.authorName ? `${t('tickets.detail.by')} ${entry.authorName}` : t('tickets.detail.anonymous')}
+                        · {new Date(entry.createdAt).toLocaleString()}
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm">{entry.body}</p>
+                    </article>
+                  )) : <p className="text-sm text-text-muted">{t('tickets.detail.noComments')}</p>}
+                </div>
+                {canWrite && <form onSubmit={addComment} className="mt-4 border-t border-border-subtle pt-4">
+                  <textarea value={comment} onChange={(event) => setComment(event.target.value)} required rows={3} placeholder={t('tickets.detail.updatePlaceholder')} className="w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary" />
+                  <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} /> {t('tickets.detail.internalWorkNote')}</label>
+                  <button disabled={working} className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.addUpdate')}</button>
+                </form>}
+                {!canWrite && user?.id === ticket.requester?.id && <form onSubmit={requesterCommentSubmit} className="mt-4 border-t border-border-subtle pt-4">
+                  <textarea value={requesterCommentText} onChange={(event) => setRequesterCommentText(event.target.value)} required rows={3} placeholder={t('tickets.detail.requesterCommentPlaceholder')} className="w-full rounded-md border border-border-strong bg-surface-default p-2 text-text-primary" />
+                  <button disabled={working} className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.submitComment')}</button>
+                </form>}
+            </section>
+          ),
+        },
+        {
+          id: 'assets',
+          label: t('tickets.detail.tabs.assets'),
+          content: (
+            <section className="rounded-lg bg-surface-default p-card-pad shadow-e1">
+              <h2 className="text-h3 text-text-primary">{t('tickets.detail.assetContextTitle')}</h2>
+              <div className="mt-3">
+                {assetContext?.assets?.length ? (
+                  <ul className="space-y-2">
+                    {assetContext.assets.map((entry) => {
+                      const a = entry.asset;
+                      return <li key={entry.id} className="flex items-center justify-between rounded border border-border-subtle p-2">
+                        <Link to={`/assets/${a?.id}`} className="group flex flex-1 items-center gap-2 text-primary-700 hover:underline dark:text-primary-300">
+                          <span className="font-semibold">{a?.displayId}</span> · {a?.name}
+                          <div className="text-xs text-text-muted group-hover:text-text-secondary">{a?.assetType?.name} · {a?.manufacturer || t('tickets.detail.noManufacturer')} · {a?.status || ''}</div>
+                        </Link>
+                        {canContext && <button onClick={() => void removeAsset(a!.id)} className="text-sm text-status-critical-fg hover:underline">{t('tickets.detail.detach')}</button>}
+                      </li>;
+                    })}
+                  </ul>
+                ) : <p className="text-sm text-text-muted">{t('tickets.detail.noAssets')}</p>}
               </div>
-              <p className="whitespace-pre-wrap text-sm">{entry.body}</p>
-            </article>
-          )) : <p className="text-sm text-gray-500">{t('tickets.detail.noComments')}</p>}
-        </div>
-        {canWrite && <form onSubmit={addComment} className="mt-4 border-t pt-4 dark:border-gray-700">
-          <textarea value={comment} onChange={(event) => setComment(event.target.value)} required rows={3} placeholder={t('tickets.detail.updatePlaceholder')} className="w-full rounded-md border p-2 dark:bg-gray-700" />
-          <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} /> {t('tickets.detail.internalWorkNote')}</label>
-          <button disabled={working} className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.addUpdate')}</button>
-        </form>}
-        {!canWrite && user?.id === ticket.requester?.id && <form onSubmit={requesterCommentSubmit} className="mt-4 border-t pt-4 dark:border-gray-700">
-          <textarea value={requesterCommentText} onChange={(event) => setRequesterCommentText(event.target.value)} required rows={3} placeholder={t('tickets.detail.requesterCommentPlaceholder')} className="w-full rounded-md border p-2 dark:bg-gray-700" />
-          <button disabled={working} className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t('tickets.detail.submitComment')}</button>
-        </form>}
-    </section>
+              {canContext && <div className="mt-3">
+                <EntityPicker labelKey="tickets.detail.attachAsset" entityType="asset" multiple values={assetPickerValues} onValuesChange={setAssetPickerValues} />
+                <div className="mt-2">
+                  <button disabled={working || !assetPickerValues.length} onClick={() => void addAssets()} className="rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{t('tickets.detail.attachAssets')}</button>
+                </div>
+              </div>}
+            </section>
+          ),
+        },
+      ]}
+    />
     <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={t('tickets.detail.historyTitle')} maxWidthClassName="max-w-2xl">
         <ol className="mt-4 space-y-3">
           {history.length ? history.map((entry) => (
             <li key={entry.id} className="border-l-2 border-primary-500 pl-3">
               <p className="text-sm font-semibold">{entry.action}</p>
-              <p className="text-sm text-gray-700 dark:text-gray-200">{entry.summary}</p>
-              <time className="text-xs text-gray-500">{new Date(entry.createdAt).toLocaleString()}</time>
+              <p className="text-sm text-text-secondary">{entry.summary}</p>
+              <time className="text-xs text-text-muted">{new Date(entry.createdAt).toLocaleString()}</time>
             </li>
-          )) : <li className="text-sm text-gray-500">{t('tickets.detail.noHistory')}</li>}
+          )) : <li className="text-sm text-text-muted">{t('tickets.detail.noHistory')}</li>}
         </ol>
     </Modal>
-  </main>;
+  </PageShell>;
 }

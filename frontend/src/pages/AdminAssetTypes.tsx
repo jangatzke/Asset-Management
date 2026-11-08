@@ -253,7 +253,7 @@ const AdminAssetTypes = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('assetTypes.title')}</h1>
+        <h1 className="text-2xl font-bold text-text-primary">{t('assetTypes.title')}</h1>
         <button
           onClick={openCreateModal}
           className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md text-sm hover:bg-primary-700 dark:hover:bg-primary-600"
@@ -263,34 +263,34 @@ const AdminAssetTypes = () => {
       </div>
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-md">
+        <div className="bg-status-critical-bg border border-border-subtle text-status-critical-fg px-4 py-3 rounded-md">
           {error}
         </div>
       )}
       {success && (
-        <div className="bg-green-50 dark:bg-green-900/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-md">
+        <div className="bg-status-ok-bg border border-border-subtle text-status-ok-fg px-4 py-3 rounded-md">
           {success}
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-surface-default rounded-lg shadow">
+        <div className="p-4 border-b border-border-subtle">
           <input
             type="text"
             placeholder={t('assetTypes.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('assetTypes.loading')}</div>
+          <div className="p-8 text-center text-text-muted">{t('assetTypes.loading')}</div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-border-subtle">
             {Object.entries(groupedTypes).map(([category, types]) => (
               <div key={category} className="p-4">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                <h3 className="text-sm font-semibold text-text-primary mb-3">
                   {t(`assetTypes.categories.${category}`)}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -299,38 +299,38 @@ const AdminAssetTypes = () => {
                       key={type.id}
                       className={`border rounded-lg p-3 ${
                         type.isArchived
-                          ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 opacity-60'
-                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-300 dark:hover:border-primary-500'
+                          ? 'border-border-subtle bg-surface-sunken opacity-60'
+                          : 'border-border-subtle bg-surface-default hover:border-primary-300 dark:hover:border-primary-500'
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                          <div className="font-medium text-text-primary truncate">
                             {type.name}
                           </div>
                           {type.description && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                            <div className="text-xs text-text-muted mt-1 line-clamp-2">
                               {type.description}
                             </div>
                           )}
                         </div>
                         {type.isArchived && (
-                          <span className="text-xs text-gray-400 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                          <span className="text-xs text-text-muted bg-surface-sunken px-1.5 py-0.5 rounded">
                             {t('assetTypes.archived')}
                           </span>
                         )}
                       </div>
-                      <div className="mt-3 text-xs text-gray-600 dark:text-gray-300">
+                      <div className="mt-3 text-xs text-text-secondary">
                         <div>{t('assetTypes.inventoryEnabled')}: {type.inventoryEnabled ? t('common.yes') : t('common.no')}</div>
                         <div>{t('assetTypes.inventoryPattern')}: {type.inventoryPattern || '-'}</div>
                         <div className="mt-2 font-medium">{t('assetTypes.subtypes')}</div>
-                        {(type.subtypes ?? []).length === 0 ? <div className="text-gray-500 dark:text-gray-400">{t('assetTypes.noSubtypes')}</div> : (type.subtypes ?? []).map((subtype) => <div key={subtype.id} className="ml-2">• {subtype.name} ({subtype.inventoryPattern || type.inventoryPattern || '-'})</div>)}
+                        {(type.subtypes ?? []).length === 0 ? <div className="text-text-muted">{t('assetTypes.noSubtypes')}</div> : (type.subtypes ?? []).map((subtype) => <div key={subtype.id} className="ml-2">• {subtype.name} ({subtype.inventoryPattern || type.inventoryPattern || '-'})</div>)}
                       </div>
                       {!type.isArchived && (
-                        <div className="flex items-center gap-3 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-3 mt-3 pt-2 border-t border-border-subtle">
                           <button
                             onClick={() => openSubtypeModal(type)}
-                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-xs font-medium"
+                            className="text-status-ok-fg hover:underline text-xs font-medium"
                           >
                             {t('assetTypes.addSubtype')}
                           </button>
@@ -342,13 +342,13 @@ const AdminAssetTypes = () => {
                           </button>
                           <button
                             onClick={() => handleArchive(type.id)}
-                            className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 text-xs font-medium"
+                            className="text-status-warn-fg hover:underline text-xs font-medium"
                           >
                             {t('assetTypes.archive')}
                           </button>
                           <button
                             onClick={() => handleDelete(type.id, type.name)}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium"
+                            className="text-status-critical-fg hover:underline text-xs font-medium"
                           >
                             {t('common.delete')}
                           </button>
@@ -363,7 +363,7 @@ const AdminAssetTypes = () => {
         )}
 
         {!loading && filteredTypes.length === 0 && (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('assetTypes.noAssetTypes')}</div>
+          <div className="p-8 text-center text-text-muted">{t('assetTypes.noAssetTypes')}</div>
         )}
       </div>
 
@@ -371,22 +371,22 @@ const AdminAssetTypes = () => {
       <Modal isOpen={modalOpen} onClose={handleModalClose} title={editingType ? t('assetTypes.editAssetType') : t('assetTypes.newAssetType')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')}</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">{t('common.name')}</label>
             <input
               type="text"
               value={form.values.name}
               onChange={(e) => form.handleChange({ name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={t('assetTypes.namePlaceholder')}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assetTypes.category')}</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">{t('assetTypes.category')}</label>
             <select
               value={form.values.category}
               onChange={(e) => form.handleChange({ category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">{t('assetTypes.selectCategory')}</option>
               {categories.map((cat) => (
@@ -398,25 +398,25 @@ const AdminAssetTypes = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assetTypes.descriptionOptional')}</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">{t('assetTypes.descriptionOptional')}</label>
             <textarea
               value={form.values.description}
               onChange={(e) => form.handleChange({ description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={t('assetTypes.descriptionPlaceholder')}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={form.values.inventoryEnabled} onChange={(e) => form.handleChange({ inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
-            <input value={form.values.inventoryPattern} onChange={(e) => form.handleChange({ inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
+            <label className="flex items-center gap-2 text-sm text-text-primary"><input type="checkbox" checked={form.values.inventoryEnabled} onChange={(e) => form.handleChange({ inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
+            <input value={form.values.inventoryPattern} onChange={(e) => form.handleChange({ inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm" />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="px-4 py-2 text-sm text-text-primary border border-border-subtle rounded-md hover:bg-surface-hover"
             >
               {t('common.cancel')}
             </button>
@@ -432,11 +432,11 @@ const AdminAssetTypes = () => {
       </Modal>
       <Modal isOpen={subtypeModalOpen} onClose={handleSubtypeModalClose} title={t('assetTypes.addSubtype')} isDirty={subtypeForm.isDirty && !saving} onDiscardConfirm={handleDiscardSubtype}>
         <div className="space-y-4">
-          <input value={subtypeForm.values.name} onChange={(e) => subtypeForm.handleChange({ name: e.target.value })} placeholder={t('assetTypes.subtypeNamePlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-          <textarea value={subtypeForm.values.description} onChange={(e) => subtypeForm.handleChange({ description: e.target.value })} placeholder={t('assetTypes.descriptionPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={subtypeForm.values.inventoryEnabled} onChange={(e) => subtypeForm.handleChange({ inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
-          <input value={subtypeForm.values.inventoryPattern} onChange={(e) => subtypeForm.handleChange({ inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm" />
-          <div className="flex justify-end gap-3"><button onClick={() => { if (subtypeForm.isDirty) { handleDiscardSubtype(); } else { handleSubtypeModalClose(); } }} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md">{t('common.cancel')}</button><button onClick={handleSaveSubtype} disabled={saving} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md disabled:opacity-50">{t('common.create')}</button></div>
+          <input value={subtypeForm.values.name} onChange={(e) => subtypeForm.handleChange({ name: e.target.value })} placeholder={t('assetTypes.subtypeNamePlaceholder')} className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm" />
+          <textarea value={subtypeForm.values.description} onChange={(e) => subtypeForm.handleChange({ description: e.target.value })} placeholder={t('assetTypes.descriptionPlaceholder')} className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm" />
+          <label className="flex items-center gap-2 text-sm text-text-primary"><input type="checkbox" checked={subtypeForm.values.inventoryEnabled} onChange={(e) => subtypeForm.handleChange({ inventoryEnabled: e.target.checked })} />{t('assetTypes.inventoryEnabled')}</label>
+          <input value={subtypeForm.values.inventoryPattern} onChange={(e) => subtypeForm.handleChange({ inventoryPattern: e.target.value })} placeholder={t('assetTypes.inventoryPatternPlaceholder')} className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm" />
+          <div className="flex justify-end gap-3"><button onClick={() => { if (subtypeForm.isDirty) { handleDiscardSubtype(); } else { handleSubtypeModalClose(); } }} className="px-4 py-2 text-sm text-text-primary border border-border-subtle rounded-md">{t('common.cancel')}</button><button onClick={handleSaveSubtype} disabled={saving} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md disabled:opacity-50">{t('common.create')}</button></div>
         </div>
       </Modal>
 

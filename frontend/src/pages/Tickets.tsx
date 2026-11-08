@@ -4,10 +4,14 @@ import { PlusIcon } from '@heroicons/react/24/outline';
 import { ticketApi, type TicketResponse } from '../services/api';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
+import { ErrorAlert } from '../components/ErrorAlert';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { StatusBadge } from '../components/StatusBadge';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
+import { PageHeader } from '../components/PageHeader';
+import PageShell from '../components/PageShell';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { SkeletonTable } from '../components/SkeletonTable';
 import { PaginationControls } from '../components/PaginationControls';
 import { SavedViewsBar } from '../components/SavedViewsBar';
@@ -29,6 +33,9 @@ const ticketTypes = ['incident', 'service_request', 'problem', 'change'];
 
 export default function Tickets() {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
+  const breadcrumbs = useBreadcrumbs();
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const canWrite = Boolean(user?.roles?.some((role) => ['system_admin', 'ism_manager', 'service_desk_agent', 'it_manager'].includes(role)));
@@ -240,15 +247,14 @@ export default function Tickets() {
     scope ? { value: 'scope', label: t(`tickets.${scope}`), onRemove: () => setFilter('scope', '') } : null,
   ].filter((chip): chip is Exclude<typeof chip, null> => chip !== null);
 
-  return <main id="main-content" className="mx-auto max-w-screen-2xl p-4 sm:p-6 lg:p-8">
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('tickets.title')}</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('tickets.description')}</p>
-      </div>
-      {canWrite && <button onClick={() => setModalOpen(true)} className={buttonPrimary}><PlusIcon className="h-5 w-5" />{t('tickets.newTicket')}</button>}
-    </div>
-    {error && <div role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100">{error}</div>}
+  return <PageShell>
+    <PageHeader
+      title={t('tickets.title')}
+      breadcrumbs={breadcrumbs}
+      description={t('tickets.description')}
+      actions={canWrite && <button onClick={() => setModalOpen(true)} className={buttonPrimary}><PlusIcon className="h-5 w-5" />{t('tickets.newTicket')}</button>}
+    />
+    {error && <ErrorAlert message={error} className="mb-4" />}
     <DataTableShell
       onExport={exportVisibleTickets}
       exportLabel="Export CSV"
@@ -274,7 +280,7 @@ export default function Tickets() {
           <option value="created">{t('tickets.createdByMe')}</option>
           <option value="assigned">{t('tickets.assignedToMe')}</option>
         </select>
-        <button onClick={() => void load()} className="rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">{t('tickets.filter')}</button>
+        <button onClick={() => void load()} className="rounded-md border border-border-subtle px-4 py-2 font-medium hover:bg-surface-hover ">{t('tickets.filter')}</button>
       </div>}
     >
       <SavedViewsBar
@@ -285,29 +291,29 @@ export default function Tickets() {
         hasActiveFilters={hasActiveFilters}
       />
       {chips.length > 0 && (
-        <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-5">
+        <div className="border-b border-border-subtle px-4 py-3 sm:px-5">
           <ActiveFilters labelKey="tickets.filterTitle" clearAllKey="common.clearAll" onClearView={handleClearView} chips={chips} />
         </div>
       )}
         {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-surface-sunken border-t border-border-subtle">
+            <span className="text-sm text-text-secondary">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-text-secondary hover:underline">{t('common.cancel')}</button>
               <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
             </div>
           </div>
         )}
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+        <table className="min-w-full divide-y divide-border-subtle">
+          <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
             <tr>
-              <th className="px-6 py-3 w-10">
+              <th scope="col" className="px-4 py-2.5 w-10">
                 <input
                   type="checkbox"
                   aria-label={t('bulk.selectAll')}
                   checked={sortedTickets.length > 0 && sortedTickets.every((ticket) => selectedIds.has(ticket.id))}
                   onChange={toggleSelectAllOnPage}
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500"
                 />
               </th>
               <SortableTh column="ticket" label={t('tickets.headings.ticket')} activeColumn={sort.column} direction={sort.direction} onSort={toggleSort} />
@@ -323,7 +329,7 @@ export default function Tickets() {
           {loading ? (
             <SkeletonTable columns={9} rows={8} />
           ) : (
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className="divide-y divide-border-subtle">
             {tickets.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-8">
@@ -337,27 +343,27 @@ export default function Tickets() {
                 </td>
               </tr>
             ) : sortedTickets.map((ticket) => (
-               <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="px-6 py-3 w-10">
+               <tr key={ticket.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                <td className={`${cellClass} w-10`}>
                   <input
                     type="checkbox"
                     aria-label={t('bulk.select')}
                     checked={selectedIds.has(ticket.id)}
                     onChange={() => toggleSelected(ticket.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500"
                   />
                 </td>
-                <td className="px-4 py-3">
+                <td className={`${cellClass}`}>
                   <Link to={`/tickets/${ticket.id}`} className="font-semibold text-primary-700 hover:underline dark:text-primary-300">{ticket.displayId}</Link>
-                  <div className="max-w-sm truncate text-sm text-gray-900 dark:text-gray-100">{ticket.title}</div>
+                  <div className="max-w-sm truncate text-body2 text-text-secondary">{ticket.title}</div>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{t(`tickets.types.${ticket.type}`)}</td>
-                <td className="px-4 py-3"><StatusBadge kind="priority" value={ticket.priority} label={t(`tickets.priorities.${ticket.priority}`)} ariaLabel={t('tickets.headings.priority')} /></td>
-                <td className="px-4 py-3"><StatusBadge kind="state" value={ticket.status} label={ticket.status.replace(/_/g, ' ')} ariaLabel={t('tickets.headings.status')} /></td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.resolutionDueAt ? formatDateTime(ticket.resolutionDueAt) : '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(ticket.openedAt ?? ticket.createdAt) || '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{formatDateTime(ticket.updatedAt) || '—'}</td>
+                <td className={`${cellClass} text-body2 text-text-secondary`}>{t(`tickets.types.${ticket.type}`)}</td>
+                <td className={`${cellClass}`}><StatusBadge kind="priority" value={ticket.priority} label={t(`tickets.priorities.${ticket.priority}`)} ariaLabel={t('tickets.headings.priority')} /></td>
+                <td className={`${cellClass}`}><StatusBadge kind="state" value={ticket.status} label={ticket.status.replace(/_/g, ' ')} ariaLabel={t('tickets.headings.status')} /></td>
+                <td className={`${cellClass} text-body2 tabular-nums text-text-secondary`}>{ticket.resolutionDueAt ? formatDateTime(ticket.resolutionDueAt) : '—'}</td>
+                <td className={`${cellClass} text-body2 text-text-secondary`}>{ticket.requester ? `${ticket.requester.firstName ?? ''} ${ticket.requester.lastName ?? ''}`.trim() || ticket.requester.email : '—'}</td>
+                <td className={`${cellClass} text-body2 tabular-nums text-text-secondary`}>{formatDateTime(ticket.openedAt ?? ticket.createdAt) || '—'}</td>
+                <td className={`${cellClass} text-body2 tabular-nums text-text-secondary`}>{formatDateTime(ticket.updatedAt) || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -377,18 +383,18 @@ export default function Tickets() {
     <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={t('tickets.newTicket')}>
       <form onSubmit={submit} className="space-y-4">
         <label className="block text-sm font-medium">{t('tickets.typeLabel')}
-          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700">
+          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="mt-1 w-full rounded-md border p-2 bg-surface-default text-text-primary">
             {ticketTypes.filter((value) => value !== 'incident').map((value) => <option key={value} value={value}>{t(`tickets.types.${value}`)}</option>)}
           </select>
         </label>
-        <label className="block text-sm font-medium">{t('common.title')}<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" /></label>
-        <label className="block text-sm font-medium">{t('common.description')}<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700" rows={4}/></label>
+        <label className="block text-sm font-medium">{t('common.title')}<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1 w-full rounded-md border p-2 bg-surface-default text-text-primary" /></label>
+        <label className="block text-sm font-medium">{t('common.description')}<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1 w-full rounded-md border p-2 bg-surface-default text-text-primary" rows={4}/></label>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm font-medium">{t('tickets.headings.priority')}
-            <select value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{t(`tickets.priorities.${value}`)}</option>)}</select>
+            <select value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })} className="mt-1 w-full rounded-md border p-2 bg-surface-default text-text-primary">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{t(`tickets.priorities.${value}`)}</option>)}</select>
           </label>
           <label className="text-sm font-medium">{t('tickets.detail.priority')}
-            <select value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} className="mt-1 w-full rounded-md border p-2 dark:bg-gray-700">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{t(`tickets.priorities.${value}`)}</option>)}</select>
+            <select value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} className="mt-1 w-full rounded-md border p-2 bg-surface-default text-text-primary">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{t(`tickets.priorities.${value}`)}</option>)}</select>
           </label>
         </div>
         <div className="flex justify-end gap-3">
@@ -397,5 +403,5 @@ export default function Tickets() {
         </div>
       </form>
     </Modal>
-  </main>;
+  </PageShell>;
 }

@@ -152,7 +152,7 @@ describe('EntityPicker', () => {
       { id: 'a-2', label: 'AST-002 - Edge Firewall' },
     ]);
 
-    fireEvent.click(screen.getByRole('button', { name: '×' }));
+    fireEvent.click(screen.getByRole('button', { name: /AST-001 - Core Router/ }));
     expect(onValuesChange).toHaveBeenCalledWith([]);
   });
 

@@ -6,6 +6,7 @@
  * ID as a separate, selectable line. Pages that only store a string can use
  * `formatApiError` from `utils/apiError` and pass the result as `message`.
  */
+import { ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import type { ApiErrorInfo } from '../utils/apiError';
 
 export interface ErrorAlertProps {
@@ -40,18 +41,23 @@ export function ErrorAlert({
   if (!text) return null;
 
   const referenceId = error?.referenceId;
-  const classes = className ?? 'rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-100';
+  const classes =
+    className ??
+    'flex items-start gap-3 rounded-lg border border-status-critical-fg/30 bg-status-critical-bg p-4 text-status-critical-fg';
 
   return (
     <div role="alert" className={classes} data-testid="error-alert">
-      <span>{text}</span>
-      {referenceId && (
-        <p className="mt-1 font-mono text-xs opacity-90" data-testid="error-reference-id">
-          {referenceLabel(referenceTemplate, referenceId)}
-        </p>
-      )}
+      <ExclamationCircleIcon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-body2">{text}</p>
+        {referenceId && (
+          <p className="mt-1 font-mono text-caption opacity-90" data-testid="error-reference-id">
+            {referenceLabel(referenceTemplate, referenceId)}
+          </p>
+        )}
+      </div>
       {onDismiss && (
-        <button type="button" onClick={onDismiss} className="ml-2 font-semibold">
+        <button type="button" onClick={onDismiss} className="shrink-0 text-h3">
           {dismissLabel ?? 'Dismiss'}
         </button>
       )}

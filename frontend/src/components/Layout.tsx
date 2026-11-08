@@ -1,61 +1,60 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+/**
+ * App shell (Stage 6b, MT-2): left sidebar navigation + utility top bar.
+ *
+ * The former top-navigation strip and its JS width-measuring "More" overflow
+ * logic (ResizeObserver / clientWidth) were removed; primary navigation now
+ * lives in `Sidebar.tsx` (grouped, collapsible, off-canvas on mobile). The
+ * top bar is a utility bar only: mobile drawer toggle, command-palette trigger
+ * (⌘K), navigation-view switcher, Action Center bell, dark-mode toggle and the
+ * user menu. Grouping/ordering/permission rules live in `sharedSidebarNav.ts`
+ * and keep the admin-configured order + saved views authoritative.
+ *
+ * STAGE 6a PADDING VARIANT (unchosen-unchanged): the route container around
+ * <Outlet /> is still a NEUTRAL fallback <div> that keeps the legacy base
+ * padding/max-width for pages not yet migrated to PageShell. It does NOT render
+ * a <main> landmark — exactly one `<main id="main-content">` per page is owned
+ * by PageShell (see components/PageShell.tsx), which cancels this fallback
+ * padding with matching negative margins so there is no double padding. The
+ * sidebar sits left of this column and does not affect the horizontal padding
+ * compensation, so PageShell stays untouched. See the inline comment at the
+ * container for details.
+ */
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Outlet, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
+import { useDarkMode } from '../context/DarkModeContext';
+import { useDensity } from '../context/DensityContext';
 import {
-  HomeIcon,
-  CubeIcon,
   ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  FireIcon,
-  Cog6ToothIcon,
   CogIcon,
   ChevronDownIcon,
   UserIcon,
   KeyIcon,
   DocumentTextIcon,
   ClipboardDocumentListIcon, BellAlertIcon,
-  BanknotesIcon,
-  ServerIcon,
-  ChartBarIcon,
-  ClipboardDocumentCheckIcon,
+  CubeIcon,
+  ExclamationTriangleIcon,
+  FireIcon,
   Bars3Icon,
   XMarkIcon,
   MagnifyingGlassIcon,
   BuildingStorefrontIcon,
   Squares2X2Icon,
+  SunIcon,
+  MoonIcon,
+  Bars3BottomLeftIcon,
+  Bars3CenterLeftIcon,
 } from '@heroicons/react/24/outline';
 import { CommandPalette } from './CommandPalette';
+import { Sidebar, type SidebarEntry } from './Sidebar';
+import { isHrefActive, resolveSidebarIcon, SIDEBAR_EXTRA_CATALOG, type NavIcon } from './sharedSidebarNav';
 import { useToast } from './useToast';
 import type { CommandPaletteItem } from './CommandPalette';
 import { useKeyboardShortcuts, type KeyboardShortcutBinding } from '../hooks/useKeyboardShortcuts';
 import { searchApi, authApi, type NavigationViewResponse } from '../services/api';
 import type { SearchEntityType } from '@shared/index';
 import { NAVIGATION_CATALOG, applyNavigationView } from '@shared/navigation';
-
-// Icons live in the frontend; the shared catalog owns hrefs/labels/permissions.
-const NAV_ICONS: Record<string, typeof HomeIcon> = {
-  '/': HomeIcon,
-  '/assets': CubeIcon,
-  '/risks': ExclamationTriangleIcon,
-  '/controls': ShieldCheckIcon,
-  '/incidents': FireIcon,
-  '/tickets': ClipboardDocumentListIcon,
-  '/service-catalog': ClipboardDocumentListIcon,
-  '/nis2': ShieldCheckIcon,
-  '/contracts': DocumentTextIcon,
-  '/licenses': ClipboardDocumentListIcon,
-  '/processes': ServerIcon,
-  '/cost-planning': BanknotesIcon,
-  '/isms-operations': ChartBarIcon,
-  '/kri-dashboard': ChartBarIcon,
-  '/knowledge-base': DocumentTextIcon,
-  '/supply-chain': BuildingStorefrontIcon,
-  '/control-coverage': ShieldCheckIcon,
-  '/isms-operations/process': ClipboardDocumentCheckIcon,
-  '/risk-aggregation': ChartBarIcon,
-  '/admin/users': Cog6ToothIcon,
-};
 
 const Layout = () => {
   const location = useLocation();
@@ -69,20 +68,15 @@ const Layout = () => {
   const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
   const viewsMenuRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
+  const { darkMode, toggleDarkMode, highContrast, toggleHighContrast } = useDarkMode();
+  const { density, toggleDensity } = useDensity();
   const { addToast } = useToast();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  // Mobile off-canvas sidebar drawer (toggle lives in the utility top bar).
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const navContainerRef = useRef<HTMLDivElement>(null);
-  const logoRef = useRef<HTMLDivElement>(null);
-  const navMeasureRef = useRef<HTMLDivElement>(null);
-  // null until the first measurement runs, then the number of desktop nav items
-  // that fit in the header; the rest are collapsed into a "More" dropdown.
-  const [visibleNavCount, setVisibleNavCount] = useState<number | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -143,17 +137,6 @@ const Layout = () => {
     }
   }, [userMenuOpen]);
 
-  // Same outside-click handling for the overflow ("More") navigation dropdown.
-  useEffect(() => {
-    const closeMenu = (event: MouseEvent) => {
-      if (!moreMenuRef.current?.contains(event.target as Node)) setMoreMenuOpen(false);
-    };
-    if (moreMenuOpen) {
-      document.addEventListener('click', closeMenu);
-      return () => document.removeEventListener('click', closeMenu);
-    }
-  }, [moreMenuOpen]);
-
   // Same outside-click handling for the navigation-view switcher dropdown.
   useEffect(() => {
     const closeMenu = (event: MouseEvent) => {
@@ -166,24 +149,21 @@ const Layout = () => {
   }, [viewsMenuOpen]);
 
   useEffect(() => {
-    setMobileMenuOpen(false);
     setUserMenuOpen(false);
-    setMoreMenuOpen(false);
     setViewsMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      setMobileMenuOpen(false);
       setUserMenuOpen(false);
-      setMoreMenuOpen(false);
     };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, []);
 
-  // Close the command palette / help overlay on Escape.
+  // Close the command palette / help overlay on Escape. The mobile sidebar
+  // drawer handles its own Escape/focus-trap logic inside Sidebar.tsx.
   useEffect(() => {
     const closeOverlay = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -241,7 +221,7 @@ const Layout = () => {
       .map((entry) => ({
         name: entry.nameKey ? t(entry.nameKey) : (entry.label ?? entry.href),
         href: entry.href,
-        icon: NAV_ICONS[entry.href] ?? CogIcon,
+        icon: resolveSidebarIcon(entry.href),
         permission: entry.permission,
       }));
     const permitted = items.filter((item) => hasRequiredPermission(item.permission));
@@ -265,6 +245,22 @@ const Layout = () => {
     return applyNavigationView(permitted, { ...globalNavConfig, hiddenEntries: effectiveHiddenEntries });
   }, [t, isAdmin, hasRequiredPermission, user?.navigationOrder, user?.hiddenNavigationEntries, globalNavConfig, navViews, activeViewId]);
 
+  // Sidebar feed: the admin-ordered catalog entries (already permission- and
+  // view-filtered) plus the fixed non-catalog entries. Sidebar re-applies its
+  // identical permission gate for the extras and groups everything; within a
+  // group the incoming order is preserved, so admin ordering stays authoritative.
+  const sidebarEntries = useMemo<SidebarEntry[]>(() => {
+    const catalogEntries: SidebarEntry[] = navigation.map((item) => ({ href: item.href, name: item.name }));
+    const extraEntries: SidebarEntry[] = SIDEBAR_EXTRA_CATALOG
+      .filter((entry) => !catalogEntries.some((item) => item.href === entry.href))
+      .map((entry) => ({
+        href: entry.href,
+        name: entry.nameKey ? t(entry.nameKey) : (entry.label ?? entry.href),
+        permission: entry.permission,
+      }));
+    return [...catalogEntries, ...extraEntries];
+  }, [navigation, t]);
+
   const switchView = useCallback((viewId: string | null) => {
     setViewsMenuOpen(false);
     authApi.setActiveNavigationView(viewId)
@@ -281,106 +277,7 @@ const Layout = () => {
     return view ? view.name : t('navigation.views.default');
   }, [availableNavViews, activeViewId, t]);
 
-  const isActive = (href: string) => {
-    if (href === '/admin/users' && location.pathname.startsWith('/admin')) {
-      return true;
-    }
-    if (href === '/isms-operations') {
-      return location.pathname === '/isms-operations' || location.pathname === '/isms-phase6';
-    }
-    // Exact match or sub-path match (e.g. /isms-operations/process)
-    return location.pathname === href || location.pathname.startsWith(href + '/');
-  };
-
-  // Responsive navigation: measure how many desktop entries fit in the header
-  // and collapse the rest into a "More" dropdown instead of scrolling/clipping.
-  useLayoutEffect(() => {
-    const container = navContainerRef.current;
-    const logo = logoRef.current;
-    const measure = navMeasureRef.current;
-    if (!container || !logo || !measure) return;
-
-    const NAV_GAP = 4; // matches lg:gap-1 on the strip
-    const LOGO_NAV_MARGIN = 24; // matches lg:ml-6 between logo and nav strip
-    const MORE_BUTTON_RESERVE = 110; // width reserved for the "More" trigger
-
-    const countFitting = (widths: number[], available: number) => {
-      let used = 0;
-      let count = 0;
-      for (const width of widths) {
-        if (used + (count > 0 ? NAV_GAP : 0) + width > available) break;
-        used += width + (count > 0 ? NAV_GAP : 0);
-        count++;
-      }
-      return count;
-    };
-
-    const computeVisibleCount = () => {
-      const items = Array.from(measure.children) as HTMLElement[];
-      if (items.length === 0) {
-        setVisibleNavCount(0);
-        return;
-      }
-      // The container is a flex-1 element, so its width reflects the space that
-      // is actually available for navigation regardless of its content.
-      const available = container.clientWidth - logo.getBoundingClientRect().width - LOGO_NAV_MARGIN;
-      const widths = items.map((el) => el.getBoundingClientRect().width);
-      let count = countFitting(widths, available);
-      if (count < items.length) {
-        // Not everything fits: reserve space for the "More" trigger and recount.
-        count = countFitting(widths, available - MORE_BUTTON_RESERVE);
-      }
-      setVisibleNavCount(count);
-    };
-
-    computeVisibleCount();
-    const observer = new ResizeObserver(computeVisibleCount);
-    // Observe both the container (window resizes) and the offscreen clone
-    // (webfont loading can change item widths without any resize event).
-    observer.observe(container);
-    observer.observe(measure);
-    return () => observer.disconnect();
-  }, [navigation]);
-
-  const visibleCount = visibleNavCount ?? 0;
-  const primaryNavItems = navigation.slice(0, visibleCount);
-  const overflowNavItems = navigation.slice(visibleCount);
-  const moreMenuActive = overflowNavItems.some((item) => isActive(item.href));
-
-  const navLinkClass = (href: string) => `px-2 xl:px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${
-    isActive(href)
-      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
-  }`;
-
-  const renderNavLink = (item: { name: string; href: string; icon: typeof HomeIcon }) => (
-    <Link key={item.href} to={item.href} className={navLinkClass(item.href)}>
-      <item.icon className="h-5 w-5 inline mr-1" />
-      {item.name}
-    </Link>
-  );
-
-  const adminSubPages = [
-    { name: t('navigation.userManagement'), href: '/admin/users' },
-    { name: t('navigation.roleManagement'), href: '/admin/roles' },
-    { name: t('navigation.groupManagement'), href: '/admin/groups' },
-    { name: t('navigation.assetTypes'), href: '/admin/asset-types' },
-    { name: t('navigation.organizationUnits'), href: '/admin/organization-units' },
-    { name: t('navigation.oidcConfig'), href: '/admin/oidc' },
-    { name: t('navigation.authSettings'), href: '/admin/auth-settings' },
-    { name: t('navigation.navigationOrder'), href: '/admin/navigation' },
-    { name: t('intune.title'), href: '/admin/intune' },
-    { name: t('navigation.vmwareConfig'), href: '/admin/vmware' },
-    { name: t('navigation.proxmoxConfig'), href: '/admin/proxmox' },
-    { name: t('navigation.reminderSettings'), href: '/admin/reminders' },
-    { name: t('slaEscalation.title'), href: '/admin/sla-escalation' },
-    { name: t('emailGateway.title'), href: '/admin/email-gateway' },
-    { name: t('aiAssistant.title'), href: '/admin/ai' },
-    { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
-    { name: t('navigation.databaseBackup'), href: '/admin/database' },
-    { name: t('navigation.ticketSlaSettings'), href: '/admin/ticket-slas' },
-    { name: t('navigation.jobRuns'), href: '/admin/job-runs' },
-  ];
+  const isActive = (href: string) => isHrefActive(location.pathname, href);
 
   // List pages are the ones that expose a "create" action via `n`.
   const isListPage = ['/assets', '/risks', '/incidents', '/tickets'].includes(location.pathname);
@@ -429,7 +326,7 @@ const Layout = () => {
     licenses: { labelKey: 'navigation.licenses', icon: ClipboardDocumentListIcon, listRoute: '/licenses' },
     suppliers: { labelKey: 'navigation.supplyChain', icon: BuildingStorefrontIcon, listRoute: '/supply-chain' },
     knowledge: { labelKey: 'navigation.knowledgeBase', icon: DocumentTextIcon, listRoute: '/knowledge-base' },
-  } satisfies Record<SearchEntityType, { labelKey: string; icon: typeof HomeIcon; listRoute: string }>), []);
+  } satisfies Record<SearchEntityType, { labelKey: string; icon: NavIcon; listRoute: string }>), []);
 
   const runEntitySearch = useCallback((rawQuery: string) => {
     const query = rawQuery.trim();
@@ -521,8 +418,8 @@ const Layout = () => {
   // Early returns must come after all hook declarations.
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-sm text-gray-600 dark:text-gray-300">{t('common.loading')}</div>
+      <div className="min-h-screen bg-surface-canvas flex items-center justify-center">
+        <div className="text-sm text-text-secondary">{t('common.loading')}</div>
       </div>
     );
   }
@@ -532,341 +429,302 @@ const Layout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Skip to content link for keyboard users */}
+    <div className="flex min-h-screen bg-surface-canvas">
+      {/* Skip to content link for keyboard users — must stay the first focusable element. */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded shadow-md"
       >
         {t('common.skipToContent')}
       </a>
-      <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label={t('navigation.mainNavigation')}>
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between min-h-16 gap-3 py-2 lg:py-0">
-            {/* No overflow-hidden here: the responsive collapse keeps the nav
-                within bounds, and clipping would also cut off the "More"
-                dropdown panel. */}
-            <div ref={navContainerRef} className="flex items-center flex-1 min-w-0">
-                <div ref={logoRef} className="flex-shrink-0 flex items-center min-w-0">
-                  <ShieldCheckIcon className="h-8 w-8 text-primary-600 dark:text-primary-400" aria-hidden="true" />
-                <span className="ml-2 text-lg font-bold text-gray-900 dark:text-white truncate">
-                  {t('navigation.applicationName')}
-                </span>
-              </div>
-               {/* Responsive nav strip: entries that fit are rendered inline and
-                   the rest collapse into a "More" dropdown. This avoids both the
-                   old clipping (overflow-hidden) and an ugly scrollbar. */}
-               <div className="hidden lg:ml-6 lg:flex lg:items-center lg:gap-1 min-w-0">
-                 {primaryNavItems.map(renderNavLink)}
-                 {visibleNavCount !== null && overflowNavItems.length > 0 && (
-                   <div ref={moreMenuRef} className="relative">
-                     <button
-                       type="button"
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         setMoreMenuOpen((open) => !open);
-                       }}
-                       aria-haspopup="menu"
-                       aria-controls="overflow-navigation-menu"
-                       aria-expanded={moreMenuOpen}
-                       className={`px-2 xl:px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap inline-flex items-center gap-1 ${
-                         moreMenuActive
-                           ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                           : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
-                       }`}
-                     >
-                       {t('navigation.moreNavigation')}
-                       <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
-                     </button>
-                     {moreMenuOpen && (
-                       <div
-                         id="overflow-navigation-menu"
-                         role="menu"
-                         className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-                       >
-                         {overflowNavItems.map((item) => (
-                           <Link
-                             key={item.href}
-                             to={item.href}
-                             role="menuitem"
-                             onClick={() => setMoreMenuOpen(false)}
-                             className={`block px-4 py-2 text-sm ${
-                               isActive(item.href)
-                                 ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                             }`}
-                           >
-                             <item.icon className="h-4 w-4 inline mr-2" />
-                             {item.name}
-                           </Link>
-                         ))}
-                       </div>
-                     )}
-                   </div>
-                 )}
-               </div>
-               {/* Offscreen clone used only to measure each entry's width for the
-                   responsive calculation above; invisible and non-interactive. */}
-               <div ref={navMeasureRef} aria-hidden="true" className="hidden lg:flex absolute left-[-9999px] top-[-9999px] items-center gap-1 whitespace-nowrap pointer-events-none select-none">
-                 {navigation.map(renderNavLink)}
-               </div>
+
+      {/* Primary navigation: grouped sidebar (fixed rail on lg+, drawer below). */}
+      <Sidebar
+        entries={sidebarEntries}
+        userPermissions={user.permissions ?? null}
+        isAdmin={Boolean(isAdmin)}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
+
+      {/* Content column: utility top bar + route outlet. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 border-b border-border-subtle bg-surface-default/95 backdrop-blur">
+          <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+            {/* Left: brand (mobile only — the desktop rail shows the app name). */}
+            <div className="flex min-w-0 items-center lg:hidden">
+              <ShieldCheckIcon className="h-7 w-7 flex-shrink-0 text-primary-600" aria-hidden="true" />
+              <span className="ml-2 truncate text-base font-bold text-text-primary">{t('navigation.applicationName')}</span>
             </div>
-              <div className="flex items-center flex-shrink-0">
-                {availableNavViews.length > 0 && (
-                  <div ref={viewsMenuRef} className="relative mr-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setViewsMenuOpen((open) => !open);
-                      }}
-                      aria-haspopup="menu"
-                      aria-controls="navigation-view-menu"
-                      aria-expanded={viewsMenuOpen}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
-                      title={t('navigation.views.switchTooltip')}
+
+            {/* Right: utility controls (drawer toggle, palette, views, bell, theme, user). */}
+            <div className="ml-auto flex items-center">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="mr-2 rounded-md p-2 text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring lg:hidden"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="sidebar-drawer"
+                aria-label={t('navigation.toggleMenu')}
+              >
+                {mobileMenuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+              </button>
+              {availableNavViews.length > 0 && (
+                <div ref={viewsMenuRef} className="relative mr-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewsMenuOpen((open) => !open);
+                    }}
+                    aria-haspopup="menu"
+                    aria-controls="navigation-view-menu"
+                    aria-expanded={viewsMenuOpen}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    title={t('navigation.views.switchTooltip')}
+                  >
+                    <Squares2X2Icon className="h-5 w-5" aria-hidden="true" />
+                    <span className="hidden max-w-32 truncate sm:inline">{activeViewName}</span>
+                    <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  {viewsMenuOpen && (
+                    <div
+                      id="navigation-view-menu"
+                      role="menu"
+                      className="absolute right-0 mt-2 w-64 rounded-md border border-border-subtle bg-surface-raised py-1 shadow-e2 z-50"
                     >
-                      <Squares2X2Icon className="h-5 w-5" aria-hidden="true" />
-                      <span className="hidden max-w-32 truncate sm:inline">{activeViewName}</span>
-                      <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    {viewsMenuOpen && (
-                      <div
-                        id="navigation-view-menu"
-                        role="menu"
-                        className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => switchView(null)}
+                        className={`block w-full text-left px-4 py-2 text-sm ${
+                          activeViewId === null
+                            ? 'bg-surface-hover text-text-primary'
+                            : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+                        }`}
                       >
+                        {t('navigation.views.default')}
+                      </button>
+                      {availableNavViews.map((view) => (
                         <button
+                          key={view.id}
                           type="button"
                           role="menuitem"
-                          onClick={() => switchView(null)}
+                          onClick={() => switchView(view.id)}
                           className={`block w-full text-left px-4 py-2 text-sm ${
-                            activeViewId === null
-                              ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            view.id === activeViewId
+                              ? 'bg-surface-hover text-text-primary'
+                              : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                           }`}
                         >
-                          {t('navigation.views.default')}
+                          {view.name}
+                          {view.ownerId === null && (
+                            <span className="ml-2 text-xs text-text-muted">
+                              {t('navigation.views.globalBadge')}
+                            </span>
+                          )}
                         </button>
-                        {availableNavViews.map((view) => (
-                          <button
-                            key={view.id}
-                            type="button"
-                            role="menuitem"
-                            onClick={() => switchView(view.id)}
-                            className={`block w-full text-left px-4 py-2 text-sm ${
-                              view.id === activeViewId
-                                ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {view.name}
-                            {view.ownerId === null && (
-                              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
-                                {t('navigation.views.globalBadge')}
-                              </span>
-                            )}
-                          </button>
-                        ))}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Global search entry point — opens the command palette, which
+                  shows grouped full-text suggestions while typing. The Ctrl/Cmd+K
+                  hint mirrors the keyboard shortcut above. */}
+              <button
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                className="mr-2 inline-flex items-center gap-2 rounded-md border border-border-subtle bg-surface-sunken px-3 py-1.5 text-sm font-medium text-text-muted transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                aria-label={t('search.buttonLabel')}
+              >
+                <MagnifyingGlassIcon className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">{t('search.buttonLabel')}</span>
+                <kbd className="hidden md:inline-block rounded border border-border-subtle bg-surface-default px-1.5 text-xs font-sans leading-4">Ctrl K</kbd>
+              </button>
+              <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 transition-colors duration-fast ${isActive('/action-center') ? 'bg-surface-hover text-text-primary' : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'}`} aria-label={t('navigation.actionCenter')}>
+                <BellAlertIcon className="h-5 w-5" aria-hidden="true" />
+              </Link>
+              {/* Dark-mode toggle (semantic tokens switch via the .dark class). */}
+              <button
+                type="button"
+                onClick={toggleDarkMode}
+                className="mr-1 rounded-md p-2 text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                aria-label={t('settings.darkMode')}
+                title={t('settings.darkMode')}
+              >
+                {darkMode ? <SunIcon className="h-5 w-5" aria-hidden="true" /> : <MoonIcon className="h-5 w-5" aria-hidden="true" />}
+              </button>
+              {/* Global density toggle (Stage 10b / LT-3): compact vs. comfortable,
+                  persisted per user via DensityProvider; lists read it through
+                  DataTableShell/useTableDensity. */}
+              <button
+                type="button"
+                onClick={toggleDensity}
+                aria-pressed={density === 'compact'}
+                className="mr-1 rounded-md p-2 text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                aria-label={`${t('common.density')}: ${density === 'compact' ? t('common.densityCompact') : t('common.densityComfortable')}`}
+                title={`${t('common.density')}: ${density === 'compact' ? t('common.densityCompact') : t('common.densityComfortable')}`}
+              >
+                {density === 'compact' ? <Bars3CenterLeftIcon className="h-5 w-5" aria-hidden="true" /> : <Bars3BottomLeftIcon className="h-5 w-5" aria-hidden="true" />}
+              </button>
+              {/* High-contrast toggle (Stage 10c / LT-6): applies .contrast-high on
+                  <html>, which overrides the semantic CSS variables only; persisted
+                  per device via DarkModeContext in localStorage 'am.contrast'. */}
+              <button
+                type="button"
+                onClick={toggleHighContrast}
+                aria-pressed={highContrast}
+                className="mr-1 rounded-md p-2 text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                aria-label={`${t('common.highContrast')}: ${highContrast ? t('common.highContrastOn') : t('common.highContrastOff')}`}
+                title={`${t('common.highContrast')}: ${highContrast ? t('common.highContrastOn') : t('common.highContrastOff')}`}
+              >
+                {/* Half-filled circle — the conventional contrast symbol. */}
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 3a9 9 0 0 1 0 18V3z" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+
+              {/* User Menu */}
+              <div ref={userMenuRef} className="relative ml-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUserMenuOpen(!userMenuOpen);
+                  }}
+                  className="flex items-center space-x-2 text-sm text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  aria-haspopup="menu"
+                  aria-controls="user-menu"
+                  aria-expanded={userMenuOpen}
+                  aria-label={t('navigation.userMenu')}
+                >
+                  <UserIcon className="h-5 w-5" aria-hidden="true" />
+                  <span className="hidden max-w-36 truncate font-medium sm:inline">
+                    {user?.firstName} {user?.lastName}
+                  </span>
+                  <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                {userMenuOpen && (
+                  <div
+                    id="user-menu"
+                    role="menu"
+                    className="absolute right-0 mt-2 w-56 rounded-md border border-border-subtle bg-surface-raised py-1 shadow-e2 z-50"
+                  >
+                    <div className="border-b border-border-subtle px-4 py-2">
+                      <div className="text-sm font-medium text-text-primary">
+                        {user?.email}
                       </div>
-                    )}
+                      <div className="mt-1 text-xs text-text-muted">
+                        {user?.isOidcLinked ? (
+                          <span className="text-primary-600">
+                            {t('settings.oidcLinked')}
+                          </span>
+                        ) : (
+                          <span>{t('settings.localAccount')}</span>
+                        )}
+                      </div>
+                    </div>
+                    <Link
+                      to="/settings"
+                      role="menuitem"
+                      className="block px-4 py-2 text-sm text-text-secondary transition-colors duration-fast hover:bg-surface-hover hover:text-text-primary"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <CogIcon className="h-4 w-4 inline mr-2" />
+                      {t('settings.title')}
+                    </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 transition-colors duration-fast hover:bg-surface-hover dark:text-red-400"
+                    >
+                      <KeyIcon className="h-4 w-4 inline mr-2" />
+                      {t('navigation.logout')}
+                    </button>
                   </div>
                 )}
-                {/* Global search entry point — opens the command palette, which
-                    now shows grouped full-text suggestions while typing. The
-                    Ctrl/Cmd+K hint mirrors the keyboard shortcut above. */}
-                <button
-                  type="button"
-                  onClick={() => setPaletteOpen(true)}
-                  className="mr-2 inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-                  aria-label={t('search.buttonLabel')}
-                >
-                  <MagnifyingGlassIcon className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t('search.buttonLabel')}</span>
-                  <kbd className="hidden md:inline-block rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-1.5 text-xs font-sans leading-4">Ctrl K</kbd>
-                </button>
-               <Link to="/action-center" data-testid="action-center-nav" className={`relative mr-2 rounded-md p-2 ${isActive('/action-center') ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`} aria-label={t('navigation.actionCenter')}>
-                  <BellAlertIcon className="h-5 w-5" aria-hidden="true" />
-               </Link>
-               <button
-                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                 className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 mr-2"
-                 aria-expanded={mobileMenuOpen}
-                 aria-controls="mobile-navigation-menu"
-                 aria-label={t('navigation.toggleMenu')}
-               >
-                 {mobileMenuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
-               </button>
+              </div>
+            </div>
+          </div>
+        </header>
 
-               {/* User Menu */}
-               <div ref={userMenuRef} className="relative ml-1">
-                 <button
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     setUserMenuOpen(!userMenuOpen);
-                   }}
-                   className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:outline-none"
-                   aria-haspopup="menu"
-                   aria-controls="user-menu"
-                   aria-expanded={userMenuOpen}
-                   aria-label={t('navigation.userMenu')}
-                 >
-                   <UserIcon className="h-5 w-5" aria-hidden="true" />
-                   <span className="hidden max-w-36 truncate font-medium sm:inline">
-                     {user?.firstName} {user?.lastName}
-                   </span>
-                   <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
-                 </button>
+        {/* Stage 6a (MT-1) padding variant — chosen approach: this route
+            container is a NEUTRAL fallback box. It keeps the previous base
+            padding but applies NO max-width (PageShell is the single width
+            instance), and it no longer renders a <main> landmark.
+            Pages migrated to PageShell cancel this base padding with matching
+            negative margins (see PageShell.tsx header) and provide the single
+            `<main id="main-content">` themselves — skip-link target included.
+            Do NOT reintroduce a <main> here; exactly one per page, owned by
+            PageShell. The sidebar sits outside this column, so the horizontal
+            negative-margin compensation is unaffected (Stage 6b). */}
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+          <Outlet />
+        </div>
+      </div>
 
-                 {userMenuOpen && (
-                   <div
-                     id="user-menu"
-                     role="menu"
-                     className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-                   >
-                     <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                       <div className="font-medium text-gray-900 dark:text-white">
-                         {user?.email}
-                       </div>
-                       <div className="text-xs mt-1">
-                         {user?.isOidcLinked ? (
-                           <span className="text-primary-600 dark:text-primary-400">
-                             {t('settings.oidcLinked')}
-                           </span>
-                         ) : (
-                           <span className="text-gray-500">{t('settings.localAccount')}</span>
-                         )}
-                       </div>
-                     </div>
-                     <Link
-                       to="/settings"
-                       role="menuitem"
-                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                       onClick={() => setUserMenuOpen(false)}
-                     >
-                       <CogIcon className="h-4 w-4 inline mr-2" />
-                       {t('settings.title')}
-                     </Link>
-                     <button
-                       type="button"
-                       role="menuitem"
-                       onClick={() => {
-                         setUserMenuOpen(false);
-                         logout();
-                       }}
-                       className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                     >
-                       <KeyIcon className="h-4 w-4 inline mr-2" />
-                       {t('navigation.logout')}
-                     </button>
-                   </div>
-                 )}
-               </div>
-             </div>
-           </div>
-           {mobileMenuOpen && (
-             <div id="mobile-navigation-menu" className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-3" role="navigation" aria-label={t('navigation.mobileNavigation')}>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                 {navigation.map((item) => (
-                   <Link
-                     key={item.name}
-                     to={item.href}
-                     onClick={() => setMobileMenuOpen(false)}
-                     className={`px-3 py-2 rounded-md text-sm font-medium ${
-                       isActive(item.href)
-                         ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                         : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
-                     }`}
-                   >
-                     <item.icon className="h-5 w-5 inline mr-1" />
-                     {item.name}
-                   </Link>
-                 ))}
-               </div>
-             </div>
-           )}
-         </div>
-       </nav>
-       {isAdmin && location.pathname.startsWith('/admin') && (
-         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm border-b border-gray-200 dark:border-gray-700 mb-6 py-3 overflow-visible">
-             {adminSubPages.map((page) => (
-               <Link
-                 key={page.href}
-                 to={page.href}
-                 className={`font-medium whitespace-nowrap ${
-                   location.pathname === page.href
-                     ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-600 dark:border-primary-400'
-                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                 }`}
-               >
-                 {page.name}
-               </Link>
-             ))}
-           </nav>
-         </div>
-       )}
-       <main id="main-content" className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
-         <Outlet />
-       </main>
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        items={paletteItems}
+        placeholder={t('shortcuts.commandPalettePlaceholder')}
+        title={t('shortcuts.commandPalette')}
+        onQueryChange={handlePaletteQueryChange}
+      />
 
-       <CommandPalette
-         isOpen={paletteOpen}
-         onClose={() => setPaletteOpen(false)}
-         items={paletteItems}
-         placeholder={t('shortcuts.commandPalettePlaceholder')}
-         title={t('shortcuts.commandPalette')}
-         onQueryChange={handlePaletteQueryChange}
-       />
-
-       {helpOpen && (
-         <div
-           className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-gray-900/50 p-4 dark:bg-black/50"
-           onClick={() => setHelpOpen(false)}
-           role="dialog"
-           aria-modal="true"
-           aria-label={t('shortcuts.title')}
-         >
-           <div
-             className="w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
-             onClick={(e) => e.stopPropagation()}
-           >
-             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-               <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('shortcuts.title')}</h2>
-               <button
-                 type="button"
-                 onClick={() => setHelpOpen(false)}
-                 className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                 aria-label={t('common.close')}
-               >
-                 <XMarkIcon className="h-5 w-5" />
-               </button>
-             </div>
-             <ul className="max-h-96 space-y-3 overflow-y-auto p-4 text-sm" role="list">
-               {helpEntries.map((entry, index) => (
-                 <li key={index} className="flex items-center justify-between gap-4" role="listitem">
-                   <span className="text-gray-700 dark:text-gray-300">{entry.description}</span>
-                   <span className="flex flex-shrink-0 items-center gap-1">
-                     {entry.keys.map((key, i) => (
-                       <span
-                         key={i}
-                         className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 px-1.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300"
-                       >
-                         {key}
-                       </span>
-                     ))}
-                   </span>
-                 </li>
-               ))}
-             </ul>
-             <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
-               {t('shortcuts.pressToClose')}
-             </div>
-           </div>
-         </div>
-       )}
-     </div>
-   );
+      {helpOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-gray-900/50 p-4 dark:bg-black/50"
+          onClick={() => setHelpOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('shortcuts.title')}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('shortcuts.title')}</h2>
+              <button
+                type="button"
+                onClick={() => setHelpOpen(false)}
+                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                aria-label={t('common.close')}
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <ul className="max-h-96 space-y-3 overflow-y-auto p-4 text-sm" role="list">
+              {helpEntries.map((entry, index) => (
+                <li key={index} className="flex items-center justify-between gap-4" role="listitem">
+                  <span className="text-gray-700 dark:text-gray-300">{entry.description}</span>
+                  <span className="flex flex-shrink-0 items-center gap-1">
+                    {entry.keys.map((key, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 px-1.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {key}
+                      </span>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
+              {t('shortcuts.pressToClose')}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Layout;

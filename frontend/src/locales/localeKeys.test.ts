@@ -423,6 +423,18 @@ test('email gateway admin locale keys resolve in all locales', () => {
   }
 });
 
+test('global density toggle locale keys resolve in all locales', () => {
+  const keys = ['common.density', 'common.densityComfortable', 'common.densityCompact'];
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
 function flattenKeys(tree: Record<string, unknown>, prefix = ''): string[] {
   const keys: string[] = [];
   for (const [key, value] of Object.entries(tree)) {

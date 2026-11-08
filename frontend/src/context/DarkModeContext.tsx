@@ -6,12 +6,27 @@ interface DarkModeContextType {
   darkMode: boolean;
   toggleDarkMode: () => void;
   setDarkMode: (value: boolean) => void;
+  /** Stage 10c / LT-6: local high-contrast preference ('am.contrast'). */
+  highContrast: boolean;
+  toggleHighContrast: () => void;
+  setHighContrast: (value: boolean) => void;
 }
 
 const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined);
 
 function getSystemDarkMode(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Stage 10c: high contrast is a device-local preference (like density). */
+const CONTRAST_STORAGE_KEY = 'am.contrast';
+
+function readStoredHighContrast(): boolean {
+  try {
+    return localStorage.getItem(CONTRAST_STORAGE_KEY) === 'high';
+  } catch {
+    return false;
+  }
 }
 
 export function DarkModeProvider({ children }: { children: ReactNode }) {
@@ -25,6 +40,33 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
     }
     return getSystemDarkMode();
   });
+
+  const [highContrast, setHighContrastState] = useState<boolean>(readStoredHighContrast);
+
+  // Keep other tabs in sync with the local high-contrast preference.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === CONTRAST_STORAGE_KEY) {
+        setHighContrastState(event.newValue === 'high');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Apply the .contrast-high class (mirrors the .dark handling above).
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONTRAST_STORAGE_KEY, highContrast ? 'high' : 'normal');
+    } catch {
+      // Storage unavailable (private mode etc.) — preference stays session-only.
+    }
+    if (highContrast) {
+      document.documentElement.classList.add('contrast-high');
+    } else {
+      document.documentElement.classList.remove('contrast-high');
+    }
+  }, [highContrast]);
 
   // Sync from user profile when loaded
   useEffect(() => {
@@ -67,8 +109,16 @@ export function DarkModeProvider({ children }: { children: ReactNode }) {
     setDarkMode(!darkMode);
   }, [darkMode, setDarkMode]);
 
+  const setHighContrast = useCallback((value: boolean) => {
+    setHighContrastState(value);
+  }, []);
+
+  const toggleHighContrast = useCallback(() => {
+    setHighContrastState((current) => !current);
+  }, []);
+
   return (
-    <DarkModeContext.Provider value={{ darkMode, toggleDarkMode, setDarkMode }}>
+    <DarkModeContext.Provider value={{ darkMode, toggleDarkMode, setDarkMode, highContrast, toggleHighContrast, setHighContrast }}>
       {children}
     </DarkModeContext.Provider>
   );

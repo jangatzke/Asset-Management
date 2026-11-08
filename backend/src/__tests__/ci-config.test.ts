@@ -68,6 +68,45 @@ describe("CI Configuration Validation (Phase 12)", () => {
     }
   });
 
+  describe("Lint job gates (backend + frontend max-warnings 0)", () => {
+    // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
+
+    it("lint job must run backend lint explicitly as a separate step", () => {
+      const section = extractJob("lint");
+      expect(section).toBeTruthy();
+      expect(section).toContain("Run backend lint");
+      expect(section).toContain("npm run lint --workspace backend");
+    });
+
+    it("lint job must enforce a frontend lint gate via npm run lint:ci --workspace frontend", () => {
+      const section = extractJob("lint");
+      expect(section).toBeTruthy();
+      expect(section).toContain("Run frontend lint");
+      expect(section).toContain("npm run lint:ci --workspace frontend");
+    });
+
+    it("frontend lint:ci script must chain ESLint --max-warnings 0 and the design-token guardrail", () => {
+      const pkgPath = path.join(__dirname, "..", "..", "..", "frontend", "package.json");
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
+        scripts: Record<string, string>;
+      };
+      // lint:ci delegates to the strict local chain...
+      expect(pkg.scripts["lint:ci"]).toContain("npm run lint");
+      // ...which must fail on any warning and run the token ratchet.
+      expect(pkg.scripts.lint).toContain("--max-warnings 0");
+      expect(pkg.scripts.lint).toContain("check-design-tokens");
+    });
+
+    it("lint job must not neutralize lint failures with '|| true'", () => {
+      const section = extractJob("lint");
+      expect(section).toBeTruthy();
+      const runLines = (section ?? "").split("\n").filter((l) => l.includes("run:"));
+      for (const line of runLines) {
+        expect(line).not.toContain("|| true");
+      }
+    });
+  });
+
   describe("No security neutralization", () => {
     // extractJob is hoisted to the describe scope above (single fixed-regex implementation).
 

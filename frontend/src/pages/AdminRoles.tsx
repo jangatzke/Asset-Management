@@ -18,8 +18,8 @@ type RoleForm = { name: string; description: string; permissionNames: string[]; 
 const emptyForm = (): RoleForm => ({ name: '', description: '', permissionNames: [], canAccessAdmin: false });
 
 const permissionCountBadge = (count: number) => {
-  if (count === 0) return 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
-  if (count >= 10) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200';
+  if (count === 0) return 'bg-surface-sunken text-text-muted';
+  if (count >= 10) return 'bg-status-ok-bg text-status-ok-fg';
   return 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200';
 };
 
@@ -39,6 +39,7 @@ const AdminRoles = () => {
     try { setRoles((await adminApi.getRoles()).data); }
     catch (error) { addToast('error', messageFrom(error, t('roles.loadError'))); }
     finally { setLoading(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- messageFrom is recreated each render and only wraps translation fallbacks; adding it would refetch roles in a loop.
   }, [addToast, t]);
 
   useEffect(() => { void loadRoles(); }, [loadRoles]);
@@ -130,8 +131,8 @@ const AdminRoles = () => {
   return <div>
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('navigation.roleManagement')}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('roles.subtitle')}</p>
+        <h1 className="text-2xl font-bold text-text-primary">{t('navigation.roleManagement')}</h1>
+        <p className="text-sm text-text-muted mt-1">{t('roles.subtitle')}</p>
       </div>
       <button
         onClick={openCreate}
@@ -142,33 +143,33 @@ const AdminRoles = () => {
       </button>
     </div>
 
-    {loading ? <div className="text-center py-8 text-gray-500">{t('common.loading')}</div> : (
+    {loading ? <div className="text-center py-8 text-text-muted">{t('common.loading')}</div> : (
       <DataTableShell onExport={exportVisibleRoles} exportLabel="Export CSV">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+        <table className="min-w-full divide-y divide-border-subtle">
+          <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
             <tr>
               <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="description" label={t('common.description')} activeColumn={sort.column} direction={sort.column === 'description' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="permissions" label={t('roles.permissions')} activeColumn={sort.column} direction={sort.column === 'permissions' ? sort.direction : ''} onSort={toggleSort} />
-              <th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('roles.adminAccess')}</th>
-              <th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
+              <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('roles.adminAccess')}</th>
+              <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('common.actions')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+          <tbody className="bg-surface-default divide-y divide-border-subtle">
             {sortedRoles.map((role) => (
-              <tr key={role.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <tr key={role.id} className="transition-colors duration-fast hover:bg-surface-hover">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 dark:text-white">{role.name}</span>
+                    <span className="font-medium text-text-primary">{role.name}</span>
                     {role.isBuiltIn && (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-surface-sunken text-text-secondary">
                         {t('roles.builtIn')}
                       </span>
                     )}
                   </div>
                 </td>
                 <td className="px-4 py-3 max-w-md">
-                  <span className="text-gray-600 dark:text-gray-300">{role.description || '—'}</span>
+                  <span className="text-text-secondary">{role.description || '—'}</span>
                 </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center justify-center min-w-[2.25rem] rounded-full px-2 py-0.5 text-xs font-semibold ${permissionCountBadge(role.permissionNames.length)}`}>
@@ -177,12 +178,12 @@ const AdminRoles = () => {
                 </td>
                 <td className="px-4 py-3">
                   {role.canAccessAdmin ? (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-status-warn-bg text-status-warn-fg">
                       <ShieldCheckIcon className="h-3.5 w-3.5" aria-hidden="true" />
                       {t('roles.adminAccess')}
                     </span>
                   ) : (
-                    <span className="text-gray-400 dark:text-gray-500">—</span>
+                    <span className="text-text-muted">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -190,13 +191,13 @@ const AdminRoles = () => {
                     <button
                       onClick={() => void openEdit(role)}
                       disabled={role.isBuiltIn}
-                      className="inline-flex items-center gap-1 text-primary-600 hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 text-primary-600 hover:underline disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
                     >
                       <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
                       {t('common.edit')}
                     </button>
                     {!role.isBuiltIn && (
-                      <button onClick={() => remove(role.id, role.name)} className="inline-flex items-center gap-1 text-red-600 hover:underline">
+                      <button onClick={() => remove(role.id, role.name)} className="inline-flex items-center gap-1 text-critical-600 hover:underline">
                         <TrashIcon className="h-4 w-4" aria-hidden="true" />
                         {t('common.delete')}
                       </button>
@@ -221,40 +222,40 @@ const AdminRoles = () => {
       <form onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('roles.roleName')}</span>
+            <span className="mb-1 block text-sm font-medium text-text-primary">{t('roles.roleName')}</span>
             <input
               value={form.values.name}
               onChange={(event) => form.handleChange({ name: event.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={t('roles.roleName')}
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('roles.roleDescription')}</span>
+            <span className="mb-1 block text-sm font-medium text-text-primary">{t('roles.roleDescription')}</span>
             <textarea
               value={form.values.description}
               onChange={(event) => form.handleChange({ description: event.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={t('roles.roleDescription')}
             />
           </label>
         </div>
 
-        <label className="flex items-center gap-3 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+        <label className="flex items-center gap-3 rounded-md border border-border-subtle px-3 py-2.5 cursor-pointer hover:bg-surface-hover">
           <input
             type="checkbox"
             checked={form.values.canAccessAdmin}
             onChange={toggleCanAccessAdmin}
-            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            className="h-4 w-4 rounded border-border-subtle text-primary-600 focus:ring-primary-500"
           />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('roles.adminAccess')}</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">({t('roles.adminAccessHint')})</span>
+          <span className="text-sm font-medium text-text-primary">{t('roles.adminAccess')}</span>
+          <span className="text-xs text-text-muted">({t('roles.adminAccessHint')})</span>
         </label>
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('roles.permissions')}</span>
+            <span className="text-sm font-medium text-text-primary">{t('roles.permissions')}</span>
             <span className="rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700 dark:bg-primary-900 dark:text-primary-200">
               {form.values.permissionNames.length}
             </span>
@@ -263,16 +264,16 @@ const AdminRoles = () => {
             {Object.entries(PERMISSION_GROUPS)
               .filter(([group]) => group !== 'Administration')
               .map(([group, permissions]) => (
-              <fieldset key={group} className="rounded-md border border-gray-200 dark:border-gray-700 p-2">
-                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t(`permissionGroups.${group}`)}</legend>
+              <fieldset key={group} className="rounded-md border border-border-subtle p-2">
+                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`permissionGroups.${group}`)}</legend>
                 <div className="mt-1 space-y-1">
                   {permissions.map((permission) => (
-                    <label key={permission} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <label key={permission} className="flex items-center gap-2 text-xs text-text-primary cursor-pointer">
                       <input
                         type="checkbox"
                         checked={form.values.permissionNames.includes(permission)}
                         onChange={() => togglePermission(permission)}
-                        className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        className="h-3.5 w-3.5 rounded border-border-subtle text-primary-600 focus:ring-primary-500"
                       />
                       <span>{permission}</span>
                     </label>
@@ -283,12 +284,12 @@ const AdminRoles = () => {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-3">
+        <div className="flex justify-end gap-2 border-t border-border-subtle pt-3">
           <button
             type="button"
             disabled={saving}
             onClick={() => { if (form.isDirty) { handleDiscard(); } else { handleModalClose(); } }}
-            className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm border border-border-subtle rounded-md text-text-primary hover:bg-surface-hover"
           >
             {t('common.cancel')}
           </button>

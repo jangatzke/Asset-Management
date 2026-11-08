@@ -41,7 +41,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({ page, to
     setJumpValue('');
   };
 
-  const navButton = 'px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500';
+  const navButton = 'px-3 py-1 border border-border-subtle rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary-500';
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
@@ -53,7 +53,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({ page, to
           {pageWindow(page, totalPages).map((entry, index) =>
             entry === 'ellipsis' ? (
               <li key={`ellipsis-${index}`} aria-hidden="true">
-                <span className="px-2 py-1 text-sm text-gray-400">…</span>
+                <span className="px-2 py-1 text-sm text-text-muted">…</span>
               </li>
             ) : (
               <li key={entry}>
@@ -65,7 +65,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({ page, to
                   className={`min-w-[2rem] px-3 py-1 text-sm rounded-md border focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                     entry === page
                       ? 'bg-primary-600 text-white border-primary-600 font-medium'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      : 'border-border-subtle text-text-primary hover:bg-surface-hover'
                   }`}
                 >
                   {entry}
@@ -74,9 +74,9 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({ page, to
             ),
           )}
         </ul>
-        <span className="text-sm text-gray-500 dark:text-gray-400 px-2" aria-hidden="true">{page} / {totalPages}</span>
+        <span className="text-sm text-text-muted px-2" aria-hidden="true">{page} / {totalPages}</span>
         <form onSubmit={handleJump} className="flex items-center gap-1 ml-2">
-          <label htmlFor={`pagination-jump-${totalPages}`} className="text-sm text-gray-500 dark:text-gray-400">
+          <label htmlFor={`pagination-jump-${totalPages}`} className="text-sm text-text-muted">
             {t('pagination.goTo')}
           </label>
           <input
@@ -87,7 +87,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({ page, to
             value={jumpValue}
             onChange={(e) => setJumpValue(e.target.value)}
             aria-label={t('pagination.jumpAriaLabel')}
-            className="w-16 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-16 rounded-md border border-border-subtle bg-surface-default px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </form>
       </nav>

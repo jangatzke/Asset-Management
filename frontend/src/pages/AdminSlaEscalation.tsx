@@ -109,6 +109,7 @@ export default function AdminSlaEscalation() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial SLA escalation config/log load only; load is recreated each render and adding it would refetch in a loop.
   }, []);
 
   const load = async () => {
@@ -172,67 +173,67 @@ export default function AdminSlaEscalation() {
     else setConfig((prev) => ({ ...prev, escalationLevels: [...current, level].sort((a, b) => a - b) }));
   };
 
-  if (loading) return <div className="p-6 text-gray-700 dark:text-gray-200">{t('slaEscalation.loading')}</div>;
+  if (loading) return <div className="p-6 text-text-primary">{t('slaEscalation.loading')}</div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">{t('slaEscalation.title')}</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t('slaEscalation.subtitle')}</p>
+        <h1 className="text-2xl font-semibold text-text-primary">{t('slaEscalation.title')}</h1>
+        <p className="text-sm text-text-secondary">{t('slaEscalation.subtitle')}</p>
       </div>
 
-      {message && <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">{message}</div>}
-      {error && <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+      {message && <div className="rounded-md border border-border-subtle bg-status-ok-bg p-3 text-sm text-status-ok-fg">{message}</div>}
+      {error && <div className="rounded-md border border-border-subtle bg-status-critical-bg p-3 text-sm text-status-critical-fg">{error}</div>}
 
-      <section className="rounded-lg bg-white dark:bg-gray-800 shadow p-5 space-y-4">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('slaEscalation.policy')}</h2>
-        <label className="flex items-center gap-3 text-sm text-gray-800 dark:text-gray-200">
+      <section className="rounded-lg bg-surface-default shadow p-5 space-y-4">
+        <h2 className="text-lg font-medium text-text-primary">{t('slaEscalation.policy')}</h2>
+        <label className="flex items-center gap-3 text-sm text-text-primary">
           <input type="checkbox" checked={config.enabled} onChange={(e) => update('enabled', e.target.checked)} />
           {t('slaEscalation.enableEscalation')}
         </label>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.intervalMinutes')}
-            <input className="mt-1 w-full rounded border p-2 dark:bg-gray-900" type="number" min={5} max={10080} value={config.intervalMinutes} onChange={(e) => update('intervalMinutes', Number(e.target.value))} />
+          <label className="text-sm text-text-primary">{t('slaEscalation.intervalMinutes')}
+            <input className="mt-1 w-full rounded border p-2 bg-surface-default" type="number" min={5} max={10080} value={config.intervalMinutes} onChange={(e) => update('intervalMinutes', Number(e.target.value))} />
           </label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.delayBeforeLevel')}
-            <input className="mt-1 w-full rounded border p-2 dark:bg-gray-900" type="number" min={1} value={config.escalationDelayMinutes} onChange={(e) => update('escalationDelayMinutes', Number(e.target.value))} />
+          <label className="text-sm text-text-primary">{t('slaEscalation.delayBeforeLevel')}
+            <input className="mt-1 w-full rounded border p-2 bg-surface-default" type="number" min={1} value={config.escalationDelayMinutes} onChange={(e) => update('escalationDelayMinutes', Number(e.target.value))} />
           </label>
         </div>
         <div className="space-y-2">
-          <span className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.levels')}</span>
+          <span className="text-sm text-text-primary">{t('slaEscalation.levels')}</span>
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5].map((level) => (
-              <button key={level} type="button" onClick={() => toggleLevel(level)} className={`px-3 py-1 rounded text-sm border ${config.escalationLevels?.includes(level) ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-200'}`}>Level {level}</button>
+              <button key={level} type="button" onClick={() => toggleLevel(level)} className={`px-3 py-1 rounded text-sm border ${config.escalationLevels?.includes(level) ? 'bg-primary-600 text-white' : 'bg-surface-default text-text-primary'}`}>Level {level}</button>
             ))}
           </div>
         </div>
         <div className="space-y-2">
-          <span className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.notifyOnBreach')}</span>
-          <label className="flex items-center gap-3 text-sm text-gray-800 dark:text-gray-200">
+          <span className="text-sm text-text-primary">{t('slaEscalation.notifyOnBreach')}</span>
+          <label className="flex items-center gap-3 text-sm text-text-primary">
             <input type="checkbox" checked={config.notifyAssignee} onChange={(e) => update('notifyAssignee', e.target.checked)} />
             {t('slaEscalation.notifyAssignee')}
           </label>
-          <label className="flex items-center gap-3 text-sm text-gray-800 dark:text-gray-200">
+          <label className="flex items-center gap-3 text-sm text-text-primary">
             <input type="checkbox" checked={config.notifyManager} onChange={(e) => update('notifyManager', e.target.checked)} />
             {t('slaEscalation.notifyManager')}
           </label>
-          <label className="flex items-center gap-3 text-sm text-gray-800 dark:text-gray-200">
+          <label className="flex items-center gap-3 text-sm text-text-primary">
             <input type="checkbox" checked={config.notifyEmail} onChange={(e) => update('notifyEmail', e.target.checked)} />
             {t('slaEscalation.notifyEmail')}
           </label>
         </div>
-        <div className="text-sm text-gray-600 dark:text-gray-300">{t('slaEscalation.lastRun')}: {config.lastRunAt ? new Date(config.lastRunAt).toLocaleString() : t('slaEscalation.never')} · {t('slaEscalation.nextRun')}: {config.nextRunAt ? new Date(config.nextRunAt).toLocaleString() : t('slaEscalation.notScheduled')} · {t('slaEscalation.status')}: {config.lastRunStatus ?? 'n/a'} {config.lastRunMessage ? `(${config.lastRunMessage})` : ''}</div>
+        <div className="text-sm text-text-secondary">{t('slaEscalation.lastRun')}: {config.lastRunAt ? new Date(config.lastRunAt).toLocaleString() : t('slaEscalation.never')} · {t('slaEscalation.nextRun')}: {config.nextRunAt ? new Date(config.nextRunAt).toLocaleString() : t('slaEscalation.notScheduled')} · {t('slaEscalation.status')}: {config.lastRunStatus ?? 'n/a'} {config.lastRunMessage ? `(${config.lastRunMessage})` : ''}</div>
       </section>
 
-      <section className="rounded-lg bg-white dark:bg-gray-800 shadow p-5 space-y-4">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('slaEscalation.smtpSettings')}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t('slaEscalation.secretsWriteOnly')}</p>
+      <section className="rounded-lg bg-surface-default shadow p-5 space-y-4">
+        <h2 className="text-lg font-medium text-text-primary">{t('slaEscalation.smtpSettings')}</h2>
+        <p className="text-sm text-text-secondary">{t('slaEscalation.secretsWriteOnly')}</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.smtpHost')}<input className="mt-1 w-full rounded border p-2 dark:bg-gray-900" value={config.smtpHost ?? ''} onChange={(e) => update('smtpHost', e.target.value)} /></label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.port')}<input className="mt-1 w-full rounded border p-2 dark:bg-gray-900" type="number" value={config.smtpPort} onChange={(e) => update('smtpPort', Number(e.target.value))} /></label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.smtpUser')}<input className="mt-1 w-full rounded border p-2 dark:bg-gray-900" value={config.smtpUser ?? ''} onChange={(e) => update('smtpUser', e.target.value)} /></label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">{t('slaEscalation.smtpPassword')}<input className="mt-1 w-full rounded border p-2 dark:bg-gray-900" type="password" placeholder={config.smtpPasswordConfigured ? '********' : ''} value={config.smtpPassword ?? ''} onChange={(e) => update('smtpPassword', e.target.value)} /></label>
-          <div className="flex flex-col justify-end gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">{t('slaEscalation.smtpHost')}<input className="mt-1 w-full rounded border p-2 bg-surface-default" value={config.smtpHost ?? ''} onChange={(e) => update('smtpHost', e.target.value)} /></label>
+          <label className="text-sm text-text-primary">{t('slaEscalation.port')}<input className="mt-1 w-full rounded border p-2 bg-surface-default" type="number" value={config.smtpPort} onChange={(e) => update('smtpPort', Number(e.target.value))} /></label>
+          <label className="text-sm text-text-primary">{t('slaEscalation.smtpUser')}<input className="mt-1 w-full rounded border p-2 bg-surface-default" value={config.smtpUser ?? ''} onChange={(e) => update('smtpUser', e.target.value)} /></label>
+          <label className="text-sm text-text-primary">{t('slaEscalation.smtpPassword')}<input className="mt-1 w-full rounded border p-2 bg-surface-default" type="password" placeholder={config.smtpPasswordConfigured ? '********' : ''} value={config.smtpPassword ?? ''} onChange={(e) => update('smtpPassword', e.target.value)} /></label>
+          <div className="flex flex-col justify-end gap-2 text-sm text-text-primary">
             <label><input type="checkbox" checked={config.smtpSecure} onChange={(e) => update('smtpSecure', e.target.checked)} /> {t('slaEscalation.useImplicitTLS')}</label>
             <label><input type="checkbox" checked={config.smtpRejectUnauthorized} onChange={(e) => update('smtpRejectUnauthorized', e.target.checked)} /> {t('slaEscalation.validateTLS')}</label>
           </div>
@@ -241,17 +242,17 @@ export default function AdminSlaEscalation() {
 
       <div className="flex gap-2 flex-wrap">
         <button onClick={save} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50">{saving ? t('slaEscalation.saving') : t('slaEscalation.saveSettings')}</button>
-        <button onClick={testSmtp} className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800">{t('slaEscalation.testSmtp')}</button>
-        <button onClick={runNow} className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">{t('slaEscalation.runNow')}</button>
+        <button onClick={testSmtp} className="px-4 py-2 rounded border border-border-subtle text-text-primary hover:bg-surface-hover">{t('slaEscalation.testSmtp')}</button>
+        <button onClick={runNow} className="px-4 py-2 bg-warn-600 text-white rounded hover:bg-warn-700">{t('slaEscalation.runNow')}</button>
       </div>
 
-      <DataTableShell toolbar={<h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('slaEscalation.recentLog')}</h2>} onExport={exportVisibleLogs} exportLabel="Export CSV">
+      <DataTableShell toolbar={<h2 className="text-lg font-medium text-text-primary">{t('slaEscalation.recentLog')}</h2>} onExport={exportVisibleLogs} exportLabel="Export CSV">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700"><tr><SortableTh column="time" label={t('slaEscalation.time')} activeColumn={sort.column} direction={sort.column === 'time' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="ticket" label={t('slaEscalation.ticket')} activeColumn={sort.column} direction={sort.column === 'ticket' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="breach" label={t('slaEscalation.breach')} activeColumn={sort.column} direction={sort.column === 'breach' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="level" label={t('slaEscalation.level')} activeColumn={sort.column} direction={sort.column === 'level' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="via" label={t('slaEscalation.via')} activeColumn={sort.column} direction={sort.column === 'via' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="error" label={t('slaEscalation.error')} activeColumn={sort.column} direction={sort.column === 'error' ? sort.direction : ''} onSort={toggleSort} /></tr></thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {sortedLogs.map((log) => <tr key={log.id} className="text-gray-800 dark:text-gray-100"><td className="p-2">{new Date(log.createdAt).toLocaleString()}</td><td className="p-2">{log.ticket?.displayId ?? 'n/a'}</td><td className="p-2">{BREACH_LABELS[log.breachType] ?? log.breachType}</td><td className="p-2">Level {log.level}</td><td className="p-2">{SENT_VIA_LABELS[log.sentVia] ?? log.sentVia}</td><td className="p-2">{log.status}</td><td className="p-2">{log.errorMessage ?? ''}</td></tr>)}
-              {sortedLogs.length === 0 && <tr><td className="p-3 text-gray-500" colSpan={7}>{t('slaEscalation.noLogEntries')}</td></tr>}
+          <table className="min-w-full divide-y divide-border-subtle">
+            <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted"><tr><SortableTh column="time" label={t('slaEscalation.time')} activeColumn={sort.column} direction={sort.column === 'time' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="ticket" label={t('slaEscalation.ticket')} activeColumn={sort.column} direction={sort.column === 'ticket' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="breach" label={t('slaEscalation.breach')} activeColumn={sort.column} direction={sort.column === 'breach' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="level" label={t('slaEscalation.level')} activeColumn={sort.column} direction={sort.column === 'level' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="via" label={t('slaEscalation.via')} activeColumn={sort.column} direction={sort.column === 'via' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} /><SortableTh column="error" label={t('slaEscalation.error')} activeColumn={sort.column} direction={sort.column === 'error' ? sort.direction : ''} onSort={toggleSort} /></tr></thead>
+            <tbody className="bg-surface-default divide-y divide-border-subtle">
+              {sortedLogs.map((log) => <tr key={log.id} className="text-text-primary transition-colors duration-fast hover:bg-surface-hover"><td className="px-4 py-3 text-body2 tabular-nums">{new Date(log.createdAt).toLocaleString()}</td><td className="px-4 py-3 text-body2 tabular-nums">{log.ticket?.displayId ?? 'n/a'}</td><td className="px-4 py-3 text-body2">{BREACH_LABELS[log.breachType] ?? log.breachType}</td><td className="px-4 py-3 text-body2 tabular-nums">Level {log.level}</td><td className="px-4 py-3 text-body2">{SENT_VIA_LABELS[log.sentVia] ?? log.sentVia}</td><td className="px-4 py-3 text-body2">{log.status}</td><td className="px-4 py-3 text-body2">{log.errorMessage ?? ''}</td></tr>)}
+              {sortedLogs.length === 0 && <tr><td className="px-4 py-8 text-body2 text-text-muted" colSpan={7}>{t('slaEscalation.noLogEntries')}</td></tr>}
             </tbody>
           </table>
         </div>

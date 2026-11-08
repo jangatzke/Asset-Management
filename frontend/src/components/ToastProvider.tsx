@@ -1,12 +1,14 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { ToastContext, type Toast, type ToastAction, type ToastPosition, type ToastType } from './ToastContext';
 import { useI18n } from '../context/I18nContext';
 
-const ICONS: Record<ToastType, string> = {
-  success: '✓',
-  error: '✕',
-  warning: '⚠',
-  info: 'ℹ',
+// MT-7: real Heroicons instead of text-character icons (see styles/icons.ts).
+const ICONS: Record<ToastType, typeof CheckCircleIcon> = {
+  success: CheckCircleIcon,
+  error: XMarkIcon,
+  warning: ExclamationTriangleIcon,
+  info: InformationCircleIcon,
 };
 
 const STYLES: Record<ToastType, string> = {
@@ -104,7 +106,7 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
                 className={`pointer-events-auto border rounded-lg shadow-lg p-4 flex items-start gap-3 animate-slide-in ${styles}`}
                 role="alert"
               >
-                <span className="text-lg flex-shrink-0">{ICONS[toast.type]}</span>
+                {(() => { const ToastIcon = ICONS[toast.type]; return <ToastIcon aria-hidden="true" className="h-5 w-5 flex-shrink-0" />; })()}
                 <p className="text-sm flex-1">{toast.message}</p>
                 {toast.action && (
                   <button
@@ -124,7 +126,7 @@ export const ToastProvider: React.FC<{ children: ReactNode; position?: ToastPosi
                   className="text-current opacity-60 hover:opacity-100 flex-shrink-0"
                   aria-label={t('common.dismiss')}
                 >
-                  ✕
+                  <XMarkIcon aria-hidden="true" className="h-4 w-4" />
                 </button>
               </div>
             </div>

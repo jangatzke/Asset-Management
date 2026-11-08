@@ -55,9 +55,9 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
             type="button"
             onClick={chip.onRemove}
             aria-label={t(clearAllKey ?? 'common.dismiss')}
-            className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-primary-200 dark:hover:bg-primary-800"
+            className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-primary-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring dark:hover:bg-primary-800"
           >
-            <XMarkIcon aria-hidden="true" className="h-3 w-3" />
+            <XMarkIcon aria-hidden="true" className="h-4 w-4" />
           </button>
         </span>
       ))}
@@ -65,7 +65,7 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = ({
         <button
           type="button"
           onClick={() => chips.forEach((chip) => chip.onRemove())}
-          className="text-sm font-medium text-gray-500 hover:text-gray-700 focus:outline-none dark:text-gray-400 dark:hover:text-gray-200"
+          className="rounded text-sm font-medium text-gray-500 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring dark:text-gray-400 dark:hover:text-gray-200"
         >
           {t(clearAllKey)}
         </button>

@@ -6,7 +6,7 @@
  * can assert the fallback node contract.
  */
 import '@testing-library/jest-dom';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders, flush, resetAuthUser } from '../test/renderWithProviders';
 import AssetDetail from './AssetDetail';
@@ -160,6 +160,11 @@ describe('AssetDetail page', () => {
 
   it('passes the asset identity and fallback node to the relationship graph', async () => {
     renderWithProviders(<AssetDetail />);
+    // The relationship graph now lives inside the (inactive by default) relationships tab.
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'assets.detail.relationshipsHeading' })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'assets.detail.relationshipsHeading' }));
     await waitFor(() => {
       expect(screen.getByTestId('asset-graph-stub')).toBeInTheDocument();
     });

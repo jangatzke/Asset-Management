@@ -78,63 +78,63 @@ const AdminAuthSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('authSettings.title')}</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('authSettings.description')}</p>
+        <h1 className="text-2xl font-bold text-text-primary">{t('authSettings.title')}</h1>
+        <p className="mt-1 text-sm text-text-secondary">{t('authSettings.description')}</p>
       </div>
-      {message && <div className="rounded bg-blue-50 p-3 text-sm text-primary-700">{message}</div>}
-      {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
-      {loading && <div className="rounded bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">{t('common.loading')}</div>}
+      {message && <div className="rounded bg-status-info-bg p-3 text-sm text-status-info-fg">{message}</div>}
+      {error && <div className="rounded bg-status-critical-bg p-3 text-sm text-status-critical-fg">{error}</div>}
+      {loading && <div className="rounded bg-surface-sunken p-3 text-sm text-text-primary">{t('common.loading')}</div>}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6">
+      <div className="bg-surface-default rounded-lg shadow p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className="flex items-start gap-3 rounded border border-gray-200 dark:border-gray-700 p-4">
+          <label className="flex items-start gap-3 rounded border border-border-subtle p-4">
             <input
               type="checkbox"
               checked={form.passwordComplexityEnabled}
               onChange={(event) => setForm((current) => ({ ...current, passwordComplexityEnabled: event.target.checked }))}
-              className="mt-1 rounded border-gray-300"
+              className="mt-1 rounded border-border-subtle"
             />
             <span>
-              <span className="block font-medium text-gray-900 dark:text-white">{t('authSettings.passwordComplexity')}</span>
-              <span className="block text-sm text-gray-500 dark:text-gray-400">{t('authSettings.passwordComplexityHelp')}</span>
+              <span className="block font-medium text-text-primary">{t('authSettings.passwordComplexity')}</span>
+              <span className="block text-sm text-text-muted">{t('authSettings.passwordComplexityHelp')}</span>
             </span>
           </label>
-          <label className="flex items-start gap-3 rounded border border-gray-200 dark:border-gray-700 p-4">
+          <label className="flex items-start gap-3 rounded border border-border-subtle p-4">
             <input
               type="checkbox"
               checked={form.forceMfa}
               onChange={(event) => setForm((current) => ({ ...current, forceMfa: event.target.checked }))}
-              className="mt-1 rounded border-gray-300"
+              className="mt-1 rounded border-border-subtle"
             />
             <span>
-              <span className="block font-medium text-gray-900 dark:text-white">{t('authSettings.forceMfa')}</span>
-              <span className="block text-sm text-gray-500 dark:text-gray-400">{t('authSettings.forceMfaHelp')}</span>
+              <span className="block font-medium text-text-primary">{t('authSettings.forceMfa')}</span>
+              <span className="block text-sm text-text-muted">{t('authSettings.forceMfaHelp')}</span>
             </span>
           </label>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+          <label className="block text-sm font-medium text-text-primary">
             {t('authSettings.minPasswordLength')}
-            <input type="number" min="1" max="128" value={form.minPasswordLength} onChange={(e) => updateNumber('minPasswordLength', e.target.value)} className="mt-1 w-full rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
+            <input type="number" min="1" max="128" value={form.minPasswordLength} onChange={(e) => updateNumber('minPasswordLength', e.target.value)} className="mt-1 w-full rounded border-border-subtle bg-surface-default text-text-primary" />
           </label>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+          <label className="block text-sm font-medium text-text-primary">
             {t('authSettings.passwordHistoryCount')}
-            <input type="number" min="0" max="24" value={form.passwordHistoryCount} onChange={(e) => updateNumber('passwordHistoryCount', e.target.value)} className="mt-1 w-full rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
-            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('authSettings.zeroDisables')}</span>
+            <input type="number" min="0" max="24" value={form.passwordHistoryCount} onChange={(e) => updateNumber('passwordHistoryCount', e.target.value)} className="mt-1 w-full rounded border-border-subtle bg-surface-default text-text-primary" />
+            <span className="mt-1 block text-xs text-text-muted">{t('authSettings.zeroDisables')}</span>
           </label>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+          <label className="block text-sm font-medium text-text-primary">
             {t('authSettings.passwordValidityDays')}
-            <input type="number" min="0" max="3650" value={form.passwordValidityDays} onChange={(e) => updateNumber('passwordValidityDays', e.target.value)} className="mt-1 w-full rounded border-gray-300 dark:bg-gray-700 dark:text-white" />
-            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('authSettings.zeroNeverExpires')}</span>
+            <input type="number" min="0" max="3650" value={form.passwordValidityDays} onChange={(e) => updateNumber('passwordValidityDays', e.target.value)} className="mt-1 w-full rounded border-border-subtle bg-surface-default text-text-primary" />
+            <span className="mt-1 block text-xs text-text-muted">{t('authSettings.zeroNeverExpires')}</span>
           </label>
         </div>
 
-        <div className="rounded bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-800 dark:text-amber-200">
+        <div className="rounded bg-status-warn-bg p-4 text-sm text-status-warn-fg">
           {t('authSettings.localOnlyNotice')}
         </div>
 
-        <button onClick={save} disabled={saving || loading} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400">
+        <button onClick={save} disabled={saving || loading} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:bg-surface-disabled disabled:text-text-muted">
           {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>

@@ -9,11 +9,15 @@ import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
+import { PageHeader } from '../components/PageHeader';
 import { exportCsv } from '../utils/csvExport';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { useListQuery } from '../hooks/useListQuery';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { EmptyState } from '../components/EmptyState';
 import { formatApiError } from '../utils/apiError';
+import { statusBadgeClass, type StatusKind } from '../utils/statusHelpers';
 
 interface License {
   id: string;
@@ -67,11 +71,14 @@ const initialForm: LicenseForm = {
   renewalDate: '',
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-500';
 const actionIconClassName = 'h-4 w-4';
 
 const Licenses = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
+  const breadcrumbs = useBreadcrumbs();
   const [searchParams] = useSearchParams();
   const [licenses, setLicenses] = useState<License[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,19 +265,22 @@ const Licenses = () => {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
-  const statusColor = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-      case 'expired': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-      case 'expiring_soon': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-    }
+  const statusColor = (status?: string): string => {
+    const kind: StatusKind = (() => {
+      switch (status?.toLowerCase()) {
+        case 'active': return 'ok';
+        case 'expired': return 'critical';
+        case 'expiring_soon': return 'warn';
+        default: return 'idle';
+      }
+    })();
+    return statusBadgeClass(kind);
   };
 
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('licenses.title')}</h1>
+        <PageHeader title={t('licenses.title')} breadcrumbs={breadcrumbs} />
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
@@ -280,21 +290,24 @@ const Licenses = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('licenses.title')}</h1>
-        <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
-          className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600">
-          {t('licenses.newLicense')}
-        </button>
-      </div>
+      <PageHeader
+        title={t('licenses.title')}
+        breadcrumbs={breadcrumbs}
+        actions={(
+          <button onClick={() => { form.resetForm(); setEditingId(null); setModalOpen(true); }}
+            className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600">
+            {t('licenses.newLicense')}
+          </button>
+        )}
+      />
 
-      {error && <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">{error}</div>}
+      {error && <div className="bg-status-critical-bg text-status-critical-fg p-3 rounded mb-4">{error}</div>}
 
       <div className="flex gap-4 mb-4">
         <input type="text" placeholder={t('licenses.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          className="flex-1 px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+          className="px-3 py-2 border border-border-strong rounded-md">
           <option value="">{t('common.allStatuses')}</option>
           <option value="active">{t('licenses.status.active')}</option>
           <option value="expired">{t('licenses.status.expired')}</option>
@@ -303,8 +316,8 @@ const Licenses = () => {
       </div>
 
       <DataTableShell onExport={exportVisibleLicenses} exportLabel="Export CSV" rowCount={sortedLicenses.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+        <table className="min-w-full divide-y divide-border-subtle">
+          <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
             <tr>
               <SortableTh column="id" label={t('common.id')} activeColumn={sort.column} direction={sort.column === 'id' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="name" label={t('common.name')} activeColumn={sort.column} direction={sort.column === 'name' ? sort.direction : ''} onSort={toggleSort} />
@@ -315,41 +328,41 @@ const Licenses = () => {
               <SortableTh column="seats" label={t('licenses.fields.seats')} activeColumn={sort.column} direction={sort.column === 'seats' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="status" label={t('common.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="expiryDate" label={t('licenses.fields.expiryDate')} activeColumn={sort.column} direction={sort.column === 'expiryDate' ? sort.direction : ''} onSort={toggleSort} />
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
+              <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('common.actions')}</th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className="bg-surface-default divide-y divide-border-subtle">
             {sortedLicenses.length === 0 ? (
-              <tr><td colSpan={10} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{t('licenses.noLicenses')}</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8"><EmptyState titleKey="licenses.noLicenses" /></td></tr>
             ) : sortedLicenses.map(l => {
               const daysLeft = getDaysUntilExpiry(l.expiryDate);
               return (
-                <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 text-sm text-gray-500">{l.displayId || l.id}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{l.title}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{l.vendor || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.licenseType || l.type || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.licensingBasis ? t(`licenses.basis.${l.licensingBasis}`) : '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{l.assignmentModel ? t(`licenses.model.${l.assignmentModel}`) : '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{l.seats ?? '-'}</td>
-                  <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(l.status)}`}>{l.status ? t(`licenses.status.${l.status}`) : '-'}</span></td>
-                  <td className="px-6 py-4 text-sm">
+                <tr key={l.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass} text-body2 tabular-nums text-text-muted`}>{l.displayId || l.id}</td>
+                  <td className={`${cellClass} text-body2 font-medium text-text-primary`}>{l.title}</td>
+                  <td className={`${cellClass} text-body2 text-text-secondary`}>{l.vendor || '-'}</td>
+                  <td className={`${cellClass} text-body2 text-text-secondary capitalize`}>{l.licenseType || l.type || '-'}</td>
+                  <td className={`${cellClass} text-body2 text-text-secondary capitalize`}>{l.licensingBasis ? t(`licenses.basis.${l.licensingBasis}`) : '-'}</td>
+                  <td className={`${cellClass} text-body2 text-text-secondary capitalize`}>{l.assignmentModel ? t(`licenses.model.${l.assignmentModel}`) : '-'}</td>
+                  <td className={`${cellClass} text-body2 tabular-nums text-text-secondary`}>{l.seats ?? '-'}</td>
+                  <td className={`${cellClass}`}><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor(l.status)}`}>{l.status ? t(`licenses.status.${l.status}`) : '-'}</span></td>
+                  <td className={`${cellClass} text-body2 tabular-nums`}>
                     {l.expiryDate ? (
-                      <span className={daysLeft !== null && daysLeft <= 30 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}>
+                      <span className={daysLeft !== null && daysLeft <= 30 ? 'text-status-critical-fg font-medium' : 'text-text-muted'}>
                         {l.expiryDate.split('T')[0]}
                         {daysLeft !== null && daysLeft <= 60 && <span className="ml-1 text-xs">({daysLeft}d)</span>}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className={`${cellClass} text-body2`}>
                     <div className="flex items-center gap-1">
                       <button onClick={() => handleEdit(l)} aria-label={`${t('common.edit')}: ${l.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => setHistoryLicense(l)} aria-label={`${t('history.viewHistory')}: ${l.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300`}>
+                      <button onClick={() => setHistoryLicense(l)} aria-label={`${t('history.viewHistory')}: ${l.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-text-secondary hover:text-text-primary`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => handleDelete(l.id, l.title)} aria-label={`${t('common.delete')}: ${l.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}>
+                      <button onClick={() => handleDelete(l.id, l.title)} aria-label={`${t('common.delete')}: ${l.title}`} title={t('common.delete')} className={`${actionButtonClassName} text-status-critical-fg hover:text-status-critical-fg`}>
                         <TrashIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -364,25 +377,25 @@ const Licenses = () => {
       <Modal isOpen={modalOpen} onClose={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }} title={editingId ? t('licenses.editLicense') : t('licenses.newLicense')} isDirty={form.isDirty && !saving} onDiscardConfirm={handleDiscard}>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.name')} *</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">{t('common.name')} *</label>
             <input type="text" value={form.values.title} onChange={(e) => form.handleChange({ title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.description')}</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">{t('common.description')}</label>
             <textarea value={form.values.description} onChange={(e) => form.handleChange({ description: e.target.value })} rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.vendor')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('common.vendor')}</label>
               <input type="text" value={form.values.vendor} onChange={(e) => form.handleChange({ vendor: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.type')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('common.type')}</label>
               <select value={form.values.licenseType} onChange={(e) => form.handleChange({ licenseType: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="commercial">{t('licenses.types.commercial')}</option>
                 <option value="open_source">{t('licenses.types.open_source')}</option>
                 <option value="subscription">{t('licenses.types.subscription')}</option>
@@ -392,17 +405,17 @@ const Licenses = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.licensingBasis')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.licensingBasis')}</label>
               <select value={form.values.licensingBasis} onChange={(e) => form.handleChange({ licensingBasis: e.target.value as 'user' | 'device' })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="user">{t('licenses.basis.user')}</option>
                 <option value="device">{t('licenses.basis.device')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.assignmentModel')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.assignmentModel')}</label>
               <select value={form.values.assignmentModel} onChange={(e) => form.handleChange({ assignmentModel: e.target.value as 'named' | 'concurrent' })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="named">{t('licenses.model.named')}</option>
                 <option value="concurrent">{t('licenses.model.concurrent')}</option>
               </select>
@@ -410,37 +423,37 @@ const Licenses = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.licenseKey')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.licenseKey')}</label>
               <input type="text" value={form.values.licenseKey} onChange={(e) => form.handleChange({ licenseKey: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.seats')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.seats')}</label>
               <input type="number" min="0" value={form.values.seats} onChange={(e) => form.handleChange({ seats: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.startDate')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.startDate')}</label>
               <input type="date" value={form.values.purchaseDate} onChange={(e) => form.handleChange({ purchaseDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.endDate')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.endDate')}</label>
               <input type="date" value={form.values.expiryDate} onChange={(e) => form.handleChange({ expiryDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('licenses.fields.renewalDate')}</label>
+              <label className="block text-sm font-medium text-text-primary mb-1">{t('licenses.fields.renewalDate')}</label>
               <input type="date" value={form.values.renewalDate} onChange={(e) => form.handleChange({ renewalDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.status')}</label>
+            <label className="block text-sm font-medium text-text-primary mb-1">{t('common.status')}</label>
             <select value={form.values.status} onChange={(e) => form.handleChange({ status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="active">{t('licenses.status.active')}</option>
               <option value="expiring_soon">{t('licenses.status.expiring_soon')}</option>
               <option value="expired">{t('licenses.status.expired')}</option>
@@ -450,7 +463,7 @@ const Licenses = () => {
 
           <div className="flex justify-end gap-3 pt-4">
             <button onClick={() => { if (form.isDirty) { handleDiscard(); } else { setModalOpen(false); } }}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+              className="px-4 py-2 border border-border-strong rounded-md text-text-primary hover:bg-surface-hover">
               {t('common.cancel')}
             </button>
             <button onClick={handleSubmit} disabled={saving}

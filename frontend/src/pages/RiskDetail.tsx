@@ -3,6 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { riskApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { formatApiError } from '../utils/apiError';
+import PageShell from '../components/PageShell';
+import { PageBreadcrumbs } from '../components/PageHeader';
+import { DetailTabs } from '../components/DetailTabs';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 
 interface RiskAssessmentVersion {
   id: string;
@@ -62,6 +66,8 @@ const RiskDetail = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [risk, setRisk] = useState<Risk | null>(null);
+  // Detail leaf label comes from already-loaded page state (no extra fetch).
+  const breadcrumbs = useBreadcrumbs({ leaf: risk?.title ?? null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -252,17 +258,14 @@ const RiskDetail = () => {
     );
   };
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'overview': return renderOverview();
-      case 'assessment': return renderAssessment();
-      case 'controls': return renderControls();
-      case 'treatment': return renderTreatment();
-      case 'evidence': return renderEvidence();
-      case 'history': return renderHistory();
-      case 'audit': return renderAudit();
-      default: return null;
-    }
+  const tabRenderers: Record<TabKey, () => JSX.Element | null> = {
+    overview: renderOverview,
+    assessment: renderAssessment,
+    controls: renderControls,
+    treatment: renderTreatment,
+    evidence: renderEvidence,
+    history: renderHistory,
+    audit: renderAudit,
   };
 
   if (loading) {
@@ -278,7 +281,11 @@ const RiskDetail = () => {
   }
 
   return (
+    // Stage 6a: PageShell provides the single main landmark + page frame;
+    // the inner max-w-4xl wrapper is kept so the visual width stays unchanged.
+    <PageShell>
     <div className="max-w-4xl mx-auto">
+      <PageBreadcrumbs items={breadcrumbs} />
       <div className="mb-6">
         <button
           type="button"
@@ -291,30 +298,21 @@ const RiskDetail = () => {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{risk.displayId}</p>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
-          {tabs.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                activeTab === tab.key
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-              }`}
-            >
-              {t(tab.labelKey)}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Tab Content */}
-      <div className="min-h-[300px]">
-        {renderTabContent()}
-      </div>
+      {/* Stage 10c: shared accessible DetailTabs replaces the hand-rolled tab
+          nav; tab ids, labels and content renderers are unchanged. */}
+      <DetailTabs
+        className="min-h-[300px]"
+        ariaLabel={risk.title}
+        tabs={tabs.map(tab => ({
+          id: tab.key,
+          label: t(tab.labelKey),
+          content: tabRenderers[tab.key](),
+        }))}
+        activeTabId={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabKey)}
+      />
     </div>
+    </PageShell>
   );
 };
 

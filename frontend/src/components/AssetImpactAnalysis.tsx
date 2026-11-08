@@ -1,7 +1,9 @@
 
 import { useState, useEffect } from 'react';
+import { ChevronDownIcon, ChevronRightIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { assetApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { SEVERITY_TONE, SEVERITY_BORDER_TONE, severityTone } from '../styles/severity';
 
 interface ImpactNode {
   id: string;
@@ -27,20 +29,6 @@ interface ImpactAnalysisData {
 interface AssetImpactAnalysisProps {
   assetId: string;
 }
-
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
-  high: 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200',
-  medium: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
-  low: 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
-};
-
-const SEVERITY_BORDER: Record<string, string> = {
-  critical: 'border-red-300 dark:border-red-700',
-  high: 'border-orange-300 dark:border-orange-700',
-  medium: 'border-yellow-300 dark:border-yellow-700',
-  low: 'border-green-300 dark:border-green-700',
-};
 
 const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) => {
   const { t } = useI18n();
@@ -90,15 +78,15 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         <div key={node.id} className={`${depth > 0 ? 'ml-6 border-l-2 border-gray-200 dark:border-gray-700 pl-3' : ''}`}>
           <div
             className={`flex items-center gap-2 py-2 px-3 rounded-md mb-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-              SEVERITY_BORDER[node.impactLevel || 'low']
+              SEVERITY_BORDER_TONE[node.impactLevel || 'low']
             }`}
             onClick={() => hasChildren && toggleNode(node.id)}
           >
-            {hasChildren && (
-              <span className="text-xs text-gray-500">{isExpanded ? '▼' : '▶'}</span>
-            )}
+            {hasChildren && (isExpanded
+              ? <ChevronDownIcon aria-hidden="true" className="h-4 w-4 text-text-muted" />
+              : <ChevronRightIcon aria-hidden="true" className="h-4 w-4 text-text-muted" />)}
             {!hasChildren && <span className="w-3"></span>}
-            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${SEVERITY_COLORS[node.impactLevel || 'low']}`}>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${SEVERITY_TONE[node.impactLevel || 'low']}`}>
               {node.impactLevel || 'low'}
             </span>
             <span className="text-sm font-medium text-gray-900 dark:text-white">{node.name}</span>
@@ -160,7 +148,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
             <div className="text-sm text-gray-500 dark:text-gray-400">{t('graph.impact.totalAffected')}</div>
           </div>
           {Object.entries(data.affectedBySeverity || {}).map(([level, count]) => (
-            <div key={level} className={`rounded-lg p-4 text-center ${SEVERITY_COLORS[level]}`}>
+            <div key={level} className={`rounded-lg p-4 text-center ${severityTone(level)}`}>
               <div className="text-2xl font-bold">{count as number}</div>
               <div className="text-sm capitalize">{level}</div>
             </div>
@@ -184,7 +172,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         {/* Critical Paths */}
         {data.criticalPaths?.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-sm font-medium text-red-700 dark:text-red-300 mb-2">⚠️ {t('graph.impact.criticalPaths')}</h3>
+            <h3 className="text-sm font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-1.5"><ExclamationTriangleIcon aria-hidden="true" className="h-4 w-4" />{t('graph.impact.criticalPaths')}</h3>
             <ul className="list-disc list-inside space-y-1">
               {data.criticalPaths.map((path, i) => (
                 <li key={i} className="text-sm text-gray-700 dark:text-gray-300">{path}</li>
@@ -196,7 +184,7 @@ const AssetImpactAnalysis: React.FC<AssetImpactAnalysisProps> = ({ assetId }) =>
         {/* Single Points of Failure */}
         {data.singlePointsOfFailure?.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">🔴 {t('graph.impact.singlePointsOfFailure')}</h3>
+            <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1.5"><ExclamationTriangleIcon aria-hidden="true" className="h-4 w-4" />{t('graph.impact.singlePointsOfFailure')}</h3>
             <ul className="list-disc list-inside space-y-1">
               {data.singlePointsOfFailure.map((spof, i) => (
                 <li key={i} className="text-sm text-gray-700 dark:text-gray-300">{spof}</li>

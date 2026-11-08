@@ -74,8 +74,13 @@ jobs:
             npm install
           fi
 
-      - name: Run lint
-        run: npm run lint
+      - name: Run backend lint
+        run: npm run lint --workspace backend
+
+      # Explicit frontend gate: ESLint with --max-warnings 0 (warnings budget = 0)
+      # followed by the design-token ratchet (see docs/phase15-design-system.md).
+      - name: Run frontend lint (max-warnings 0 + token guardrail)
+        run: npm run lint:ci --workspace frontend
 
   # =====================================================================
   # BUILD & TYPE CHECK

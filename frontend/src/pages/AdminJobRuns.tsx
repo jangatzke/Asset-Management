@@ -33,11 +33,11 @@ interface FilterState {
 const EMPTY_FILTERS: FilterState = { jobId: '', jobType: '', status: '', from: '', to: '', order: 'desc' };
 
 const statusClasses: Record<string, string> = {
-  completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  running: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  pending: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-  failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  skipped: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  completed: 'bg-status-ok-bg text-status-ok-fg',
+  running: 'bg-status-info-bg text-status-info-fg',
+  pending: 'bg-status-idle-bg text-status-idle-fg',
+  failed: 'bg-status-critical-bg text-status-critical-fg',
+  skipped: 'bg-status-warn-bg text-status-warn-fg',
 };
 
 const formatTimestamp = (value?: string | null, locale?: string) =>
@@ -143,8 +143,8 @@ export default function AdminJobRuns() {
   if (!canAccessAdmin) {
     return (
       <div className="space-y-4" data-testid="admin-job-runs-page">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">{t('jobRuns.title')}</h1>
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+        <h1 className="text-2xl font-semibold text-text-primary">{t('jobRuns.title')}</h1>
+        <p className="rounded-md border border-border-subtle bg-status-warn-bg p-3 text-sm text-status-warn-fg">
           {t('jobRuns.noAccess')}
         </p>
       </div>
@@ -155,14 +155,14 @@ export default function AdminJobRuns() {
     <div className="space-y-6" data-testid="admin-job-runs-page">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">{t('jobRuns.title')}</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-300">{t('jobRuns.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-text-primary">{t('jobRuns.title')}</h1>
+          <p className="text-sm text-text-secondary">{t('jobRuns.subtitle')}</p>
         </div>
         <button
           type="button"
           onClick={refresh}
           disabled={refreshing || loading}
-          className="px-4 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-800 disabled:opacity-50"
+          className="px-4 py-2 rounded-md bg-surface-raised text-text-primary hover:bg-surface-hover disabled:opacity-50"
         >
           {refreshing ? t('jobRuns.refreshing') : t('jobRuns.refresh')}
         </button>
@@ -170,13 +170,13 @@ export default function AdminJobRuns() {
 
       <ErrorAlert message={error} />
 
-      <section className="rounded-lg bg-white p-4 shadow dark:bg-gray-800" aria-label={t('jobRuns.summaryTitle')}>
+      <section className="rounded-lg bg-surface-default p-4 shadow" aria-label={t('jobRuns.summaryTitle')}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('jobRuns.summaryTitle')}</h2>
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <h2 className="text-lg font-medium text-text-primary">{t('jobRuns.summaryTitle')}</h2>
+          <label className="text-sm text-text-primary">
             {t('jobRuns.windowHours')}
             <select
-              className="ml-2 rounded border p-1.5 bg-white dark:bg-gray-900 dark:border-gray-600"
+              className="ml-2 rounded border border-border-subtle p-1.5 bg-surface-default text-text-primary"
               value={windowHours}
               onChange={(event) => { setWindowHours(Number(event.target.value)); setPage(1); }}
               aria-label={t('jobRuns.windowHours')}
@@ -188,7 +188,7 @@ export default function AdminJobRuns() {
           </label>
         </div>
 
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+        <p className="mt-2 text-sm text-text-secondary">
           {t('jobRuns.totalRecentRuns')}: <span className="font-semibold">{summary?.totalRecentRuns ?? 0}</span>
           {' · '}
           {t('jobRuns.generatedAt')}: {formatTimestamp(summary?.generatedAt, language)}
@@ -196,7 +196,7 @@ export default function AdminJobRuns() {
 
         <div className="mt-3 flex flex-wrap gap-2" data-testid="job-runs-status-counts">
           {summaryEntries.length === 0 ? (
-            <span className="text-sm text-gray-500 dark:text-gray-400">{t('jobRuns.noSummary')}</span>
+            <span className="text-sm text-text-muted">{t('jobRuns.noSummary')}</span>
           ) : (
             summaryEntries.map((entry) => (
               <span key={entry.status} className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${statusClasses[entry.status] ?? statusClasses.pending}`}>
@@ -209,15 +209,15 @@ export default function AdminJobRuns() {
         {summary && summary.jobs.length > 0 && (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-xs" aria-label={t('jobRuns.latestRuns')}>
-              <thead className="bg-gray-50 dark:bg-gray-700">
+              <thead className="bg-surface-sunken">
                 <tr>
-                  <th className="px-2 py-1.5 text-left">{t('jobRuns.columns.job')}</th>
-                  <th className="px-2 py-1.5 text-left">{t('jobRuns.columns.type')}</th>
-                  <th className="px-2 py-1.5 text-left">{t('jobRuns.columns.status')}</th>
-                  <th className="px-2 py-1.5 text-left">{t('jobRuns.columns.lastSeen')}</th>
+                  <th scope="col" className="px-2 py-1.5 text-left">{t('jobRuns.columns.job')}</th>
+                  <th scope="col" className="px-2 py-1.5 text-left">{t('jobRuns.columns.type')}</th>
+                  <th scope="col" className="px-2 py-1.5 text-left">{t('jobRuns.columns.status')}</th>
+                  <th scope="col" className="px-2 py-1.5 text-left">{t('jobRuns.columns.lastSeen')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="divide-y divide-border-subtle">
                 {summary.jobs.map((job) => (
                   <tr key={`summary-${job.id}`}>
                     <td className="px-2 py-1.5 font-mono">{job.jobId}</td>
@@ -232,32 +232,32 @@ export default function AdminJobRuns() {
         )}
       </section>
 
-      <section className="rounded-lg bg-white p-4 shadow dark:bg-gray-800" aria-label={t('jobRuns.filtersTitle')}>
+      <section className="rounded-lg bg-surface-default p-4 shadow" aria-label={t('jobRuns.filtersTitle')}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">
             {t('jobRuns.jobId')}
             <input
-              className="mt-1 w-full rounded border p-2 dark:bg-gray-900 dark:border-gray-600"
+              className="mt-1 w-full rounded border border-border-subtle p-2 bg-surface-default text-text-primary"
               value={draft.jobId}
               onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}
               aria-label={t('jobRuns.jobId')}
               placeholder={t('jobRuns.jobIdPlaceholder')}
             />
           </label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">
             {t('jobRuns.jobType')}
             <input
-              className="mt-1 w-full rounded border p-2 dark:bg-gray-900 dark:border-gray-600"
+              className="mt-1 w-full rounded border border-border-subtle p-2 bg-surface-default text-text-primary"
               value={draft.jobType}
               onChange={(event) => setDraft((current) => ({ ...current, jobType: event.target.value }))}
               aria-label={t('jobRuns.jobType')}
               placeholder={t('jobRuns.jobTypePlaceholder')}
             />
           </label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">
             {t('jobRuns.status')}
             <select
-              className="mt-1 w-full rounded border p-2 bg-white dark:bg-gray-900 dark:border-gray-600"
+              className="mt-1 w-full rounded border border-border-subtle p-2 bg-surface-default text-text-primary"
               value={draft.status}
               onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}
               aria-label={t('jobRuns.status')}
@@ -268,30 +268,30 @@ export default function AdminJobRuns() {
               ))}
             </select>
           </label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">
             {t('jobRuns.from')}
             <input
               type="datetime-local"
-              className="mt-1 w-full rounded border p-2 dark:bg-gray-900 dark:border-gray-600"
+              className="mt-1 w-full rounded border border-border-subtle p-2 bg-surface-default text-text-primary"
               value={draft.from}
               onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))}
               aria-label={t('jobRuns.from')}
             />
           </label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">
             {t('jobRuns.to')}
             <input
               type="datetime-local"
-              className="mt-1 w-full rounded border p-2 dark:bg-gray-900 dark:border-gray-600"
+              className="mt-1 w-full rounded border border-border-subtle p-2 bg-surface-default text-text-primary"
               value={draft.to}
               onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))}
               aria-label={t('jobRuns.to')}
             />
           </label>
-          <label className="text-sm text-gray-700 dark:text-gray-200">
+          <label className="text-sm text-text-primary">
             {t('jobRuns.order')}
             <select
-              className="mt-1 w-full rounded border p-2 bg-white dark:bg-gray-900 dark:border-gray-600"
+              className="mt-1 w-full rounded border border-border-subtle p-2 bg-surface-default text-text-primary"
               value={draft.order}
               onChange={(event) => setDraft((current) => ({ ...current, order: event.target.value === 'asc' ? 'asc' : 'desc' }))}
               aria-label={t('jobRuns.order')}
@@ -312,14 +312,14 @@ export default function AdminJobRuns() {
           <button
             type="button"
             onClick={resetFilters}
-            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            className="px-4 py-2 rounded-md border border-border-subtle text-text-primary hover:bg-surface-hover"
           >
             {t('jobRuns.resetFilters')}
           </button>
-          <label className="ml-auto text-sm text-gray-700 dark:text-gray-200">
+          <label className="ml-auto text-sm text-text-primary">
             {t('jobRuns.pageSize')}
             <select
-              className="ml-2 rounded border p-1.5 bg-white dark:bg-gray-900 dark:border-gray-600"
+              className="ml-2 rounded border border-border-subtle p-1.5 bg-surface-default text-text-primary"
               value={limit}
               onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }}
               aria-label={t('jobRuns.pageSize')}
@@ -332,14 +332,14 @@ export default function AdminJobRuns() {
         </div>
       </section>
 
-      <section className="rounded-lg bg-white shadow dark:bg-gray-800" aria-label={t('jobRuns.historyTitle')}>
+      <section className="rounded-lg bg-surface-default shadow" aria-label={t('jobRuns.historyTitle')}>
         <div className="flex flex-wrap items-center justify-between gap-2 p-4">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">{t('jobRuns.historyTitle')}</h2>
-          <span className="text-sm text-gray-600 dark:text-gray-300">{t('jobRuns.resultCount', { count: String(pagination.total) })}</span>
+          <h2 className="text-lg font-medium text-text-primary">{t('jobRuns.historyTitle')}</h2>
+          <span className="text-sm text-text-secondary">{t('jobRuns.resultCount', { count: String(pagination.total) })}</span>
         </div>
         <div className="overflow-x-auto px-4 pb-4">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+            <thead className="bg-surface-sunken">
               <tr>
                 <th scope="col" className="px-3 py-2 text-left">{t('jobRuns.columns.job')}</th>
                 <th scope="col" className="px-3 py-2 text-left">{t('jobRuns.columns.type')}</th>
@@ -350,14 +350,14 @@ export default function AdminJobRuns() {
                 <th scope="col" className="px-3 py-2 text-left">{t('jobRuns.columns.error')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-border-subtle">
               {loading ? (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">{t('jobRuns.loading')}</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center text-text-muted">{t('jobRuns.loading')}</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">{t('jobRuns.empty')}</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center text-text-muted">{t('jobRuns.empty')}</td></tr>
               ) : (
                 rows.map((job) => (
-                  <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/60">
+                  <tr key={job.id} className="hover:bg-surface-hover">
                     <td className="px-3 py-2 font-mono text-xs">{job.jobId}</td>
                     <td className="px-3 py-2 text-xs">{job.jobType}</td>
                     <td className="px-3 py-2">

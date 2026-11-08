@@ -195,24 +195,24 @@ const AdminNavigation = () => {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('navigationOrder.title')}</h1>
-      <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">{t('navigationOrder.description')}</p>
+      <h1 className="text-2xl font-bold text-text-primary mb-2">{t('navigationOrder.title')}</h1>
+      <p className="text-sm text-text-secondary mb-6">{t('navigationOrder.description')}</p>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="flex items-start gap-3 mb-6 rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 p-3 text-sm text-blue-800 dark:text-blue-200">
+      <div className="bg-surface-default rounded-lg shadow p-6">
+        <div className="flex items-start gap-3 mb-6 rounded-md bg-status-info-bg border border-border-subtle p-3 text-sm text-status-info-fg">
           <InformationCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <span>{t('navigationOrder.hint')}</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mb-4">
-          <label htmlFor="nav-view-select" className="text-sm font-medium text-gray-700 dark:text-gray-200">
+          <label htmlFor="nav-view-select" className="text-sm font-medium text-text-primary">
             {t('navViews.scopeLabel')}
           </label>
           <select
             id="nav-view-select"
             value={scope}
             onChange={(event) => selectScope(event.target.value)}
-            className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm focus:ring-primary-500 focus:border-primary-500"
+            className="rounded-md border-border-subtle bg-surface-default text-text-primary text-sm focus:ring-primary-500 focus:border-primary-500"
           >
             <option value={DEFAULT_SCOPE}>{t('navViews.defaultScope')}</option>
             {views.map((view) => (
@@ -224,7 +224,7 @@ const AdminNavigation = () => {
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+          <p className="text-sm text-text-muted">{t('common.loading')}</p>
         ) : (
           <>
             <NavigationOrderEditor
@@ -238,7 +238,7 @@ const AdminNavigation = () => {
               }
             />
 
-            <div className="flex flex-wrap items-center gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-wrap items-center gap-3 mt-6 pt-4 border-t border-border-subtle">
               <button
                 type="button"
                 onClick={handleSave}
@@ -252,25 +252,25 @@ const AdminNavigation = () => {
                   type="button"
                   onClick={handleReset}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border-subtle text-sm font-medium text-text-primary hover:bg-surface-hover disabled:opacity-50 disabled:pointer-events-none"
                 >
                   <ArrowUturnLeftIcon className="h-4 w-4" />
                   {t('navigationOrder.reset')}
                 </button>
               )}
-              {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">{t('navigationOrder.unsavedChanges')}</span>}
+              {dirty && <span className="text-xs text-warn-600">{t('navigationOrder.unsavedChanges')}</span>}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('navViews.globalTitle')}</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t('navViews.globalDescription')}</p>
+            <div className="mt-6 pt-4 border-t border-border-subtle">
+              <h2 className="text-sm font-semibold text-text-primary mb-2">{t('navViews.globalTitle')}</h2>
+              <p className="text-xs text-text-muted mb-3">{t('navViews.globalDescription')}</p>
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
                   value={newViewName}
                   onChange={(event) => setNewViewName(event.target.value)}
                   placeholder={t('navViews.newViewPlaceholder')}
-                  className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm focus:ring-primary-500 focus:border-primary-500"
+                  className="rounded-md border-border-subtle bg-surface-default text-text-primary text-sm focus:ring-primary-500 focus:border-primary-500"
                 />
                 <button
                   type="button"
@@ -287,7 +287,7 @@ const AdminNavigation = () => {
                       type="button"
                       onClick={handleSetDefault}
                       disabled={saving || selectedView?.isDefault}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border-subtle text-sm font-medium text-text-primary hover:bg-surface-hover disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <StarIcon className="h-4 w-4" />
                       {t('navViews.setDefault')}
@@ -296,7 +296,7 @@ const AdminNavigation = () => {
                       type="button"
                       onClick={handleDeleteView}
                       disabled={saving}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-red-300 dark:border-red-700 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:pointer-events-none"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-critical-300 text-sm font-medium text-critical-700 hover:bg-critical-50 disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <TrashIcon className="h-4 w-4" />
                       {t('navViews.delete')}

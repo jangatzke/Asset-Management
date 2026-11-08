@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useI18n } from '../context/I18nContext';
 import { fetchEntities, type EntityType, type EntityPickerResult } from '../services/entityPickerApi';
 
@@ -228,10 +229,11 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
               <button
                 type="button"
                 onClick={() => handleRemove(v.id)}
-                className="ml-1 hover:text-red-600 dark:hover:text-red-400 focus:outline-none"
+                aria-label={`${t('common.delete')}: ${v.label}`}
+                className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:text-red-600 dark:hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 disabled={disabled}
               >
-                ×
+                <XMarkIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </span>
           ))}
@@ -264,9 +266,9 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
             disabled={disabled}
             aria-label={t('entityPicker.clear')}
             title={t('entityPicker.clear')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 focus:outline-none disabled:opacity-50"
+            className="absolute right-2 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
           >
-            ×
+            <XMarkIcon aria-hidden="true" className="h-4 w-4" />
           </button>
         )}
 

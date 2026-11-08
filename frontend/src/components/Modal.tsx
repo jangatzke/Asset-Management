@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useId } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Dialog } from './Dialog';
 import { DiscardConfirmationDialog } from './DiscardConfirmationDialog';
-import { useI18n } from '../context/I18nContext';
 
 interface ModalProps {
   isOpen: boolean;
@@ -19,6 +19,15 @@ interface ModalProps {
   discardMessageKey?: string;
 }
 
+/**
+ * Legacy edit-modal API — thin wrapper over the unified `Dialog` base (Stage 7 / MT-4).
+ *
+ * All existing consumers keep their props unchanged. The dirty-form guard
+ * semantics are preserved: while `isDirty` is set, backdrop/Escape/close route
+ * through the DiscardConfirmationDialog instead of closing immediately.
+ * `disablePortal` keeps the overlay inside the React tree so the established
+ * Modal.guard tests (which query the render container) keep passing.
+ */
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
@@ -31,14 +40,7 @@ export const Modal: React.FC<ModalProps> = ({
   discardTitleKey = 'common.discardChangesTitle',
   discardMessageKey = 'common.discardChangesMessage',
 }) => {
-  const { t } = useI18n();
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
-  const backdropPointerDownRef = useRef(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const titleId = useId();
 
   // When isDirty changes and we were showing the confirm dialog, hide it
   useEffect(() => {
@@ -68,96 +70,22 @@ export const Modal: React.FC<ModalProps> = ({
     setShowDiscardConfirm(false);
   }, []);
 
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleDismissal();
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, handleDismissal]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeButtonRef.current?.focus();
-
-    const keepFocusInDialog = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      const elements = Array.from(focusable).filter((element) => !element.hasAttribute('hidden'));
-      if (!elements.length) {
-        event.preventDefault();
-        dialogRef.current.focus();
-        return;
-      }
-      const first = elements[0];
-      const last = elements[elements.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', keepFocusInDialog);
-    return () => {
-      document.removeEventListener('keydown', keepFocusInDialog);
-      triggerRef.current?.focus();
-    };
-  }, [isOpen]);
-
+  // Legacy semantics: a closed Modal renders nothing at all — including the
+  // discard dialog, so its exit transition never lingers after closing.
   if (!isOpen) return null;
 
   return (
     <>
-      <div
-        ref={overlayRef}
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-        onMouseDown={(e) => {
-          backdropPointerDownRef.current = e.target === overlayRef.current;
-        }}
-        onClick={(e) => {
-          const startedOnBackdrop = backdropPointerDownRef.current;
-          backdropPointerDownRef.current = false;
-          if (startedOnBackdrop && e.target === overlayRef.current) handleDismissal();
-        }}
+      <Dialog
+        open={isOpen}
+        onClose={handleDismissal}
+        title={title}
+        size="lg"
+        disablePortal
+        panelClassName={`${maxWidthClassName} ${maxHeightClassName}`}
       >
-        <div
-          ref={dialogRef}
-          className={`bg-white dark:bg-card rounded-lg shadow-xl w-full ${maxWidthClassName} ${maxHeightClassName} overflow-y-auto border border-transparent dark:border-gray-700`}
-          tabIndex={-1}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-        >
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-            <button
-              ref={closeButtonRef}
-              type="button"
-              onClick={handleDismissal}
-              aria-label={t('common.close')}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
-            >
-              &times;
-            </button>
-          </div>
-          <div className="p-6">{children}</div>
-        </div>
-      </div>
+        {children}
+      </Dialog>
 
       {/* Discard confirmation overlay */}
       <DiscardConfirmationDialog

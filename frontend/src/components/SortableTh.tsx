@@ -47,6 +47,9 @@ export interface SortableThProps {
 
 const activeClass = 'text-primary-700 dark:text-primary-300';
 const arrowClass = 'inline h-4 w-4';
+// Canonical header cell style (QW-5): sunken header surface is provided by the
+// <thead>; the label itself uses the caption token so every list table matches.
+const thBaseClass = 'cursor-pointer select-none px-4 py-2.5 text-left text-caption text-text-muted hover:text-text-primary transition-colors duration-fast';
 
 export const SortableTh: React.FC<SortableThProps> = ({
   column,
@@ -65,7 +68,7 @@ export const SortableTh: React.FC<SortableThProps> = ({
     <th
       scope="col"
       className={[
-        'cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white',
+        thBaseClass,
         isActive ? activeClass : '',
         className,
       ].filter(Boolean).join(' ')}
@@ -73,7 +76,7 @@ export const SortableTh: React.FC<SortableThProps> = ({
       <button
         type="button"
         onClick={() => onSort(column)}
-        className="inline-flex w-full items-center gap-1 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 rounded px-1 -ml-1"
+        className="inline-flex w-full items-center gap-1 hover:text-text-primary focus:outline-none focus-visible:outline outline-focus-ring rounded px-1 -ml-1"
         aria-current={isActive ? true : undefined}
         aria-sort={
           isActive ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'

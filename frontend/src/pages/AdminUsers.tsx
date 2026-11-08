@@ -7,10 +7,13 @@ import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ErrorAlert } from '../components/ErrorAlert';
+import { EmptyState } from '../components/EmptyState';
 import { formatApiError } from '../utils/apiError';
+import { statusBadgeClass } from '../utils/statusHelpers';
 
 interface User {
   id: string;
@@ -64,11 +67,13 @@ const initialEditForm: EditUserForm = {
   phoneNumber: '',
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-500';
 const actionIconClassName = 'h-4 w-4';
 
 const AdminUsers = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
   const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -327,7 +332,7 @@ const AdminUsers = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('adminUsers.title')}</h1>
+        <h1 className="text-2xl font-bold text-text-primary">{t('adminUsers.title')}</h1>
         <button
           onClick={() => {
             createForm.resetForm();
@@ -340,33 +345,29 @@ const AdminUsers = () => {
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+        <div className="bg-status-ok-bg text-status-ok-fg px-4 py-3 rounded-md" role="status">
           {success}
         </div>
       )}
 
       <DataTableShell onExport={exportVisibleUsers} exportLabel="Export CSV">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-border-subtle">
           <input
             type="text"
             placeholder={t('adminUsers.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('adminUsers.loading')}</div>
+          <div className="p-8 text-center text-text-muted">{t('adminUsers.loading')}</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className="w-full divide-y divide-border-subtle">
+            <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
               <tr>
                 <SortableTh column="user" label={t('adminUsers.columns.user')} activeColumn={sort.column} direction={sort.column === 'user' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="email" label={t('adminUsers.columns.email')} activeColumn={sort.column} direction={sort.column === 'email' ? sort.direction : ''} onSort={toggleSort} />
@@ -374,72 +375,68 @@ const AdminUsers = () => {
                 <SortableTh column="roles" label={t('adminUsers.columns.roles')} activeColumn={sort.column} direction={sort.column === 'roles' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="groups" label={t('adminUsers.columns.groups')} activeColumn={sort.column} direction={sort.column === 'groups' ? sort.direction : ''} onSort={toggleSort} />
                 <SortableTh column="status" label={t('adminUsers.columns.status')} activeColumn={sort.column} direction={sort.column === 'status' ? sort.direction : ''} onSort={toggleSort} />
-                <th className="px-4 py-3 text-left font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
+                <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('common.actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+            <tbody className="bg-surface-default divide-y divide-border-subtle">
               {sortedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-white">
+                <tr key={user.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass} text-body2`}>
+                    <div className="font-medium text-text-primary">
                       {user.firstName} {user.lastName}
                     </div>
                     {user.phoneNumber && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{user.phoneNumber}</div>
+                      <div className="text-xs text-text-muted tabular-nums">{user.phoneNumber}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{user.email}</td>
-                  <td className="px-4 py-3">
+                  <td className={`${cellClass} text-body2 text-text-secondary`}>{user.email}</td>
+                  <td className={`${cellClass} text-body2`}>
                     {user.isOidcLinked ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200">
+                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-status-info-bg text-status-info-fg">
                         {t('adminUsers.account.oidc')} {user.oidcProvider ? `(${user.oidcProvider})` : ''}
                       </span>
                     ) : (
-                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                      <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-status-idle-bg text-status-idle-fg">
                         {t('adminUsers.account.local')}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cellClass}`}>
                     <div className="flex flex-wrap gap-1">
                       {user.roles.map((role) => (
                         <span
                           key={role}
-                          className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200"
+                          className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-status-info-bg text-status-info-fg"
                         >
                           {role.replace(/_/g, ' ')}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cellClass} text-body2`}>
                     <div className="flex flex-wrap gap-1">
                       {user.groups && user.groups.length > 0 ? (
                         user.groups.map((group) => (
                           <span
                             key={group}
-                            className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
+                            className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-status-info-bg text-status-info-fg"
                           >
                             {group}
                           </span>
                         ))
                       ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                        <span className="text-xs text-text-muted">—</span>
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cellClass} text-body2`}>
                     <span
-                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
-                        user.isActive
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200'
-                      }`}
+                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${statusBadgeClass(user.isActive ? 'ok' : 'critical')}`}
                     >
                       {user.isActive ? t('adminUsers.status.active') : t('adminUsers.status.inactive')}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cellClass} text-body2`}>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => openEditModal(user)}
@@ -454,7 +451,7 @@ const AdminUsers = () => {
                           onClick={() => handleDelete(user)}
                           aria-label={formatUserLabel('adminUsers.actions.deleteUser', user)}
                           title={t('common.delete')}
-                          className={`${actionButtonClassName} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}
+                          className={`${actionButtonClassName} text-status-critical-fg hover:underline`}
                         >
                           <TrashIcon aria-hidden="true" className={actionIconClassName} />
                         </button>
@@ -468,7 +465,7 @@ const AdminUsers = () => {
         )}
 
         {!loading && filteredUsers.length === 0 && (
-          <div className="p-8 text-center text-gray-500">{t('adminUsers.noUsers')}</div>
+          <EmptyState titleKey="adminUsers.noUsers" />
         )}
       </DataTableShell>
 
@@ -477,62 +474,62 @@ const AdminUsers = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.firstName')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.firstName')}</label>
               <input
                 type="text"
                 value={createForm.values.firstName}
                 onChange={(e) => createForm.handleChange({ firstName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.lastName')}</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.lastName')}</label>
               <input
                 type="text"
                 value={createForm.values.lastName}
                 onChange={(e) => createForm.handleChange({ lastName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.email')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.email')}</label>
             <input
               type="email"
               value={createForm.values.email}
               onChange={(e) => createForm.handleChange({ email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.password')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.password')}</label>
             <input
               type="password"
               value={createForm.values.password}
               onChange={(e) => createForm.handleChange({ password: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.phoneOptional')}</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.phoneOptional')}</label>
             <input
               type="text"
               value={createForm.values.phoneNumber}
               onChange={(e) => createForm.handleChange({ phoneNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.roles')}</label>
-            <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md p-2 space-y-1">
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.roles')}</label>
+            <div className="max-h-40 overflow-y-auto border border-border-subtle rounded-md p-2 space-y-1">
               {roles.map((role) => (
                 <label
                   key={role.name}
-                  className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                  className="flex items-center gap-2 text-sm text-text-secondary"
                 >
                   <input
                     type="checkbox"
@@ -546,10 +543,10 @@ const AdminUsers = () => {
                         createForm.handleChange({ roles: [...current, role.name] });
                       }
                     }}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    className="rounded border-border-subtle text-primary-600 focus:ring-primary-500"
                   />
                   <span className="font-medium">{role.name.replace(/_/g, ' ')}</span>
-                  <span className="text-gray-500 dark:text-gray-400 text-xs">{role.description}</span>
+                  <span className="text-text-muted text-xs">{role.description}</span>
                 </label>
               ))}
             </div>
@@ -558,7 +555,7 @@ const AdminUsers = () => {
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => { if (createForm.isDirty) { createForm.resetForm(); setCreateModalOpen(false); } else { setCreateModalOpen(false); } }}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="px-4 py-2 text-sm text-text-secondary border border-border-subtle rounded-md hover:bg-surface-hover"
             >
               {t('common.cancel')}
             </button>
@@ -578,45 +575,45 @@ const AdminUsers = () => {
         {selectedUser && (
           <div className="space-y-6">
             <section className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('adminUsers.userDetails')}</h3>
+              <h3 className="text-sm font-semibold text-text-primary">{t('adminUsers.userDetails')}</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.firstName')}</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.firstName')}</label>
                   <input
                     type="text"
                     value={editForm.values.firstName}
                     onChange={(e) => editForm.handleChange({ firstName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.lastName')}</label>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.lastName')}</label>
                   <input
                     type="text"
                     value={editForm.values.lastName}
                     onChange={(e) => editForm.handleChange({ lastName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.email')}</label>
+                <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.email')}</label>
                 <input
                   type="email"
                   value={editForm.values.email}
                   onChange={(e) => editForm.handleChange({ email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('adminUsers.fields.phoneOptional')}</label>
+                <label className="block text-sm font-medium text-text-secondary mb-1">{t('adminUsers.fields.phoneOptional')}</label>
                 <input
                   type="text"
                   value={editForm.values.phoneNumber}
                   onChange={(e) => editForm.handleChange({ phoneNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
@@ -631,27 +628,27 @@ const AdminUsers = () => {
               </div>
             </section>
 
-            <section className="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-5">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('adminUsers.fields.roles')}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+            <section className="space-y-3 border-t border-border-subtle pt-5">
+              <h3 className="text-sm font-semibold text-text-primary">{t('adminUsers.fields.roles')}</h3>
+              <p className="text-sm text-text-secondary">
                 {t('adminUsers.manageRolesFor')} <strong>{selectedUser.firstName} {selectedUser.lastName}</strong> ({selectedUser.email})
               </p>
 
-              <div className="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md p-3 space-y-2">
+              <div className="max-h-60 overflow-y-auto border border-border-subtle rounded-md p-3 space-y-2">
                 {roles.map((role) => (
                   <label
                     key={role.name}
-                    className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"
+                    className="flex items-start gap-2 text-sm text-text-secondary"
                   >
                     <input
                       type="checkbox"
                       checked={selectedRoles.includes(role.name)}
                       onChange={() => toggleRole(role.name)}
-                      className="mt-0.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="mt-0.5 rounded border-border-subtle text-primary-600 focus:ring-primary-500"
                     />
                     <div>
                       <div className="font-medium">{role.name.replace(/_/g, ' ')}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{role.description}</div>
+                      <div className="text-xs text-text-muted">{role.description}</div>
                     </div>
                   </label>
                 ))}
@@ -668,18 +665,18 @@ const AdminUsers = () => {
               </div>
             </section>
 
-            <section className="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-5">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('adminUsers.accountActions')}</h3>
+            <section className="space-y-3 border-t border-border-subtle pt-5">
+              <h3 className="text-sm font-semibold text-text-primary">{t('adminUsers.accountActions')}</h3>
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => handleToggleActive(selectedUser)}
-                  className="px-4 py-2 text-sm text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                  className="px-4 py-2 text-sm text-status-warn-fg border border-status-warn-fg/30 rounded-md hover:bg-status-warn-bg"
                 >
                   {selectedUser.isActive ? t('adminUsers.actions.deactivate') : t('adminUsers.actions.activate')}
                 </button>
                 <button
                   onClick={() => handleResetPassword(selectedUser.id)}
-                  className="px-4 py-2 text-sm text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700 rounded-md hover:bg-blue-50 dark:hover:bg-primary-900/30"
+                  className="px-4 py-2 text-sm text-text-secondary border border-primary-300 dark:border-primary-700 rounded-md hover:bg-status-info-bg dark:hover:bg-primary-900/30"
                 >
                   {t('adminUsers.actions.resetPassword')}
                 </button>
@@ -689,7 +686,7 @@ const AdminUsers = () => {
             <div className="flex justify-end gap-3 pt-4">
               <button
                 onClick={closeEditModal}
-                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm text-text-secondary border border-border-subtle rounded-md hover:bg-surface-hover"
               >
                 {t('common.close')}
               </button>

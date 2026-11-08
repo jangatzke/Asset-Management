@@ -2,12 +2,15 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import { serviceCatalogApi, ticketApi, type ServiceCatalogItem, type ServiceCatalogItemInput } from '../services/api';
 import { formatApiError } from '../utils/apiError';
+import { PageBreadcrumbs } from '../components/PageHeader';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
 
 export default function ServiceCatalog() {
   const { t } = useI18n();
+  const breadcrumbs = useBreadcrumbs();
   const [items, setItems] = useState<ServiceCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -141,6 +144,7 @@ export default function ServiceCatalog() {
 
   return (
     <div className="space-y-6">
+      <PageBreadcrumbs items={breadcrumbs} />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{t('serviceCatalog.title')}</h1>
         <button

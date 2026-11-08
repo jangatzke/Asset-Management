@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { statusBadgeClass, type StatusKind } from '../utils/statusHelpers';
 
 /**
  * Semantic status badge.
@@ -6,6 +7,10 @@ import { ReactNode } from 'react';
  * Provides a single, consistent palette across the app so color meaning is
  * stable: red = critical/high, amber = medium, green = low/active/closed.
  * Never reuse red to mean "closed".
+ *
+ * Stage 4 (QW-5): the color pairs now come from the central `statusBadgeClass`
+ * helper (semantic status tokens) instead of per-kind raw-palette maps, so every
+ * badge switches automatically with the active color mode.
  *
  * Props:
  *  - `kind`: 'criticality' | 'state' | 'priority' | 'custom'
@@ -22,60 +27,54 @@ export interface StatusBadgeProps {
   children?: ReactNode;
 }
 
-type BadgeClass = string;
+/** Shared pill shape (colors come from statusBadgeClass). */
+const badgeBase = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold';
 
-const criticalityClasses: Record<string, BadgeClass> = {
-  low: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-success-100 text-success-800 dark:bg-success-800 dark:text-white',
-  medium: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-white',
-  high: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-white',
-  critical: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-danger-100 text-danger-800 dark:bg-danger-800 dark:text-white',
+const criticalityKinds: Record<string, StatusKind> = {
+  low: 'ok',
+  medium: 'info',
+  high: 'warn',
+  critical: 'critical',
 };
 
-const priorityClasses: Record<string, BadgeClass> = {
-  low: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-  medium: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-white',
-  high: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-white',
-  critical: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-danger-100 text-danger-800 dark:bg-danger-800 dark:text-white',
+const priorityKinds: Record<string, StatusKind> = {
+  low: 'idle',
+  medium: 'info',
+  high: 'warn',
+  critical: 'critical',
 };
 
-const stateClasses: Record<string, BadgeClass> = {
-  active: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-success-100 text-success-800 dark:bg-success-800 dark:text-white',
-  in_progress: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-white',
-  under_investigation: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-white',
-  identified: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-white',
-  assessed: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-white',
-  treatment_planned: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-white',
-  treatment_in_progress: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-white',
-  resolved: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-success-100 text-success-800 dark:bg-success-800 dark:text-white',
-  fulfilled: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-success-100 text-success-800 dark:bg-success-800 dark:text-white',
-  closed: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-  default: 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
+const stateKinds: Record<string, StatusKind> = {
+  active: 'ok',
+  in_progress: 'warn',
+  under_investigation: 'warn',
+  identified: 'info',
+  assessed: 'info',
+  treatment_planned: 'warn',
+  treatment_in_progress: 'warn',
+  resolved: 'ok',
+  fulfilled: 'ok',
+  closed: 'idle',
 };
 
-function resolveClasses(kind: StatusBadgeProps['kind'], value: string): BadgeClass {
+function resolveKind(kind: StatusBadgeProps['kind'], value: string): StatusKind {
   switch (kind) {
     case 'criticality':
-      return criticalityClasses[value] ?? criticalityClasses.medium;
+      return criticalityKinds[value] ?? 'info';
     case 'priority':
-      return priorityClasses[value] ?? priorityClasses.medium;
+      return priorityKinds[value] ?? 'info';
     case 'state':
-      return stateClasses[value] ?? stateClasses.default;
-    case 'custom':
-      return '';
+      return stateKinds[value] ?? 'idle';
     default:
-      return '';
+      return 'idle';
   }
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ kind, value, label, ariaLabel, children }) => {
-  const classes = resolveClasses(kind, value);
   const text = label ?? value;
 
   return (
-    <span
-      className={`${classes} ${classes ? 'gap-1' : 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
-      aria-label={ariaLabel}
-    >
+    <span className={`${badgeBase} ${statusBadgeClass(resolveKind(kind, value))}`} aria-label={ariaLabel}>
       {children ?? text}
     </span>
   );

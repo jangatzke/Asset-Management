@@ -14,13 +14,18 @@ import { getControlStatusColor } from '../utils/statusHelpers';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
-import { DataTableShell } from '../components/DataTableShell';
+import { DataTableShell, tableCellClass, useTableDensity } from '../components/DataTableShell';
+import { PageHeader } from '../components/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
+import { ErrorAlert } from '../components/ErrorAlert';
+import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/useToast';
 import { exportCsv } from '../utils/csvExport';
 import { useListQuery } from '../hooks/useListQuery';
 import { extractApiError, formatToastMessage, formatApiError } from '../utils/apiError';
 import { buttonPrimary } from '../styles/tokens';
+import { Field, FormRow, FieldInput, FieldSelect, FieldTextarea } from '../components/FormRow';
 import { useAuthStore } from '../store/auth';
 import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
 import { canRestoreEntities } from '../utils/permissions';
@@ -114,11 +119,14 @@ const initialImplementationForm: ImplementationForm = {
   testFrequency: '',
 };
 
-const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
+const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors duration-fast hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-500';
 const actionIconClassName = 'h-4 w-4';
 
 const Controls = () => {
   const { t } = useI18n();
+  // Stage 10b (LT-3): cells follow the globally persisted density preference.
+  const cellClass = tableCellClass(useTableDensity());
+  const breadcrumbs = useBreadcrumbs();
   const { addToast } = useToast();
   // Restore (undo of bulk archive) is admin-only on the backend, so the Undo
   // action is only offered to users who can actually perform it.
@@ -570,7 +578,7 @@ const Controls = () => {
   if (loading) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('controls.title')}</h1>
+        <PageHeader title={t('controls.title')} breadcrumbs={breadcrumbs} />
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
@@ -580,33 +588,32 @@ const Controls = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('controls.title')}</h1>
-        <button
-          onClick={() => { resetControlForm(); setModalOpen(true); }}
-          className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
-        >
-          {t('controls.newControl')}
-        </button>
-      </div>
+      <PageHeader
+        title={t('controls.title')}
+        breadcrumbs={breadcrumbs}
+        actions={(
+          <button
+            onClick={() => { resetControlForm(); setModalOpen(true); }}
+            className="bg-primary-600 dark:bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
+          >
+            {t('controls.newControl')}
+          </button>
+        )}
+      />
 
-      {error && (
-        <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-3 rounded mb-4">
-          {error}
-        </div>
-      )}
+      {error && <ErrorAlert message={error} className="mb-4" />}
 
       {soaSuccessMessage && (
-        <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 p-3 rounded mb-4" role="status">
+        <div className="bg-status-ok-bg text-status-ok-fg p-3 rounded mb-4" role="status">
           {soaSuccessMessage}
         </div>
       )}
 
-      <section className="bg-blue-50 dark:bg-blue-950 border border-primary-200 dark:border-primary-800 rounded-lg p-4 mb-4" aria-labelledby="iso27001-soa-generator-title">
+      <section className="bg-surface-sunken border border-border-subtle rounded-lg p-4 mb-4" aria-labelledby="iso27001-soa-generator-title">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 id="iso27001-soa-generator-title" className="font-semibold text-gray-900 dark:text-white">{t('controls.soaGenerator.title')}</h2>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('controls.soaGenerator.description')}</p>
+            <h2 id="iso27001-soa-generator-title" className="font-semibold text-text-primary">{t('controls.soaGenerator.title')}</h2>
+            <p className="mt-1 text-sm text-text-secondary">{t('controls.soaGenerator.description')}</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <label className="sr-only" htmlFor="iso27001-soa-scope">{t('controls.soaGenerator.scopeLabel')}</label>
@@ -614,7 +621,7 @@ const Controls = () => {
               id="iso27001-soa-scope"
               value={selectedSoAScopeId}
               onChange={(event) => setSelectedSoAScopeId(event.target.value)}
-              className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md"
+              className="min-w-56 px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md"
             >
               <option value="">{t('controls.soaGenerator.scopePlaceholder')}</option>
               {ismsScopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.name} (v{scope.version})</option>)}
@@ -636,7 +643,7 @@ const Controls = () => {
               id="iso27001-soa-export"
               value={selectedSoAId}
               onChange={(event) => setSelectedSoAId(event.target.value)}
-              className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md"
+              className="min-w-56 px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md"
             >
               <option value="">{t('controls.soaGenerator.soaPlaceholder')}</option>
               {soaList.map((soa) => (
@@ -649,7 +656,7 @@ const Controls = () => {
               type="button"
               onClick={() => handleExportSoA('csv')}
               disabled={!selectedSoAId || exportingSoA}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="px-4 py-2 rounded-md border border-border-subtle text-text-secondary hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {exportingSoA ? t('controls.soaGenerator.exportInProgress') : t('controls.soaGenerator.exportCsv')}
             </button>
@@ -657,24 +664,24 @@ const Controls = () => {
               type="button"
               onClick={() => handleExportSoA('html')}
               disabled={!selectedSoAId || exportingSoA}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {exportingSoA ? t('controls.soaGenerator.exportInProgress') : t('controls.soaGenerator.exportPdf')}
             </button>
           </div>
         )}
         {soaList.length > 1 && (
-          <div className="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('controls.soaDiff.title')}</h3>
-            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('controls.soaDiff.description')}</p>
+          <div className="mt-4 border-t border-border-subtle pt-3">
+            <h3 className="text-sm font-semibold text-text-primary">{t('controls.soaDiff.title')}</h3>
+            <p className="mt-1 text-xs text-text-secondary">{t('controls.soaDiff.description')}</p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
               <label className="sr-only" htmlFor="soa-diff-from">{t('controls.soaDiff.fromLabel')}</label>
-              <select id="soa-diff-from" value={soaDiffFromId} onChange={(event) => setSoaDiffFromId(event.target.value)} className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md">
+              <select id="soa-diff-from" value={soaDiffFromId} onChange={(event) => setSoaDiffFromId(event.target.value)} className="min-w-56 px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md">
                 <option value="">{t('controls.soaDiff.fromPlaceholder')}</option>
                 {soaList.map((soa) => (<option key={soa.id} value={soa.id}>{soa.frameworkId} v{soa.frameworkVersion} · SoA v{soa.version} · {soa.approvalStatus}</option>))}
               </select>
               <label className="sr-only" htmlFor="soa-diff-to">{t('controls.soaDiff.toLabel')}</label>
-              <select id="soa-diff-to" value={soaDiffToId} onChange={(event) => setSoaDiffToId(event.target.value)} className="min-w-56 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md">
+              <select id="soa-diff-to" value={soaDiffToId} onChange={(event) => setSoaDiffToId(event.target.value)} className="min-w-56 px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md">
                 <option value="">{t('controls.soaDiff.toPlaceholder')}</option>
                 {soaList.map((soa) => (<option key={soa.id} value={soa.id}>{soa.frameworkId} v{soa.frameworkVersion} · SoA v{soa.version} · {soa.approvalStatus}</option>))}
               </select>
@@ -684,14 +691,14 @@ const Controls = () => {
             </div>
             {soaDiffResult && (
               <div className="mt-3 space-y-3 text-sm">
-                {!soaDiffResult.comparable && <p className="rounded-md bg-amber-100 dark:bg-amber-900 text-amber-900 dark:text-amber-100 px-3 py-2">{t('controls.soaDiff.notComparable')}</p>}
+                {!soaDiffResult.comparable && <p className="rounded-md bg-status-warn-bg text-status-warn-fg px-3 py-2">{t('controls.soaDiff.notComparable')}</p>}
                 <p className="font-medium">{t('controls.soaDiff.summary').replace('{added}', String(soaDiffResult.summary.addedCount)).replace('{removed}', String(soaDiffResult.summary.removedCount)).replace('{changed}', String(soaDiffResult.summary.changedCount)).replace('{unchanged}', String(soaDiffResult.summary.unchangedCount))}</p>
                 {soaDiffResult.added.length === 0 && soaDiffResult.removed.length === 0 && soaDiffResult.changed.length === 0 && (
-                  <p className="text-gray-600 dark:text-gray-400">{t('controls.soaDiff.noChanges')}</p>
+                  <p className="text-text-secondary">{t('controls.soaDiff.noChanges')}</p>
                 )}
                 {soaDiffResult.added.length > 0 && (
                   <div>
-                    <h4 className="font-semibold text-emerald-700 dark:text-emerald-300">{t('controls.soaDiff.sectionAdded')} ({soaDiffResult.added.length})</h4>
+                    <h4 className="font-semibold text-status-ok-fg">{t('controls.soaDiff.sectionAdded')} ({soaDiffResult.added.length})</h4>
                     <ul className="mt-1 space-y-1 list-disc pl-5">
                       {soaDiffResult.added.map((row) => (<li key={row.key}>{row.controlTitle ?? row.controlId ?? row.key} · {row.applicability}</li>))}
                     </ul>
@@ -699,7 +706,7 @@ const Controls = () => {
                 )}
                 {soaDiffResult.removed.length > 0 && (
                   <div>
-                    <h4 className="font-semibold text-red-700 dark:text-red-300">{t('controls.soaDiff.sectionRemoved')} ({soaDiffResult.removed.length})</h4>
+                    <h4 className="font-semibold text-status-critical-fg">{t('controls.soaDiff.sectionRemoved')} ({soaDiffResult.removed.length})</h4>
                     <ul className="mt-1 space-y-1 list-disc pl-5">
                       {soaDiffResult.removed.map((row) => (<li key={row.key}>{row.controlTitle ?? row.controlId ?? row.key} · {row.applicability}</li>))}
                     </ul>
@@ -707,12 +714,12 @@ const Controls = () => {
                 )}
                 {soaDiffResult.changed.length > 0 && (
                   <div>
-                    <h4 className="font-semibold text-amber-700 dark:text-amber-300">{t('controls.soaDiff.sectionChanged')} ({soaDiffResult.changed.length})</h4>
+                    <h4 className="font-semibold text-status-warn-fg">{t('controls.soaDiff.sectionChanged')} ({soaDiffResult.changed.length})</h4>
                     <table className="mt-1 w-full text-left border-collapse">
-                      <thead><tr><th className="py-1 pr-2">{t('controls.soaDiff.controlColumn')}</th><th className="py-1">{t('controls.soaDiff.changeColumn')}</th></tr></thead>
+                      <thead><tr><th scope="col" className="py-1 pr-2">{t('controls.soaDiff.controlColumn')}</th><th scope="col" className="py-1">{t('controls.soaDiff.changeColumn')}</th></tr></thead>
                       <tbody>
                         {soaDiffResult.changed.map((row) => (
-                          <tr key={row.key} className="border-t border-gray-200 dark:border-gray-700 align-top">
+                          <tr key={row.key} className="border-t border-border-subtle align-top">
                             <td className="py-1 pr-2">{row.controlTitle ?? row.controlId ?? row.key}</td>
                             <td className="py-1 space-y-1">
                               {Object.entries(row.fields).map(([field, change]) => (
@@ -729,17 +736,17 @@ const Controls = () => {
             )}
           </div>
         )}
-        <div className="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
+        <div className="mt-4 border-t border-border-subtle pt-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('controls.soaPending.title')}</h3>
-              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('controls.soaPending.description')}</p>
+              <h3 className="text-sm font-semibold text-text-primary">{t('controls.soaPending.title')}</h3>
+              <p className="mt-1 text-xs text-text-secondary">{t('controls.soaPending.description')}</p>
             </div>
             <button
               type="button"
               onClick={handleLoadPendingJustifications}
               disabled={loadingPendingReport}
-              className="bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-status-warn-bg text-status-warn-fg px-4 py-2 rounded-md hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loadingPendingReport ? t('controls.soaPending.loading') : t('controls.soaPending.loadButton')}
             </button>
@@ -771,45 +778,45 @@ const Controls = () => {
           placeholder={t('controls.searchPlaceholder')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">{t('controls.stats.frameworkVersions')}</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{frameworkCount}</div>
+        <div className="bg-surface-default rounded-lg shadow p-4">
+          <div className="text-sm text-text-muted">{t('controls.stats.frameworkVersions')}</div>
+          <div className="text-2xl font-semibold text-text-primary">{frameworkCount}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">{t('controls.stats.statementsOfApplicability')}</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{soaCount}</div>
+        <div className="bg-surface-default rounded-lg shadow p-4">
+          <div className="text-sm text-text-muted">{t('controls.stats.statementsOfApplicability')}</div>
+          <div className="text-2xl font-semibold text-text-primary">{soaCount}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">{t('controls.stats.evidenceItems')}</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{evidenceCount}</div>
+        <div className="bg-surface-default rounded-lg shadow p-4">
+          <div className="text-sm text-text-muted">{t('controls.stats.evidenceItems')}</div>
+          <div className="text-2xl font-semibold text-text-primary">{evidenceCount}</div>
         </div>
       </div>
 
       <DataTableShell onExport={exportVisibleControls} exportLabel="Export CSV" rowCount={sortedControls.length} densityLabel={t('dataTable.density')} compactLabel={t('dataTable.compact')} comfortableLabel={t('dataTable.comfortable')}>
         {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-primary-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-sm text-gray-700 dark:text-gray-200">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-5 bg-surface-sunken border-t border-border-subtle">
+            <span className="text-sm text-text-secondary">{t('bulk.selectedCount', { count: selectedIds.size })}</span>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 dark:text-gray-300 hover:underline">{t('common.cancel')}</button>
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-text-secondary hover:underline">{t('common.cancel')}</button>
               <button type="button" onClick={() => setBulkConfirmOpen(true)} disabled={bulkArchiving} className={buttonPrimary}>{t('bulk.archive')}</button>
             </div>
           </div>
         )}
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+        <table className="min-w-full divide-y divide-border-subtle">
+          <thead className="bg-surface-sunken border-b border-border-subtle text-caption text-text-muted">
             <tr>
-              <th className="px-6 py-3 w-10">
+              <th scope="col" className="px-4 py-2.5 w-10">
                 <input
                   type="checkbox"
                   aria-label={t('bulk.selectAll')}
                   checked={sortedControls.length > 0 && sortedControls.every((control) => selectedIds.has(control.id))}
                   onChange={toggleSelectAllOnPage}
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500"
                 />
               </th>
               <SortableTh column="title" label={t('controls.columns.title')} activeColumn={sort.column} direction={sort.column === 'title' ? sort.direction : ''} onSort={toggleSort} />
@@ -818,47 +825,47 @@ const Controls = () => {
               <SortableTh column="maturity" label={t('controls.columns.maturity')} activeColumn={sort.column} direction={sort.column === 'maturity' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="applicability" label={t('controls.columns.applicability')} activeColumn={sort.column} direction={sort.column === 'applicability' ? sort.direction : ''} onSort={toggleSort} />
               <SortableTh column="requirements" label={t('controls.columns.requirements')} activeColumn={sort.column} direction={sort.column === 'requirements' ? sort.direction : ''} onSort={toggleSort} />
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-700 dark:text-gray-200">{t('common.actions')}</th>
+              <th scope="col" className="px-4 py-2.5 text-left text-caption text-text-muted">{t('common.actions')}</th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className="bg-surface-default divide-y divide-border-subtle">
             {sortedControls.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                  {t('controls.noControls')}
+                <td colSpan={8} className="px-4 py-8">
+                  <EmptyState titleKey="controls.noControls" />
                 </td>
               </tr>
             ) : (
               sortedControls.map((control) => (
-                <tr key={control.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 w-10">
+                <tr key={control.id} className="transition-colors duration-fast hover:bg-surface-hover">
+                  <td className={`${cellClass} w-10`}>
                     <input
                       type="checkbox"
                       aria-label={t('bulk.select')}
                       checked={selectedIds.has(control.id)}
                       onChange={() => toggleSelected(control.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="h-4 w-4 rounded border-border-strong text-primary-600 focus:ring-primary-500"
                     />
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{control.title}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{control.controlGoal}</td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className={`${cellClass} text-body2 font-medium text-text-primary`}>{control.title}</td>
+                  <td className={`${cellClass} text-body2 text-text-secondary`}>{control.controlGoal}</td>
+                  <td className={`${cellClass} text-body2`}>
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getControlStatusColor(primaryImplementation(control)?.implementationStatus || control.implementationStatus)}`}>
                       {implementationSummary(control)}
                     </span>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationCount').replace('{count}', String(control.implementations?.length ?? 0))}</div>
-                    <div className="mt-1 text-xs text-purple-600 dark:text-purple-300">{t('controls.linkedRiskCount').replace('{count}', String(implementationRiskCount(control)))}</div>
+                    <div className="mt-1 text-caption tabular-nums text-text-muted">{t('controls.implementationCount').replace('{count}', String(control.implementations?.length ?? 0))}</div>
+                    <div className="mt-1 text-caption tabular-nums text-text-muted">{t('controls.linkedRiskCount').replace('{count}', String(implementationRiskCount(control)))}</div>
                     {(control.implementations ?? []).map((impl) => (
                       <div key={impl.id} className="mt-2 text-xs">
                         <button onClick={() => setExpandedImplementationId(expandedImplementationId === impl.id ? null : impl.id)} className="text-primary-600 dark:text-primary-400">
                           {t('controls.showLinkedRisks').replace('{count}', String(impl.linkedRisks?.length ?? 0))}
                         </button>
                         {expandedImplementationId === impl.id && (
-                          <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded space-y-1">
-                            {(impl.linkedRisks ?? []).length === 0 ? <div className="text-gray-500">{t('controls.noLinkedRisks')}</div> : impl.linkedRisks?.map((risk: any) => (
-                              <div key={risk.riskControlId} className="border-b border-gray-200 dark:border-gray-700 pb-1 last:border-b-0">
-                                <div className="font-medium text-gray-800 dark:text-gray-100">{risk.displayId} {risk.title}</div>
-                                <div className="text-gray-500">{t(`risks.controls.roles.${risk.role}`)} · {t(`risks.controls.dimensions.${risk.mitigationDimension}`)} · {t('risks.controls.latestEffectiveness')}: {latestEffectiveness(risk)}</div>
+                          <div className="mt-2 p-2 bg-surface-sunken rounded space-y-1">
+                            {(impl.linkedRisks ?? []).length === 0 ? <div className="text-text-muted">{t('controls.noLinkedRisks')}</div> : impl.linkedRisks?.map((risk: any) => (
+                              <div key={risk.riskControlId} className="border-b border-border-subtle pb-1 last:border-b-0">
+                                <div className="font-medium text-text-primary">{risk.displayId} {risk.title}</div>
+                                <div className="text-text-muted">{t(`risks.controls.roles.${risk.role}`)} · {t(`risks.controls.dimensions.${risk.mitigationDimension}`)} · {t('risks.controls.latestEffectiveness')}: {latestEffectiveness(risk)}</div>
                               </div>
                             ))}
                           </div>
@@ -866,21 +873,21 @@ const Controls = () => {
                       </div>
                     ))}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{primaryImplementation(control)?.maturityLevel ?? control.maturityLevel ?? 0}/5</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{t(`controls.applicability.${control.applicability}`)}</td>
-                  <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                  <td className={`${cellClass} text-body2 tabular-nums text-text-secondary`}>{primaryImplementation(control)?.maturityLevel ?? control.maturityLevel ?? 0}/5</td>
+                  <td className={`${cellClass} text-body2 text-text-secondary`}>{t(`controls.applicability.${control.applicability}`)}</td>
+                  <td className={`${cellClass} text-caption text-text-muted`}>
                     {(control.requirementMappings ?? []).slice(0, 2).map((m) => <div key={m.requirement?.id}>{m.requirement?.requirementKey ?? ''} {m.requirement?.title}</div>)}
                     {(control.requirementMappings?.length ?? 0) === 0 && '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm whitespace-nowrap">
+                  <td className={`${cellClass} text-body2 whitespace-nowrap`}>
                     <div className="flex items-center gap-1">
                       <button onClick={() => handleEditControl(control)} aria-label={`${t('common.edit')}: ${control.title}`} title={t('common.edit')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200`}>
                         <PencilSquareIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200`}>
+                      <button onClick={() => openImplementationModal(control)} aria-label={`${t('controls.addImplementation')}: ${control.title}`} title={t('controls.addImplementation')} className={`${actionButtonClassName} text-primary-600 hover:text-primary-700`}>
                         <PlusCircleIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
-                      <button onClick={() => setHistoryControl(control)} aria-label={`${t('history.viewHistory')}: ${control.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200`}>
+                      <button onClick={() => setHistoryControl(control)} aria-label={`${t('history.viewHistory')}: ${control.title}`} title={t('history.viewHistory')} className={`${actionButtonClassName} text-text-muted hover:text-text-primary`}>
                         <ClockIcon aria-hidden="true" className={actionIconClassName} />
                       </button>
                     </div>
@@ -895,15 +902,11 @@ const Controls = () => {
       {/* Control Modal */}
       <Modal isOpen={modalOpen} onClose={handleControlModalClose} title={editingControlId ? t('controls.editControlTitle') : t('controls.createControl')} isDirty={formState.isDirty && !saving} onDiscardConfirm={handleControlDiscard}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('controls.fields.catalogId')} <span className="text-red-500">*</span>
-              </label>
-              <select
+          <FormRow columns={2}>
+            <Field label={t('controls.fields.catalogId')} required>
+              <FieldSelect
                 value={selectedCatalogId}
                 onChange={(e) => handleCatalogChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">-- {t('controls.selectCatalog')} --</option>
                 {catalogOptions.map((catalog) => (
@@ -911,21 +914,17 @@ const Controls = () => {
                     {catalog.name} ({catalog.version})
                   </option>
                 ))}
-              </select>
+              </FieldSelect>
               <input
                 type="hidden"
                 value={formState.values.catalogId}
                 onChange={(e) => formState.handleChange({ catalogId: e.target.value })}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('controls.fields.catalogVersion')} <span className="text-red-500">*</span>
-              </label>
-              <select
+            </Field>
+            <Field label={t('controls.fields.catalogVersion')} required>
+              <FieldSelect
                 value={formState.values.catalogVersion}
                 onChange={(e) => formState.handleChange({ catalogVersion: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">-- {t('controls.selectVersion')} --</option>
                 {selectedCatalogId && (
@@ -937,85 +936,61 @@ const Controls = () => {
                 <option value="2.0">2.0</option>
                 <option value="2019">2019</option>
                 <option value="2017">2017</option>
-              </select>
-            </div>
-          </div>
+              </FieldSelect>
+            </Field>
+          </FormRow>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('controls.fields.title')} <span className="text-red-500">*</span>
-            </label>
-            <input
+          <Field label={t('controls.fields.title')} required>
+            <FieldInput
               type="text"
               value={formState.values.title}
               onChange={(e) => formState.handleChange({ title: e.target.value })}
               placeholder={t('controls.fields.title')}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('controls.fields.description')}
-            </label>
-            <textarea
+          <Field label={t('controls.fields.description')}>
+            <FieldTextarea
               value={formState.values.description}
               onChange={(e) => formState.handleChange({ description: e.target.value })}
               placeholder={t('controls.fields.description')}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('controls.fields.controlGoal')} <span className="text-red-500">*</span>
-            </label>
-            <textarea
+          <Field label={t('controls.fields.controlGoal')} required>
+            <FieldTextarea
               value={formState.values.controlGoal}
               onChange={(e) => formState.handleChange({ controlGoal: e.target.value })}
               placeholder={t('controls.fields.controlGoal')}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-          </div>
+          </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('controls.fields.responsibleId')}
-              </label>
-              <input
+          <FormRow columns={2}>
+            <Field label={t('controls.fields.responsibleId')}>
+              <FieldInput
                 type="text"
                 value={formState.values.responsibleId}
                 onChange={(e) => formState.handleChange({ responsibleId: e.target.value })}
                 placeholder={t('controls.fields.responsibleId')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('controls.fields.applicability')}
-              </label>
-              <input
+            </Field>
+            <Field label={t('controls.fields.applicability')}>
+              <FieldInput
                 type="text"
                 value={formState.values.applicability}
                 onChange={(e) => formState.handleChange({ applicability: e.target.value })}
                 placeholder={t('controls.fields.applicability')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
-            </div>
-          </div>
+            </Field>
+          </FormRow>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('controls.fields.implementationStatus')}
-              </label>
-              <select
+          <FormRow columns={2}>
+            <Field label={t('controls.fields.implementationStatus')}>
+              <FieldSelect
                 value={formState.values.implementationStatus}
                 onChange={(e) => formState.handleChange({ implementationStatus: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="planned">{t('controls.implementationStatus.planned')}</option>
                 <option value="in_progress">{t('controls.implementationStatus.in_progress')}</option>
@@ -1024,16 +999,12 @@ const Controls = () => {
                 <option value="tested">{t('controls.implementationStatus.tested')}</option>
                 <option value="effective">{t('controls.implementationStatus.effective')}</option>
                 <option value="not_applicable">{t('controls.implementationStatus.not_applicable')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('controls.fields.maturityLevel')}
-              </label>
-              <select
+              </FieldSelect>
+            </Field>
+            <Field label={t('controls.fields.maturityLevel')}>
+              <FieldSelect
                 value={formState.values.maturityLevel}
                 onChange={(e) => formState.handleChange({ maturityLevel: parseInt(e.target.value, 10) })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value={0}>{t('controls.maturity.0')}</option>
                 <option value={1}>{t('controls.maturity.1')}</option>
@@ -1041,14 +1012,14 @@ const Controls = () => {
                 <option value={3}>{t('controls.maturity.3')}</option>
                 <option value={4}>{t('controls.maturity.4')}</option>
                 <option value={5}>{t('controls.maturity.5')}</option>
-              </select>
-            </div>
-          </div>
+              </FieldSelect>
+            </Field>
+          </FormRow>
 
           <div className="flex justify-end gap-2 mt-4">
             <button
               onClick={handleControlModalClose}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="px-4 py-2 border border-border-subtle rounded-md text-text-secondary hover:bg-surface-hover"
             >
               {t('common.cancel')}
             </button>
@@ -1068,7 +1039,7 @@ const Controls = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.organizationUnitId')} *</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('controls.fields.organizationUnitId')} *</label>
               <EntitySearchSelect
                 label={t('controls.fields.organizationUnitId')}
                 searchEndpoint={searchOrganizationUnits}
@@ -1081,7 +1052,7 @@ const Controls = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('controls.fields.responsibleId')} *</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('controls.fields.responsibleId')} *</label>
               <EntitySearchSelect
                 label={t('controls.fields.responsibleId')}
                 searchEndpoint={searchUsers}
@@ -1093,7 +1064,7 @@ const Controls = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <select value={implementationFormState.values.implementationStatus} onChange={(e) => implementationFormState.handleChange({ implementationStatus: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md">
               <option value="planned">{t('controls.implementationStatus.planned')}</option>
               <option value="in_progress">{t('controls.implementationStatus.in_progress')}</option>
               <option value="implemented">{t('controls.implementationStatus.implemented')}</option>
@@ -1101,15 +1072,15 @@ const Controls = () => {
               <option value="effective">{t('controls.implementationStatus.effective')}</option>
             </select>
             <select value={implementationFormState.values.maturityLevel} onChange={(e) => implementationFormState.handleChange({ maturityLevel: parseInt(e.target.value, 10) })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+              className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md">
               {[0,1,2,3,4,5].map((level) => <option key={level} value={level}>{t(`controls.maturity.${level}`)}</option>)}
             </select>
           </div>
           <textarea value={implementationFormState.values.implementationDescription} onChange={(e) => implementationFormState.handleChange({ implementationDescription: e.target.value })} placeholder={t('controls.fields.implementationDescription')}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" />
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('controls.implementationNotice')}</p>
+            className="w-full px-3 py-2 border border-border-subtle bg-surface-default text-text-primary rounded-md" />
+          <p className="text-xs text-text-muted">{t('controls.implementationNotice')}</p>
           <div className="flex justify-end gap-2">
-            <button onClick={handleImplementationModalClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300">{t('common.cancel')}</button>
+            <button onClick={handleImplementationModalClose} className="px-4 py-2 border border-border-subtle rounded-md text-text-secondary">{t('common.cancel')}</button>
             <button onClick={handleCreateImplementation} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-md disabled:opacity-50">{t('controls.createImplementation')}</button>
           </div>
         </div>
