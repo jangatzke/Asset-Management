@@ -6,7 +6,8 @@ import { displayIdService } from './displayId.service';
 import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
 import { riskMethodService } from './riskmethod.service';
-import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, recordEntityHistory, toHistoryData } from './entityHistory.service';
+import { validateUserReferences } from './userReference.service';
 import { serializeEntity, serializeEnvelope } from '../utils/dto';
 
 const db = prisma as any;
@@ -24,21 +25,9 @@ async function resolveOrgUnitScope(organizationUnitId: string) {
   return { legalEntityId: organizationUnit.legalEntityId ?? null, organizationUnitId, siteId: null, scopeId: null };
 }
 
-// Risk owner/assessor reference validation (F-01/F-14 referential integrity).
-// Both fields are required: they must reference existing, active users.
-async function validateRiskUserReferences(refs: { riskOwnerId?: string; assessorId?: string }) {
-  const ids = [refs.riskOwnerId, refs.assessorId].filter((v): v is string => Boolean(v));
-  if (!ids.length) return refs;
-  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, isActive: true } });
-  const byId = new Map(users.map((u: any) => [u.id, u.isActive]));
-  for (const field of ['riskOwnerId', 'assessorId'] as const) {
-    const id = refs[field];
-    if (!id) continue;
-    if (!byId.has(id)) throw new AppError(`${field} references a user that does not exist`, 400);
-    if (byId.get(id) === false) throw new AppError(`${field} references an inactive user`, 409);
-  }
-  return refs;
-}
+// Risk owner/assessor reference validation (F-01/F-14 referential integrity) is
+// handled by the central userReference helper; both fields are required in the
+// risk create/update paths, so dangling/inactive ids are rejected there.
 
 async function resolveImplementationScope(controlImplementationId: string): Promise<ScopeConstraints> {
   const implementation = await db.controlImplementation.findUnique({
@@ -411,7 +400,7 @@ export class RiskService {
     }
 
     // Validate risk owner/assessor references (must be existing, active users)
-    await validateRiskUserReferences({ riskOwnerId: data.riskOwnerId, assessorId: data.assessorId });
+    await validateUserReferences(db, { riskOwnerId: data.riskOwnerId, assessorId: data.assessorId });
 
     // Use a transaction to create risk, junction links, and initial assessment atomically
     const result = await prisma.$transaction(async (tx) => {
@@ -753,6 +742,46 @@ export class RiskService {
     return { success: true };
   }
 
+  /**
+   * Restore an archived risk. Mirrors the Assets restore semantics:
+   * 404 when missing, 409 when the risk is already active, audit + history.
+   */
+  async restore(id: string, restoredBy?: string, reason?: string) {
+    const existing = await prisma.risk.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError('Risk not found', 404);
+    }
+    if (!existing.isArchived) {
+      throw new AppError('Risk is not archived', 409);
+    }
+
+    await prisma.risk.update({
+      where: { id },
+      data: { isArchived: false },
+    });
+
+    if (restoredBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: restoredBy,
+        action: 'RISK_RESTORE',
+        entityType: 'Risk',
+        entityId: id,
+        details: `Restored risk: ${existing.title}${reason ? `: ${reason}` : ''}`,
+      });
+    }
+
+    // Record entity history for restore (archiving reversal)
+    await recordEntityHistory({
+      entityType: 'Risk',
+      entityId: id,
+      action: 'UPDATE',
+      summary: `Restored risk: ${existing.title}${reason ? `: ${reason}` : ''}`,
+      actorId: restoredBy,
+    });
+
+    return { success: true };
+  }
+
   // ==========================================
   // Assessment Management
   // ==========================================
@@ -767,6 +796,8 @@ export class RiskService {
     if (!data.justification || data.justification.trim().length === 0) {
       throw new AppError('Justification is mandatory for every assessment', 400);
     }
+
+    await validateUserReferences(db, { assessorId: data.assessorId });
 
     const risk = await prisma.risk.findUnique({ where: { id: data.riskId } });
     if (!risk) {
@@ -1122,6 +1153,7 @@ export class RiskService {
       db.riskAssessmentVersion.findUnique({ where: { id: data.riskAssessmentVersionId } }),
     ]);
     if (!riskControl) throw new AppError('Risk control link not found', 404);
+    await validateUserReferences(db, { assessedBy: userId ?? data.assessedBy });
     this.validateRiskControlAssessmentPayload(data, riskControl.mitigationDimension);
     this.validateImplementedControlEffectiveness(riskControl, data);
     this.validateAssessmentMutability(version);

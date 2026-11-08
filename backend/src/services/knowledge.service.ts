@@ -2,10 +2,13 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { nextDisplayId } from './displayId.service';
+import { serializeEnvelope } from '../utils/dto';
 
 type AnyObject = Record<string, any>;
 
 export interface KnowledgeArticleListQuery {
+  page?: string | number;
+  limit?: string | number;
   search?: string;
   category?: string;
   status?: string;
@@ -31,6 +34,10 @@ const LIST_SELECT = {
 
 export class KnowledgeService {
   async list(query: KnowledgeArticleListQuery = {}) {
+    const page = parseInt(String(query.page ?? ''), 10) || 1;
+    const limit = parseInt(String(query.limit ?? ''), 10) || 20;
+    const offset = (page - 1) * limit;
+
     const where: AnyObject = { isArchived: false };
     if (query.category) where.category = query.category;
     if (query.status) where.status = query.status;
@@ -45,10 +52,29 @@ export class KnowledgeService {
         { tags: { has: search } },
       ];
     }
-    return prisma.knowledgeArticle.findMany({
-      where,
-      orderBy: { updatedAt: 'desc' },
-      select: LIST_SELECT,
+
+    // D1 envelope: `{ data, pagination }` carrying the filtered total so the
+    // route can set `X-Total-Count` from `pagination.total` (never `data.length`),
+    // matching assets, tickets, risks, controls and incidents.
+    const [data, total] = await Promise.all([
+      prisma.knowledgeArticle.findMany({
+        where,
+        skip: offset,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        select: LIST_SELECT,
+      }),
+      prisma.knowledgeArticle.count({ where }),
+    ]);
+
+    return serializeEnvelope({
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   }
 

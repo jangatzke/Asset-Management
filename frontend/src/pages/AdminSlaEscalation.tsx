@@ -5,6 +5,7 @@ import { SortableTh } from '../components/SortableTh';
 import { useI18n } from '../context/I18nContext';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 
 interface SlaConfig {
   id?: string;
@@ -117,7 +118,7 @@ export default function AdminSlaEscalation() {
       setConfig({ ...defaultConfig, ...configRes.data, escalationLevels: [...(configRes.data.escalationLevels ?? [1, 2, 3])], smtpPassword: '' });
       setLogs(logsRes.data ?? []);
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Failed to load SLA escalation settings');
+      setError(formatApiError(err, 'Failed to load SLA escalation settings', t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -136,7 +137,7 @@ export default function AdminSlaEscalation() {
       setConfig({ ...defaultConfig, ...res.data, escalationLevels: [...(res.data.escalationLevels ?? [1, 2, 3])], smtpPassword: '' });
       setMessage('SLA escalation policy saved. SMTP password was not returned by the API.');
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Failed to save SLA escalation settings');
+      setError(formatApiError(err, 'Failed to save SLA escalation settings', t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -149,7 +150,7 @@ export default function AdminSlaEscalation() {
       await slaEscalationAdminApi.testSmtp();
       setMessage('SMTP connection verified successfully.');
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'SMTP verification failed');
+      setError(formatApiError(err, 'SMTP verification failed', t('common.referenceId')));
     }
   };
 
@@ -161,7 +162,7 @@ export default function AdminSlaEscalation() {
       setMessage(`SLA breach scan completed: ${res.data.escalated} escalated, ${res.data.sent} sent, ${res.data.skipped} already handled, ${res.data.failed} failed.`);
       await load();
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Manual SLA escalation run failed');
+      setError(formatApiError(err, 'Manual SLA escalation run failed', t('common.referenceId')));
     }
   };
 

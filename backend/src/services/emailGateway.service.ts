@@ -17,6 +17,7 @@
  *    cached in memory only (short-lived, never logged).
  */
 
+import { createHash } from 'node:crypto';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
@@ -26,6 +27,8 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { ticketService } from './ticket.service';
 import { encrypt, decrypt, isEncrypted } from './credentialEncryption.service';
+import { computeBackoffDelay, isTransientError } from './transientError';
+import { sanitizeDiagnosticText } from '../utils/diagnosticSanitizer';
 
 type AnyObject = Record<string, any>;
 
@@ -65,6 +68,48 @@ export interface EmailGatewayConfigUpdate {
 const PASSWORD_PLACEHOLDERS = new Set(['********', '••••••••', '__KEEP_EXISTING__']);
 const MAX_MESSAGES_PER_POLL = 100;
 
+/**
+ * Bounded confirmation queue design (Item 4):
+ *  - confirmations are enqueued from the poll loop and delivered asynchronously;
+ *    the poll loop never awaits SMTP for each message.
+ *  - bounded concurrency (CONFIRMATION_CONCURRENCY) and bounded queue size
+ *    (CONFIRMATION_QUEUE_MAX) keep memory and SMTP fan-out predictable.
+ *  - transient SMTP failures are retried with exponential backoff + jitter up
+ *    to CONFIRMATION_MAX_ATTEMPTS; deterministic failures fail fast.
+ *  - this is an best-effort in-process queue (not durable): a crash before
+ *    delivery loses the notification. The ticket creation plus inbound
+ *    EmailMessage audit remain durable, so this is an acceptable trade-off for
+ *    notifications; a durable mail queue is the documented next step.
+ */
+const CONFIRMATION_CONCURRENCY = (() => {
+  const parsed = Number(process.env.EMAIL_CONFIRMATION_CONCURRENCY);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 20 ? parsed : 2;
+})();
+const CONFIRMATION_QUEUE_MAX = (() => {
+  const parsed = Number(process.env.EMAIL_CONFIRMATION_QUEUE_MAX);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 10_000 ? parsed : 200;
+})();
+const CONFIRMATION_MAX_ATTEMPTS = (() => {
+  const parsed = Number(process.env.EMAIL_CONFIRMATION_MAX_ATTEMPTS);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 10 ? parsed : 3;
+})();
+const CONFIRMATION_BACKOFF_BASE_MS = 2_000;
+const CONFIRMATION_BACKOFF_MAX_MS = 30_000;
+
+interface ConfirmationJob {
+  ticket: AnyObject;
+  toEmail: string;
+  config: AnyObject;
+  accessToken?: string;
+}
+
+const sleepMs = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+/** Unique per-send outbound dedup key (never a bare timestamp in the subject). */
+function buildOutboundDedupKey(ticket: AnyObject, toEmail: string): string {
+  return `o:${sha256Hex(`${ticket.id}|${ticket.displayId}|${Date.now()}|${toEmail}`)}`;
+}
+
 // In-memory Exchange OAuth2 token cache (short-lived, never persisted in clear
 // beyond the config's cached access token which is rotated every poll).
 const msalTokenCache = new Map<string, { accessToken: string; expiresAt: number }>();
@@ -77,6 +122,41 @@ const msalTokenCache = new Map<string, { accessToken: string; expiresAt: number 
  * - Problem 7: Replaced synchronous `fs.readFileSync` with async `fs.promises.readFile`
  *   to prevent blocking the Node.js event loop.
  */
+/**
+ * Detect whether a credential value is a `env:`/`file:` secret reference rather
+ * than an inline plaintext secret.
+ */
+function isSecretReference(value: string | null | undefined): value is string {
+  return typeof value === 'string' && (value.startsWith('env:') || value.startsWith('file:'));
+}
+
+/**
+ * Validate the *shape* of a secret reference synchronously (no filesystem or
+ * environment access). Mirrors the guards in `resolveSecretRef()` so a bad
+ * reference is rejected at configuration time with a structured 400.
+ */
+function assertSafeSecretReference(ref: string): void {
+  if (!ref) throw new AppError('Secret reference is required', 400);
+  if (!ref.startsWith('env:') && !ref.startsWith('file:')) {
+    throw new AppError('Secret reference must use env: or file: provider', 400);
+  }
+  if (ref.startsWith('env:')) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(ref.slice(4))) {
+      throw new AppError('env: secret reference must name a valid environment variable', 400);
+    }
+    return;
+  }
+  const rawPath = ref.slice(5);
+  if (!rawPath) throw new AppError('Secret file path is required', 400);
+  if (/^(?:\/|[A-Za-z]:[\\/])/.test(rawPath)) {
+    throw new AppError('Secret file path must be relative to the secrets directory', 400);
+  }
+  // Reject traversal segments before any join/resolve happens.
+  if (rawPath.split(/[\\/]/).some((segment) => segment === '..')) {
+    throw new AppError('Invalid secret file path: access outside allowed directory', 400);
+  }
+}
+
 async function resolveSecretRef(ref: string): Promise<string> {
   if (!ref) throw new AppError('Secret reference is required', 400);
   if (ref.startsWith('env:')) {
@@ -151,6 +231,52 @@ async function acquireExchangeToken(config: AnyObject): Promise<string> {
   });
   return result.accessToken;
 }
+/**
+ * Durable dedup key for an inbound message (item 3).
+ *
+ * - Message-ID present  -> `m:<sha256(trimmed Message-ID)>`
+ * - Message-ID absent   -> `f:<sha256(lower(from)|lower(subject)|receivedAt ISO)>`
+ *
+ * The key is deterministic for the same message, so repeated polls and
+ * cluster-safe lease retries cannot insert a second `EmailMessage` row. The
+ * exact SQL equivalent is documented in
+ * `prisma/migrations/20261105140000_email_gateway_dedup_and_performance_indexes`.
+ */
+export function computeDedupKey(input: {
+  messageId?: string | null;
+  fromEmail?: string | null;
+  subject?: string | null;
+  receivedAt?: Date | null;
+}): string {
+  const messageId = (input.messageId ?? '').trim();
+  if (messageId) return `m:${sha256Hex(messageId)}`;
+  const receivedAt = input.receivedAt instanceof Date && !Number.isNaN(input.receivedAt.getTime())
+    ? input.receivedAt.toISOString()
+    : '';
+  const normalised = `${normaliseDedupText(input.fromEmail)}|${normaliseDedupText(input.subject)}|${receivedAt}`;
+  return `f:${sha256Hex(normalised)}`;
+}
+
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function normaliseDedupText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+/** Dedup key computed from the IMAP envelope alone (batch pre-check path). */
+function envelopeDedupKey(envelope: AnyObject | null | undefined): string {
+  const fromAddress = envelope?.from?.[0]?.address ?? null;
+  const rawDate = envelope?.date;
+  const receivedAt = rawDate instanceof Date ? rawDate : rawDate ? new Date(rawDate) : null;
+  return computeDedupKey({
+    messageId: envelope?.messageId ?? null,
+    fromEmail: fromAddress,
+    subject: typeof envelope?.subject === 'string' ? envelope.subject : null,
+    receivedAt,
+  });
+}
 
 /** Map a mailbox address (e-mail) to a known user, case-insensitively. */
 async function resolveUserByEmail(email: string | null | undefined): Promise<AnyObject | null> {
@@ -159,6 +285,10 @@ async function resolveUserByEmail(email: string | null | undefined): Promise<Any
   // case-insensitive email lookup. Prisma's `mode: 'insensitive'` relies on
   // database collation which may be case-sensitive on some configurations,
   // causing lookups to fail silently.
+  //
+  // Index: this predicate is served by the functional index
+  // `users_email_lower_idx` ON "users" (lower("email")) created in migration
+  // 20261105140000 (SQL Server: persisted computed column `emailLower`).
   const users = await prisma.$queryRaw`
     SELECT id, email, "firstName", "lastName", "isActive"
     FROM "User"
@@ -176,12 +306,25 @@ function emailAddressesEqual(a: string | null | undefined, b: string | null | un
   if (!a || !b) return false;
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
+
 export class EmailGatewayService {
   private sanitizeConfig(config: AnyObject | null) {
     if (!config) return null;
-    const { imapPassword: _ip, smtpPassword: _sp, exchangeClientSecretRef: _ecsr, ...safe } = config;
+    const {
+      imapPassword: _ip,
+      smtpPassword: _sp,
+      exchangeClientSecretRef: _ecsr,
+      exchangeAccessToken: _eat,
+      exchangeAccessTokenExpiry: _eate,
+      ...safe
+    } = config;
     return {
       ...safe,
+      // Redact diagnostics that may contain mailbox addresses or auth-error
+      // fragments. lastPollMessage is written by pollInbound with counts only,
+      // but legacy rows and external writers may include addresses (e.g.
+      // "IMAP auth failed for ops@example.com"). Never leak them to clients.
+      lastPollMessage: sanitizeDiagnosticText(safe.lastPollMessage),
       imapPasswordConfigured: Boolean(config.imapPassword),
       smtpPasswordConfigured: Boolean(config.smtpPassword),
       exchangeClientSecretRefConfigured: Boolean(config.exchangeClientSecretRef),
@@ -267,6 +410,26 @@ export class EmailGatewayService {
     return value;
   }
 
+  /**
+   * Resolve an IMAP/SMTP password input. `env:`/`file:` references are resolved
+   * through `resolveSecretRef()` so the SECRET_FILES_DIR containment guard
+   * applies to mailbox/SMTP secrets exactly as it does to Exchange secrets; the
+   * resolved plaintext is then encrypted for storage. Plaintext values are
+   * encrypted directly.
+   *
+   * SECURITY: raw inline secrets are never persisted for the Exchange client
+   * secret (`exchangeClientSecretRef`), which must stay a reference.
+   */
+  private async resolveMailPasswordInput(value: string): Promise<string> {
+    if (isSecretReference(value)) {
+      // resolveSecretRef enforces env:/file: shape AND the secrets-directory
+      // containment (absolute paths and `..` traversal are rejected).
+      const resolved = await resolveSecretRef(value);
+      return this.encryptIfNeeded(resolved);
+    }
+    return this.encryptIfNeeded(value);
+  }
+
   async updateConfig(data: EmailGatewayConfigUpdate, userId = 'system'): Promise<AnyObject> {
     const existing = await this.ensureConfig();
     const updateData: AnyObject = {};
@@ -285,7 +448,7 @@ export class EmailGatewayService {
     if (data.imapSecure !== undefined) updateData.imapSecure = Boolean(data.imapSecure);
     if (data.imapUser !== undefined) updateData.imapUser = str(data.imapUser);
     if (data.imapPassword !== undefined && data.imapPassword !== null && !PASSWORD_PLACEHOLDERS.has(String(data.imapPassword))) {
-      updateData.imapPassword = this.encryptIfNeeded(data.imapPassword);
+      updateData.imapPassword = await this.resolveMailPasswordInput(data.imapPassword);
     }
     if (data.imapMailbox !== undefined) updateData.imapMailbox = str(data.imapMailbox);
     if (data.imapAuthType !== undefined) {
@@ -294,7 +457,22 @@ export class EmailGatewayService {
     }
     if (data.exchangeTenantId !== undefined) updateData.exchangeTenantId = str(data.exchangeTenantId);
     if (data.exchangeClientId !== undefined) updateData.exchangeClientId = str(data.exchangeClientId);
-    if (data.exchangeClientSecretRef !== undefined) updateData.exchangeClientSecretRef = str(data.exchangeClientSecretRef);
+    if (data.exchangeClientSecretRef !== undefined && data.exchangeClientSecretRef !== null) {
+      const secretRef = data.exchangeClientSecretRef;
+      // Reject raw inline secrets: Exchange client secrets must be references.
+      if (secretRef && !PASSWORD_PLACEHOLDERS.has(String(secretRef)) && !isSecretReference(secretRef)) {
+        throw new AppError(
+          'exchangeClientSecretRef must be an env: or file: reference; raw inline Exchange client secrets are not accepted',
+          400,
+        );
+      }
+      // Validate reference shape eagerly (env:/file:, var name, containment-safe
+      // relative path). The actual secret value is resolved only at runtime.
+      if (secretRef && !PASSWORD_PLACEHOLDERS.has(String(secretRef))) assertSafeSecretReference(secretRef);
+      updateData.exchangeClientSecretRef = str(secretRef);
+    } else if (data.exchangeClientSecretRef === null) {
+      updateData.exchangeClientSecretRef = null;
+    }
     if (data.exchangeScopes !== undefined) updateData.exchangeScopes = str(data.exchangeScopes);
     if (data.smtpHost !== undefined) updateData.smtpHost = str(data.smtpHost);
     if (data.smtpPort !== undefined) {
@@ -305,7 +483,7 @@ export class EmailGatewayService {
     if (data.smtpSecure !== undefined) updateData.smtpSecure = Boolean(data.smtpSecure);
     if (data.smtpUser !== undefined) updateData.smtpUser = str(data.smtpUser);
     if (data.smtpPassword !== undefined && data.smtpPassword !== null && !PASSWORD_PLACEHOLDERS.has(String(data.smtpPassword))) {
-      updateData.smtpPassword = this.encryptIfNeeded(data.smtpPassword);
+      updateData.smtpPassword = await this.resolveMailPasswordInput(data.smtpPassword);
     }
     if (data.smtpAuthType !== undefined) {
       if (!['none', 'basic', 'oauth2'].includes(data.smtpAuthType)) throw new AppError('smtpAuthType must be none, basic or oauth2', 400);
@@ -325,9 +503,25 @@ export class EmailGatewayService {
       updateData.defaultTicketType = data.defaultTicketType;
     }
     if (data.autoAssignToEmail !== undefined) updateData.autoAssignToEmail = str(data.autoAssignToEmail);
+
+    // Business rule using the *effective* persisted configuration: IMAP XOAUTH2
+    // token acquisition is not implemented, so `imapAuthType=oauth2` may only
+    // coexist with inboundProvider=exchange. Zod enforces this when both fields
+    // are present; this mirrors it for partial updates that would otherwise
+    // produce an incoherent stored combination.
+    const effectiveProvider = updateData.inboundProvider ?? existing.inboundProvider ?? 'imap';
+    const effectiveAuthType = updateData.imapAuthType ?? existing.imapAuthType ?? 'password';
+    if (effectiveAuthType === 'oauth2' && effectiveProvider !== 'exchange') {
+      throw new AppError('imapAuthType=oauth2 requires inboundProvider=exchange', 400);
+    }
+
     updateData.updatedBy = userId;
 
     const updated = await (prisma as any).emailGatewayConfig.update({ where: { id: existing.id }, data: updateData });
+    // Config changes (provider switch, host/port/TLS/credential/from changes)
+    // invalidate the cached SMTP transporter identity. The next send rebuilds
+    // and verifies a fresh transporter from the new configuration.
+    await this.closeSmtpTransports();
     await auditService.logEventStandalone(prisma, {
       userId,
       action: 'CONFIG_CHANGE',
@@ -345,10 +539,18 @@ export class EmailGatewayService {
   private buildImapClient(config: AnyObject, accessToken?: string): ImapFlow {
     // Decrypt password for runtime use (backward compatible with plaintext)
     const decryptedPassword = this.decryptIfNeeded(config.imapPassword);
-    const auth: any =
-      accessToken || config.imapAuthType === 'oauth2'
-        ? { user: config.imapUser ?? '', accessToken: accessToken ?? '' }
-        : { user: config.imapUser ?? '', pass: decryptedPassword ?? '' };
+    // XOAUTH2 is only supported for the Exchange Online provider, where
+    // acquireExchangeToken() supplies the access token. For `inboundProvider =
+    // 'imap'` the password flow is the only supported authentication: a
+    // passwordless IMAP login must never be attempted with an empty token (an
+    // empty `accessToken: ''` is incoherent and always fails server-side).
+    if (config.imapAuthType === 'oauth2' && config.inboundProvider !== 'exchange') {
+      throw new AppError('imapAuthType=oauth2 requires inboundProvider=exchange', 400);
+    }
+    const useOAuth2 = config.inboundProvider === 'exchange' && Boolean(accessToken);
+    const auth: any = useOAuth2
+      ? { user: config.imapUser ?? '', accessToken }
+      : { user: config.imapUser ?? '', pass: decryptedPassword ?? '' };
     return new ImapFlow({
       host: config.imapHost,
       port: config.imapPort ?? 993,
@@ -403,37 +605,63 @@ export class EmailGatewayService {
       const mailboxName = config.imapMailbox || 'INBOX';
       const lock = await client.getMailboxLock(mailboxName);
       try {
-        // Lightweight envelope pass to collect candidate Message-IDs.
+        // BOUNDED POLLING: work on the newest MAX_MESSAGES_PER_POLL UIDs only.
+        // The previous `fetch('1:*')` scanned the entire mailbox on every poll;
+        // that cost grows with mailbox size. `uidNext` is the first unused UID,
+        // so the numeric window [uidNext - N, uidNext) covers at most N UIDs.
+        // MAX_MESSAGES_PER_POLL remains the sole work bound (the slice below is
+        // a defensive cap for servers that return more entries than requested).
+        const mailboxInfo = (client as unknown as AnyObject).mailbox;
+        const uidNext = Number(mailboxInfo?.uidNext ?? 0);
+        const exists = Number(mailboxInfo?.exists ?? 0);
+        // Never scan the whole mailbox: an empty/short mailbox is a no-op, and
+        // both branches use a bounded newest-N window. MAX_MESSAGES_PER_POLL is
+        // the sole work bound.
+        let range: string | null;
+        let fetchOptions: AnyObject;
+        if (uidNext > 1) {
+          // UID window covering only the newest N messages ('*' = highest UID).
+          range = `${Math.max(1, uidNext - MAX_MESSAGES_PER_POLL)}:*`;
+          fetchOptions = { uid: true };
+        } else if (exists > 0) {
+          // Fallback: newest N sequence numbers (servers that omit uidNext).
+          range = `${Math.max(1, exists - MAX_MESSAGES_PER_POLL + 1)}:${exists}`;
+          fetchOptions = {};
+        } else {
+          range = null;
+          fetchOptions = { uid: true };
+        }
         const envelopes: AnyObject[] = [];
-        for await (const msg of client.fetch('1:*', { uid: true, envelope: true })) {
-          envelopes.push({ uid: msg.uid, envelope: msg.envelope });
+        if (range) {
+          for await (const msg of client.fetch(range, { uid: true, envelope: true }, fetchOptions)) {
+            envelopes.push({ uid: msg.uid, envelope: msg.envelope });
+          }
         }
         // Only consider the most recent messages to bound work per poll.
         const candidates = envelopes.slice(-MAX_MESSAGES_PER_POLL);
-        // SECURITY FIX (Problem 4): Scope deduplication query to recent messages only
-        // (last 24 hours) instead of loading ALL email messages into memory. This prevents
-        // unbounded memory growth as the email message table grows over time.
-        // SECURITY FIX (Problem 4): Bound the dedup query with a LIMIT and ORDER BY
-        // to prevent unbounded memory growth.  Only load the most recent 10 000
-        // messages from the last 24 h – enough to cover the MAX_MESSAGES_PER_POLL
-        // candidates while keeping memory usage predictable.
-        const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
-        const recentMessages = await (prisma as any).emailMessage.findMany({
-          where: {
-            messageId: { not: null },
-            receivedAt: { gte: cutoffTime },
-          },
-          select: { id: true, messageId: true, status: true },
-          orderBy: { receivedAt: 'desc' },
-          take: 10000,
-        });
-        const existingMessages = new Map<string, AnyObject>(
-          recentMessages.map((message: AnyObject): [string, AnyObject] => [message.messageId, message]),
+
+        // DURABLE DEDUP (replaces the in-memory 24 h window): pre-compute the
+        // dedup keys for the fetched envelope window and look them up in one
+        // batched query. No `take: 10000` scan and no dependency on receivedAt
+        // recency — the unique dedupKey is authoritative across restarts and
+        // cluster nodes.
+        const candidateKeys = Array.from(new Set(
+          candidates.map(({ envelope }) => envelopeDedupKey(envelope)).filter((key): key is string => Boolean(key)),
+        ));
+        const existingRows: AnyObject[] = candidateKeys.length
+          ? await (prisma as any).emailMessage.findMany({
+              where: { dedupKey: { in: candidateKeys } },
+              select: { id: true, dedupKey: true, messageId: true, status: true, ticketId: true },
+            })
+          : [];
+        const existingByDedupKey = new Map<string, AnyObject>(
+          existingRows.map((row: AnyObject): [string, AnyObject] => [row.dedupKey, row]),
         );
 
         for (const { uid, envelope } of candidates) {
           const messageId = envelope?.messageId ?? null;
-          const existingMessage = messageId ? existingMessages.get(messageId) : null;
+          const envelopeKey = envelopeDedupKey(envelope);
+          const existingMessage = envelopeKey ? existingByDedupKey.get(envelopeKey) ?? null : null;
           if (existingMessage?.status === 'processed') {
             summary.skipped += 1;
             continue;
@@ -458,7 +686,9 @@ export class EmailGatewayService {
             // (when the envelope provides one). A mismatch means the header is spoofed.
             const fromHeaderTrusted = envelopeFrom === null || emailAddressesEqual(envelopeFrom, fromEmail);
 
-            // Persist the message before processing. Failed records are reused on retry.
+            // Authoritative dedup key from the parsed headers (envelope-derived
+            // keys are only a pre-check heuristic).
+            const dedupKey = computeDedupKey({ messageId, fromEmail, subject, receivedAt });
             const messageData = {
               inReplyTo,
               fromEmail,
@@ -469,13 +699,48 @@ export class EmailGatewayService {
               bodyHtml: parsed.html ? String(parsed.html).slice(0, 20000) : null,
               receivedAt,
               direction: 'inbound',
-              status: 'received',
               error: null,
             };
-            message = message
-              ? await (prisma as any).emailMessage.update({ where: { id: message.id }, data: messageData })
-              : await (prisma as any).emailMessage.create({ data: { messageId: messageId || undefined, ...messageData } });
+            // PERSIST-THEN-PROCESS (idempotent under cluster lease retries):
+            // content updates on an existing row never touch status/ticketId, so
+            // a processed message cannot be re-opened; the insert is won once by
+            // the unique dedupKey. A concurrent duplicate insert (P2002) falls
+            // back to the durable row instead of creating a second row.
+            if (message) {
+              message = await (prisma as any).emailMessage.update({ where: { id: message.id }, data: messageData });
+            } else {
+              try {
+                message = await (prisma as any).emailMessage.create({
+                  data: { dedupKey, messageId: messageId || null, ...messageData, status: 'received' },
+                });
+              } catch (persistError) {
+                if ((persistError as AnyObject)?.code !== 'P2002') throw persistError;
+                message = await (prisma as any).emailMessage.findUnique({ where: { dedupKey } });
+              }
+            }
             if (!message) throw new AppError('Unable to persist inbound message', 500);
+
+            // Idempotency guard 1: a linked ticket means this message was already
+            // converted (possibly by a previous lease holder) — never create twice.
+            if (message.ticketId) {
+              summary.skipped += 1;
+              continue;
+            }
+            // Idempotency guard 2: atomically claim the row. The conditional
+            // UPDATE (received|failed AND ticketId IS NULL -> processing) is the
+            // single-winner primitive: concurrent workers and lease retries see
+            // count=0 and skip, so no duplicate ticket is ever created. A row
+            // already `processed` cannot match and is skipped rather than
+            // reprocessed. `processing` is deliberately NOT in the claim set:
+            // including it would let two workers both claim the same row.
+            const claim = await (prisma as any).emailMessage.updateMany({
+              where: { id: message.id, ticketId: null, status: { in: ['received', 'failed'] } },
+              data: { status: 'processing' },
+            });
+            if (claim && claim.count === 0) {
+              summary.skipped += 1;
+              continue;
+            }
 
             // Reply to an existing ticket? (In-Reply-To points at our ticket id.)
             const replyTicketId = this.extractTicketIdFromReply(inReplyTo, subject);
@@ -541,9 +806,11 @@ export class EmailGatewayService {
             summary.processed += 1;
             summary.tickets.push(ticket.displayId);
 
-            // Best-effort confirmation to the sender (does not block the poll).
-            await this.sendConfirmation(ticket, fromEmail).catch((e) => {
-              console.error('[EmailGateway] confirmation failed:', e.message);
+            // Best-effort confirmation to the sender. Already decoupled: this
+            // enqueues onto the bounded in-process confirmation queue and
+            // returns immediately, so the poll loop never serializes SMTP.
+            void this.sendConfirmation(ticket, fromEmail).catch((e) => {
+              console.error('[EmailGateway] confirmation enqueue failed:', e instanceof Error ? e.message : e);
             });
           } catch (error) {
             summary.failed += 1;
@@ -609,14 +876,53 @@ export class EmailGatewayService {
 
   // ---- Outbound SMTP ------------------------------------------------------
 
+  /**
+   * Cached SMTP transporter keyed by the effective transport config.
+   *
+   * Reusing one transporter avoids a fresh TCP/TLS connection (and a fresh
+   * credential decrypt) per confirmation message. The cache key captures every
+   * value that affects connection identity: host/port/TLS/auth/from plus a
+   * fingerprint of the decrypted secret. A config change (or provider switch)
+   * therefore yields a different key, and the old transporter is closed.
+   *
+   * Secrets are never logged or put into the cache key; the password is only
+   * represented by a one-way SHA-256 fingerprint.
+   */
+  private smtpTransportCache = new Map<string, Transporter>();
+  /** Bounded, in-process confirmation queue (see enqueueConfirmation). */
+  private confirmationQueue: ConfirmationJob[] = [];
+  private confirmationInFlight = 0;
+  private confirmationDraining = false;
+
+  /** SMTP timeouts (ms) applied to every cached transporter. */
+  private smtpTimeouts(config: AnyObject): { connectionTimeout: number; greetingTimeout: number; socketTimeout: number } {
+    const read = (value: unknown, fallback: number): number => {
+      const num = Number(value);
+      return Number.isFinite(num) && num >= 1000 && num <= 600_000 ? num : fallback;
+    };
+    return {
+      connectionTimeout: read(config.smtpConnectionTimeoutMs, 30_000),
+      greetingTimeout: read(config.smtpGreetingTimeoutMs, 30_000),
+      socketTimeout: read(config.smtpSocketTimeoutMs, 60_000),
+    };
+  }
+
   private buildSmtpTransport(config: AnyObject, accessToken?: string): Transporter {
     // Decrypt password for runtime use (backward compatible with plaintext)
     const decryptedPassword = this.decryptIfNeeded(config.smtpPassword);
+    const timeouts = this.smtpTimeouts(config);
     const options: AnyObject = {
       host: config.smtpHost,
       port: config.smtpPort ?? 587,
       secure: Boolean(config.smtpSecure),
       tls: { rejectUnauthorized: config.smtpRejectUnauthorized !== false, minVersion: 'TLSv1.2' },
+      // Bounded connection lifecycle: no transport can hang indefinitely.
+      connectionTimeout: timeouts.connectionTimeout,
+      greetingTimeout: timeouts.greetingTimeout,
+      socketTimeout: timeouts.socketTimeout,
+      // Reuse of a cached transporter is safe for sequential sends; no pooling
+      // is enabled so we never exceed the mailbox provider's concurrent limit.
+      pool: false,
     };
     const authType = config.smtpAuthType || 'none';
     if (authType === 'basic' && (config.smtpUser || decryptedPassword)) {
@@ -627,6 +933,64 @@ export class EmailGatewayService {
     return nodemailer.createTransport(options);
   }
 
+  /** Connection-identity cache key for a transport config (never contains secrets). */
+  private smtpCacheKey(config: AnyObject, accessToken?: string): string {
+    // Fingerprint the secret rather than embedding it in the key.
+    const secretFingerprint = sha256Hex(
+      `${this.decryptIfNeeded(config.smtpPassword) ?? ''}|${accessToken ?? ''}`,
+    );
+    return [
+      config.smtpHost ?? '',
+      config.smtpPort ?? 587,
+      Boolean(config.smtpSecure),
+      config.smtpAuthType ?? 'none',
+      config.smtpUser ?? '',
+      config.smtpFromEmail ?? '',
+      Boolean(config.smtpRejectUnauthorized !== false),
+      secretFingerprint,
+    ].join('|');
+  }
+
+  /**
+   * Return a cached (and verified) transporter for this config, creating it on
+   * first use or when the connection identity changes. The previous transport
+   * is closed on invalidation so sockets do not linger.
+   */
+  private async getSmtpTransport(config: AnyObject, accessToken?: string): Promise<Transporter> {
+    const key = this.smtpCacheKey(config, accessToken);
+    const cached = this.smtpTransportCache.get(key);
+    if (cached) return cached;
+
+    // Config changed or provider switched: close all transports from the old
+    // identity before creating a new one.
+    if (this.smtpTransportCache.size > 0) {
+      await this.closeSmtpTransports();
+    }
+
+    const transport = this.buildSmtpTransport(config, accessToken);
+    // Verify once per cached transporter so a bad config is surfaced early
+    // (verification failure does not poison the cache indefinitely: the caller
+    // may retry via the confirmation queue).
+    await transport.verify();
+    this.smtpTransportCache.set(key, transport);
+    return transport;
+  }
+
+  /** Close all cached SMTP transports (called on config change and shutdown). */
+  async closeSmtpTransports(): Promise<void> {
+    const transports = Array.from(this.smtpTransportCache.values());
+    this.smtpTransportCache.clear();
+    for (const transport of transports) {
+      try {
+        // nodemailer exposes close() on transports created with pooling; the
+        // non-pooled SMTP transport exposes it as well in recent versions.
+        (transport as AnyObject).close?.();
+      } catch {
+        // Ignore close failures during invalidation/shutdown.
+      }
+    }
+  }
+
   async testSmtp(): Promise<AnyObject> {
     const config = await this.ensureConfig();
     if (!config.smtpHost) throw new AppError('SMTP host is not configured', 400);
@@ -635,8 +999,9 @@ export class EmailGatewayService {
       if (!config.exchangeClientId || !config.exchangeTenantId) throw new AppError('SMTP OAuth2 requires Exchange tenant and client id', 400);
       accessToken = await acquireExchangeToken(config);
     }
-    const transport = this.buildSmtpTransport(config, accessToken);
     try {
+      // Shared transport cache: verify the same reuse path used for delivery.
+      const transport = await this.getSmtpTransport(config, accessToken);
       await transport.verify();
       return { ok: true, host: config.smtpHost, port: config.smtpPort };
     } catch (error) {
@@ -644,7 +1009,15 @@ export class EmailGatewayService {
     }
   }
 
-  /** Send a ticket confirmation e-mail to the requester (best-effort). */
+  /**
+   * Send a ticket confirmation e-mail to the requester (best-effort).
+   *
+   * The delivery itself runs through the cached transporter (single connection
+   * identity reused across messages) and through the bounded confirmation
+   * queue so a single poll cannot serialize per-message SMTP on its critical
+   * path. Returns `true` when the acknowledgement was enqueued; delivery
+   * happens asynchronously and is audited by writeConfirmationAudit().
+   */
   async sendConfirmation(ticket: AnyObject, toEmail: string | null): Promise<boolean> {
     const config = await this.ensureConfig();
     if (!config.smtpHost || !toEmail) return false;
@@ -653,44 +1026,150 @@ export class EmailGatewayService {
       if (!config.exchangeClientId || !config.exchangeTenantId) return false;
       accessToken = await acquireExchangeToken(config);
     }
-    const transport = this.buildSmtpTransport(config, accessToken);
-    const prefix = config.subjectPrefix || '';
-    await transport.sendMail({
-      from: config.smtpFromEmail ? `"ITSM" <${config.smtpFromEmail}>` : undefined,
-      to: toEmail,
-      subject: `${prefix} ${ticket.displayId}: ${ticket.title}`,
-      text: `Your ticket ${ticket.displayId} has been created.\n\nTitle: ${ticket.title}\nStatus: ${ticket.status}\nPriority: ${ticket.priority}\n\nYou can reply to this e-mail to add a comment to the ticket.`,
-    });
+    this.enqueueConfirmation({ ticket, toEmail, config, accessToken });
+    return true;
+  }
+
+  // ---- Bounded confirmation queue ----------------------------------------
+
+  /**
+   * Enqueue a confirmation send without blocking the poll loop.
+   *
+   * Trade-off (documented): this is a bounded in-process queue, not a durable
+   * mail queue. If the process crashes before a queued send is delivered the
+   * confirmation is lost. That is acceptable for best-effort notifications
+   * (the ticket itself and the EmailMessage audit row for the *inbound* message
+   * are already durable). A durable mail queue would be the next step if at
+   * least-once delivery for notifications is required.
+   */
+  private enqueueConfirmation(job: ConfirmationJob): void {
+    if (this.confirmationQueue.length >= CONFIRMATION_QUEUE_MAX) {
+      // Bounded queue: drop the oldest pending confirmation rather than grow
+      // memory without limit. Log without message content/secrets.
+      const dropped = this.confirmationQueue.shift();
+      console.warn('[EmailGateway] Confirmation queue full; dropped oldest queued confirmation for ticket:', dropped?.ticket?.displayId ?? 'unknown');
+    }
+    this.confirmationQueue.push(job);
+    this.drainConfirmationQueue();
+  }
+
+  /**
+   * Single pump per queue. It keeps starting deliveries while concurrency is
+   * available and keeps the draining flag true until BOTH the queue is empty
+   * and all in-flight sends have settled. New enqueues during an active pump
+   * are picked up by the same poll loop, so a late item cannot be stranded.
+   */
+  private drainConfirmationQueue(): void {
+    if (this.confirmationDraining) return;
+    this.confirmationDraining = true;
+    void this.pumpConfirmations();
+  }
+
+  private async pumpConfirmations(): Promise<void> {
+    try {
+      while (this.confirmationQueue.length > 0 || this.confirmationInFlight > 0) {
+        if (this.confirmationQueue.length > 0 && this.confirmationInFlight < CONFIRMATION_CONCURRENCY) {
+          const job = this.confirmationQueue.shift()!;
+          this.confirmationInFlight += 1;
+          void this.deliverConfirmationWithRetry(job)
+            .catch((error: unknown) => {
+              // Never log secrets or config values; only the ticket id.
+              console.error('[EmailGateway] confirmation delivery ultimately failed for ticket:', job.ticket?.displayId ?? 'unknown', error instanceof Error ? error.message : error);
+            })
+            .finally(() => {
+              this.confirmationInFlight -= 1;
+            });
+          continue;
+        }
+        // Concurrency saturated or only in-flight work remains: wait briefly.
+        await sleepMs(25);
+      }
+    } finally {
+      this.confirmationDraining = false;
+      // A late enqueue may have arrived between the loop exit and the flag
+      // reset; restart the pump so it is never stranded.
+      if (this.confirmationQueue.length > 0 || this.confirmationInFlight > 0) this.drainConfirmationQueue();
+    }
+  }
+
+  private async deliverConfirmationWithRetry(job: ConfirmationJob): Promise<void> {
+    let attempt = 1;
+    for (;;) {
+      try {
+        const transport = await this.getSmtpTransport(job.config, job.accessToken);
+        const prefix = job.config.subjectPrefix || '';
+        const subject = `${prefix} ${job.ticket.displayId}: ${job.ticket.title}`;
+        await transport.sendMail({
+          from: job.config.smtpFromEmail ? `"ITSM" <${job.config.smtpFromEmail}>` : undefined,
+          to: job.toEmail,
+          subject,
+          text: `Your ticket ${job.ticket.displayId} has been created.\n\nTitle: ${job.ticket.title}\nStatus: ${job.ticket.status}\nPriority: ${job.ticket.priority}\n\nYou can reply to this e-mail to add a comment to the ticket.`,
+        });
+        await this.writeConfirmationAudit(job, subject);
+        return;
+      } catch (error) {
+        const canRetry = isTransientError(error) && attempt < CONFIRMATION_MAX_ATTEMPTS;
+        if (!canRetry) throw error;
+        attempt += 1;
+        await sleepMs(computeBackoffDelay(attempt - 1, CONFIRMATION_BACKOFF_BASE_MS, CONFIRMATION_BACKOFF_MAX_MS));
+      }
+    }
+  }
+
+  /** Persist the outbound EmailMessage audit row for a delivered confirmation. */
+  private async writeConfirmationAudit(job: ConfirmationJob, subject: string): Promise<void> {
     await (prisma as any).emailMessage.create({
       data: {
-        fromEmail: config.smtpFromEmail ?? 'itsm',
-        toEmail,
-        subject: `${prefix} ${ticket.displayId}: ${ticket.title}`,
-        bodyText: `Confirmation for ${ticket.displayId}`,
+        // Outbound rows have no RFC 822 Message-ID; use a per-send unique key so
+        // the non-null unique dedupKey cannot collide across confirmations.
+        dedupKey: buildOutboundDedupKey(job.ticket, job.toEmail),
+        fromEmail: job.config.smtpFromEmail ?? 'itsm',
+        toEmail: job.toEmail,
+        subject,
+        bodyText: `Confirmation for ${job.ticket.displayId}`,
         direction: 'outbound',
         status: 'processed',
-        ticketId: ticket.id,
+        ticketId: job.ticket.id,
       },
     });
-    return true;
+  }
+
+  /**
+   * Graceful drain on shutdown: stop accepting new confirmations and wait for
+   * queued/in-flight sends up to a bounded timeout. Never blocks forever.
+   */
+  async drainConfirmations(timeoutMs = 10_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while ((this.confirmationQueue.length > 0 || this.confirmationInFlight > 0) && Date.now() < deadline) {
+      await sleepMs(50);
+    }
+    await this.closeSmtpTransports();
   }
 
   // ---- Audit trail --------------------------------------------------------
 
   async listMessages(limit = 50): Promise<AnyObject[]> {
-    return (prisma as any).emailMessage.findMany({
+    const messages = await (prisma as any).emailMessage.findMany({
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 200),
       include: { ticket: { select: { id: true, displayId: true, title: true, status: true } } },
     });
+    // Persisted `error` blobs may contain mailbox addresses or auth-error
+    // fragments captured from inbound processing; redact before returning.
+    return (Array.isArray(messages) ? messages : []).map((message: AnyObject) => ({
+      ...message,
+      error: sanitizeDiagnosticText(message.error),
+    }));
   }
 
   async lastPollStatus(): Promise<AnyObject | null> {
     const config = await this.ensureConfig();
     return {
       lastPollAt: config.lastPollAt,
-      lastPollStatus: config.lastPollStatus,
-      lastPollMessage: config.lastPollMessage,
+      // Status diagnostics are redacted on read: legacy/external writers may
+      // include mailbox addresses or auth-error fragments in the free-form text.
+      lastPollStatus: sanitizeDiagnosticText(config.lastPollStatus),
+      lastPollMessage: sanitizeDiagnosticText(config.lastPollMessage),
       enabled: config.enabled,
       provider: config.inboundProvider,
     };

@@ -14,6 +14,7 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService, AuditAction } from './audit.service';
 import { validateTransition } from './statusTransition';
 import { correctiveActionService } from './correctiveaction.service';
+import { validateUserReferences } from './userReference.service';
 
 type AnyObject = Record<string, any>;
 
@@ -29,7 +30,8 @@ export class BcmService {
   private async validateBiaLinks(data: AnyObject): Promise<void> {
     if (data.processId && !await prisma.businessProcess.findUnique({ where: { id: data.processId } })) throw new AppError('Referenced business process not found', 400);
     if (data.serviceId && !await prisma.businessService.findUnique({ where: { id: data.serviceId } })) throw new AppError('Referenced business service not found', 400);
-    if (data.ownerId && !await prisma.user.findUnique({ where: { id: data.ownerId } })) throw new AppError('Referenced owner not found', 400);
+    // Owner references must resolve to an active user (F-01/F-14 integrity)
+    await validateUserReferences(prisma, { ownerId: data.ownerId });
     // Batch-validate asset links in one query — avoids a find per link (N+1).
     const assetIds: string[] = [...new Set<string>((data.assetLinks ?? []).map((link: AnyObject) => link.assetId).filter((id: unknown): id is string => typeof id === 'string' && id.length > 0))];
     if (assetIds.length) {
@@ -166,7 +168,7 @@ export class BcmService {
       if (!bia) throw new AppError('Referenced BIA not found', 400);
     }
 
-    if (!await prisma.user.findUnique({ where: { id: data.ownerId } })) throw new AppError('Referenced owner not found', 400);
+    await validateUserReferences(prisma, { ownerId: data.ownerId, approvedBy: data.approvedBy });
     const createData: AnyObject = { ...data, createdBy: userId };
     if (!createData.displayId) createData.displayId = this.displayId('BCP');
     if (!createData.status) createData.status = 'draft';
@@ -192,7 +194,10 @@ export class BcmService {
       const bia = await prisma.businessImpactAnalysis.findUnique({ where: { id: data.biaId } });
       if (!bia) throw new AppError('Referenced BIA not found', 400);
     }
-    if (data.ownerId && !await prisma.user.findUnique({ where: { id: data.ownerId } })) throw new AppError('Referenced owner not found', 400);
+    await validateUserReferences(prisma, {
+      ownerId: data.ownerId !== undefined ? data.ownerId : undefined,
+      approvedBy: data.approvedBy !== undefined ? data.approvedBy : undefined,
+    });
 
     // Validate status transition
     if (data.status && data.status !== existing.status) {

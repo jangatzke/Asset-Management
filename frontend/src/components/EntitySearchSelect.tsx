@@ -82,9 +82,15 @@ const EntitySearchSelect: React.FC<EntitySearchSelectProps> = ({
     try {
       const rawResults = await searchEndpoint(searchQuery);
       const dataArray = Array.isArray(rawResults) ? rawResults : (rawResults?.data ?? rawResults?.items ?? rawResults?.results ?? []);
+      // Prefer an explicit `label` (the shared entity-picker adapter already
+      // produces human-readable labels), then fall back to known display fields.
       const items: EntityOption[] = dataArray.map((item: any) => ({
         id: item.id,
-        label: item.displayId ? `${item.displayId} - ${item.name || item.title || ''}` : (item.name || item.title || item.email || String(item)),
+        label: item.label
+          ? String(item.label)
+          : item.displayId
+            ? `${item.displayId} - ${item.name || item.title || ''}`
+            : (item.name || item.title || item.email || String(item)),
       }));
 
       if (pageNum === 1) {

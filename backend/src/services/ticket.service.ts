@@ -5,6 +5,7 @@ import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
 import { nextDisplayId } from './displayId.service';
 import { resolveActorName, resolveActorNames } from './entityHistory.service';
+import { validateUserReferences } from './userReference.service';
 import { serializeEntity, serializeEnvelope } from '../utils/dto';
 import { CLOSE_TARGET_STATUS, computePriority, getAllowedTicketTransitions, INITIAL_TICKET_STATUS, type TicketType } from 'shared';
 
@@ -53,23 +54,6 @@ const listInclude = {
   assignee: { select: userSelect },
   manager: { select: userSelect },
 } as const;
-
-/**
- * Validate that the provided user reference ids (requester / assignee / manager)
- * point to existing, active users. Returns a map of field -> user id.
- */
-async function validateUserReferences(tx: any, refs: { requesterId?: string | null; assigneeId?: string | null; managerId?: string | null }) {
-  const ids = [refs.requesterId, refs.assigneeId, refs.managerId].filter((v): v is string => Boolean(v));
-  if (!ids.length) return refs;
-  const users = await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, isActive: true } });
-  const byId = new Map(users.map((u: any) => [u.id, u.isActive]));
-  for (const field of ['requesterId', 'assigneeId', 'managerId'] as const) {
-    const id = refs[field];
-    if (id && !byId.has(id)) throw new AppError(`${field} references a user that does not exist`, 400);
-    if (id && byId.get(id) === false) throw new AppError(`${field} references an inactive user`, 409);
-  }
-  return refs;
-}
 
 /** Validate that the provided asset ids point to existing assets. */
 async function validateAssetReferences(tx: any, assetIds?: string[]) {
@@ -158,6 +142,33 @@ export class TicketService {
     const authors = await resolveActorNames((ticket.comments as any[])?.map((c: any) => c?.authorId).filter(Boolean));
     (ticket.comments as any[])?.forEach((c: any) => { if (c?.authorId) c.authorName = authors.get(c.authorId); });
     return serializeEntity(ticket);
+  }
+
+  /**
+   * Restore an archived ticket. Mirrors the Assets restore semantics:
+   * 404 when missing, 409 when the ticket is already active, audit + history.
+   */
+  async restore(id: string, restoredBy?: string, reason?: string) {
+    const existing = await (prisma as any).ticket.findUnique({
+      where: { id },
+      select: { id: true, displayId: true, isArchived: true },
+    });
+    if (!existing) throw new AppError('Ticket not found', 404);
+    if (!existing.isArchived) throw new AppError('Ticket is not archived', 409);
+
+    const summary = `Restored ${existing.displayId}${reason ? `: ${reason}` : ''}`;
+    const actorName = restoredBy ? await resolveActorName(restoredBy) : undefined;
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.ticket.update({
+        where: { id },
+        data: { isArchived: false, ...(restoredBy ? { updatedBy: restoredBy } : {}) },
+      });
+      if (restoredBy) await this.history(tx, id, 'UPDATE', summary, {}, restoredBy, actorName);
+      if (restoredBy) await this.audit(tx, restoredBy, 'TICKET_RESTORE', id, summary);
+    });
+
+    return { success: true };
   }
 
   async create(data: Data, actorId: string) {
@@ -392,9 +403,16 @@ export class TicketService {
       select: userSelect,
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { email: 'asc' }],
     });
-    const editors = (await Promise.all(users.map(async (user: any) => (
-      await authorizationService.can(user.id, 'tickets.write') ? user : null
-    )))).filter(Boolean) as Array<typeof users[number]>;
+    // BATCHED PERMISSION EVALUATION: a single role-resolution pass over all
+    // active users instead of one `authorizationService.can()` (2 queries) per
+    // user. `canBatch` derives active roles exactly like `can()` — direct
+    // UserRole assignments plus group-inherited roles with validity windows —
+    // so authorization semantics are unchanged.
+    const writableIds = await authorizationService.canBatch(
+      users.map((user: any) => user.id),
+      'tickets.write',
+    );
+    const editors = users.filter((user: any) => writableIds.has(user.id)) as Array<typeof users[number]>;
     const editorIds = editors.map((user: any) => user.id);
     // Hard take-limit: workload views are bounded aggregates; cap the scan so a
     // pathological query cannot pull an unbounded ticket set into memory.

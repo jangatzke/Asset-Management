@@ -8,7 +8,7 @@ describe('Cost planning manual procurement flow', () => {
     expect(source).toContain('onClick={createManual}');
     expect(source).toContain('costPlanningApi.createManualItem');
     expect(source).toContain("setMessage(t('costPlanning.manualValidationError'))");
-    expect(source).toContain("setMessage(apiErrorMessage(error, t('costPlanning.manualCreateError')))" );
+    expect(source).toContain("setMessage(apiErrorMessage(error, t('costPlanning.manualCreateError'), t('common.referenceId')))");
   });
 
   test('supports persisted supplier lookup and inline creation before submitting the procurement item', async () => {

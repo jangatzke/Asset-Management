@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal';
 import { useI18n } from '../context/I18nContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useDirtyForm } from '../hooks/useDirtyForm';
+import { formatApiError } from '../utils/apiError';
 
 interface AssetType {
   id: string;
@@ -95,7 +96,7 @@ const AdminAssetTypes = () => {
       const response = await adminApi.listAssetTypes();
       setAssetTypes(response.data || []);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assetTypes.loadError'));
+      setError(formatApiError(err, t('assetTypes.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -170,7 +171,7 @@ const AdminAssetTypes = () => {
       loadAssetTypes();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assetTypes.saveError'));
+      setError(formatApiError(err, t('assetTypes.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -209,7 +210,7 @@ const AdminAssetTypes = () => {
       loadAssetTypes();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assetTypes.subtypeSaveError'));
+      setError(formatApiError(err, t('assetTypes.subtypeSaveError'), t('common.referenceId')));
     } finally { setSaving(false); }
   };
 
@@ -225,7 +226,7 @@ const AdminAssetTypes = () => {
       loadAssetTypes();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assetTypes.deleteError'));
+      setError(formatApiError(err, t('assetTypes.deleteError'), t('common.referenceId')));
     }
   };
 
@@ -236,7 +237,7 @@ const AdminAssetTypes = () => {
       loadAssetTypes();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assetTypes.archiveError'));
+      setError(formatApiError(err, t('assetTypes.archiveError'), t('common.referenceId')));
     }
   };
 

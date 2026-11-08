@@ -5,7 +5,7 @@ import type { EntityPickerResult } from '../services/entityPickerApi';
 import { supplierApi, type SupplierAction, type SupplierAssessment, type SupplierDetail, type SupplierFinding } from '../services/api';
 import { useAuthStore } from '../store/auth';
 import { useI18n } from '../context/I18nContext';
-import { extractApiError } from '../utils/apiError';
+import { formatApiError } from '../utils/apiError';
 
 type Tab = 'profile' | 'assessments' | 'contracts' | 'risks' | 'actions' | 'history';
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
@@ -31,7 +31,7 @@ export default function SupplierDetailPage() {
   const load = useCallback(async () => {
     if (!supplierId) return;
     setError('');
-    try { setDetail((await supplierApi.getDetail(supplierId)).data); } catch (err) { setError(extractApiError(err, t('common.loading')).message); }
+    try { setDetail((await supplierApi.getDetail(supplierId)).data); } catch (err) { setError(formatApiError(err, t('common.loading'), t('common.referenceId'))); }
   }, [supplierId, t]);
   useEffect(() => { void load(); }, [load]);
 
@@ -42,18 +42,18 @@ export default function SupplierDetailPage() {
       if (editingAssessment) await supplierApi.updateAssessment(editingAssessment, assessment);
       else await supplierApi.createAssessment(supplierId, assessment as any);
       setAssessment(emptyAssessment(currentUser?.id)); setEditingAssessment(null); await load();
-    } catch (err) { setError(extractApiError(err, t('common.saveError')).message); } finally { setBusy(false); }
+    } catch (err) { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); } finally { setBusy(false); }
   };
   const addRelation = async (kind: 'contract' | 'risk') => {
     if (!supplierId || !(kind === 'contract' ? contract : risk)) return;
     setBusy(true); try {
       if (kind === 'contract') await supplierApi.addContract(supplierId, { contractId: contract!.id }); else await supplierApi.addRisk(supplierId, { riskId: risk!.id });
       setContract(null); setRisk(null); await load();
-    } catch (err) { setError(extractApiError(err, t('common.saveError')).message); } finally { setBusy(false); }
+    } catch (err) { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); } finally { setBusy(false); }
   };
   const createCapa = async (event: FormEvent) => {
     event.preventDefault(); if (!supplierId || !capa.title) return;
-    setBusy(true); try { await supplierApi.createCapa(supplierId, { ...capa, dueDate: capa.dueDate || undefined }); setCapa({ title: '', description: '', dueDate: '' }); await load(); } catch (err) { setError(extractApiError(err, t('common.saveError')).message); } finally { setBusy(false); }
+    setBusy(true); try { await supplierApi.createCapa(supplierId, { ...capa, dueDate: capa.dueDate || undefined }); setCapa({ title: '', description: '', dueDate: '' }); await load(); } catch (err) { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); } finally { setBusy(false); }
   };
   const findings = assessment.findings ?? []; const actions = assessment.actions ?? [];
   const updateFinding = (index: number, value: SupplierFinding) => setAssessment((old) => ({ ...old, findings: findings.map((item, i) => i === index ? value : item) }));

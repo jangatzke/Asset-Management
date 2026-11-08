@@ -38,3 +38,14 @@ export function canRestoreAssets(user: AuthUserLike | null | undefined): boolean
   }
   return Boolean(user.roles?.includes('system_admin'));
 }
+
+/**
+ * Generic equivalent of [`canRestoreAssets()`](#) for the restore endpoints of
+ * Tickets, Risks, Controls and Incidents. All four routes are guarded by the
+ * same backend `requireAdminAccess` middleware, so the same permission/role
+ * resolution applies. Kept as a separate helper so call sites read naturally
+ * per entity while sharing one implementation.
+ */
+export function canRestoreEntities(user: AuthUserLike | null | undefined): boolean {
+  return canRestoreAssets(user);
+}

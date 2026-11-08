@@ -19,8 +19,10 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../components/useToast';
 import { exportCsv } from '../utils/csvExport';
 import { formatDate, formatDateTime } from '../utils/formatDate';
-import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { extractApiError, formatApiError, formatToastMessage } from '../utils/apiError';
 import { buttonPrimary } from '../styles/tokens';
+import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
+import { canRestoreEntities } from '../utils/permissions';
 
 interface HistoryEntry {
   id: string;
@@ -122,6 +124,10 @@ const Incidents = () => {
   const { t } = useI18n();
   const { addToast } = useToast();
   const currentUser = useAuthStore((state) => state.user);
+  // Restore (undo of bulk archive) is admin-only on the backend, so the Undo
+  // action is only offered to users who can actually perform it.
+  const canRestore = canRestoreEntities(currentUser);
+  const undoable = useUndoableAction();
   const [searchParams, setSearchParams] = useSearchParams();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,8 +200,8 @@ const Incidents = () => {
       if (historyActionFilter) params.action = historyActionFilter;
       const response = await incidentApi.history(incidentId, params);
       setHistoryEntries(response.data.data || response.data || []);
-    } catch (err: any) {
-      setHistoryError(err.response?.data?.message || t('incidents.history.loadHistoryError'));
+    } catch (err: unknown) {
+      setHistoryError(formatApiError(err, t('incidents.history.loadHistoryError'), t('common.referenceId')));
     } finally {
       setHistoryLoading(false);
     }
@@ -209,8 +215,8 @@ const Incidents = () => {
       if (historyActionFilter) params.action = historyActionFilter;
       const response = await incidentApi.history(incidentId, params);
       setHistoryEntries(response.data.data || response.data || []);
-    } catch (err: any) {
-      setHistoryError(err.response?.data?.message || t('incidents.history.loadHistoryError'));
+    } catch (err: unknown) {
+      setHistoryError(formatApiError(err, t('incidents.history.loadHistoryError'), t('common.referenceId')));
     } finally {
       setHistoryLoading(false);
     }
@@ -229,8 +235,8 @@ const Incidents = () => {
       const response = await incidentApi.list(params);
       setIncidents(response.data.data || []);
       setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || t('incidents.loadError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('incidents.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -244,8 +250,8 @@ const Incidents = () => {
       });
       setActionMessage(t('incidents.warningDraftCreated').replace('{title}', incident.title));
       loadIncidents();
-    } catch (err: any) {
-      setError(err.response?.data?.message || t('incidents.warningDraftError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('incidents.warningDraftError'), t('common.referenceId')));
     }
   };
 
@@ -375,8 +381,8 @@ const Incidents = () => {
       setAffectedAssets([]);
       setAffectedProcesses([]);
       await loadIncidents();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || err.response?.data?.message || t('incidents.saveError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('incidents.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -483,13 +489,22 @@ const Incidents = () => {
     setBulkArchiving(true);
     try {
       const result = (await incidentApi.bulkArchive({ ids })).data;
-      if (result.failedCount === 0) {
-        addToast('success', t('bulk.success', { count: result.succeededCount }));
-      } else if (result.succeededCount > 0) {
-        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
-      } else {
+      if (result.succeededCount === 0) {
         addToast('error', t('bulk.failed'));
+        return;
       }
+      // Undo restores exactly the incidents the backend confirmed as archived;
+      // IDs listed in `failed` were never archived and are skipped.
+      undoable.offerUndo({
+        toastType: result.failedCount === 0 ? 'success' : 'warning',
+        successMessage: result.failedCount === 0
+          ? t('bulk.success', { count: result.succeededCount })
+          : t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }),
+        undoFailureMessage: t('bulk.failed'),
+        canUndo: canRestore,
+        restore: () => restoreSucceededIds(result, (id) => incidentApi.restore(id, {})),
+        onUndone: loadIncidents,
+      });
     } catch (err: unknown) {
       addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
     } finally {

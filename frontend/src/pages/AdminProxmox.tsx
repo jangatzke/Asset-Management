@@ -45,7 +45,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { proxmoxApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { getErrorMessage } from '../utils/statusHelpers';
+import { formatApiError } from '../utils/apiError';
 import { exportCsv } from '../utils/csvExport';
 
 interface ProxmoxCredential {
@@ -204,7 +204,7 @@ export default function AdminProxmox() {
       const res = await proxmoxApi.getCredentials();
       setCredentials(res.data);
     } catch (e) {
-      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
+      setAlert({ type: 'error', message: formatApiError(e, t('common.loadError'), t('common.referenceId')) });
     }
   };
 
@@ -326,7 +326,7 @@ export default function AdminProxmox() {
       const res = await proxmoxApi.getServers();
       setServers(res.data);
     } catch (e) {
-      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
+      setAlert({ type: 'error', message: formatApiError(e, t('common.loadError'), t('common.referenceId')) });
     }
   };
 

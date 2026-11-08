@@ -6,6 +6,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 
 interface AggregationGroup {
   name: string;
@@ -55,8 +56,8 @@ const RiskAggregation = () => {
         assetType: parseGroups(results[3]),
         scope: parseGroups(results[4]),
       });
-    } catch (err: any) {
-      setError(err.message || t('riskAggregation.loadError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('riskAggregation.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }

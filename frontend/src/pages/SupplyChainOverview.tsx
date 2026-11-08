@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { supplierApi, type SupplyChainOverviewResponse, type SupplyChainOverviewSupplier } from '../services/api';
-import { extractApiError } from '../utils/apiError';
+import { formatApiError } from '../utils/apiError';
 import { formatDate } from '../utils/formatDate';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
@@ -33,7 +33,7 @@ export default function SupplyChainOverview() {
       });
       setOverview(res.data);
     } catch (caught) {
-      setError(extractApiError(caught, t('supplyChain.loadError')).message);
+      setError(formatApiError(caught, t('supplyChain.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }

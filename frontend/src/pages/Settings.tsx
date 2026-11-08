@@ -7,6 +7,7 @@ import NavigationOrderEditor, { type NavigationOrderEntry } from '../components/
 import { NAVIGATION_CATALOG, applyNavigationOrder } from '@shared/navigation';
 import { useToast } from '../components/useToast';
 import { PlusIcon, StarIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { formatApiError } from '../utils/apiError';
 
 const DEFAULT_SCOPE = '__default__';
 
@@ -41,8 +42,8 @@ const Settings = () => {
     setMfaMessage(null);
     try {
       setMfaSetup((await authApi.beginMfaSetup()).data);
-    } catch (error: any) {
-      setMfaError(error.response?.data?.error?.message || 'Failed to start MFA setup.');
+    } catch (error: unknown) {
+      setMfaError(formatApiError(error, 'Failed to start MFA setup.', t('common.referenceId')));
     }
   };
 
@@ -55,8 +56,8 @@ const Settings = () => {
       setMfaToken('');
       await checkAuth();
       setMfaMessage('MFA enabled successfully.');
-    } catch (error: any) {
-      setMfaError(error.response?.data?.error?.message || 'Failed to verify MFA code.');
+    } catch (error: unknown) {
+      setMfaError(formatApiError(error, 'Failed to verify MFA code.', t('common.referenceId')));
     }
   };
 
@@ -68,8 +69,8 @@ const Settings = () => {
       setMfaToken('');
       await checkAuth();
       setMfaMessage('MFA disabled.');
-    } catch (error: any) {
-      setMfaError(error.response?.data?.error?.message || 'Failed to disable MFA.');
+    } catch (error: unknown) {
+      setMfaError(formatApiError(error, 'Failed to disable MFA.', t('common.referenceId')));
     }
   };
 
@@ -91,8 +92,8 @@ const Settings = () => {
       setConfirmPassword('');
       await checkAuth();
       setPasswordMessage('Password changed successfully.');
-    } catch (error: any) {
-      setPasswordError(error.response?.data?.error?.message || 'Failed to change password.');
+    } catch (error: unknown) {
+      setPasswordError(formatApiError(error, 'Failed to change password.', t('common.referenceId')));
     } finally {
       setIsChangingPassword(false);
     }

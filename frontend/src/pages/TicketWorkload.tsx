@@ -4,6 +4,7 @@ import DataTableShell from '../components/DataTableShell';
 import { useI18n } from '../context/I18nContext';
 import { ticketApi, type TicketWorkloadEntry } from '../services/api';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 
 function currentIsoWeek(): string {
   const date = new Date();
@@ -33,7 +34,7 @@ export default function TicketWorkload() {
     ticketApi.workload({ week, search: search || undefined, ticketsOnly }).then((response) => {
       setEntries(response.data.data);
       setError(null);
-    }).catch(() => setError(t('ticketWorkload.loadError'))).finally(() => setLoading(false));
+    }).catch((caught: unknown) => setError(formatApiError(caught, t('ticketWorkload.loadError'), t('common.referenceId')))).finally(() => setLoading(false));
   }, [search, t, ticketsOnly, week]);
 
   const visibleEntries = useMemo(() => entries.filter((entry) => !ticketsOnly || entry.ticketCount > 0), [entries, ticketsOnly]);

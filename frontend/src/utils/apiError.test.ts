@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { extractApiError, formatToastMessage } from './apiError';
+import { extractApiError, formatApiError, formatToastMessage } from './apiError';
 
 declare const test: typeof import('vitest').test;
 declare const expect: typeof import('vitest').expect;
@@ -61,4 +61,45 @@ test('formatToastMessage appends the localized reference template', () => {
 test('formatToastMessage leaves the message untouched without a reference', () => {
   const info = extractApiError(envelopeError(), 'fallback');
   expect(formatToastMessage(info, 'Ref: {id}')).toBe('Internal Server Error');
+});
+
+test('extractApiError falls back to the legacy flat response.data.message shape', () => {
+  const legacyError = {
+    response: { status: 500, headers: {}, data: { message: 'backend failed' } },
+  };
+  const info = extractApiError(legacyError, 'fallback');
+  expect(info.message).toBe('backend failed');
+  expect(info.referenceId).toBeUndefined();
+  expect(info.fieldErrors).toEqual({});
+  expect(formatApiError(legacyError, 'fallback', 'Ref: {id}')).toBe('backend failed');
+});
+
+test('canonical envelope message wins over the legacy flat message when both exist', () => {
+  const mixedError = {
+    response: {
+      status: 500,
+      headers: {},
+      data: { message: 'legacy flat message', error: { message: 'envelope message' } },
+    },
+  };
+  expect(extractApiError(mixedError, 'fallback').message).toBe('envelope message');
+});
+
+test('formatApiError extracts the envelope and appends the reference label in one call', () => {
+  expect(formatApiError(envelopeError({ 'x-correlation-id': 'abc-123' }), 'fallback', 'Ref: {id}'))
+    .toBe('Internal Server Error (Ref: abc-123)');
+});
+
+test('formatApiError falls back to the message text when no correlation ID is present', () => {
+  expect(formatApiError(envelopeError(), 'fallback', 'Ref: {id}')).toBe('Internal Server Error');
+});
+
+test('formatApiError uses the provided fallback for plain errors without an envelope', () => {
+  expect(formatApiError(new Error('network down'), 'Could not load', 'Ref: {id}')).toBe('network down');
+  expect(formatApiError(undefined, 'Could not load', 'Ref: {id}')).toBe('Could not load');
+});
+
+test('formatApiError keeps the template literal when it has no {id} placeholder', () => {
+  expect(formatApiError(envelopeError({ 'x-correlation-id': 'abc-123' }), 'fallback', 'Ref'))
+    .toBe('Internal Server Error (Ref: abc-123)');
 });

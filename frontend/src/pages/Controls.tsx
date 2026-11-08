@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
-import { controlApi, frameworkApi, evidenceApi, catalogApi, userSearchApi, organizationApi, type SoADiffResponse, type PendingJustificationReport, type PendingJustificationReason } from '../services/api';
+import { controlApi, frameworkApi, evidenceApi, catalogApi, organizationApi, type SoADiffResponse, type PendingJustificationReport, type PendingJustificationReason } from '../services/api';
+import { entitySearchEndpoint } from '../services/entityPickerApi';
 import { getAccessToken } from '../store/accessToken';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
@@ -9,7 +10,7 @@ import { EntityHistoryModal } from '../components/EntityHistoryModal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { implementationRiskDisplayRows } from './riskControlWorkflow.utils';
-import { getControlStatusColor, getErrorMessage } from '../utils/statusHelpers';
+import { getControlStatusColor } from '../utils/statusHelpers';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
@@ -18,8 +19,11 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../components/useToast';
 import { exportCsv } from '../utils/csvExport';
 import { useListQuery } from '../hooks/useListQuery';
-import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { extractApiError, formatToastMessage, formatApiError } from '../utils/apiError';
 import { buttonPrimary } from '../styles/tokens';
+import { useAuthStore } from '../store/auth';
+import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
+import { canRestoreEntities } from '../utils/permissions';
 
 interface Control {
   id: string;
@@ -116,6 +120,11 @@ const actionIconClassName = 'h-4 w-4';
 const Controls = () => {
   const { t } = useI18n();
   const { addToast } = useToast();
+  // Restore (undo of bulk archive) is admin-only on the backend, so the Undo
+  // action is only offered to users who can actually perform it.
+  const user = useAuthStore((state) => state.user);
+  const canRestore = canRestoreEntities(user);
+  const undoable = useUndoableAction();
   const [searchParams] = useSearchParams();
   const [controls, setControls] = useState<Control[]>([]);
   const [loading, setLoading] = useState(true);
@@ -224,7 +233,7 @@ const Controls = () => {
         }
         if (evidence.status === 'fulfilled') setEvidenceCount(evidence.value.data?.length ?? 0);
       },
-      onError: (err: unknown) => { setError(getErrorMessage(err) || t('common.saveError')); },
+      onError: (err: unknown) => { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); },
       onSettled: () => setLoading(false),
     });
   }, [runControlListQuery, t]);
@@ -291,13 +300,22 @@ const Controls = () => {
     setBulkArchiving(true);
     try {
       const result = (await controlApi.bulkArchive({ ids })).data;
-      if (result.failedCount === 0) {
-        addToast('success', t('bulk.success', { count: result.succeededCount }));
-      } else if (result.succeededCount > 0) {
-        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
-      } else {
+      if (result.succeededCount === 0) {
         addToast('error', t('bulk.failed'));
+        return;
       }
+      // Undo restores exactly the controls the backend confirmed as archived;
+      // IDs listed in `failed` were never archived and are skipped.
+      undoable.offerUndo({
+        toastType: result.failedCount === 0 ? 'success' : 'warning',
+        successMessage: result.failedCount === 0
+          ? t('bulk.success', { count: result.succeededCount })
+          : t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }),
+        undoFailureMessage: t('bulk.failed'),
+        canUndo: canRestore,
+        restore: () => restoreSucceededIds(result, (id) => controlApi.restore(id, {})),
+        onUndone: loadControls,
+      });
     } catch (err: unknown) {
       addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
     } finally {
@@ -358,7 +376,7 @@ const Controls = () => {
       setSoaSuccessMessage(t('controls.soaGenerator.success').replace('{count}', String(itemCount)));
       await loadControls();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('controls.soaGenerator.generateError'));
+      setError(formatApiError(err, t('controls.soaGenerator.generateError'), t('common.referenceId')));
     } finally {
       setGeneratingSoA(false);
     }
@@ -384,7 +402,7 @@ const Controls = () => {
       anchor.remove();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('controls.soaGenerator.exportError'));
+      setError(formatApiError(err, t('controls.soaGenerator.exportError'), t('common.referenceId')));
     } finally {
       setExportingSoA(false);
     }
@@ -399,7 +417,7 @@ const Controls = () => {
       setSoaDiffResult(response.data);
     } catch (err: unknown) {
       setSoaDiffResult(null);
-      setError(getErrorMessage(err) || t('controls.soaDiff.error'));
+      setError(formatApiError(err, t('controls.soaDiff.error'), t('common.referenceId')));
     } finally {
       setDiffingSoA(false);
     }
@@ -414,7 +432,7 @@ const Controls = () => {
       setPendingReport(response.data);
     } catch (err: unknown) {
       setPendingReport(null);
-      setError(getErrorMessage(err) || t('controls.soaPending.error'));
+      setError(formatApiError(err, t('controls.soaPending.error'), t('common.referenceId')));
     } finally {
       setLoadingPendingReport(false);
     }
@@ -473,7 +491,7 @@ const Controls = () => {
       setEditingControlId(control.id);
       setModalOpen(true);
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('controls.loadDetailsError'));
+      setError(formatApiError(err, t('controls.loadDetailsError'), t('common.referenceId')));
     }
   };
 
@@ -496,7 +514,7 @@ const Controls = () => {
       resetControlForm();
       await loadControls();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || (editingControlId ? t('common.saveError') : t('controls.createError')));
+      setError(formatApiError(err, editingControlId ? t('common.saveError') : t('controls.createError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -524,21 +542,10 @@ const Controls = () => {
     }
   }, [implementationFormState]);
 
-  // Search endpoint for EntitySearchSelect (responsible person) — dedicated
-  // owner-search API: active users only, no admin user-list dependency.
-  const searchUsers = async (q: string) => {
-    try {
-      const res = await userSearchApi.owners(q);
-      return res.data ?? res ?? [];
-    } catch { return []; }
-  };
-
-  const searchOrganizationUnits = async (q: string) => {
-    try {
-      const res = await organizationApi.listUnits({ q, limit: 20 });
-      return res.data?.data ?? res.data ?? [];
-    } catch { return []; }
-  };
+  // Search endpoints for EntitySearchSelect use the shared entity-picker API:
+  // active users only, no admin user-list dependency.
+  const searchUsers = entitySearchEndpoint('user');
+  const searchOrganizationUnits = entitySearchEndpoint('organizationUnit');
 
   const handleCreateImplementation = async () => {
     const responsibleUserId = responsibleUserOption?.id || implementationFormState.values.responsibleUserId;
@@ -556,7 +563,7 @@ const Controls = () => {
       setOrganizationUnitOption(null);
       await loadControls();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('controls.implementationCreateError'));
+      setError(formatApiError(err, t('controls.implementationCreateError'), t('common.referenceId')));
     } finally { setSaving(false); }
   };
 

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { assetApi } from '../services/api';
 import AssetGraph from '../components/AssetGraph';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 interface AssetDetailData {
   id: string;
@@ -36,8 +37,8 @@ const AssetDetail = () => {
       const response = await assetApi.getById(assetId);
       setAsset(response.data);
       setError(null);
-    } catch (requestError: any) {
-      setError(requestError?.response?.data?.error?.message ?? requestError?.message ?? t('assets.detail.notFound'));
+    } catch (requestError: unknown) {
+      setError(formatApiError(requestError, t('assets.detail.notFound'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }

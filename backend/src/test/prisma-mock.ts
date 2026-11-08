@@ -72,6 +72,7 @@ export const createMockPrismaClient = (): MockPrismaClient => {
 
     // ISMS models
     ismsScope: createMockModel(),
+    ismsScopeLegalEntity: createMockModel(),
     interestedParty: createMockModel(),
 
     // Asset models
@@ -101,6 +102,9 @@ export const createMockPrismaClient = (): MockPrismaClient => {
     riskMethod: createMockModel(),
     risk: createMockModel(),
     riskTreatment: createMockModel(),
+    riskTreatmentApproval: createMockModel(),
+    riskTreatmentEffectivenessReview: createMockModel(),
+    riskAcceptance: createMockModel(),
     riskAssessmentVersion: createMockModel(),
     riskControl: createMockModel(),
     riskControlAssessment: createMockModel(),
@@ -242,5 +246,6 @@ export const createMockPrismaClient = (): MockPrismaClient => {
     $disconnect: jest.fn(),
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
+    $on: jest.fn(),
   };
 };

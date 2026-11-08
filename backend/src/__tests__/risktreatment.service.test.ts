@@ -46,6 +46,9 @@ const mockPrismaClient: any = {
     create: jest.fn(),
     findFirst: jest.fn().mockResolvedValue(null), // Phase 9: hash-chain previous entry lookup
   },
+  user: {
+    findMany: jest.fn(),
+  },
   userRole: {
     findMany: jest.fn(),
   },
@@ -90,6 +93,11 @@ describe('RiskTreatmentService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Active-user lookup used by validateUserReferences (F-01/F-14 integrity)
+    mockPrismaClient.user.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => ({ id, isActive: true }));
+    });
     mockPrismaClient.userRole.findMany.mockResolvedValue([{ roleName: 'risk_writer', validUntil: null, scopeId: null, organizationUnitId: null, role: { canAccessAdmin: false, entityPermissions: { risks: 'readwrite' } } }]);
     mockPrismaClient.userGroup.findMany.mockResolvedValue([]);
     mockPrismaClient.risk.findUnique.mockResolvedValue({

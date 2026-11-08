@@ -3,9 +3,32 @@ import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService, AuditAction } from './audit.service';
 import { reminderService } from './reminder.service';
+import { validateUserReferences } from './userReference.service';
 import { PHASE6_MODEL_MAP } from './phase6.resources';
 
 type AnyObject = Record<string, any>;
+
+/**
+ * User reference fields per Phase 6 resource. Only the fields present in the
+ * payload are validated so partial updates stay cheap and untouched references
+ * are never re-checked.
+ */
+const USER_REFERENCE_FIELDS: Record<string, string[]> = {
+  bias: ['ownerId'],
+  bcps: ['ownerId', 'approvedBy'],
+  auditPrograms: ['ownerId'],
+  auditPlans: ['approvedBy'],
+  auditFindings: ['ownerId'],
+  correctiveActions: ['ownerId'],
+  trainingCourses: ['ownerId'],
+  trainingAssignments: ['userId', 'assignedBy'],
+  trainingCompletions: ['userId'],
+  trainingAcknowledgements: ['userId'],
+  managementReviews: ['chairId', 'approvedBy'],
+  managementReviewActions: ['ownerId'],
+  securityObjectives: ['ownerId'],
+  metricDefinitions: ['ownerId'],
+};
 
 const CREATE_ACTION: AuditAction = 'CONFIG_CHANGE';
 const UPDATE_ACTION: AuditAction = 'CONFIG_CHANGE';
@@ -25,6 +48,16 @@ export class Phase6Service {
 
   private displayId(prefix: string) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  }
+
+  private async validateResourceUserReferences(resource: string, data: AnyObject): Promise<void> {
+    const fields = USER_REFERENCE_FIELDS[resource];
+    if (!fields) return;
+    const refs: Record<string, string | null | undefined> = {};
+    for (const field of fields) {
+      if (data[field] !== undefined) refs[field] = data[field];
+    }
+    await validateUserReferences(prisma, refs);
   }
 
   private csvEscape(value: unknown) {
@@ -69,6 +102,7 @@ export class Phase6Service {
 
   async create(resource: string, data: AnyObject, userId = 'system') {
     const config = this.getConfig(resource);
+    await this.validateResourceUserReferences(resource, data);
     const createData: AnyObject = { ...data, createdBy: userId };
     if (resource === 'metricValues') {
       Object.assign(createData, await this.evaluateMetricBreach(data.metricId, data.value));
@@ -83,6 +117,7 @@ export class Phase6Service {
 
   async update(resource: string, id: string, data: AnyObject, userId = 'system') {
     const config = this.getConfig(resource);
+    await this.validateResourceUserReferences(resource, data);
     const existing = await this.get(resource, id);
     const updateData = { ...data, updatedBy: userId };
     if (resource === 'metricValues' && data.value !== undefined) Object.assign(updateData, await this.evaluateMetricBreach(data.metricId ?? existing.metricId, data.value));

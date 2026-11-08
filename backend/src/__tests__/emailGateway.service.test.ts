@@ -38,6 +38,10 @@ jest.mock('imapflow', () => {
       this.connect = jest.fn().mockResolvedValue(undefined);
       this.logout = jest.fn().mockResolvedValue(undefined);
       this.getMailboxLock = jest.fn().mockResolvedValue({ release: jest.fn().mockResolvedValue(undefined) });
+      // Bounded polling reads `mailbox.uidNext`/`mailbox.exists`; an empty
+      // mailbox yields no fetch range. Provide one UID so the newest-N window
+      // ('N:*') is exercised instead of the removed whole-mailbox scan.
+      this.mailbox = { uidNext: 2, exists: 1 };
       this.fetch = fetchMock;
       this.fetchOne = fetchOneMock;
       return this;

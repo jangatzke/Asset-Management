@@ -4,6 +4,7 @@ import os from 'os';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { idempotency } from '../middleware/idempotency';
 import { AppError } from '../middleware/errorHandler';
 import { adminService } from '../services/admin.service';
 import { reminderService } from '../services/reminder.service';
@@ -24,8 +25,15 @@ import { navigationViewService } from '../services/navigationView.service';
 import { aiService } from '../services/ai.service';
 import { getAiAssistantScheduler } from '../services/ai.scheduler';
 import { validateBody } from '../middleware/validation';
-import { AiConfigUpdateSchema } from 'shared';
- 
+import { AiConfigUpdateSchema, EmailGatewayConfigUpdateSchema } from 'shared';
+import {
+  getJobRunSummary,
+  listJobRuns,
+  parseJobRunListQuery,
+  parseJobRunSummaryQuery,
+} from '../services/jobRunHistory.service';
+import { setPaginationHeader } from '../utils/pagination';
+
 export const adminRouter = Router();
 
 // Backups are streamed to a file on disk (not held in memory) to avoid DoS
@@ -241,7 +249,7 @@ adminRouter.get('/reminders/config', authenticate, requireAdminAccess, async (_r
   }
 });
 
-adminRouter.put('/reminders/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+adminRouter.put('/reminders/config', authenticate, requireAdminAccess, idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     const config = await reminderService.updateConfig(req.body, req.userId ?? 'system');
     await getReminderScheduler()?.restart();
@@ -251,7 +259,7 @@ adminRouter.put('/reminders/config', authenticate, requireAdminAccess, async (re
   }
 });
 
-adminRouter.post('/reminders/test-smtp', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+adminRouter.post('/reminders/test-smtp', authenticate, requireAdminAccess, idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     res.json(await reminderService.testSmtp(req.userId ?? 'system'));
   } catch (error) {
@@ -259,7 +267,7 @@ adminRouter.post('/reminders/test-smtp', authenticate, requireAdminAccess, async
   }
 });
 
-adminRouter.post('/reminders/run-now', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+adminRouter.post('/reminders/run-now', authenticate, requireAdminAccess, idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     res.json(await reminderService.runAllDue(req.userId ?? 'system'));
   } catch (error) {
@@ -285,7 +293,7 @@ adminRouter.get('/sla-escalation/config', authenticate, requireAdminAccess, asyn
   }
 });
  
-adminRouter.put('/sla-escalation/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+adminRouter.put('/sla-escalation/config', authenticate, requireAdminAccess, idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     const config = await slaService.updateConfig(req.body, req.userId ?? 'system');
     await getSlaScheduler()?.restart();
@@ -295,7 +303,7 @@ adminRouter.put('/sla-escalation/config', authenticate, requireAdminAccess, asyn
   }
 });
  
-adminRouter.post('/sla-escalation/test-smtp', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+adminRouter.post('/sla-escalation/test-smtp', authenticate, requireAdminAccess, idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     res.json(await slaService.testSmtp(req.userId ?? 'system'));
   } catch (error) {
@@ -303,7 +311,7 @@ adminRouter.post('/sla-escalation/test-smtp', authenticate, requireAdminAccess, 
   }
 });
  
-adminRouter.post('/sla-escalation/run-now', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+adminRouter.post('/sla-escalation/run-now', authenticate, requireAdminAccess, idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     res.json(await slaService.scanBreach(req.userId ?? 'system'));
   } catch (error) {
@@ -329,15 +337,21 @@ adminRouter.get('/email-gateway/config', authenticate, requireAdminAccess, async
   }
 });
 
-adminRouter.put('/email-gateway/config', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
-  try {
-    const config = await emailGatewayService.updateConfig(req.body, req.userId ?? 'system');
-    await getEmailGatewayScheduler()?.restart();
-    res.json(config);
-  } catch (error) {
-    next(error);
-  }
-});
+adminRouter.put(
+  '/email-gateway/config',
+  authenticate,
+  requireAdminAccess,
+  validateBody(EmailGatewayConfigUpdateSchema),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const config = await emailGatewayService.updateConfig(req.body, req.userId ?? 'system');
+      await getEmailGatewayScheduler()?.restart();
+      res.json(config);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 adminRouter.post('/email-gateway/test-inbound', authenticate, requireAdminAccess, async (_req, res, next) => {
   try {
@@ -783,6 +797,44 @@ adminRouter.post('/organization-units/:id/archive', authenticate, requireAdminAc
 adminRouter.post('/organization-units/:id/restore', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     const result = await adminService.restoreOrganizationUnit(req.params.id, req.userId!);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- JobRun History (Improvement #10) ----
+//
+// Read-only diagnostics over the existing job_runs table populated by
+// executeTrackedJob. Raw job payload/log data (the `data` column) is never
+// selected; free-form `error` text is sanitized with the shared diagnostic
+// sanitizer so mailbox addresses and auth failures cannot leak.
+
+/**
+ * GET /admin/job-runs/summary?windowHours=24
+ * Compact last-run-per-job status summary plus windowed status counts.
+ * Registered before /job-runs so the literal segment is never shadowed.
+ */
+adminRouter.get('/job-runs/summary', authenticate, requireAdminAccess, async (_req, res, next) => {
+  try {
+    const options = parseJobRunSummaryQuery(_req.query as Record<string, unknown>);
+    const summary = await getJobRunSummary(options);
+    res.json(summary);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /admin/job-runs?jobId=&jobType=&status=&from=&to=&page=&limit=&order=
+ * Paginated JobRun history with the locked `{ data, pagination }` envelope and
+ * an additive `X-Total-Count` header.
+ */
+adminRouter.get('/job-runs', authenticate, requireAdminAccess, async (req, res, next) => {
+  try {
+    const filters = parseJobRunListQuery(req.query as Record<string, unknown>);
+    const result = await listJobRuns(filters);
+    setPaginationHeader(res, result);
     res.json(result);
   } catch (error) {
     next(error);

@@ -11,11 +11,11 @@ import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { formatApiError } from '../utils/apiError';
 
 type Role = { id: string; name: string; description?: string | null; isBuiltIn: boolean; canAccessAdmin: boolean; permissionNames: string[] };
 type RoleForm = { name: string; description: string; permissionNames: string[]; canAccessAdmin: boolean };
 const emptyForm = (): RoleForm => ({ name: '', description: '', permissionNames: [], canAccessAdmin: false });
-const messageFrom = (error: any, fallback: string) => error?.response?.data?.error?.message ?? error?.response?.data?.error ?? error?.message ?? fallback;
 
 const permissionCountBadge = (count: number) => {
   if (count === 0) return 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
@@ -26,6 +26,7 @@ const permissionCountBadge = (count: number) => {
 const AdminRoles = () => {
   const { t } = useI18n();
   const { addToast } = useToast();
+  const messageFrom = (error: unknown, fallback: string) => formatApiError(error, fallback, t('common.referenceId'));
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

@@ -234,25 +234,86 @@ describe('executeTrackedJob', () => {
     expect(leaseStore.get('phase10_lease_test-job')?.leaseUntil.getTime()).toBeLessThanOrEqual(Date.now());
   });
 
-  test('retry/skip behavior: unavailable lease is tracked as skipped and handler is not called', async () => {
+  test('retry/skip behavior: unavailable lease is skipped without creating audit-noise JobRun rows', async () => {
     mockQueryRaw.mockResolvedValueOnce([]);
+    mockJobRunCreate.mockClear();
+    mockJobRunUpdate.mockClear();
 
     const result = await executeTrackedJob(baseConfig);
 
     expect(result.status).toBe('skipped');
+    expect(result.jobRunId).toBe('');
     expect(handler).not.toHaveBeenCalled();
-    expect(mockJobRunUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'skipped' }) }),
-    );
+    // Item 4: lease-loss is a normal cluster outcome, not a run. No skipped
+    // JobRun row is persisted and no update targets a non-existent row.
+    expect(mockJobRunCreate).not.toHaveBeenCalled();
+    expect(mockJobRunUpdate).not.toHaveBeenCalled();
   });
 
   test('retry/skip behavior: lease acquisition errors fail closed as skipped', async () => {
     mockQueryRaw.mockRejectedValueOnce(new Error('database unavailable'));
+    mockJobRunCreate.mockClear();
+    mockJobRunUpdate.mockClear();
 
     const result = await executeTrackedJob(baseConfig);
 
     expect(result.status).toBe('skipped');
+    expect(result.jobRunId).toBe('');
     expect(handler).not.toHaveBeenCalled();
+    expect(mockJobRunCreate).not.toHaveBeenCalled();
+    expect(mockJobRunUpdate).not.toHaveBeenCalled();
+  });
+
+  test('transient failures are retried with attempt increments up to the cap, then fail with final state', async () => {
+    const sleep = jest.fn(async () => undefined);
+    handler
+      .mockRejectedValueOnce(Object.assign(new Error('ECONNRESET while reading response'), { code: 'ECONNRESET' }))
+      .mockRejectedValueOnce(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }))
+      .mockRejectedValueOnce(Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }));
+
+    await expect(
+      executeTrackedJob({ ...baseConfig, retryPolicy: { maxAttempts: 3, sleep } }),
+    ).rejects.toThrow('timed out');
+
+    // Three executions: original + two retries; attempt persisted as 3.
+    expect(handler).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+    expect(mockJobRunUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'failed', attempt: 3, error: 'timed out' }),
+      }),
+    );
+  });
+
+  test('transient failure retried once succeeds without failing the run', async () => {
+    const sleep = jest.fn(async () => undefined);
+    handler
+      .mockRejectedValueOnce(Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }))
+      .mockResolvedValueOnce(undefined);
+
+    const result = await executeTrackedJob({ ...baseConfig, retryPolicy: { maxAttempts: 3, sleep } });
+
+    expect(result.status).toBe('completed');
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(mockJobRunUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'completed', attempt: 2, error: null }) }),
+    );
+  });
+
+  test('deterministic failures are not retried and fail fast', async () => {
+    const sleep = jest.fn(async () => undefined);
+    handler.mockRejectedValueOnce(Object.assign(new Error('validation failed'), { code: 'EAUTH' }));
+
+    await expect(
+      executeTrackedJob({ ...baseConfig, retryPolicy: { maxAttempts: 5, sleep } }),
+    ).rejects.toThrow('validation failed');
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(mockJobRunUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'failed', attempt: 1 }) }),
+    );
   });
 
   test('lease released on failure while preserving handler error', async () => {

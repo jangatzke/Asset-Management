@@ -379,6 +379,7 @@ const Layout = () => {
     { name: t('navigation.fiscalYearSettings'), href: '/admin/fiscal-year' },
     { name: t('navigation.databaseBackup'), href: '/admin/database' },
     { name: t('navigation.ticketSlaSettings'), href: '/admin/ticket-slas' },
+    { name: t('navigation.jobRuns'), href: '/admin/job-runs' },
   ];
 
   // List pages are the ones that expose a "create" action via `n`.

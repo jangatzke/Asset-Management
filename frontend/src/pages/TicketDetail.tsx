@@ -7,6 +7,7 @@ import { useI18n } from '../context/I18nContext';
 import EntityPicker from '../components/EntityPicker';
 import { Modal } from '../components/Modal';
 import type { EntityPickerResult } from '../services/entityPickerApi';
+import { formatApiError } from '../utils/apiError';
 
 /** Human-readable label for an assignee (name when available, else email). */
 function assigneeLabel(assignee: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null | undefined): string {
@@ -62,8 +63,8 @@ export default function TicketDetail() {
       // assignee is displayed separately in the <dd> below the label.
       setAssigneePicker(null);
       setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('tickets.detail.loadError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('tickets.detail.loadError'), t('common.referenceId')));
     }
   }, [t, ticketId]);
 
@@ -78,7 +79,7 @@ export default function TicketDetail() {
       setHistory(response.data.data ?? []);
       setHistoryLoaded(true);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('tickets.detail.loadError'));
+      setError(formatApiError(err, t('tickets.detail.loadError'), t('common.referenceId')));
     }
   };
 
@@ -86,7 +87,7 @@ export default function TicketDetail() {
     if (!ticketId) return;
     setWorking(true);
     try { await ticketApi.changeStatus(ticketId, { status }); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.statusError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.statusError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
   const updateEstimatedEffort = async (value: string) => {
@@ -95,21 +96,21 @@ export default function TicketDetail() {
     if (!Number.isInteger(estimatedEffortUnits) || estimatedEffortUnits < 0) return;
     setWorking(true);
     try { await ticketApi.update(ticketId, { estimatedEffortUnits }); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('common.saveError')); }
+    catch (err: any) { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
   const updatePriority = async (priority: string) => {
     if (!ticketId || !ticket || priority === ticket.priority) return;
     setWorking(true);
     try { await ticketApi.update(ticketId, { priority }); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('common.saveError')); }
+    catch (err: any) { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
   const updateType = async (type: 'service_request' | 'problem' | 'change') => {
     if (!ticketId || !ticket || type === ticket.type) return;
     setWorking(true);
     try { await ticketApi.changeType(ticketId, { type }); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.typeError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.typeError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 
@@ -117,7 +118,7 @@ export default function TicketDetail() {
     if (!ticketId || !problemForm) return;
     setWorking(true);
     try { await ticketApi.updateProblem(ticketId, problemForm); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.extensionSaveError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 
@@ -125,7 +126,7 @@ export default function TicketDetail() {
     if (!ticketId || !changeForm) return;
     setWorking(true);
     try { await ticketApi.updateChange(ticketId, changeForm); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.extensionSaveError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 
@@ -138,7 +139,7 @@ export default function TicketDetail() {
       const response = await ticketApi.convertFromIncident(ticketId, { targetType });
       navigate(`/tickets/${response.data.id}`);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('tickets.detail.convertError'));
+      setError(formatApiError(err, t('tickets.detail.convertError'), t('common.referenceId')));
       setWorking(false);
     }
   };
@@ -147,7 +148,7 @@ export default function TicketDetail() {
     if (!ticketId || !riskPicker) return;
     setWorking(true);
     try { await ticketApi.linkRisk(ticketId, riskPicker.id); setRiskPicker(null); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.extensionSaveError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 
@@ -155,7 +156,7 @@ export default function TicketDetail() {
     if (!ticketId) return;
     setWorking(true);
     try { await ticketApi.unlinkRisk(ticketId, riskId); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.extensionSaveError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.extensionSaveError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 const addComment = async (event: FormEvent) => {
@@ -163,7 +164,7 @@ const addComment = async (event: FormEvent) => {
   if (!ticketId || !comment.trim()) return;
   setWorking(true);
   try { await ticketApi.comment(ticketId, { body: comment, isInternal: internal }); setComment(''); await load(); }
-  catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.commentError')); }
+  catch (err: any) { setError(formatApiError(err, t('tickets.detail.commentError'), t('common.referenceId'))); }
   finally { setWorking(false); }
 };
 
@@ -172,7 +173,7 @@ const addComment = async (event: FormEvent) => {
     if (!ticketId || !requesterCommentText.trim()) return;
     setWorking(true);
     try { await ticketApi.requesterComment(ticketId, { body: requesterCommentText }); setRequesterCommentText(''); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.commentError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.commentError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 
@@ -181,7 +182,7 @@ const addComment = async (event: FormEvent) => {
     if (!summary?.trim() || !ticketId) return;
     setWorking(true);
     try { await ticketApi.close(ticketId, { summary }); await load(); }
-    catch (err: any) { setError(err.response?.data?.error?.message ?? t('tickets.detail.closeError')); }
+    catch (err: any) { setError(formatApiError(err, t('tickets.detail.closeError'), t('common.referenceId'))); }
     finally { setWorking(false); }
   };
 
@@ -192,7 +193,7 @@ const addComment = async (event: FormEvent) => {
       await ticketApi.assign(ticketId, { assigneeId: assigneePicker?.id ?? null });
       await load();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('tickets.detail.assignError'));
+      setError(formatApiError(err, t('tickets.detail.assignError'), t('common.referenceId')));
     } finally { setWorking(false); }
   };
 
@@ -203,7 +204,7 @@ const addComment = async (event: FormEvent) => {
       await ticketApi.addAssets(ticketId, { assetIds: assetPickerValues.map((v) => v.id) });
       await load();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('tickets.detail.attachError'));
+      setError(formatApiError(err, t('tickets.detail.attachError'), t('common.referenceId')));
     } finally { setWorking(false); }
   };
 
@@ -214,7 +215,7 @@ const addComment = async (event: FormEvent) => {
       await ticketApi.removeAssets(ticketId, { assetIds: [assetId] });
       await load();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('tickets.detail.detachError'));
+      setError(formatApiError(err, t('tickets.detail.detachError'), t('common.referenceId')));
     } finally { setWorking(false); }
   };
 

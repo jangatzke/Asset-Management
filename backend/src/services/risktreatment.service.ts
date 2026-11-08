@@ -4,6 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
 import { displayIdService } from './displayId.service';
+import { validateUserReferences } from './userReference.service';
 
 const db = prisma as any;
 
@@ -210,6 +211,16 @@ export class RiskTreatmentService {
     // Validate acceptance requirements (RSK-021/RSK-023)
     this.validateAcceptance(normalizedData);
 
+    // User references must resolve to active users when supplied (F-01/F-14 integrity)
+    const userRefs: Record<string, string | null | undefined> = {
+      responsibleUserId: normalizedData.responsibleUserId,
+      approverId: normalizedData.treatmentOption === 'accept' ? normalizedData.approverId : undefined,
+    };
+    normalizedData.actions?.forEach((action, index) => {
+      userRefs[`actions[${index}].responsibleUserId`] = action.responsibleUserId;
+    });
+    await validateUserReferences(db, userRefs);
+
     const risk = await db.risk.findUnique({ where: { id: normalizedData.riskId } });
     if (!risk) throw new AppError('Risk not found', 404);
 
@@ -314,6 +325,12 @@ export class RiskTreatmentService {
       this.validateAcceptance({ ...existing, ...normalizedData } as CreateRiskTreatmentData);
     }
 
+    // Only validate the user references actually supplied by this update
+    const updateUserRefs: Record<string, string | null | undefined> = {};
+    if (data.responsibleUserId !== undefined) updateUserRefs.responsibleUserId = data.responsibleUserId;
+    if (data.approverId !== undefined) updateUserRefs.approverId = data.approverId;
+    await validateUserReferences(db, updateUserRefs);
+
     const treatment = await db.riskTreatment.update({
       where: { id },
       data: normalizedData,
@@ -369,6 +386,8 @@ export class RiskTreatmentService {
     if (!treatment) {
       throw new AppError('Risk treatment not found', 404);
     }
+
+    await validateUserReferences(db, { approvedByUserId });
 
     await authorizationService.requireEntityPermission(approvedByUserId, 'risks', 'write', treatment.riskId);
 
@@ -466,6 +485,7 @@ export class RiskTreatmentService {
     if (!data.result || data.result.trim().length === 0) throw new AppError('Effectiveness review result is required', 400);
     if (!data.reviewDate) throw new AppError('Effectiveness review date is required', 400);
     const reviewerId = data.reviewerId ?? userId;
+    await validateUserReferences(db, { reviewerId });
 
     const review = await db.$transaction(async (tx: any) => {
       const created = await tx.riskTreatmentEffectivenessReview.create({

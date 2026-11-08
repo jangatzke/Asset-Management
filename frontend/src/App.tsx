@@ -35,6 +35,7 @@ const AdminAuthSettings = lazy(() => import('./pages/AdminAuthSettings'));
 const AdminDatabase = lazy(() => import('./pages/AdminDatabase'));
 const AdminTicketSla = lazy(() => import('./pages/AdminTicketSla'));
 const AdminNavigation = lazy(() => import('./pages/AdminNavigation'));
+const AdminJobRuns = lazy(() => import('./pages/AdminJobRuns'));
 const Contracts = lazy(() => import('./pages/Contracts'));
 const Licenses = lazy(() => import('./pages/Licenses'));
 const Processes = lazy(() => import('./pages/Processes'));
@@ -127,6 +128,7 @@ function App() {
             <Route path="admin/database" element={<AdminDatabase />} />
             <Route path="admin/ticket-slas" element={<AdminTicketSla />} />
             <Route path="admin/navigation" element={<AdminNavigation />} />
+            <Route path="admin/job-runs" element={<AdminJobRuns />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

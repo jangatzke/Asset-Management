@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityWrite, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
-import { validateBody } from '../middleware/validation';
+import { authorizeEntityWrite, requireAdminAccess, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
+import { validateBody, validateParams } from '../middleware/validation';
 import { authorizationService } from '../services/authorization.service';
 import { ticketService } from '../services/ticket.service';
 import { auditService } from '../services/audit.service';
@@ -11,6 +11,7 @@ import { setPaginationHeader } from '../utils/pagination';
 import { idempotency } from '../middleware/idempotency';
 import {
   AssignTicketSchema, BulkArchiveIdsSchema, BulkTransitionTicketsSchema, ChangeTicketStatusSchema,
+  IdParamSchema, RestoreEntitySchema,
   ChangeTicketTypeSchema, CloseTicketSchema, ConvertTicketSchema,
   CreateTicketCommentSchema, CreateTicketLinkSchema, CreateTicketSchema, CreateServiceCatalogItemSchema,
   EscalateTicketSchema, LinkChangeRiskSchema, RequesterCommentSchema, TicketAssetIdsSchema,
@@ -135,7 +136,7 @@ ticketRouter.post('/bulk-transition', authenticate, requirePermission('tickets.w
 
 ticketRouter.get('/:id', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.getById(req.params.id)); }));
 ticketRouter.put('/:id', authenticate, requireEntityPermission('tickets.write', 'tickets'), idempotency(), validateBody(UpdateTicketSchema), handle(async (req, res) => { res.json(await ticketService.update(req.params.id, req.body, req.userId!)); }));
-ticketRouter.post('/:id/type', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(ChangeTicketTypeSchema), handle(async (req, res) => { res.json(await ticketService.changeType(req.params.id, req.body.type, req.userId!)); }));
+ticketRouter.post('/:id/type', authenticate, requireEntityPermission('tickets.write', 'tickets'), idempotency({ includeRouteParams: true }), validateBody(ChangeTicketTypeSchema), handle(async (req, res) => { res.json(await ticketService.changeType(req.params.id, req.body.type, req.userId!)); }));
 // Guided Incident → Problem / Change conversion: creates a linked follow-up
 // ticket instead of mutating the incident (changeType() refuses incidents).
 ticketRouter.post('/:id/convert', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(ConvertTicketSchema), handle(async (req, res) => { res.status(201).json(await ticketService.convertFromIncident(req.params.id, req.body.targetType, req.body.title, req.userId!)); }));
@@ -156,6 +157,9 @@ ticketRouter.post('/:id/close', authenticate, requireEntityPermission('tickets.c
 ticketRouter.post('/:id/escalations', authenticate, requireEntityPermission('tickets.escalate', 'tickets'), validateBody(EscalateTicketSchema), handle(async (req, res) => { res.status(201).json(await ticketService.escalate(req.params.id, req.body, req.userId!)); }));
 ticketRouter.post('/:id/links', authenticate, requireEntityPermission('tickets.write', 'tickets'), validateBody(CreateTicketLinkSchema), handle(async (req, res) => { res.status(201).json(await ticketService.link(req.params.id, req.body, req.userId!)); }));
 ticketRouter.get('/:id/history', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.historyList(req.params.id, req.query)); }));
+// Restore an archived ticket (undo of archive). Admin-only, mirroring the Assets
+// restore endpoint semantics (404 missing / 409 already active).
+ticketRouter.post('/:id/restore', authenticate, requireAdminAccess, validateParams(IdParamSchema), validateBody(RestoreEntitySchema), handle(async (req, res) => { res.json(await ticketService.restore(req.params.id, req.userId, req.body?.reason)); }));
 ticketRouter.get('/:id/assets', authenticate, requireEntityPermission('tickets.read', 'tickets'), handle(async (req, res) => { res.json(await ticketService.getAssetContext(req.params.id)); }));
 ticketRouter.post('/:id/assets', authenticate, requireEntityPermission('tickets.context', 'tickets'), validateBody(TicketAssetIdsSchema), handle(async (req, res) => { res.json(await ticketService.addAssets(req.params.id, req.body.assetIds, req.userId!)); }));
 ticketRouter.delete('/:id/assets', authenticate, requireEntityPermission('tickets.context', 'tickets'), validateBody(TicketAssetIdsSchema), handle(async (req, res) => { res.json(await ticketService.removeAssets(req.params.id, req.body.assetIds, req.userId!)); }));

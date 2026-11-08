@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { controlApi, type CoverageMatrixResponse, type CoverageMatrixRow } from '../services/api';
-import { extractApiError } from '../utils/apiError';
+import { formatApiError } from '../utils/apiError';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
@@ -29,7 +29,7 @@ export default function ControlCoverageMatrix() {
       });
       setMatrix(res.data);
     } catch (caught) {
-      setError(extractApiError(caught, t('controlCoverage.loadError')).message);
+      setError(formatApiError(caught, t('controlCoverage.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }

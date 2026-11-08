@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
 import { useI18n } from '../context/I18nContext';
 import { adminApi } from '../services/api';
+import { formatApiError } from '../utils/apiError';
 
 const monthDays = (month: number) => [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
 
@@ -16,11 +16,6 @@ const AdminFiscalYear = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const extractErrorMessage = (err: unknown, fallback: string) => {
-    const axiosError = err as AxiosError<{ error?: { message?: string }; message?: string }>;
-    return axiosError.response?.data?.error?.message || axiosError.response?.data?.message || axiosError.message || fallback;
-  };
-
   const load = async () => {
     setLoading(true);
     setError('');
@@ -31,7 +26,7 @@ const AdminFiscalYear = () => {
       setPreview(data);
     } catch (err) {
       setPreview(null);
-      setError(extractErrorMessage(err, t('fiscalYear.loadError')));
+      setError(formatApiError(err, t('fiscalYear.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -50,7 +45,7 @@ const AdminFiscalYear = () => {
       setPreview(data);
       setMessage(t('fiscalYear.saved'));
     } catch (err) {
-      setError(extractErrorMessage(err, t('fiscalYear.saveError')));
+      setError(formatApiError(err, t('fiscalYear.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }

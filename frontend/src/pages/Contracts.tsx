@@ -11,6 +11,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface Contract {
@@ -77,8 +78,8 @@ const Contracts = () => {
       setLoading(true);
       const response = await contractApi.list({ page: 1, limit: 100 });
       setContracts(response.data?.data ?? response.data ?? []);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('contracts.loadError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('contracts.loadError'), t('common.referenceId')));
     } finally { setLoading(false); }
   };
 
@@ -160,8 +161,8 @@ const Contracts = () => {
       form.resetForm();
       setEditingId(null);
       await loadContracts();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.saveError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('common.saveError'), t('common.referenceId')));
     } finally { setSaving(false); }
   };
 
@@ -194,8 +195,8 @@ const Contracts = () => {
     try {
       await contractApi.delete(id);
       await loadContracts();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.deleteError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('common.deleteError'), t('common.referenceId')));
     }
   };
 

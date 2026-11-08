@@ -5,6 +5,7 @@ import { SortableTh } from '../components/SortableTh';
 import { useI18n } from '../context/I18nContext';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 
 interface ReminderConfig {
   id?: string;
@@ -98,7 +99,7 @@ export default function AdminReminders() {
       setConfig({ ...defaultConfig, ...configRes.data, smtpPassword: '' });
       setLogs(logsRes.data ?? []);
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Failed to load reminder settings');
+      setError(formatApiError(err, 'Failed to load reminder settings', t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -117,7 +118,7 @@ export default function AdminReminders() {
       setConfig({ ...defaultConfig, ...res.data, smtpPassword: '' });
       setMessage('Reminder automation settings saved. SMTP password was not returned by the API.');
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Failed to save reminder settings');
+      setError(formatApiError(err, 'Failed to save reminder settings', t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -130,7 +131,7 @@ export default function AdminReminders() {
       await reminderAdminApi.testSmtp();
       setMessage('SMTP connection verified successfully.');
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'SMTP verification failed');
+      setError(formatApiError(err, 'SMTP verification failed', t('common.referenceId')));
     }
   };
 
@@ -142,7 +143,7 @@ export default function AdminReminders() {
       setMessage(`Reminder run completed: ${res.data.total} due, ${res.data.sent} sent, ${res.data.skipped} skipped, ${res.data.failed} failed.`);
       await load();
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Manual automation run failed');
+      setError(formatApiError(err, 'Manual automation run failed', t('common.referenceId')));
     }
   };
 

@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClockIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { processApi, userSearchApi } from '../services/api';
+import { processApi } from '../services/api';
+import { entitySearchEndpoint } from '../services/entityPickerApi';
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
@@ -12,6 +13,7 @@ import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { formatApiError } from '../utils/apiError';
 
 interface Process {
   id: string;
@@ -44,13 +46,9 @@ const initialForm: ProcessForm = {
 
 const actionButtonClassName = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800';
 
-// Dedicated owner-search API: active users only, no admin user-list dependency.
-const searchOwnerUsers = async (q: string) => {
-  try {
-    const res = await userSearchApi.owners(q);
-    return res.data ?? res ?? [];
-  } catch { return []; }
-};
+// Shared entity-picker search path: active users only, no admin user-list
+// dependency.
+const searchOwnerUsers = entitySearchEndpoint('user');
 const actionIconClassName = 'h-4 w-4';
 
 const Processes = () => {
@@ -76,8 +74,8 @@ const Processes = () => {
       setLoading(true);
       const response = await processApi.list({ page: 1, limit: 100 });
       setProcesses(response.data?.data ?? response.data ?? []);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('processes.loadError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('processes.loadError'), t('common.referenceId')));
     } finally { setLoading(false); }
   }, [t]);
 
@@ -155,8 +153,8 @@ const Processes = () => {
       form.resetForm();
       setEditingId(null);
       await loadProcesses();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('processes.saveError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('processes.saveError'), t('common.referenceId')));
     } finally { setSaving(false); }
   };
 
@@ -188,8 +186,8 @@ const Processes = () => {
     try {
       await processApi.delete(id);
       await loadProcesses();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('processes.deleteError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('processes.deleteError'), t('common.referenceId')));
     }
   };
 

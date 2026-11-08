@@ -16,6 +16,7 @@ import {
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
+import { extractApiError, formatToastMessage } from '../utils/apiError';
 
 type Supplier = { id: string; legalName: string; displayId: string };
 type ManualItem = { title: string; category: string; investmentType: string; plannedAmount: string; currency: string; supplierId: string; supplierName: string; quoteNumber: string; remark: string };
@@ -46,11 +47,15 @@ interface CostPlanItem {
 
 const money = (value: string | number | null | undefined, currency = 'EUR') => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(value || 0));
 const emptyManual = (): ManualItem => ({ title: '', category: 'hardware', investmentType: 'new_acquisition', plannedAmount: '', currency: 'EUR', supplierId: '', supplierName: '', quoteNumber: '', remark: '' });
-const apiErrorMessage = (error: unknown, fallback: string) => {
-  if (!axios.isAxiosError(error)) return fallback;
-  const responseError = error.response?.data?.error;
-  const detail = responseError?.details?.[0]?.message;
-  return detail || responseError?.message || fallback;
+const apiErrorMessage = (error: unknown, fallback: string, referenceTemplate: string) => {
+  const info = extractApiError(error, fallback);
+  if (axios.isAxiosError(error)) {
+    const responseError = error.response?.data?.error as { details?: Array<{ message?: string }>; message?: string } | undefined;
+    const detail = responseError?.details?.[0]?.message;
+    const preferred = detail || responseError?.message;
+    if (preferred) return formatToastMessage({ ...info, message: preferred }, referenceTemplate);
+  }
+  return formatToastMessage(info, referenceTemplate);
 };
 
 const CostPlanning = () => {
@@ -135,7 +140,7 @@ const CostPlanning = () => {
       const { data } = await costPlanningApi.searchSuppliers({ search: search || undefined, limit: 50 });
       setSuppliers(data.data ?? []);
     } catch (error) {
-      setMessage(apiErrorMessage(error, t('costPlanning.supplierLoadError')));
+      setMessage(apiErrorMessage(error, t('costPlanning.supplierLoadError'), t('common.referenceId')));
     }
   };
 
@@ -146,10 +151,10 @@ const CostPlanning = () => {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { void loadYears().catch((error) => setMessage(apiErrorMessage(error, t('costPlanning.loadYearsError'))));
+  useEffect(() => { void loadYears().catch((error) => setMessage(apiErrorMessage(error, t('costPlanning.loadYearsError'), t('common.referenceId'))));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial fiscal-year list load only; uses current translation fallback for this mount.
   }, []);
-  useEffect(() => { void ensurePlan().catch((error) => setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'))));
+  useEffect(() => { void ensurePlan().catch((error) => setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'), t('common.referenceId'))));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Plan refresh is intentionally keyed to fiscalYearLabel only.
   }, [fiscalYearLabel]);
   useEffect(() => {
@@ -189,7 +194,7 @@ const CostPlanning = () => {
       await costPlanningApi.takeOverCandidates(plan.id, selected);
       setSelected([]);
       await ensurePlan();
-    } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'))); }
+    } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'), t('common.referenceId'))); }
   };
 
   const createSupplier = async () => {
@@ -204,7 +209,7 @@ const CostPlanning = () => {
       setSupplierSearch(data.legalName);
       setMessage(t('costPlanning.supplierCreated'));
     } catch (error) {
-      setMessage(apiErrorMessage(error, t('costPlanning.supplierCreateError')));
+      setMessage(apiErrorMessage(error, t('costPlanning.supplierCreateError'), t('common.referenceId')));
     } finally { setIsCreatingSupplier(false); }
   };
 
@@ -231,7 +236,7 @@ const CostPlanning = () => {
       await ensurePlan();
       setMessage(t('costPlanning.manualCreated'));
     } catch (error) {
-      setMessage(apiErrorMessage(error, t('costPlanning.manualCreateError')));
+      setMessage(apiErrorMessage(error, t('costPlanning.manualCreateError'), t('common.referenceId')));
     } finally { setIsSubmitting(false); }
   };
 
@@ -245,10 +250,10 @@ const CostPlanning = () => {
       link.download = `${plan.displayId}-cost-plan.csv`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'))); }
+    } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'), t('common.referenceId'))); }
   };
 
-  const markDone = async (itemId: string) => { try { await costPlanningApi.markDone(itemId); await ensurePlan(); } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'))); } };
+  const markDone = async (itemId: string) => { try { await costPlanningApi.markDone(itemId); await ensurePlan(); } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'), t('common.referenceId'))); } };
   const markAcquired = async (itemId: string) => {
     const invoiceNumber = window.prompt(t('costPlanning.invoiceNumberPrompt'));
     const invoiceDate = window.prompt(t('costPlanning.invoiceDatePrompt'));
@@ -256,7 +261,7 @@ const CostPlanning = () => {
       try {
         await costPlanningApi.markAcquired(itemId, { invoiceNumber, invoiceDate: new Date(invoiceDate).toISOString() });
         await ensurePlan();
-      } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'))); }
+      } catch (error) { setMessage(apiErrorMessage(error, t('costPlanning.loadPlanError'), t('common.referenceId'))); }
     }
   };
 
@@ -343,7 +348,7 @@ const CostPlanning = () => {
       await ensurePlan();
       setMessage(t('costPlanning.itemUpdated'));
     } catch (error) {
-      setMessage(apiErrorMessage(error, t('costPlanning.itemUpdateError')));
+      setMessage(apiErrorMessage(error, t('costPlanning.itemUpdateError'), t('common.referenceId')));
     } finally { setEditSaving(false); }
   }, [editingItem, editForm, t, ensurePlan]);
 

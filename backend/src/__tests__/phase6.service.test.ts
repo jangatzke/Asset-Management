@@ -3,13 +3,20 @@ import { prisma } from '../config/database';
 
 jest.mock('../config/database', () => {
   const model = () => ({ findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() });
-  const prisma: any = { supplier: model(), correctiveAction: model(), metricDefinition: model(), metricValue: model(), workflowDefinition: model(), workflowInstance: model(), workflowTransitionLog: model(), workflowTask: model(), reportRun: model(), exportJob: model(), auditLog: model() };
+  const prisma: any = { user: model(), supplier: model(), correctiveAction: model(), metricDefinition: model(), metricValue: model(), workflowDefinition: model(), workflowInstance: model(), workflowTransitionLog: model(), workflowTask: model(), reportRun: model(), exportJob: model(), auditLog: model() };
   prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
   return { prisma };
 });
 
 describe('Phase6Service', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Active-user lookup used by validateUserReferences (F-01/F-14 integrity)
+    (prisma as any).user.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => ({ id, isActive: true }));
+    });
+  });
 
   it('creates suppliers with display id and audit log', async () => {
     (prisma as any).supplier.create.mockResolvedValue({ id: 'sup-1', displayId: 'SUP-1', legalName: 'Provider' });

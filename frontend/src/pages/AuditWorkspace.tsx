@@ -4,6 +4,7 @@ import EntityPicker from '../components/EntityPicker';
 import { auditWorkflowApi, type AuditDetail, type AuditFinding, type AuditFindingDetail, type AuditProgram, type AuditProgramDetail, type CorrectiveAction } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 type View = { kind: 'programs' } | { kind: 'program'; id: string } | { kind: 'audit'; id: string } | { kind: 'finding'; id: string };
 const inputClass = 'w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800';
@@ -34,10 +35,10 @@ export default function AuditWorkspace() {
       if (view.kind === 'program') setProgramDetail((await auditWorkflowApi.getProgramDetail(view.id)).data);
       if (view.kind === 'audit') setAuditDetail((await auditWorkflowApi.getAuditDetail(view.id)).data);
       if (view.kind === 'finding') setFindingDetail((await auditWorkflowApi.getFindingDetail(view.id)).data);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : t('common.loading')); }
+    } catch (cause) { setError(formatApiError(cause, t('common.loading'), t('common.referenceId'))); }
   }, [view, t]);
   useEffect(() => { void load(); }, [load]);
-  const run = async (action: () => Promise<unknown>) => { setBusy(true); setError(null); try { await action(); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : t('common.saveError')); } finally { setBusy(false); } };
+  const run = async (action: () => Promise<unknown>) => { setBusy(true); setError(null); try { await action(); await load(); } catch (cause) { setError(formatApiError(cause, t('common.saveError'), t('common.referenceId'))); } finally { setBusy(false); } };
 
   return <main className="mx-auto max-w-6xl space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-3"><div><Link to="/isms-operations" className="text-sm text-primary-600 hover:underline">← {t('ismsOperations.title')}</Link><h1 className="mt-2 text-2xl font-semibold">{t('audit.title')}</h1><p className="text-sm text-gray-500">{t('audit.workflowHint')}</p></div>{view.kind !== 'programs' && <button className={buttonClass} onClick={() => setView({ kind: 'programs' })}>{t('common.all')}</button>}</header>

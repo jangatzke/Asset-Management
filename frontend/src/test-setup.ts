@@ -1,4 +1,9 @@
 // Test setup for jsdom environment
+// The plain entry registers the matchers on the global `expect` (vitest is
+// configured with `globals: true`). The Vitest-specific `/vitest` entry cannot
+// be used here because `@testing-library/jest-dom` is hoisted to the root
+// node_modules and resolves `vitest` from there, which fails. The matching
+// type augmentation lives in `src/test/jest-dom-vitest.d.ts`.
 import '@testing-library/jest-dom';
 
 // Enable React 18 act() environment for tests.

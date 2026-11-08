@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
 import { useI18n } from '../context/I18nContext';
 import { adminApi } from '../services/api';
+import { formatApiError } from '../utils/apiError';
 
 interface AuthSettingsForm {
   passwordComplexityEnabled: boolean;
@@ -27,11 +27,6 @@ const AdminAuthSettings = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const extractErrorMessage = (err: unknown, fallback: string) => {
-    const axiosError = err as AxiosError<{ error?: { message?: string }; message?: string }>;
-    return axiosError.response?.data?.error?.message || axiosError.response?.data?.message || axiosError.message || fallback;
-  };
-
   const load = async () => {
     setLoading(true);
     setError('');
@@ -45,7 +40,7 @@ const AdminAuthSettings = () => {
         forceMfa: Boolean(data.forceMfa),
       });
     } catch (err) {
-      setError(extractErrorMessage(err, t('authSettings.loadError')));
+      setError(formatApiError(err, t('authSettings.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -74,7 +69,7 @@ const AdminAuthSettings = () => {
       });
       setMessage(t('authSettings.saved'));
     } catch (err) {
-      setError(extractErrorMessage(err, t('authSettings.saveError')));
+      setError(formatApiError(err, t('authSettings.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }

@@ -81,8 +81,56 @@ model User {
   ownedRisks                Risk[]  @relation("RiskOwner")
   assessedRisks             Risk[]  @relation("RiskAssessor")
 
+  // ISMS/document/governance user references (F-01/F-14 referential integrity)
+  authoredTicketComments            TicketComment[]                   @relation("TicketCommentAuthor")
+  ownedDocuments                    Document[]                        @relation("DocumentOwner")
+  reviewedDocuments                 Document[]                        @relation("DocumentReviewer")
+  approvedDocuments                 Document[]                        @relation("DocumentApprover")
+  ownedPolicyDocuments              PolicyDocument[]                  @relation("PolicyDocumentOwner")
+  reviewedPolicyDocuments           PolicyDocument[]                  @relation("PolicyDocumentReviewer")
+  approvedPolicyDocuments           PolicyDocument[]                  @relation("PolicyDocumentApprover")
+  authoredDocumentVersions          DocumentVersion[]                 @relation("DocumentVersionAuthor")
+  reviewedDocumentVersions          DocumentVersion[]                 @relation("DocumentVersionReviewer")
+  approvedDocumentVersions          DocumentVersion[]                 @relation("DocumentVersionApprover")
+  documentAcknowledgements          DocumentAcknowledgement[]         @relation("DocumentAcknowledgementUser")
+  documentReviews                   DocumentReview[]                  @relation("DocumentReviewReviewer")
+  submittedSoAs                     StatementOfApplicability[]        @relation("SoASubmittedBy")
+  approvedSoAs                      StatementOfApplicability[]        @relation("SoAApprovedBy")
+  rejectedSoAs                      StatementOfApplicability[]        @relation("SoARejectedBy")
+  soaApprovals                      SoAApproval[]                     @relation("SoAApprovalApprover")
+  riskAssessmentVersions            RiskAssessmentVersion[]           @relation("RiskAssessmentVersionAssessor")
+  riskControlAssessments            RiskControlAssessment[]           @relation("RiskControlAssessmentAssessor")
+  responsibleRiskTreatments         RiskTreatment[]                   @relation("RiskTreatmentResponsible")
+  approvedRiskTreatments            RiskTreatment[]                   @relation("RiskTreatmentApprovedBy")
+  responsibleTreatmentActions       TreatmentAction[]                 @relation("TreatmentActionResponsible")
+  approvedRiskAcceptances           RiskAcceptance[]                  @relation("RiskAcceptanceApprovedBy")
+  riskTreatmentApprovals            RiskTreatmentApproval[]           @relation("RiskTreatmentApprovalApprover")
+  riskTreatmentEffectivenessReviews RiskTreatmentEffectivenessReview[] @relation("RiskTreatmentEffectivenessReviewer")
+  chairedManagementReviews          ManagementReview[]                @relation("ManagementReviewChair")
+  approvedManagementReviews         ManagementReview[]                @relation("ManagementReviewApprovedBy")
+  ownedManagementReviewActions      ManagementReviewAction[]          @relation("ManagementReviewActionOwner")
+  ownedSecurityObjectives           SecurityObjective[]               @relation("SecurityObjectiveOwner")
+  ownedMetricDefinitions            MetricDefinition[]                @relation("MetricDefinitionOwner")
+  ownedBias                         BusinessImpactAnalysis[]          @relation("BusinessImpactAnalysisOwner")
+  ownedBcps                         BusinessContinuityPlan[]          @relation("BusinessContinuityPlanOwner")
+  approvedBcps                      BusinessContinuityPlan[]          @relation("BusinessContinuityPlanApprovedBy")
+  ownedAuditPrograms                AuditProgram[]                    @relation("AuditProgramOwner")
+  approvedAuditPlans                AuditPlan[]                       @relation("AuditPlanApprovedBy")
+  ownedAuditFindings                AuditFinding[]                    @relation("AuditFindingOwner")
+  ownedCorrectiveActions            CorrectiveAction[]                @relation("CorrectiveActionOwner")
+  ownedTrainingCourses              TrainingCourse[]                  @relation("TrainingCourseOwner")
+  trainingAssignments               TrainingAssignment[]              @relation("TrainingAssignmentUser")
+  assignedTrainingAssignments       TrainingAssignment[]              @relation("TrainingAssignmentAssignedBy")
+  trainingCompletions               TrainingCompletion[]              @relation("TrainingCompletionUser")
+  trainingAcknowledgements          TrainingAcknowledgement[]         @relation("TrainingAcknowledgementUser")
+
   @@index([oidcId, oidcProvider])
   @@index([activeNavigationViewId])
+  // NOTE: the case-insensitive e-mail lookup used by resolveUserByEmail()
+  // relies on a functional unique index on lower(email). Prisma cannot
+  // express expression indexes, so it is created by the migration
+  // `20261105140000_email_gateway_dedup_and_performance_indexes`
+  // (PostgreSQL: users_email_lower_idx; SQL Server: persisted computed column).
   @@map("users")
 }
 
@@ -125,10 +173,6 @@ model EmailGatewayConfig {
   defaultTicketType   String? @default("incident")
   autoAssignToEmail   String? // map inbound sender to a known user by email
 
-  // Exchange OAuth2 token cache (client-credentials, short-lived)
-  exchangeAccessToken       String?
-  exchangeAccessTokenExpiry DateTime?
-
   lastPollAt      DateTime?
   lastPollStatus  String?
   lastPollMessage String?
@@ -142,7 +186,14 @@ model EmailGatewayConfig {
 // ---- Persisted inbound message (dedup + audit trail) -----------------------
 model EmailMessage {
   id         String    @id @default(uuid())
-  messageId  String? // RFC 822 Message-ID (dedup key)
+  // RFC 822 Message-ID. Still nullable because many messages omit it; the
+  // durable dedup key below is always populated instead.
+  messageId  String?
+  // Durable dedup key: `m:<sha256(normalized message-id)>` when a Message-ID
+  // exists, otherwise `f:<sha256(from|subject|receivedAt)>`. Always set so the
+  // unique index behaves consistently on PostgreSQL and SQL Server (no
+  // multiple-NULL ambiguity in the dedup query).
+  dedupKey   String    @unique
   inReplyTo  String?
   fromEmail  String
   fromName   String?
@@ -152,7 +203,7 @@ model EmailMessage {
   bodyHtml   String?
   receivedAt DateTime?
   direction  String    @default("inbound") // 'inbound' | 'outbound'
-  status     String    @default("received") // received | processed | skipped | failed
+  status     String    @default("received") // received | processing | processed | skipped | failed
   ticketId   String? // linked ticket after conversion
   userId     String? // resolved user (requester) by email
   error      String?
@@ -162,6 +213,12 @@ model EmailMessage {
   ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([messageId])
+  // Supports the durable batch dedup lookup in pollInbound().
+  @@index([dedupKey, receivedAt])
+  // Supports legacy Message-ID lookups (rows persisted before dedupKey existed).
+  @@index([messageId, receivedAt])
+  // Kept: still used for status-filtered audits/lists; retained deliberately
+  // because it is a cheap, narrow index and its removal is not clearly safe.
   @@index([status, receivedAt])
   @@index([ticketId])
   @@map("email_messages")
@@ -1038,6 +1095,7 @@ model RiskAssessmentVersion {
 
   risk                   Risk                    @relation(fields: [riskId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   riskMethodVersionIdRef RiskMethodVersion       @relation(fields: [riskMethodVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessor               User                    @relation("RiskAssessmentVersionAssessor", fields: [assessorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   controlAssessments     RiskControlAssessment[]
   acceptances            RiskAcceptance[]
 
@@ -1045,6 +1103,7 @@ model RiskAssessmentVersion {
   @@index([riskId, isCurrent])
   @@index([riskId, assessmentType, isCurrent])
   @@index([assessmentType])
+  @@index([assessorId])
   @@map("risk_assessment_versions")
 }
 
@@ -1086,10 +1145,12 @@ model RiskControlAssessment {
 
   riskControl           RiskControl           @relation(fields: [riskControlId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   riskAssessmentVersion RiskAssessmentVersion @relation(fields: [riskAssessmentVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessor              User                  @relation("RiskControlAssessmentAssessor", fields: [assessedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
   evidenceLinks         EvidenceLink[]
 
   @@unique([riskControlId, riskAssessmentVersionId])
   @@index([riskAssessmentVersionId])
+  @@index([assessedBy])
   @@map("risk_control_assessments")
 }
 
@@ -1119,6 +1180,8 @@ model RiskTreatment {
   updatedAt            DateTime  @updatedAt
 
   risk                 Risk                               @relation(fields: [riskId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responsibleUser      User?                              @relation("RiskTreatmentResponsible", fields: [responsibleUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedByUser       User?                              @relation("RiskTreatmentApprovedBy", fields: [approvedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   acceptance           RiskAcceptance?
   approvals            RiskTreatmentApproval[]
   effectivenessReviews RiskTreatmentEffectivenessReview[]
@@ -1126,6 +1189,8 @@ model RiskTreatment {
 
   @@index([riskId])
   @@index([assessmentId])
+  @@index([responsibleUserId])
+  @@index([approvedByUserId])
   @@map("risk_treatments")
 }
 
@@ -1147,9 +1212,11 @@ model TreatmentAction {
 
   treatment             RiskTreatment          @relation(fields: [treatmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   controlImplementation ControlImplementation? @relation(fields: [controlImplementationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responsibleUser       User?                  @relation("TreatmentActionResponsible", fields: [responsibleUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([treatmentId])
   @@index([controlImplementationId])
+  @@index([responsibleUserId])
   @@map("treatment_actions")
 }
 
@@ -1169,12 +1236,14 @@ model RiskAcceptance {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  treatment  RiskTreatment         @relation(fields: [treatmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  assessment RiskAssessmentVersion @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  treatment   RiskTreatment         @relation(fields: [treatmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessment  RiskAssessmentVersion @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedByUser User?               @relation("RiskAcceptanceApprovedBy", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([riskId])
   @@index([assessmentId])
   @@index([status])
+  @@index([approvedBy])
   @@map("risk_acceptances")
 }
 
@@ -1188,6 +1257,7 @@ model RiskTreatmentApproval {
   decidedAt     DateTime @default(now())
 
   treatment RiskTreatment @relation(fields: [treatmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver  User          @relation("RiskTreatmentApprovalApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([treatmentId])
   @@index([approverId])
@@ -1204,6 +1274,7 @@ model RiskTreatmentEffectivenessReview {
   createdAt   DateTime @default(now())
 
   treatment RiskTreatment @relation(fields: [treatmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer  User          @relation("RiskTreatmentEffectivenessReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([treatmentId])
   @@index([reviewerId])
@@ -1398,8 +1469,14 @@ model Document {
   createdBy          String?
   updatedBy          String?
 
-  assetLinks AssetDocument[]
+  owner         User? @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer      User? @relation("DocumentReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver      User? @relation("DocumentApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assetLinks    AssetDocument[]
 
+  @@index([ownerId])
+  @@index([reviewerId])
+  @@index([approverId])
   @@map("documents")
 }
 
@@ -1671,9 +1748,16 @@ model StatementOfApplicability {
   createdBy        String?
   updatedBy        String?
 
+  submitter User? @relation("SoASubmittedBy", fields: [submittedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver  User? @relation("SoAApprovedBy", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rejecter  User? @relation("SoARejectedBy", fields: [rejectedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   items     SoAItem[]
   approvals SoAApproval[]
 
+  @@index([submittedBy])
+  @@index([approvedBy])
+  @@index([rejectedBy])
   @@map("statements_of_applicability")
 }
 
@@ -1735,9 +1819,11 @@ model SoAApproval {
   comment    String?
   decidedAt  DateTime @default(now())
 
-  soa StatementOfApplicability @relation(fields: [soaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  soa      StatementOfApplicability @relation(fields: [soaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver User                     @relation("SoAApprovalApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([soaId])
+  @@index([approverId])
   @@map("soa_approvals")
 }
 
@@ -2208,10 +2294,17 @@ model PolicyDocument {
   createdBy          String?
   updatedBy          String?
 
+  owner         User @relation("PolicyDocumentOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer      User? @relation("PolicyDocumentReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver      User? @relation("PolicyDocumentApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   versions         DocumentVersion[]
   acknowledgements DocumentAcknowledgement[]
   reviews          DocumentReview[]
 
+  @@index([ownerId])
+  @@index([reviewerId])
+  @@index([approverId])
   @@map("policy_documents")
 }
 
@@ -2230,7 +2323,13 @@ model DocumentVersion {
   approvedAt    DateTime?
 
   document PolicyDocument @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  author   User           @relation("DocumentVersionAuthor", fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer User?          @relation("DocumentVersionReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver User?          @relation("DocumentVersionApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([authorId])
+  @@index([reviewerId])
+  @@index([approverId])
   @@map("document_versions")
 }
 
@@ -2243,6 +2342,7 @@ model DocumentAcknowledgement {
   comment        String?
 
   document PolicyDocument @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user     User           @relation("DocumentAcknowledgementUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([documentId, versionId, userId])
   @@index([userId])
@@ -2262,10 +2362,12 @@ model DocumentReview {
   createdAt       DateTime  @default(now())
 
   document PolicyDocument @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer User           @relation("DocumentReviewReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([documentId])
   @@index([dueDate])
   @@index([status])
+  @@index([reviewerId])
   @@map("document_reviews")
 }
 
@@ -2381,9 +2483,12 @@ model BusinessImpactAnalysis {
   createdBy             String?
   updatedBy             String?
 
+  owner User @relation("BusinessImpactAnalysisOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([processId])
   @@index([serviceId])
   @@index([nextReviewDate])
+  @@index([ownerId])
   @@map("business_impact_analyses")
 }
 
@@ -2419,8 +2524,13 @@ model BusinessContinuityPlan {
   createdBy          String?
   updatedBy          String?
 
+  owner      User  @relation("BusinessContinuityPlanOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver   User? @relation("BusinessContinuityPlanApprovedBy", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([biaId])
   @@index([nextTestDate])
+  @@index([ownerId])
+  @@index([approvedBy])
   @@map("business_continuity_plans")
 }
 
@@ -2458,7 +2568,10 @@ model AuditProgram {
   createdBy  String?
   updatedBy  String?
 
+  owner User @relation("AuditProgramOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([year, status])
+  @@index([ownerId])
   @@map("audit_programs")
 }
 
@@ -2483,8 +2596,11 @@ model AuditPlan {
   createdBy    String?
   updatedBy    String?
 
+  approver User? @relation("AuditPlanApprovedBy", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([programId])
   @@index([plannedStart, status])
+  @@index([approvedBy])
   @@map("audit_plans")
 }
 
@@ -2510,8 +2626,11 @@ model AuditFinding {
   createdBy          String?
   updatedBy          String?
 
+  owner User? @relation("AuditFindingOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([auditPlanId])
   @@index([dueDate, status])
+  @@index([ownerId])
   @@map("audit_findings")
 }
 
@@ -2554,8 +2673,11 @@ model CorrectiveAction {
   createdBy               String?
   updatedBy               String?
 
+  owner User @relation("CorrectiveActionOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([sourceType, sourceId])
   @@index([dueDate, status])
+  @@index([ownerId])
   @@map("corrective_actions")
 }
 
@@ -2576,7 +2698,10 @@ model TrainingCourse {
   createdBy               String?
   updatedBy               String?
 
+  owner User @relation("TrainingCourseOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([category, status])
+  @@index([ownerId])
   @@map("training_courses")
 }
 
@@ -2596,9 +2721,13 @@ model TrainingAssignment {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  user User @relation("TrainingAssignmentUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assigner User? @relation("TrainingAssignmentAssignedBy", fields: [assignedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@unique([courseId, userId, assignedAt])
   @@index([userId, status])
   @@index([dueDate, status])
+  @@index([assignedBy])
   @@map("training_assignments")
 }
 
@@ -2615,6 +2744,8 @@ model TrainingCompletion {
   evidenceId     String?
   createdBy      String?
 
+  user User @relation("TrainingCompletionUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([assignmentId])
   @@index([userId, expiresAt])
   @@map("training_completions")
@@ -2627,6 +2758,8 @@ model TrainingAcknowledgement {
   version        String?
   acknowledgedAt DateTime @default(now())
   comment        String?
+
+  user User @relation("TrainingAcknowledgementUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([courseId, userId, version])
   @@map("training_acknowledgements")
@@ -2654,8 +2787,13 @@ model ManagementReview {
   createdBy      String?
   updatedBy      String?
 
+  chair    User  @relation("ManagementReviewChair", fields: [chairId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approver User? @relation("ManagementReviewApprovedBy", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([reviewDate, status])
   @@index([nextReviewDate])
+  @@index([chairId])
+  @@index([approvedBy])
   @@map("management_reviews")
 }
 
@@ -2670,8 +2808,11 @@ model ManagementReviewAction {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  owner User @relation("ManagementReviewActionOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([reviewId])
   @@index([dueDate, status])
+  @@index([ownerId])
   @@map("management_review_actions")
 }
 
@@ -2690,6 +2831,8 @@ model SecurityObjective {
   updatedAt   DateTime  @updatedAt
   createdBy   String?
   updatedBy   String?
+
+  owner User @relation("SecurityObjectiveOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([ownerId, status])
   @@map("security_objectives")
@@ -2712,8 +2855,11 @@ model MetricDefinition {
   createdBy   String?
   updatedBy   String?
 
+  owner User @relation("MetricDefinitionOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([objectiveId])
   @@index([metricType, status])
+  @@index([ownerId])
   @@map("metric_definitions")
 }
 
@@ -3863,6 +4009,10 @@ model JobRun {
 
   @@index([jobType, status])
   @@index([scheduledAt])
+  // Item 4 retention pruning: WHERE status IN (...) AND finishedAt < cutoff
+  // (mirrored by migration 20261105150000_job_retention_finished_at_index)
+  @@index([status, finishedAt])
+  @@index([finishedAt])
   @@map("job_runs")
 }
 
@@ -3878,6 +4028,9 @@ model JobLease {
 
   @@index([leaseUntil])
   @@index([ownerId])
+  // Item 4 retention pruning: WHERE leaseUntil < cutoff AND heartbeatAt < cutoff
+  // (mirrored by migration 20261105150000_job_retention_finished_at_index)
+  @@index([leaseUntil, heartbeatAt])
   @@map("job_leases")
 }
 
@@ -3949,6 +4102,9 @@ model Ticket {
   @@index([assigneeId, status])
   @@index([assigneeId, resolutionDueAt])
   @@index([slaTargetAt])
+  // Primary list ordering: TicketService.list() filters isArchived=false and
+  // orders by updatedAt DESC.
+  @@index([isArchived, updatedAt])
   @@map("tickets")
 }
 
@@ -3976,8 +4132,10 @@ model TicketComment {
   createdAt  DateTime @default(now())
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  author User?  @relation("TicketCommentAuthor", fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([ticketId, createdAt])
+  @@index([authorId])
   @@map("ticket_comments")
 }
 

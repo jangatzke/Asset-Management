@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { riskApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 interface RiskAssessmentVersion {
   id: string;
@@ -76,8 +77,8 @@ const RiskDetail = () => {
       const response = await riskApi.getById(riskId!);
       setRisk(response.data);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || t('riskDetailExtra.loadError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('riskDetailExtra.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }

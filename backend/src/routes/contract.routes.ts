@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
+import { idempotency } from '../middleware/idempotency';
 import { validateBody } from '../middleware/validation';
 import { CreateContractSchema, UpdateContractSchema } from 'shared';
 import { contractService } from '../services/contract.service';
@@ -21,7 +22,7 @@ contractRouter.get('/', authenticate, requireAdminAccess, async (req, res, next)
 });
 
 // POST /api/v1/contracts - Create contract
-contractRouter.post('/', authenticate, validateBody(CreateContractSchema), async (req: AuthRequest, res, next) => {
+contractRouter.post('/', authenticate, idempotency({ includeRouteParams: true }), validateBody(CreateContractSchema), async (req: AuthRequest, res, next) => {
   try {
     const contract = await contractService.create(req.body, req.userId);
     res.status(201).json(contract);
@@ -56,7 +57,7 @@ contractRouter.get('/:id/history', authenticate, requireAdminAccess, async (req,
 });
 
 // PATCH /api/v1/contracts/:id - Update contract
-contractRouter.patch('/:id', authenticate, validateBody(UpdateContractSchema), async (req: AuthRequest, res, next) => {
+contractRouter.patch('/:id', authenticate, idempotency({ includeRouteParams: true }), validateBody(UpdateContractSchema), async (req: AuthRequest, res, next) => {
   try {
     const contract = await contractService.update(req.params.id, req.body, req.userId);
     res.json(contract);
@@ -66,7 +67,7 @@ contractRouter.patch('/:id', authenticate, validateBody(UpdateContractSchema), a
 });
 
 // DELETE /api/v1/contracts/:id - Soft delete contract
-contractRouter.delete('/:id', authenticate, requireAdminAccess, async (req: AuthRequest, res, next) => {
+contractRouter.delete('/:id', authenticate, idempotency({ includeRouteParams: true }), requireAdminAccess, async (req: AuthRequest, res, next) => {
   try {
     const result = await contractService.delete(req.params.id, req.userId);
     res.json(result);

@@ -10,6 +10,8 @@ interface EntityPickerProps {
   values?: EntityPickerResult[];       // Multi-select values
   onChange?: (value: EntityPickerResult) => void;   // Single select handler
   onValuesChange?: (values: EntityPickerResult[]) => void; // Multi-select handler
+  onClear?: () => void;                // Single-select clear handler (nullable references)
+  clearable?: boolean;                 // Show a clear button for single-select values
   multiple?: boolean;                  // Enable multi-select
   placeholderKey?: string;             // i18n key for placeholder
   required?: boolean;                  // Show required indicator
@@ -32,6 +34,8 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
   values = [],
   onChange,
   onValuesChange,
+  onClear,
+  clearable = false,
   multiple = false,
   placeholderKey,
   required = false,
@@ -129,6 +133,15 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
       onValuesChange(values.filter(v => v.id !== id));
     }
   }, [onValuesChange, values]);
+
+  // Clear selected value (single-select). Nullable references can be reset so
+  // the parent form can submit an explicit null.
+  const handleClear = useCallback(() => {
+    setQuery('');
+    setIsOpen(false);
+    setOptions([]);
+    onClear?.();
+  }, [onClear]);
 
   // Filter available options (exclude already selected in multi mode)
   const availableOptions = multiple
@@ -242,6 +255,20 @@ const EntityPicker: React.FC<EntityPickerProps> = ({
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
           disabled={disabled}
         />
+
+        {/* Clear button for nullable single-select references */}
+        {clearable && !multiple && value && (
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={disabled}
+            aria-label={t('entityPicker.clear')}
+            title={t('entityPicker.clear')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 focus:outline-none disabled:opacity-50"
+          >
+            ×
+          </button>
+        )}
 
         {/* Loading spinner */}
         {loading && (

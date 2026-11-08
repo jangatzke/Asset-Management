@@ -10,10 +10,11 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "postinstall": "node -e \"const fs=require('fs');process.exit(fs.existsSync('backend/package.json')?0:1)\" && npm run db:generate --workspace backend || true",
+    "postinstall": "node -e \"const fs=require('fs');process.exit(fs.existsSync('backend/package.json')?0:1)\" && npm run db:generate --workspace backend",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace shared && npm run build --workspace backend && npm run build --workspace frontend",
+    "typecheck": "npm run typecheck --workspace shared && npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
@@ -31,7 +32,7 @@
     "eslint-plugin-react-refresh": "^0.4.9",
     "prettier": "^3.2.4",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "~5.9.0"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",

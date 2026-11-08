@@ -35,6 +35,9 @@ jest.mock('../middleware/entityAuth', () => ({
   authorizeEntityDelete: () => (_req: any, _res: any, next: any) => next(),
   requirePermission: () => (_req: any, _res: any, next: any) => next(),
   requireEntityPermission: () => (_req: any, _res: any, next: any) => next(),
+  // The router also registers POST /controls/:id/restore (improvement roadmap #5),
+  // which needs requireAdminAccess to be a middleware in this module-level mock.
+  requireAdminAccess: (_req: any, _res: any, next: any) => next(),
 }));
 
 jest.mock('../services/audit.service', () => ({

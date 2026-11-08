@@ -4,8 +4,9 @@ import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 import { authorizationService } from './authorization.service';
 import type { ScopeConstraints } from './authorization.service';
-import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
+import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, recordEntityHistory, toHistoryData } from './entityHistory.service';
 import { catalogService } from './catalog.service';
+import { validateUserReferences } from './userReference.service';
 import { serializeEntity, serializeEnvelope } from '../utils/dto';
 import {
   ISO27001_ANNEX_A_2022_CATALOG_CODE,
@@ -396,7 +397,48 @@ export class ControlService {
 
     return { success: true };
   }
-async getSOA(scopeId?: string) {
+
+  /**
+   * Restore an archived control. Mirrors the Assets restore semantics:
+   * 404 when missing, 409 when the control is already active, audit + history.
+   */
+  async restore(id: string, restoredBy?: string, reason?: string) {
+    const existing = await prisma.control.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError('Control not found', 404);
+    }
+    if (!existing.isArchived) {
+      throw new AppError('Control is not archived', 409);
+    }
+
+    await prisma.control.update({
+      where: { id },
+      data: { isArchived: false },
+    });
+
+    if (restoredBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: restoredBy,
+        action: 'CONTROL_RESTORE',
+        entityType: 'Control',
+        entityId: id,
+        details: `Restored control: ${existing.title}${reason ? `: ${reason}` : ''}`,
+      });
+    }
+
+    // Record entity history for restore (archiving reversal)
+    await recordEntityHistory({
+      entityType: 'Control',
+      entityId: id,
+      action: 'UPDATE',
+      summary: `Restored control: ${existing.title}${reason ? `: ${reason}` : ''}`,
+      actorId: restoredBy,
+    });
+
+    return { success: true };
+  }
+
+  async getSOA(scopeId?: string) {
   const where: Prisma.StatementOfApplicabilityWhereInput = {};
   if (scopeId) {
     where.scopeId = scopeId;
@@ -707,6 +749,8 @@ async getSOA(scopeId?: string) {
   }
 
   async submitSOA(soaId: string, userId: string) {
+    await validateUserReferences(prisma, { submittedBy: userId, updatedBy: userId });
+
     const soa = await prisma.statementOfApplicability.findUnique({ where: { id: soaId }, include: { items: true } });
     if (!soa) throw new AppError('Statement of Applicability not found', 404);
     if (soa.isImmutable || soa.approvalStatus === 'approved') throw new AppError('Approved SoA versions are immutable', 409);
@@ -727,6 +771,8 @@ async getSOA(scopeId?: string) {
   }
 
   async approveSOA(soaId: string, approverId: string, decision: 'approved' | 'rejected' = 'approved', comment?: string) {
+    await validateUserReferences(prisma, { approverId, approvedBy: approverId, rejectedBy: approverId });
+
     const soa = await prisma.statementOfApplicability.findUnique({ where: { id: soaId }, include: { items: true } });
     if (!soa) throw new AppError('Statement of Applicability not found', 404);
     if (soa.isImmutable || soa.approvalStatus === 'approved') throw new AppError('Approved SoA versions are immutable', 409);

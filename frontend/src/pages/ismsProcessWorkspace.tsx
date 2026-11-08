@@ -5,6 +5,7 @@ import { Modal } from '../components/Modal';
 import EntityPicker from '../components/EntityPicker';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useAuthStore } from '../store/auth';
+import { formatApiError } from '../utils/apiError';
 
 type Clause = 'clause4' | 'clause5' | 'clause7';
 
@@ -110,7 +111,7 @@ const ISMSProcessWorkspace = () => {
       setParties(Array.isArray(data) ? data : []);
       setPartyTotal(res.data.pagination?.totalPages ?? 1);
     } catch (err) {
-      if (requestId === latestRequestId.current) setError(err instanceof Error ? err.message : t('common.loading'));
+      if (requestId === latestRequestId.current) setError(formatApiError(err, t('common.loading'), t('common.referenceId')));
     } finally {
       if (requestId === latestRequestId.current) setLoading(false);
     }
@@ -218,7 +219,7 @@ const ISMSProcessWorkspace = () => {
       partyForm.resetForm();
       void loadParties();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : t('ismsProcess.saveError'));
+      setSubmitError(formatApiError(e, t('ismsProcess.saveError'), t('common.referenceId')));
     } finally {
       setSubmitLoading(false);
     }
@@ -248,7 +249,7 @@ const ISMSProcessWorkspace = () => {
       docForm.resetForm();
       void loadDocuments();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : t('ismsProcess.saveError'));
+      setSubmitError(formatApiError(e, t('ismsProcess.saveError'), t('common.referenceId')));
     } finally {
       setSubmitLoading(false);
     }
@@ -261,7 +262,7 @@ const ISMSProcessWorkspace = () => {
       await documentApi.transition(id, { status });
       void loadDocuments();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : t('ismsProcess.saveError'));
+      setSubmitError(formatApiError(e, t('ismsProcess.saveError'), t('common.referenceId')));
     } finally {
       setSubmitLoading(false);
     }
@@ -333,7 +334,7 @@ const ISMSProcessWorkspace = () => {
       trainingForm.resetForm();
       void loadTraining();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : t('ismsProcess.saveError'));
+      setSubmitError(formatApiError(e, t('ismsProcess.saveError'), t('common.referenceId')));
     } finally {
       setSubmitLoading(false);
     }

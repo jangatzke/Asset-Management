@@ -22,6 +22,8 @@ import { useListQuery } from '../hooks/useListQuery';
 import { formatDateTime } from '../utils/formatDate';
 import { buttonPrimary, inputField, selectField } from '../styles/tokens';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
+import { canRestoreEntities } from '../utils/permissions';
 
 const ticketTypes = ['incident', 'service_request', 'problem', 'change'];
 
@@ -30,6 +32,10 @@ export default function Tickets() {
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const canWrite = Boolean(user?.roles?.some((role) => ['system_admin', 'ism_manager', 'service_desk_agent', 'it_manager'].includes(role)));
+  // Restore (undo of bulk archive) is admin-only on the backend, so the Undo
+  // action is only offered to users who can actually perform it.
+  const canRestore = canRestoreEntities(user);
+  const undoable = useUndoableAction();
 
   // Filters, page and sort are owned by the URL (filters + page) and localStorage
   // (sort + column order) via usePersistedView, so a filtered link is shareable
@@ -178,13 +184,22 @@ export default function Tickets() {
     setBulkArchiving(true);
     try {
       const result = (await ticketApi.bulkArchive({ ids })).data;
-      if (result.failedCount === 0) {
-        addToast('success', t('bulk.success', { count: result.succeededCount }));
-      } else if (result.succeededCount > 0) {
-        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
-      } else {
+      if (result.succeededCount === 0) {
         addToast('error', t('bulk.failed'));
+        return;
       }
+      // Undo restores exactly the tickets the backend confirmed as archived;
+      // IDs listed in `failed` were never archived and are skipped.
+      undoable.offerUndo({
+        toastType: result.failedCount === 0 ? 'success' : 'warning',
+        successMessage: result.failedCount === 0
+          ? t('bulk.success', { count: result.succeededCount })
+          : t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }),
+        undoFailureMessage: t('bulk.failed'),
+        canUndo: canRestore,
+        restore: () => restoreSucceededIds(result, (id) => ticketApi.restore(id, {})),
+        onUndone: load,
+      });
     } catch (err: unknown) {
       addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
     } finally {

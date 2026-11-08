@@ -44,7 +44,7 @@ import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { vmwareApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { getErrorMessage } from '../utils/statusHelpers';
+import { formatApiError } from '../utils/apiError';
 import { exportCsv } from '../utils/csvExport';
 
 interface VMwareCredential {
@@ -179,7 +179,7 @@ export default function AdminVMware() {
       const res = await vmwareApi.getCredentials();
       setCredentials(res.data);
     } catch (e) {
-      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
+      setAlert({ type: 'error', message: formatApiError(e, t('common.loadError'), t('common.referenceId')) });
     }
   };
 
@@ -302,7 +302,7 @@ export default function AdminVMware() {
       const res = await vmwareApi.getServers();
       setServers(res.data);
     } catch (e) {
-      setAlert({ type: 'error', message: getErrorMessage(e) || t('common.loadError') });
+      setAlert({ type: 'error', message: formatApiError(e, t('common.loadError'), t('common.referenceId')) });
     }
   };
 

@@ -3,6 +3,7 @@ import { SupplierReviewsDueQuerySchema } from 'shared';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireMappedReadPermission, requireMappedWritePermission } from '../middleware/entityAuth';
+import { idempotency } from '../middleware/idempotency';
 import { validateBody, validateQuery } from '../middleware/validation';
 import { phase6Service, PHASE6_MODEL_MAP } from '../services/phase6.service';
 import { supplierService } from '../services/supplier.service';
@@ -173,28 +174,28 @@ phase6Router.get('/suppliers/overview', authenticate, requireMappedReadPermissio
 phase6Router.get('/suppliers/reviews-due', authenticate, requireMappedReadPermission('suppliers'), validateQuery(SupplierReviewsDueQuerySchema), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.listReviewsDue(req.query)); } catch (error) { next(error); }
 });
-phase6Router.post('/suppliers', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/suppliers', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await supplierService.create(req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
-phase6Router.patch('/suppliers/:id', authenticate, requireMappedWritePermission('suppliers'), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
+phase6Router.patch('/suppliers/:id', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), validateBody(AnyBodySchema), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.update(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
-phase6Router.post('/suppliers/:id/archive', authenticate, requireMappedWritePermission('suppliers'), async (req: AuthRequest, res, next) => {
+phase6Router.post('/suppliers/:id/archive', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.archive(req.params.id, req.userId ?? 'system')); } catch (error) { next(error); }
 });
 phase6Router.get('/suppliers/:id/detail', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.getDetail(req.params.id)); } catch (error) { next(error); }
 });
-phase6Router.post('/suppliers/:id/contracts', authenticate, requireMappedWritePermission('suppliers'), validateBody(SupplierRelationSchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/suppliers/:id/contracts', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), validateBody(SupplierRelationSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await supplierService.addContractRelation(req.params.id, req.body.contractId, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
-phase6Router.delete('/suppliers/:id/contracts/:relationId', authenticate, requireMappedWritePermission('suppliers'), async (req: AuthRequest, res, next) => {
+phase6Router.delete('/suppliers/:id/contracts/:relationId', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try { await supplierService.removeContractRelation(req.params.id, req.params.relationId, req.userId ?? 'system'); res.status(204).send(); } catch (error) { next(error); }
 });
-phase6Router.post('/suppliers/:id/risks', authenticate, requireMappedWritePermission('suppliers'), validateBody(SupplierRelationSchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/suppliers/:id/risks', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), validateBody(SupplierRelationSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await supplierService.addRiskRelation(req.params.id, req.body.riskId, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
-phase6Router.delete('/suppliers/:id/risks/:relationId', authenticate, requireMappedWritePermission('suppliers'), async (req: AuthRequest, res, next) => {
+phase6Router.delete('/suppliers/:id/risks/:relationId', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try { await supplierService.removeRiskRelation(req.params.id, req.params.relationId, req.userId ?? 'system'); res.status(204).send(); } catch (error) { next(error); }
 });
 
@@ -202,13 +203,13 @@ phase6Router.delete('/suppliers/:id/risks/:relationId', authenticate, requireMap
 phase6Router.get('/suppliers/:supplierId/assessments', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.listAssessments(req.params.supplierId, req.query)); } catch (error) { next(error); }
 });
-phase6Router.post('/suppliers/:supplierId/assessments', authenticate, requireMappedWritePermission('suppliers'), validateBody(SupplierAssessmentSchema), async (req: AuthRequest, res, next) => {
+phase6Router.post('/suppliers/:supplierId/assessments', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), validateBody(SupplierAssessmentSchema), async (req: AuthRequest, res, next) => {
   try { res.status(201).json(await supplierService.createAssessment(req.params.supplierId, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
 phase6Router.get('/supplier-assessments/:id', authenticate, requireMappedReadPermission('suppliers'), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.getAssessment(req.params.id)); } catch (error) { next(error); }
 });
-phase6Router.patch('/supplier-assessments/:id', authenticate, requireMappedWritePermission('suppliers'), validateBody(SupplierAssessmentSchema.partial()), async (req: AuthRequest, res, next) => {
+phase6Router.patch('/supplier-assessments/:id', authenticate, requireMappedWritePermission('suppliers'), idempotency({ includeRouteParams: true }), validateBody(SupplierAssessmentSchema.partial()), async (req: AuthRequest, res, next) => {
   try { res.json(await supplierService.updateAssessment(req.params.id, req.body, req.userId ?? 'system')); } catch (error) { next(error); }
 });
 

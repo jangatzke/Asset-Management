@@ -4,7 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useDraftForm } from '../hooks/useDraftForm';
 import { ClockIcon, PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { riskApi, assetApi, userSearchApi, processApi, treatmentApi, controlApi, organizationApi } from '../services/api';
+import { riskApi, assetApi, processApi, treatmentApi, controlApi } from '../services/api';
+import { entitySearchEndpoint } from '../services/entityPickerApi';
 import { Modal } from '../components/Modal';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { EntityHistoryModal } from '../components/EntityHistoryModal';
@@ -14,15 +15,18 @@ import { SortableTh } from '../components/SortableTh';
 import { DataTableShell, type TableDensity } from '../components/DataTableShell';
 import { useI18n } from '../context/I18nContext';
 import { riskControlEffectivenessTranslationKey } from './riskControlWorkflow.utils';
-import { getRiskColor, getErrorMessage } from '../utils/statusHelpers';
+import { getRiskColor } from '../utils/statusHelpers';
 import { normalizeRiskStatusFilter, matchesRiskStatusFilter } from './riskStatusHelpers';
 import { exportCsv } from '../utils/csvExport';
 import { useListQuery } from '../hooks/useListQuery';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import HelpTooltip from '../components/HelpTooltip';
 import { useToast } from '../components/useToast';
-import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { extractApiError, formatToastMessage, formatApiError } from '../utils/apiError';
 import { buttonPrimary } from '../styles/tokens';
+import { useAuthStore } from '../store/auth';
+import { useUndoableAction, restoreSucceededIds } from '../hooks/useUndoableAction';
+import { canRestoreEntities } from '../utils/permissions';
 
 interface Risk {
   id: string;
@@ -156,6 +160,11 @@ const RiskLevelBadge = ({ level, translate }: { level: string; translate: (key: 
 const Risks = () => {
   const { t } = useI18n();
   const { addToast } = useToast();
+  // Restore (undo of bulk archive) is admin-only on the backend, so the Undo
+  // action is only offered to users who can actually perform it.
+  const user = useAuthStore((state) => state.user);
+  const canRestore = canRestoreEntities(user);
+  const undoable = useUndoableAction();
   const [searchParams, setSearchParams] = useSearchParams();
   const [risks, setRisks] = useState<Risk[]>([]);
   const [loading, setLoading] = useState(true);
@@ -272,7 +281,7 @@ const Risks = () => {
         setDensity(list.length > 10 ? 'compact' : 'comfortable');
         setRiskDetails(details);
       },
-      onError: (err: unknown) => { setError(getErrorMessage(err) || t('common.saveError')); },
+      onError: (err: unknown) => { setError(formatApiError(err, t('common.saveError'), t('common.referenceId'))); },
       onSettled: () => setLoading(false),
     });
   }, [runRiskListQuery, statusFilter, t]);
@@ -289,13 +298,9 @@ const Risks = () => {
     } catch { return []; }
   };
 
-  // Dedicated owner-search API: active users only, no admin user-list dependency.
-  const searchUsers = async (q: string) => {
-    try {
-      const res = await userSearchApi.owners(q);
-      return res.data ?? res ?? [];
-    } catch { return []; }
-  };
+  // Shared entity-picker search path: active users only (no admin user-list
+  // dependency).
+  const searchUsers = entitySearchEndpoint('user');
 
   const searchProcesses = async (q: string) => {
     try {
@@ -304,12 +309,7 @@ const Risks = () => {
     } catch { return []; }
   };
 
-  const searchOrganizationUnits = async (q: string) => {
-    try {
-      const res = await organizationApi.listUnits({ q, limit: 20 });
-      return res.data?.data ?? [];
-    } catch { return []; }
-  };
+  const searchOrganizationUnits = entitySearchEndpoint('organizationUnit');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape is dynamic
   const loadControlImplementations = async () => {
@@ -343,7 +343,7 @@ const Risks = () => {
       const [detail, controls] = await Promise.all([riskApi.getById(risk.id), riskApi.listControls(risk.id, { includeInactive: true })]);
       const controlList = Array.isArray(controls.data) ? controls.data : (controls.data as unknown as { data?: RiskControlLink[] })?.data ?? [];
       setRiskDetails((prev) => ({ ...prev, [risk.id]: { ...detail.data, riskControls: controlList } }));
-    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.loadError')); }
+    } catch (err: unknown) { setError(formatApiError(err, t('risks.controls.loadError'), t('common.referenceId'))); }
   };
 
   const refreshSelectedRiskControls = async () => {
@@ -359,7 +359,7 @@ const Risks = () => {
       await riskApi.linkControl(selectedRiskForControls.id, riskControlForm);
       setRiskControlForm(initialRiskControlForm);
       await refreshSelectedRiskControls();
-    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.linkError')); }
+    } catch (err: unknown) { setError(formatApiError(err, t('risks.controls.linkError'), t('common.referenceId'))); }
   };
 
   const handleUpdateRiskControl = async (link: RiskControlLink, data: Partial<RiskControlForm>) => {
@@ -367,7 +367,7 @@ const Risks = () => {
     try {
       await riskApi.updateControl(selectedRiskForControls.id, link.id, data);
       await refreshSelectedRiskControls();
-    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.updateError')); }
+    } catch (err: unknown) { setError(formatApiError(err, t('risks.controls.updateError'), t('common.referenceId'))); }
   };
 
   // Deletion confirmations owned by styled ConfirmDialogs (replaces the native browser dialog).
@@ -386,7 +386,7 @@ const Risks = () => {
     try {
       await riskApi.removeControl(selectedRiskForControls.id, linkId);
       await refreshSelectedRiskControls();
-    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.removeError')); }
+    } catch (err: unknown) { setError(formatApiError(err, t('risks.controls.removeError'), t('common.referenceId'))); }
   };
 
   const handleAssessRiskControl = async (link: RiskControlLink) => {
@@ -402,7 +402,7 @@ const Risks = () => {
       setAssessmentForm(initialRiskControlAssessmentForm);
       setAssessingRiskControlId(null);
       await refreshSelectedRiskControls();
-    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.controls.assessmentError')); }
+    } catch (err: unknown) { setError(formatApiError(err, t('risks.controls.assessmentError'), t('common.referenceId'))); }
   };
 
   const handleStatusFilterChange = (value: string) => {
@@ -488,13 +488,22 @@ const Risks = () => {
     setBulkArchiving(true);
     try {
       const result = (await riskApi.bulkArchive({ ids })).data;
-      if (result.failedCount === 0) {
-        addToast('success', t('bulk.success', { count: result.succeededCount }));
-      } else if (result.succeededCount > 0) {
-        addToast('warning', t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }));
-      } else {
+      if (result.succeededCount === 0) {
         addToast('error', t('bulk.failed'));
+        return;
       }
+      // Undo restores exactly the risks the backend confirmed as archived;
+      // IDs listed in `failed` were never archived and are skipped.
+      undoable.offerUndo({
+        toastType: result.failedCount === 0 ? 'success' : 'warning',
+        successMessage: result.failedCount === 0
+          ? t('bulk.success', { count: result.succeededCount })
+          : t('bulk.partial', { succeeded: result.succeededCount, failed: result.failedCount }),
+        undoFailureMessage: t('bulk.failed'),
+        canUndo: canRestore,
+        restore: () => restoreSucceededIds(result, (id) => riskApi.restore(id, {})),
+        onUndone: loadRisks,
+      });
     } catch (err: unknown) {
       addToast('error', formatToastMessage(extractApiError(err, t('bulk.failed')), t('common.referenceId')));
     } finally {
@@ -539,7 +548,7 @@ const Risks = () => {
       resetForm();
       await loadRisks();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('risks.createSuccess'));
+      setError(formatApiError(err, t('risks.createSuccess'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -589,7 +598,7 @@ const Risks = () => {
       await riskApi.delete(id);
       await loadRisks();
     } catch (err: unknown) {
-      setError(getErrorMessage(err) || t('common.deleteError'));
+      setError(formatApiError(err, t('common.deleteError'), t('common.referenceId')));
     }
   };
 
@@ -647,7 +656,7 @@ const Risks = () => {
       const res = await treatmentApi.list({ riskId: selectedRiskForTreatment.id });
       setTreatments(res.data?.data ?? []);
       setTreatmentForm(initialTreatmentForm);
-    } catch (err: unknown) { setError(getErrorMessage(err) || t('risks.createTreatmentError')); }
+    } catch (err: unknown) { setError(formatApiError(err, t('risks.createTreatmentError'), t('common.referenceId'))); }
   };
 
   if (loading) {

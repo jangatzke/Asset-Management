@@ -2,6 +2,7 @@ import { Express } from 'express';
 import prisma from '../config/database';
 import { stopIdempotencyCleanup } from '../services/idempotency.service';
 import { stopWebhookQueueWorker } from '../services/webhookQueue.service';
+import { emailGatewayService } from '../services/emailGateway.service';
 
 export interface GracefulShutdownOptions {
   signalTimeout?: number; // Maximum time to wait for connections to close (ms)
@@ -77,6 +78,14 @@ async function gracefulShutdown(
 
     // Stop webhook queue worker
     stopWebhookQueueWorker();
+
+    // Item 4: drain the bounded in-process confirmation queue (bounded wait)
+    // and close cached SMTP transports before the DB connection goes away.
+    try {
+      await emailGatewayService.drainConfirmations();
+    } catch (error) {
+      console.error('Error draining e-mail gateway confirmations:', error);
+    }
 
     // Disconnect from database
     try {

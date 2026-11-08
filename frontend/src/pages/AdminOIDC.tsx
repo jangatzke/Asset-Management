@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { getErrorMessage } from '../utils/statusHelpers';
+import { formatApiError } from '../utils/apiError';
 
 interface OidcConfig {
   id: string;
@@ -40,7 +40,7 @@ const AdminOIDC = () => {
       setConfig(response.data);
     } catch (err) {
       console.error('Failed to load OIDC config:', err);
-      setError(getErrorMessage(err) || t('common.loadError'));
+      setError(formatApiError(err, t('common.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ const AdminOIDC = () => {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error('Failed to save OIDC config:', err);
-      setError(getErrorMessage(err) || t('common.saveError'));
+      setError(formatApiError(err, t('common.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }

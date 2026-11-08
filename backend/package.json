@@ -8,6 +8,7 @@
     "predev": "npm --workspace=shared run build",
     "dev": "node scripts/with-backend-env.cjs tsx watch src/index.ts",
     "build": "tsc",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node scripts/with-backend-env.cjs node dist/index.js",
     "pretest": "npm --workspace=shared run build && node scripts/prisma-provider.cjs generate",
     "test": "jest",

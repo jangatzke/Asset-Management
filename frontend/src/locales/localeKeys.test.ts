@@ -143,6 +143,28 @@ test('list-view enhancement keys resolve in all locales', () => {
   }
 });
 
+test('job-run history locale keys resolve in all locales', () => {
+  const keys = [
+    'navigation.jobRuns',
+    'jobRuns.title', 'jobRuns.subtitle', 'jobRuns.noAccess', 'jobRuns.loadError',
+    'jobRuns.summaryTitle', 'jobRuns.windowHours', 'jobRuns.totalRecentRuns', 'jobRuns.generatedAt',
+    'jobRuns.filtersTitle', 'jobRuns.jobId', 'jobRuns.jobType', 'jobRuns.status',
+    'jobRuns.from', 'jobRuns.to', 'jobRuns.order', 'jobRuns.applyFilters', 'jobRuns.resetFilters',
+    'jobRuns.pageSize', 'jobRuns.historyTitle', 'jobRuns.resultCount', 'jobRuns.loading', 'jobRuns.empty',
+    'jobRuns.columns.job', 'jobRuns.columns.type', 'jobRuns.columns.status', 'jobRuns.columns.error',
+  ];
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toBeDefined();
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+});
+
 test('operations and administration locale catalogs remain complete in both locales', () => {
   const keys = [
     'operationsWorkspace.title', 'operationsWorkspace.workspaces.training', 'operationsWorkspace.actions.runReport',
@@ -332,3 +354,84 @@ test('AI assistant admin locale keys resolve in all locales', () => {
     }
   }
 });
+
+test('email gateway admin locale keys resolve in all locales', () => {
+  const keys = [
+    'emailGateway.title', 'emailGateway.subtitle', 'emailGateway.adminOnly',
+    'emailGateway.inbound', 'emailGateway.providerAuth', 'emailGateway.provider',
+    'emailGateway.providerImap', 'emailGateway.exchangeOnline',
+    'emailGateway.imapAuth', 'emailGateway.imapAuthPassword', 'emailGateway.imapAuthOauth2',
+    'emailGateway.imapOauth2Unavailable', 'emailGateway.pollInterval', 'emailGateway.enableGateway',
+    'emailGateway.imapSettings', 'emailGateway.exchangeSettings',
+    'emailGateway.imapHost', 'emailGateway.imapPort', 'emailGateway.mailbox', 'emailGateway.mailboxUser',
+    'emailGateway.imapPassword', 'emailGateway.imapAccessToken', 'emailGateway.useTLS',
+    'emailGateway.exchangeSecretRef', 'emailGateway.oauthScope', 'emailGateway.entraTenantId',
+    'emailGateway.clientId', 'emailGateway.ticketMapping', 'emailGateway.ticketMappingFields',
+    'emailGateway.defaultTicketType', 'emailGateway.autoAssignEmail', 'emailGateway.subjectPrefix',
+    'emailGateway.smtpAuth', 'emailGateway.smtpHost', 'emailGateway.smtpPort', 'emailGateway.smtpUser',
+    'emailGateway.smtpPassword', 'emailGateway.smtpFromEmail', 'emailGateway.smtpImplicitTLS',
+    'emailGateway.validateTLS', 'emailGateway.actions', 'emailGateway.actionFailed',
+    'emailGateway.completed', 'emailGateway.lastPoll', 'emailGateway.never', 'emailGateway.noStatus',
+    'emailGateway.auditTrail', 'emailGateway.received', 'emailGateway.from', 'emailGateway.subject',
+    'emailGateway.ticket', 'emailGateway.noMessages', 'emailGateway.loading',
+    'emailGateway.saveConfig', 'emailGateway.saving', 'emailGateway.testInbound',
+    'emailGateway.testSmtp', 'emailGateway.pollNow', 'emailGateway.unableToLoad', 'emailGateway.unableToSave',
+    // Secret configured / replace / remove UX
+    'emailGateway.secret.configured', 'emailGateway.secret.notConfigured',
+    'emailGateway.secret.replace', 'emailGateway.secret.replacePlaceholder',
+    'emailGateway.secret.enterPlaceholder', 'emailGateway.secret.refPlaceholder',
+    'emailGateway.secret.remove', 'emailGateway.secret.removed',
+    // Safety confirmations
+    'emailGateway.confirm.enableTitle', 'emailGateway.confirm.enableMessage',
+    'emailGateway.confirm.disableTitle', 'emailGateway.confirm.disableMessage',
+    'emailGateway.confirm.providerTitle', 'emailGateway.confirm.providerMessage',
+    'emailGateway.confirm.removeSecretTitle', 'emailGateway.confirm.removeSecretMessage',
+    // Field help tooltips
+    'emailGateway.help.enableGateway', 'emailGateway.help.provider', 'emailGateway.help.imapAuth',
+    'emailGateway.help.pollInterval', 'emailGateway.help.imapHost', 'emailGateway.help.imapPort',
+    'emailGateway.help.mailbox', 'emailGateway.help.mailboxUser', 'emailGateway.help.imapPassword',
+    'emailGateway.help.useTLS', 'emailGateway.help.exchangeSecretRef', 'emailGateway.help.exchangeScopes',
+    'emailGateway.help.exchangeTenantId', 'emailGateway.help.exchangeClientId',
+    'emailGateway.help.defaultTicketType', 'emailGateway.help.autoAssignEmail',
+    'emailGateway.help.subjectPrefix', 'emailGateway.help.smtpAuth', 'emailGateway.help.smtpHost',
+    'emailGateway.help.smtpPort', 'emailGateway.help.smtpUser', 'emailGateway.help.smtpPassword',
+    'emailGateway.help.smtpFromEmail', 'emailGateway.help.smtpSecure', 'emailGateway.help.smtpRejectUnauthorized',
+    // Validation messages
+    'emailGateway.validation.required', 'emailGateway.validation.email', 'emailGateway.validation.host',
+    'emailGateway.validation.hostLength', 'emailGateway.validation.port', 'emailGateway.validation.pollInterval',
+    'emailGateway.validation.tlsRequired', 'emailGateway.validation.imapOauth2Restricted',
+    'emailGateway.validation.summary', 'emailGateway.validation.secretRefRequired',
+    'emailGateway.validation.secretRefLength', 'emailGateway.validation.secretRefPrefix',
+    'emailGateway.validation.secretRefEnv', 'emailGateway.validation.secretRefFile',
+    'emailGateway.validation.secretRefAbsolute', 'emailGateway.validation.secretRefTraversal',
+  ];
+
+  const baseline = flattenKeys(en.emailGateway as Record<string, unknown>).sort();
+
+  for (const locale of [en, de, es, fr]) {
+    for (const key of keys) {
+      const value = resolveKey(locale, key);
+      expect(value).toEqual(expect.any(String));
+      expect(value).not.toBe(key);
+      expect(value).not.toBe('');
+    }
+  }
+
+  // Parity: every emailGateway key present in English exists in de/es/fr too.
+  for (const locale of [de, es, fr]) {
+    expect(flattenKeys(locale.emailGateway as Record<string, unknown>).sort()).toEqual(baseline);
+  }
+});
+
+function flattenKeys(tree: Record<string, unknown>, prefix = ''): string[] {
+  const keys: string[] = [];
+  for (const [key, value] of Object.entries(tree)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (value !== null && typeof value === 'object') {
+      keys.push(...flattenKeys(value as Record<string, unknown>, path));
+    } else {
+      keys.push(path);
+    }
+  }
+  return keys;
+}

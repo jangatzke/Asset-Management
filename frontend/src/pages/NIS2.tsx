@@ -3,6 +3,7 @@ import { useI18n } from '../context/I18nContext';
 import EntityPicker from '../components/EntityPicker';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { catalogApi, nis2Api, type Nis2Answer, type Nis2Assessment, type Nis2CrosswalkCompleteness, type Nis2Question, type Nis2QuestionOption, type Nis2Questionnaire, type Nis2Registration } from '../services/api';
+import { formatApiError } from '../utils/apiError';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
@@ -68,8 +69,7 @@ export default function NIS2() {
       setRegistrationAssessmentId((v) => v || a.data.find((x) => x.status === 'approved' && x.result !== 'not_in_scope')?.id || '');
       setChangeRegistrationId((v) => v || r.data[0]?.id || '');
     } catch (caught: unknown) {
-      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.loadingError');
-      setError(message);
+      setError(formatApiError(caught, t('nis2.loadingError'), t('common.referenceId')));
     }
   }, [t]);
 
@@ -83,8 +83,7 @@ export default function NIS2() {
       setCrosswalk(data);
       setCrosswalkError('');
     } catch (caught: unknown) {
-      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.crosswalkLoadError');
-      setCrosswalkError(message);
+      setCrosswalkError(formatApiError(caught, t('nis2.crosswalkLoadError'), t('common.referenceId')));
     }
   }, [t]);
 
@@ -102,8 +101,7 @@ export default function NIS2() {
       setMessage(success);
       await load();
     } catch (caught: unknown) {
-      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.operationError');
-      setError(message);
+      setError(formatApiError(caught, t('nis2.operationError'), t('common.referenceId')));
     } finally { setBusy(false); }
   };
 
@@ -116,8 +114,7 @@ export default function NIS2() {
       setCatalogMessage(t('nis2.catalogEnsured'));
       await load();
     } catch (caught: unknown) {
-      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.catalogError');
-      setCatalogError(message);
+      setCatalogError(formatApiError(caught, t('nis2.catalogError'), t('common.referenceId')));
     } finally { setCatalogBusy(false); }
   };
 
@@ -130,8 +127,7 @@ export default function NIS2() {
       setObligationsCatalog(data);
       setObligationsMessage(t('nis2.obligationsEnsured'));
     } catch (caught: unknown) {
-      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.obligationsError');
-      setObligationsError(message);
+      setObligationsError(formatApiError(caught, t('nis2.obligationsError'), t('common.referenceId')));
     } finally { setObligationsBusy(false); }
   };
 
@@ -144,8 +140,7 @@ export default function NIS2() {
       await load();
       setMessage(t('nis2.defaultQuestionnaireLoaded'));
     } catch (caught: unknown) {
-      const message = (caught as { response?: { data?: { message?: string } } })?.response?.data?.message || t('nis2.operationError');
-      setError(message);
+      setError(formatApiError(caught, t('nis2.operationError'), t('common.referenceId')));
     } finally { setBusy(false); }
   };
 

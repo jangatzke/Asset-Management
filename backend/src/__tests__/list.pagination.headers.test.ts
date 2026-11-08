@@ -32,12 +32,14 @@ const mockTicketService = { list: jest.fn(() => Promise.resolve(envelope(2, 6)))
 const mockRiskService = { list: jest.fn(() => Promise.resolve(envelope(1, 9))) };
 const mockControlService = { list: jest.fn(() => Promise.resolve(envelope(2, 5))) };
 const mockIncidentService = { list: jest.fn(() => Promise.resolve(envelope(4, 12))) };
+const mockKnowledgeService = { list: jest.fn(() => Promise.resolve(envelope(3, 11))) };
 
 jest.mock('../services/asset.service', () => ({ assetService: mockAssetService }));
 jest.mock('../services/ticket.service', () => ({ ticketService: mockTicketService }));
 jest.mock('../services/risk.service', () => ({ riskService: mockRiskService }));
 jest.mock('../services/control.service', () => ({ controlService: mockControlService }));
 jest.mock('../services/incident.service', () => ({ incidentService: mockIncidentService }));
+jest.mock('../services/knowledge.service', () => ({ knowledgeService: mockKnowledgeService }));
 
 // Routes import unrelated collaborators that must exist for module loading.
 jest.mock('../services/risk.aggregation', () => ({ riskAggregationService: {} }));
@@ -81,6 +83,7 @@ import { ticketRouter } from '../routes/ticket.routes';
 import { riskRouter } from '../routes/risk.routes';
 import { controlRouter } from '../routes/control.routes';
 import { incidentRouter } from '../routes/incident.routes';
+import { knowledgeRouter } from '../routes/knowledge.routes';
 
 const app = express();
 app.use(express.json());
@@ -89,6 +92,7 @@ app.use('/tickets', ticketRouter);
 app.use('/risks', riskRouter);
 app.use('/controls', controlRouter);
 app.use('/incidents', incidentRouter);
+app.use('/knowledge', knowledgeRouter);
 
 /** Assert both the locked envelope and the additive header. */
 function expectPaginatedList(
@@ -158,11 +162,20 @@ describe('Primary list pagination envelope + X-Total-Count', () => {
     });
   });
 
+  describe('GET /knowledge', () => {
+    it('returns the locked envelope and X-Total-Count from pagination.total', async () => {
+      const response = await request(app).get('/knowledge');
+      expectPaginatedList(response, { pageLength: 3, total: 11 });
+      expect(mockKnowledgeService.list).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('helper contract', () => {
     it('does not emit a header when no pagination metadata is present', () => {
       const res = { setHeader: jest.fn() } as any;
-      // A bare-array result (e.g. knowledge list) must not invent a total.
+      // A bare-array result must never invent a total (defensive helper contract).
       setPaginationHeader(res, { data: [] } as any);
+      setPaginationHeader(res, [] as any);
       setPaginationHeader(res, null);
       expect(res.setHeader).not.toHaveBeenCalled();
     });

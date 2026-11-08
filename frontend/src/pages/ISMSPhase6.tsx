@@ -4,11 +4,20 @@ import { phase6Api } from '../services/api';
 import { Modal } from '../components/Modal';
 import { SortableTh } from '../components/SortableTh';
 import EntityPicker from '../components/EntityPicker';
+import { type EntityPickerResult } from '../services/entityPickerApi';
+import {
+  getEntityPickerConfig,
+  mergeEntityPickerValues,
+  pruneEmptyPayloadValues,
+  resolvePickerValue,
+  resolvePickerValues,
+} from './ismsPhase6EntityReferences';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { DiscardConfirmationDialog } from '../components/DiscardConfirmationDialog';
 import { useI18n } from '../context/I18nContext';
 import { formatDate as formatLocaleDate } from '../utils/formatDate';
+import { formatApiError } from '../utils/apiError';
 import { useNavigate } from 'react-router-dom';
 import { getGuidedRouteForPhase6Resource } from './ismsPhase6Routing';
 
@@ -98,7 +107,7 @@ const resourceMetas: Record<string, ResourceMeta> = {
     fields: [
       { key: 'title', label: 'Title', type: 'text', placeholder: 'Business Impact Analysis Title', required: true },
       { key: 'description', label: 'Description', type: 'textarea' },
-      { key: 'ownerId', label: 'Owner ID (User ID)', type: 'text', placeholder: 'UUID of the owner' },
+      { key: 'ownerId', label: 'Owner', type: 'text' },
       { key: 'mtpdMinutes', label: 'MTPD (minutes)', type: 'number' },
       { key: 'rtoMinutes', label: 'RTO (minutes)', type: 'number' },
       { key: 'rpoMinutes', label: 'RPO (minutes)', type: 'number' },
@@ -133,7 +142,7 @@ const resourceMetas: Record<string, ResourceMeta> = {
     fields: [
       { key: 'title', label: 'Title', type: 'text', placeholder: 'BCP Title', required: true },
       { key: 'description', label: 'Description', type: 'textarea' },
-      { key: 'ownerId', label: 'Owner ID (User ID)', type: 'text', placeholder: 'UUID of the owner' },
+      { key: 'ownerId', label: 'Owner', type: 'text' },
       { key: 'type', label: 'Type', type: 'select', options: [{ label: 'Document', value: 'document' }, { label: 'Procedure', value: 'procedure' }, { label: 'Plan', value: 'plan' }] },
       { key: 'strategy', label: 'Strategy', type: 'textarea' },
       { key: 'triggerConditions', label: 'Trigger Conditions', type: 'textarea' },
@@ -194,8 +203,8 @@ const resourceMetas: Record<string, ResourceMeta> = {
       { key: 'title', label: 'Title', type: 'text', placeholder: 'CAPA Title', required: true },
       { key: 'description', label: 'Description', type: 'textarea', placeholder: 'What needs to be done?', required: true },
       { key: 'sourceType', label: 'Source Type', type: 'select', options: [{ label: 'Audit', value: 'audit' }, { label: 'Incident', value: 'incident' }, { label: 'Risk', value: 'risk' }, { label: 'Control', value: 'control' }, { label: 'Supplier', value: 'supplier' }, { label: 'Training', value: 'training' }, { label: 'Management Review', value: 'management_review' }, { label: 'Other', value: 'other' }], required: true },
-      { key: 'sourceId', label: 'Source ID', type: 'text' },
-      { key: 'ownerId', label: 'Owner ID (User ID)', type: 'text', placeholder: 'UUID of the owner' },
+      { key: 'sourceId', label: 'Source', type: 'text' },
+      { key: 'ownerId', label: 'Owner', type: 'text' },
       { key: 'dueDate', label: 'Due Date', type: 'date', required: true },
       { key: 'rootCause', label: 'Root Cause', type: 'textarea' },
       { key: 'correctiveAction', label: 'Corrective Action', type: 'textarea' },
@@ -222,8 +231,8 @@ const resourceMetas: Record<string, ResourceMeta> = {
       { key: 'dueDate', label: 'Due Date', width: 'w-32' },
     ],
     fields: [
-      { key: 'courseId', label: 'Course ID', type: 'text', placeholder: 'UUID of the training course', required: true },
-      { key: 'userId', label: 'User ID (Assignee)', type: 'text', placeholder: 'UUID of the user', required: true },
+      { key: 'courseId', label: 'Course', type: 'text', required: true },
+      { key: 'userId', label: 'Assignee', type: 'text', required: true },
       { key: 'dueDate', label: 'Due Date', type: 'date', required: true },
       { key: 'assignedDate', label: 'Assigned Date', type: 'date' },
       { key: 'completedDate', label: 'Completed Date', type: 'date' },
@@ -252,7 +261,7 @@ const resourceMetas: Record<string, ResourceMeta> = {
       { key: 'title', label: 'Title', type: 'text', placeholder: 'Management Review Title', required: true },
       { key: 'description', label: 'Description', type: 'textarea' },
       { key: 'reviewDate', label: 'Review Date', type: 'date', required: true },
-      { key: 'chairId', label: 'Chair ID (User ID)', type: 'text', placeholder: 'UUID of the chair', required: true },
+      { key: 'chairId', label: 'Chair', type: 'text', required: true },
       { key: 'agenda', label: 'Agenda', type: 'textarea' },
       { key: 'decisions', label: 'Decisions', type: 'textarea' },
       { key: 'actions', label: 'Actions', type: 'textarea' },
@@ -279,7 +288,7 @@ const resourceMetas: Record<string, ResourceMeta> = {
     fields: [
       { key: 'name', label: 'Metric Name', type: 'text', placeholder: 'KPI/KRI Name', required: true },
       { key: 'description', label: 'Description', type: 'textarea' },
-      { key: 'ownerId', label: 'Owner ID (User ID)', type: 'text', placeholder: 'UUID of the owner' },
+      { key: 'ownerId', label: 'Owner', type: 'text' },
       { key: 'unit', label: 'Unit', type: 'text' },
       { key: 'targetValue', label: 'Target Value', type: 'text' },
       { key: 'thresholdLow', label: 'Threshold Low', type: 'text' },
@@ -307,9 +316,9 @@ const resourceMetas: Record<string, ResourceMeta> = {
       { key: 'dueDate', label: 'Due Date', width: 'w-32' },
     ],
     fields: [
-      { key: 'definitionId', label: 'Workflow Definition ID', type: 'text', placeholder: 'UUID of the workflow definition', required: true },
+      { key: 'definitionId', label: 'Workflow Definition', type: 'text', required: true },
       { key: 'entityType', label: 'Entity Type', type: 'text', placeholder: 'e.g., risk, audit, incident', required: true },
-      { key: 'entityId', label: 'Entity ID', type: 'text', placeholder: 'UUID of the entity', required: true },
+      { key: 'entityId', label: 'Entity', type: 'text', required: true },
       { key: 'currentState', label: 'Current State', type: 'text', placeholder: 'e.g., draft, in_review, approved', required: true },
       { key: 'dueDate', label: 'Due Date', type: 'date' },
       { key: 'status', label: 'Status', type: 'select', options: [{ label: 'Active', value: 'active' }, { label: 'Completed', value: 'completed' }, { label: 'Cancelled', value: 'cancelled' }] },
@@ -439,7 +448,10 @@ const ISMSPhase6 = () => {
   // Form state for create/edit - now managed by useDirtyForm
   interface Phase6FormValues {
     formData: Record<string, unknown>;
-    entityPickerValues: Record<string, unknown[]>;
+    // Single-select pickers store an EntityPickerResult, multi-select pickers
+    // store an EntityPickerResult[]. `null` marks an explicitly cleared
+    // nullable reference.
+    entityPickerValues: Record<string, unknown>;
     securityRequirements: Array<{ id: string; category: string; description: string; status: string }>;
   }
 
@@ -489,7 +501,7 @@ const ISMSPhase6 = () => {
       setTotalPages(res.data.pagination?.totalPages ?? 1);
     } catch (err: unknown) {
       if (requestId !== latestRequestId.current) return;
-      setError(err instanceof Error ? err.message : t('common.loading'));
+      setError(formatApiError(err, t('common.loading'), t('common.referenceId')));
     } finally {
       if (requestId === latestRequestId.current) setLoading(false);
     }
@@ -550,73 +562,60 @@ const ISMSPhase6 = () => {
       setDetailRow(res.data);
       setDetailModalOpen(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('common.loading'));
+      setError(formatApiError(err, t('common.loading'), t('common.referenceId')));
     }
   };
+const handleSubmit = async () => {
+  setSubmitLoading(true);
+  setSubmitError(null);
+  try {
+    // Convert picker selections ({id,label} objects / arrays) into raw ids.
+    // Explicit `null` values are retained so nullable references can be cleared.
+    let payload = mergeEntityPickerValues(form.values.formData, form.values.entityPickerValues);
 
-  const handleSubmit = async () => {
-    setSubmitLoading(true);
-    setSubmitError(null);
-    try {
-      const payload: Record<string, unknown> = { ...form.values.formData };
+    // Merge structured security requirements
+    if (form.values.securityRequirements.length > 0) {
+      payload.securityRequirements = form.values.securityRequirements.map(({ id: _id, ...req }) => req);
+    }
 
-      // Merge EntityPicker values (array of {id, label}) into payload as arrays of IDs
-      Object.entries(form.values.entityPickerValues).forEach(([key, values]) => {
-        if (Array.isArray(values) && values.length > 0) {
-          payload[key] = values.map((v: unknown) => {
-            if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: string }).id;
-            return v;
-          });
-        } else if (!Array.isArray(values)) {
-          // Single select value
-          const single = values as { id?: string } | undefined;
-          if (single?.id) payload[key] = single.id;
+    // Clean up comma-separated legacy text fields and JSON strings.
+    if (meta) {
+      meta.fields.forEach((f) => {
+        if (f.type === 'text' && ['businessProcesses', 'resources', 'dependencies', 'auditorIds', 'roles', 'certifications'].includes(f.key) && typeof payload[f.key] === 'string') {
+          const parts = (payload[f.key] as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+          if (parts.length > 0) payload[f.key] = parts;
+          else delete payload[f.key];
         }
-      });
-
-      // Merge structured security requirements
-      if (form.values.securityRequirements.length > 0) {
-        payload.securityRequirements = form.values.securityRequirements.map(({ id: _id, ...req }) => req);
-      }
-
-      // Clean up comma-separated fields
-      if (meta) {
-        meta.fields.forEach((f) => {
-          if (f.type === 'text' && ['businessProcesses', 'resources', 'dependencies', 'auditorIds', 'roles', 'certifications'].includes(f.key) && typeof payload[f.key] === 'string') {
-            const parts = (payload[f.key] as string).split(',').map((s: string) => s.trim()).filter(Boolean);
-            if (parts.length > 0) payload[f.key] = parts;
-            else delete payload[f.key];
+        if (f.type === 'json' && typeof payload[f.key] === 'string') {
+          try {
+            payload[f.key] = JSON.parse(payload[f.key] as string);
+          } catch {
+            throw new Error(t('ismsPhase6.invalidJsonField', { field: t(`ismsPhase6.fields.${phase6Slug(f.label)}`) }));
           }
-          if (f.type === 'json' && typeof payload[f.key] === 'string') {
-            try {
-              payload[f.key] = JSON.parse(payload[f.key] as string);
-            } catch {
-              throw new Error(t('ismsPhase6.invalidJsonField', { field: t(`ismsPhase6.fields.${phase6Slug(f.label)}`) }));
-            }
-          }
-          // Remove empty strings
-          if (typeof payload[f.key] === 'string' && !payload[f.key]) delete payload[f.key];
-        });
-      }
-      // Preserve legitimate false and 0 values; omit only absent values and empty strings.
-      Object.keys(payload).forEach((k) => {
-        if (payload[k] === null || payload[k] === undefined || payload[k] === '') delete payload[k];
+        }
+        // Remove empty strings
+        if (typeof payload[f.key] === 'string' && !payload[f.key]) delete payload[f.key];
       });
+    }
+    // Preserve legitimate false and 0 values. Explicit `null` is retained for
+    // nullable entity references so clearing a picker actually removes the
+    // relation; other null/empty values are omitted.
+    payload = pruneEmptyPayloadValues(payload);
 
-      if (editRow) {
-        await phase6Api.update(resource, editRow.id, payload);
-      } else {
-        await phase6Api.create(resource, payload);
-      }
-      // Close modal and refresh
-      form.resetForm();
-      setEditRow(null);
-      setEditModalOpen(false);
-      setCreateFormOpen(false);
-      if (page === 1) await fetchData();
-      else setPage(1);
+    if (editRow) {
+      await phase6Api.update(resource, editRow.id, payload);
+    } else {
+      await phase6Api.create(resource, payload);
+    }
+    // Close modal and refresh
+    form.resetForm();
+    setEditRow(null);
+    setEditModalOpen(false);
+    setCreateFormOpen(false);
+    if (page === 1) await fetchData();
+    else setPage(1);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : t('common.saveError'));
+      setSubmitError(formatApiError(err, t('common.saveError'), t('common.referenceId')));
     } finally {
       setSubmitLoading(false);
     }
@@ -633,7 +632,7 @@ const ISMSPhase6 = () => {
       if (page === 1) await fetchData();
       else setPage(1);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : t('common.deleteError'));
+      setSubmitError(formatApiError(err, t('common.deleteError'), t('common.referenceId')));
     } finally {
       setSubmitLoading(false);
     }
@@ -648,7 +647,7 @@ const ISMSPhase6 = () => {
       const data = res.data ?? {};
       setSuccess(`Generated ${data.count ?? 0} reminder${(data.count ?? 0) === 1 ? '' : 's'} for ${meta?.label ?? resource}. Automated email delivery is controlled from Admin → Reminder Automation.`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('common.saveError'));
+      setError(formatApiError(err, t('common.saveError'), t('common.referenceId')));
     } finally {
       setReminderLoading(false);
     }
@@ -666,7 +665,7 @@ const ISMSPhase6 = () => {
       link.click();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('common.saveError'));
+      setError(formatApiError(err, t('common.saveError'), t('common.referenceId')));
     }
   };
 
@@ -688,14 +687,15 @@ const ISMSPhase6 = () => {
     setResource(nextResource);
     setPage(1);
   };
-
-  // EntityPicker change handler
+  // EntityPicker change handler. Single-select and multi-select values both
+  // live in entityPickerValues so the picker can render labels while the
+  // payload still sends raw ids. `null` represents a cleared nullable reference.
   const handleEntityPickerChange = (fieldKey: string, value: unknown, values?: unknown[]) => {
-    if (values !== undefined) {
-      form.handleChange({ ...form.values, entityPickerValues: { ...form.values.entityPickerValues, [fieldKey]: values } });
-    } else {
-      form.handleChange({ ...form.values.formData, [fieldKey]: value });
-    }
+    const nextValue = values !== undefined ? values : (value ?? null);
+    form.handleChange({
+      ...form.values,
+      entityPickerValues: { ...form.values.entityPickerValues, [fieldKey]: nextValue },
+    });
   };
 
   // Security requirements handlers
@@ -710,19 +710,13 @@ const ISMSPhase6 = () => {
   const updateSecurityRequirement = (id: string, field: string, value: string) => {
     form.handleChange({ ...form.values, securityRequirements: form.values.securityRequirements.map(r => r.id === id ? { ...r, [field]: value } : r) });
   };
+  // Resolve picker values. Persisted rows carry raw ids; on-page selections
+  // carry {id,label} objects. Legacy comma-separated ids are still supported.
+  const getPickerValue = (fieldKey: string): EntityPickerResult | null =>
+    resolvePickerValue(form.values.entityPickerValues[fieldKey], form.values.formData[fieldKey]);
 
-  // EntityPicker config for fields that should use entity selection UI
-  const getEntityPickerConfig = (fieldKey: string) => {
-    const config: Record<string, { entityType: string; labelKey: string; multi?: boolean }> = {
-      ownerId: { entityType: 'user', labelKey: 'ismsOperations.fields.ownerId' },
-      chairId: { entityType: 'user', labelKey: 'ismsOperations.fields.chairId' },
-      auditorIds: { entityType: 'user', labelKey: 'ismsOperations.fields.auditorIds', multi: true },
-      businessProcesses: { entityType: 'businessProcess', labelKey: 'ismsOperations.fields.businessProcesses', multi: true },
-      resources: { entityType: 'asset', labelKey: 'ismsOperations.fields.resources', multi: true },
-      dependencies: { entityType: 'supplier', labelKey: 'ismsOperations.fields.dependencies', multi: true },
-    };
-    return config[fieldKey];
-  };
+  const getPickerValues = (fieldKey: string): EntityPickerResult[] =>
+    resolvePickerValues(form.values.entityPickerValues[fieldKey], form.values.formData[fieldKey]);
 
   // ─── Render ─────────────────────────────────────────────────────────────
 
@@ -935,7 +929,7 @@ const ISMSPhase6 = () => {
             {meta.fields.map((f) => {
               const value = form.values.formData[f.key];
               const required = meta.createRequired?.includes(f.key) || meta.updateRequired?.includes(f.key);
-              const pickerConfig = getEntityPickerConfig(f.key);
+              const pickerConfig = getEntityPickerConfig(f.key, form.values.formData);
 
               // Render EntityPicker for entity reference fields
               if (pickerConfig) {
@@ -947,12 +941,14 @@ const ISMSPhase6 = () => {
                     <div className="mt-1">
                       <EntityPicker
                         labelKey={pickerConfig.labelKey}
-                        entityType={pickerConfig.entityType as any}
-                        value={value ? { id: String(value), label: String(value) } : null}
-                        values={(form.values.entityPickerValues[f.key] as any[]) ?? []}
+                        entityType={pickerConfig.entityType}
+                        value={pickerConfig.multi ? null : getPickerValue(f.key)}
+                        values={pickerConfig.multi ? getPickerValues(f.key) : []}
                         onChange={(v) => handleEntityPickerChange(f.key, v)}
-                        onValuesChange={(vs) => form.handleChange({ ...form.values, entityPickerValues: { ...form.values.entityPickerValues, [f.key]: vs } })}
+                        onValuesChange={(vs) => handleEntityPickerChange(f.key, vs, vs)}
+                        onClear={() => handleEntityPickerChange(f.key, null)}
                         multiple={pickerConfig.multi}
+                        clearable={!pickerConfig.multi && !required}
                         required={required}
                         disabled={isDisabled}
                       />

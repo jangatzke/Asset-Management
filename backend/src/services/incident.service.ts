@@ -531,6 +531,41 @@ export class IncidentService {
     return { success: true };
   }
 
+  /**
+   * Restore an archived incident. Mirrors the Assets restore semantics:
+   * 404 when missing, 409 when the incident is already active, audit + history.
+   */
+  async restore(id: string, restoredBy?: string, reason?: string) {
+    const existing = await prisma.incident.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppError('Incident not found', 404);
+    }
+    if (!existing.isArchived) {
+      throw new AppError('Incident is not archived', 409);
+    }
+
+    // Incident history entry (AUDIT-001): restore is the reversal of the archive
+    // delete entry, so it is recorded as an UPDATE with an explicit summary.
+    await this.recordHistoryEntry(prisma, id, 'UPDATE', `Restored incident: ${existing.title}${reason ? `: ${reason}` : ''}`, {}, restoredBy);
+
+    await prisma.incident.update({
+      where: { id },
+      data: { isArchived: false },
+    });
+
+    if (restoredBy) {
+      await auditService.logEventStandalone(prisma, {
+        userId: restoredBy,
+        action: 'INCIDENT_RESTORE',
+        entityType: 'Incident',
+        entityId: id,
+        details: `Restored incident: ${existing.title}${reason ? `: ${reason}` : ''}`,
+      });
+    }
+
+    return { success: true };
+  }
+
   async assessIncident(incidentId: string, data: AssessIncidentData, actorId: string) {
     const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
     if (!incident) {

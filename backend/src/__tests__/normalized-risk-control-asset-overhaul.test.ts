@@ -22,6 +22,11 @@ describe('normalized risk-control and asset inventory overhaul', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrismaClient.$transaction.mockImplementation(async (fn: any) => fn(mockPrismaClient));
+    // Active-user lookup used by validateUserReferences (F-01/F-14 integrity)
+    mockPrismaClient.user.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => ({ id, isActive: true }));
+    });
   });
 
   it('rejects deprecated Risk.existingControls payloads', async () => {

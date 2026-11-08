@@ -61,9 +61,60 @@ function hasBodyMismatch(storedHash: string | undefined, requestHash: string | u
   return Boolean(storedHash && requestHash && storedHash !== requestHash);
 }
 
+/**
+ * Build the idempotency scope fingerprint for the current request.
+ *
+ * By default this is the route template (e.g. `/:id/type`) or the path without
+ * query parameters when the request was not matched by a router. That behavior
+ * is unchanged for all existing idempotent routes.
+ *
+ * With `includeRouteParams: true` concrete path parameters are substituted so
+ * that two writes to different entities with the same Idempotency-Key never
+ * replay each other's responses.
+ */
+function buildRoutePattern(req: Request, includeRouteParams: boolean): string {
+  const routeTemplate = req.route?.path || req.originalUrl.split('?')[0];
+
+  if (!includeRouteParams || typeof routeTemplate !== 'string') {
+    return routeTemplate;
+  }
+
+  const params = (req as any).params || {};
+  return routeTemplate.replace(/:([A-Za-z0-9_]+)/g, (placeholder: string, name: string) => {
+    const value = params[name];
+    return value === undefined ? placeholder : String(value);
+  });
+}
+
+/**
+ * Replay a cached response. Non-JSON responses (e.g. 204 No Content) are stored
+ * with an undefined body and must be replayed with `res.end()` so Express
+ * terminates the response instead of sending JSON `null`.
+ */
+function replayCachedResponse(
+  res: Response,
+  cachedResponse: CachedHttpResponse,
+  cacheState?: 'hit' | 'waiting',
+): void {
+  if (cacheState) {
+    res.set('X-Idempotency-Cache', cacheState);
+  }
+  res.status(cachedResponse.status);
+  if (cachedResponse.body === undefined) {
+    res.end();
+    return;
+  }
+  res.json(cachedResponse.body);
+}
+
 interface IdempotencyOptions {
   ttlMs?: number;
   keyHeader?: string;
+  /**
+   * Include concrete route parameters in the idempotency scope.
+   * Default: false (route template only) — preserves existing semantics.
+   */
+  includeRouteParams?: boolean;
 }
 
 /**
@@ -131,6 +182,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
   const ttlMs = options.ttlMs || DEFAULT_TTL_MS;
   const ttlSeconds = Math.ceil(ttlMs / 1000);
   const keyHeader = (options.keyHeader || IDEMPOTENCY_KEY_HEADER).toLowerCase();
+  const includeRouteParams = options.includeRouteParams === true;
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -155,7 +207,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
       // Require trusted principal - never allow anonymous idempotency
       if (!principal) {
-        const routePattern = req.route?.path || req.originalUrl.split('?')[0];
+        const routePattern = buildRoutePattern(req, includeRouteParams);
         const compositeKey = generateIdempotencyKey(principal || 'unknown', req.method, routePattern, idempotencyKey);
         
         // Store the error response in the idempotency store for consistency
@@ -186,7 +238,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
       // Validate idempotency key format (UUID or alphanumeric with hyphens)
       if (!/^[a-zA-Z0-9\-_]+$/.test(idempotencyKey)) {
-        const routePattern = req.route?.path || req.originalUrl.split('?')[0];
+        const routePattern = buildRoutePattern(req, includeRouteParams);
         const compositeKey = generateIdempotencyKey(principal, req.method, routePattern, idempotencyKey);
         
         // Store the error response in the idempotency store for consistency
@@ -213,7 +265,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
         return;
       }
 
-      const routePattern = req.route?.path || req.originalUrl.split('?')[0];
+      const routePattern = buildRoutePattern(req, includeRouteParams);
 
       // Generate composite key from principal + method + route + idempotency-key
       // NOTE: generateIdempotencyKey now returns undefined if principal is undefined,
@@ -281,9 +333,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
           }
 
           // Response already exists - return it immediately
-          res.set('X-Idempotency-Cache', 'hit');
-          const cachedResponse = reservationResult.entry.data.response;
-          res.status(cachedResponse.status).json(cachedResponse.body);
+          replayCachedResponse(res, reservationResult.entry.data.response, 'hit');
           return;
         }
         
@@ -320,7 +370,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
               },
             });
           } else if (result) {
-            res.status(result.status).json(result.body);
+            replayCachedResponse(res, result, 'waiting');
           } else {
             // Winner did not complete successfully - return 504 Gateway Timeout
             res.status(504).json({
@@ -384,10 +434,43 @@ export function idempotency(options: IdempotencyOptions = {}) {
         return originalStatus.call(this, statusCode);
       };
 
+      /**
+       * Mark the reservation as completed and persist the cached response.
+       * Shared by JSON responses and successful non-JSON responses (204/send/end).
+       */
+      const storeSuccessfulResponse = async (responseBody: CachedHttpResponse): Promise<void> => {
+        // Mark the local reservation completed synchronously so same-process
+        // replays never observe a dangling pending reservation.
+        memoryReservation.state = 'completed';
+        memoryReservation.completedAt = Date.now();
+        memoryReservation.response = responseBody;
+
+        if (!redisClient || !redisClient.isConnected()) {
+          return;
+        }
+
+        try {
+          const entry: IdempotencyEntry = {
+            data: {
+              response: responseBody,
+              keyOptions: { ttlMs, httpMethod: req.method, routePattern, principal, requestBodyHash },
+              createdAt: Date.now(),
+            },
+            expiresAt: Date.now() + ttlMs,
+          };
+          await redisClient.storeResponse(compositeKey, entry, requestId);
+        } catch (storeError) {
+          console.debug('[Idempotency] Store error (response still resolved):', storeError);
+        }
+      };
+
+      let jsonResponseCaptured = false;
+
       // Capture the response body when json is called
       const captureJson = async function (this: Response, body: unknown) {
+        jsonResponseCaptured = true;
         try {
-          const responseBody = {
+          const responseBody: CachedHttpResponse = {
             status: capturedStatus,
             headers: res.getHeaders() as Record<string, string>,
             body,
@@ -395,30 +478,7 @@ export function idempotency(options: IdempotencyOptions = {}) {
 
           // Only cache successful responses (2xx and 3xx)
           if (capturedStatus >= 200 && capturedStatus < 400) {
-            try {
-              // Store the response in Redis
-              if (redisClient && redisClient.isConnected()) {
-                const entry: IdempotencyEntry = {
-                  data: {
-                    response: responseBody,
-                    keyOptions: { ttlMs, httpMethod: req.method, routePattern, principal, requestBodyHash },
-                    createdAt: Date.now(),
-                  },
-                  expiresAt: Date.now() + ttlMs,
-                };
-                await redisClient.storeResponse(compositeKey, entry, requestId);
-              }
-              
-              // Update in-memory state
-              memoryReservation.state = 'completed';
-              memoryReservation.completedAt = Date.now();
-              memoryReservation.response = responseBody;
-            } catch (storeError) {
-              console.debug('[Idempotency] Store error (response still resolved):', storeError);
-              memoryReservation.state = 'completed';
-              memoryReservation.completedAt = Date.now();
-              memoryReservation.response = responseBody;
-            }
+            await storeSuccessfulResponse(responseBody);
           } else {
             await releaseReservation(`business response status ${capturedStatus}`);
           }
@@ -435,6 +495,20 @@ export function idempotency(options: IdempotencyOptions = {}) {
       res.on('finish', () => {
         if (res.statusCode >= 400) {
           void releaseReservation(`business response status ${res.statusCode}`);
+          return;
+        }
+
+        // Successful non-JSON responses (e.g. 204 No Content via res.send()/res.end())
+        // must also complete the reservation, otherwise replays wait for a winner
+        // that never finishes and eventually return 504. The body is stored as
+        // undefined so the replay helper terminates the response with res.end().
+        if (!jsonResponseCaptured && res.statusCode >= 200 && res.statusCode < 400) {
+          const responseBody: CachedHttpResponse = {
+            status: res.statusCode,
+            headers: res.getHeaders() as Record<string, string>,
+            body: undefined,
+          };
+          void storeSuccessfulResponse(responseBody);
         }
       });
       req.on('aborted', () => void releaseReservation('client request aborted'));

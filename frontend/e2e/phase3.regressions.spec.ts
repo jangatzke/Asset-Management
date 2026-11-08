@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { expect, test } from '@playwright/test';
+import { e2eAssets, e2eTicket, expect, paginated, test } from './fixtures';
 
 /**
  * Phase 3.4 — Regression coverage for the five Phase 1/2/3 hardening axes:
@@ -14,61 +14,9 @@ import { expect, test } from '@playwright/test';
  *    axios config on the 401 refresh retry) and the persisted record count does
  *    not grow.
  *
- * This file deliberately imports `@playwright/test` directly (no extension-less
- * relative `./fixtures` import): `frontend/tsconfig.playwright.json` uses
- * `moduleResolution: node16`, where extension-less relative imports (TS2835)
- * cascade into implicit-`any` fixture typing errors. Inlining the auth seed and
- * fixtures below keeps this new spec typecheck-conform without touching the
- * pre-existing specs.
+ * Auth seeding, fixtures and pagination come from `./fixtures` (shared with the
+ * other specs); the auth-store contract (refresh + me) is mocked there once.
  */
-
-const testUser = {
-  id: 'e2e-user-1',
-  email: 'e2e.analyst@example.test',
-  firstName: 'E2E',
-  lastName: 'Analyst',
-  roles: ['system_admin'],
-};
-
-const e2eAssets = [
-  { id: 'asset-e2e-1', displayId: 'AST-E2E-001', name: 'E2E file server', assetType: { name: 'Server' }, manufacturer: 'E2E Systems', status: 'active' },
-  { id: 'asset-e2e-2', displayId: 'AST-E2E-002', name: 'E2E database host', assetType: { name: 'Server' }, manufacturer: 'E2E Systems', status: 'active' },
-];
-
-const e2eTicket = {
-  id: 'ticket-e2e-1',
-  displayId: 'TKT-E2E-001',
-  type: 'service_request',
-  title: 'E2E idempotent double submit',
-  description: 'Same logical create submitted twice.',
-  status: 'new',
-  priority: 'medium',
-  urgency: 'medium',
-  impact: 'medium',
-  updatedAt: '2026-08-01T09:00:00.000Z',
-  assigneeId: null,
-  assignee: null,
-  requesterId: testUser.id,
-  requester: { id: testUser.id, email: testUser.email, firstName: testUser.firstName, lastName: testUser.lastName },
-  openedAt: '2026-08-01T09:00:00.000Z',
-  createdAt: '2026-08-01T09:00:00.000Z',
-  comments: [],
-  problem: null,
-  change: null,
-  linksFrom: [],
-  linksTo: [],
-};
-
-const paginated = <T,>(data: T[]) => ({
-  data,
-  pagination: { page: 1, limit: 20, total: data.length, totalPages: 1 },
-});
-
-/** Mirrors e2e/fixtures.ts: the auth store resolves the session via refresh+me. */
-async function seedAuth(page: Page): Promise<void> {
-  await page.route('**/api/v1/auth/refresh', (route: Route) => route.fulfill({ json: { token: 'e2e-browser-token' } }));
-  await page.route('**/api/v1/auth/me', (route: Route) => route.fulfill({ json: testUser }));
-}
 
 /** Sentinel values that must never appear in rendered text, HTML or inputs. */
 const SECRET_SENTINELS = ['super-secret-smtp-value', 'super-secret-imap-value', 'super-secret-oidc-value'];
@@ -96,7 +44,6 @@ async function assertNoSecretLeak(page: Page): Promise<void> {
 
 test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', () => {
   test('e-mail gateway admin page loads the configuration form and never renders secrets', async ({ page }) => {
-    await seedAuth(page);
     // Backend contract (`emailGateway.service.ts`): mailbox/SMTP secrets are
     // never returned; only `*Configured` booleans are exposed.
     await page.route('**/api/v1/admin/email-gateway/config', (route: Route) =>
@@ -140,7 +87,6 @@ test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', (
   });
 
   test('OIDC admin page loads the provider form and never renders the client secret', async ({ page }) => {
-    await seedAuth(page);
     await page.route('**/api/v1/admin/oidc/config', (route: Route) =>
       route.fulfill({
         json: {
@@ -173,7 +119,6 @@ test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', (
   });
 
   test('SLA escalation admin page loads policy, SMTP settings and the escalation log', async ({ page }) => {
-    await seedAuth(page);
     // Verified file/route: src/pages/AdminSlaEscalation.tsx is mounted at
     // /admin/sla-escalation (App.tsx:122). AdminTicketSla.tsx is the separate
     // /admin/ticket-slas page and is intentionally not asserted here.
@@ -227,7 +172,6 @@ test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', (
   });
 
   test('bulk archive toolbar and confirm dialog open from the assets selection', async ({ page }) => {
-    await seedAuth(page);
     await page.route('**/api/v1/assets**', async (route: Route) => {
       const url = route.request().url();
       if (url.includes('/assets/types')) {
@@ -267,15 +211,13 @@ test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', (
   });
 
   test('double-submit keeps one Idempotency-Key across the 401 refresh retry and creates no extra record', async ({ page }) => {
-    await seedAuth(page);
     const keys: (string | undefined)[] = [];
     let postCount = 0;
-    let ticketCreated = false;
 
     await page.route('**/api/v1/tickets**', async (route: Route) => {
       const request = route.request();
       if (request.method() === 'GET') {
-        await route.fulfill({ json: paginated(ticketCreated ? [e2eTicket] : [e2eTicket]) });
+        await route.fulfill({ json: paginated([e2eTicket]) });
         return;
       }
       if (request.method() === 'POST' && request.url().endsWith('/api/v1/tickets')) {
@@ -287,7 +229,6 @@ test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', (
           await route.fulfill({ status: 401, json: { error: 'session expired' } });
           return;
         }
-        ticketCreated = true;
         await route.fulfill({ json: e2eTicket });
         return;
       }
@@ -300,14 +241,11 @@ test.describe('Phase 3.4 regression: admin pages and bulk/idempotency guards', (
     await page.getByLabel('Description', { exact: true }).fill('Same logical create submitted twice.');
     await page.getByRole('button', { name: 'Create', exact: true }).click();
 
-    // Rapid second click while the retry is in flight (may be intercepted by the
-    // disabled state; the refresh retry still re-sends the same logical operation).
-    const createButton = page.getByRole('button', { name: 'Create', exact: true });
-    await createButton.click({ force: true, timeout: 2_000 }).catch(() => undefined);
-
-    await expect.poll(() => keys.length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
-
-    expect(postCount).toBeGreaterThanOrEqual(2);
+    // Deterministic assertions: the 401 refresh retry re-sends the very same
+    // request config (same Idempotency-Key), so exactly two POSTs are observed.
+    // No fixed sleep, no forced second click on a possibly disabled button.
+    await expect.poll(() => postCount).toBe(2);
+    expect(keys).toHaveLength(2);
     const firstKey = keys[0];
     expect(firstKey).toBeDefined();
     expect(firstKey).toMatch(/^[a-zA-Z0-9\-_]{16,}$/);

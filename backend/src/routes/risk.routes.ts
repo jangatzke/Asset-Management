@@ -11,6 +11,8 @@ import {
   BulkArchiveIdsSchema,
   CreateReviewTaskSchema,
   EntityHistoryQuerySchema,
+  IdParamSchema,
+  RestoreEntitySchema,
   CreateRiskSchema,
   CreateRiskAssessmentSchema,
   CreateNestedRiskControlAssessmentSchema,
@@ -414,6 +416,17 @@ riskRouter.put('/:id', authenticate, requireEntityPermission('risks.write', 'ris
 riskRouter.delete('/:id', authenticate, authorizeEntityDelete('risks'), idempotency(), async (req: AuthRequest, res, next) => {
   try {
     const result = await riskService.delete(req.params.id, req.userId);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Restore an archived risk (undo of the archive/soft-delete). Admin-only,
+// mirroring the Assets restore endpoint semantics (404 missing / 409 active).
+riskRouter.post('/:id/restore', authenticate, requireAdminAccess, validateParams(IdParamSchema), validateBody(RestoreEntitySchema), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await riskService.restore(req.params.id, req.userId, req.body?.reason);
     res.json(result);
   } catch (error) {
     next(error);

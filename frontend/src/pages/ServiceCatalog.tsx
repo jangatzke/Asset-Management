@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../context/I18nContext';
 import { serviceCatalogApi, ticketApi, type ServiceCatalogItem, type ServiceCatalogItemInput } from '../services/api';
-import { extractApiError } from '../utils/apiError';
+import { formatApiError } from '../utils/apiError';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
@@ -37,7 +37,7 @@ export default function ServiceCatalog() {
       const res = adminMode ? await serviceCatalogApi.listAll() : await serviceCatalogApi.list();
       setItems(res.data);
     } catch (caught) {
-      setError(extractApiError(caught, t('serviceCatalog.loadError')).message);
+      setError(formatApiError(caught, t('serviceCatalog.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -74,7 +74,7 @@ export default function ServiceCatalog() {
       setMessage(t('serviceCatalog.orderCreated'));
       setOrderItem(null);
     } catch (caught) {
-      setError(extractApiError(caught, t('serviceCatalog.orderError')).message);
+      setError(formatApiError(caught, t('serviceCatalog.orderError'), t('common.referenceId')));
     } finally {
       setOrderSaving(false);
     }
@@ -123,7 +123,7 @@ export default function ServiceCatalog() {
       startCreate();
       await load();
     } catch (caught) {
-      setError(extractApiError(caught, t('serviceCatalog.saveError')).message);
+      setError(formatApiError(caught, t('serviceCatalog.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -135,8 +135,8 @@ export default function ServiceCatalog() {
       setMessage(t('serviceCatalog.itemDisabled'));
       await load();
     } catch (caught) {
-      setError(extractApiError(caught, t('serviceCatalog.saveError')).message);
-    }
+      setError(formatApiError(caught, t('serviceCatalog.saveError'), t('common.referenceId')));
+      }
   };
 
   return (

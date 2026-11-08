@@ -4,6 +4,7 @@ import EntityPicker from '../components/EntityPicker';
 import { bcmApi, type BcpExerciseFinding } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 type Strategy = { name: string; priority: 'primary' | 'alternate' | 'fallback'; steps: string[]; recoveryTargetMinutes?: number };
 type Communication = { audience: string; channel: string; message: string; timing?: string; ownerId?: string };
@@ -49,7 +50,7 @@ export default function BcmDetail() {
         if (kind === 'bia') { setAssetLinks(asArray(data.assets)); setAssets(asArray(data.assets).map((x: any) => ({ id: x.assetId, label: x.assetId }))); }
         if (kind === 'bcp') { setBia(data.bia ? { id: data.bia.id, label: data.bia.title } : null); setStrategies(asArray(entity.recoveryStrategies)); setCommunications(asArray(entity.communicationPlan)); }
         if (kind === 'exercise') { const loadedParticipants = asArray<Participant>(entity.participants); setParticipants(loadedParticipants); setParticipantUsers(loadedParticipants.map((x) => ({ id: x.userId, label: x.userId }))); setResults(asArray(entity.results)); setFindings(asArray(entity.findings)); }
-      } catch (e) { if (!ignore) setError(e instanceof Error ? e.message : t('common.loading')); }
+      } catch (e) { if (!ignore) setError(formatApiError(e, t('common.loading'), t('common.referenceId'))); }
       finally { if (!ignore) setLoading(false); }
     }
     load(); return () => { ignore = true; };
@@ -64,7 +65,7 @@ export default function BcmDetail() {
       if (kind === 'bcp') await bcmApi.updateBcp(id, { title: record.title, ownerId: record.ownerId, biaId: bia?.id, scope: record.scope || undefined, version: record.version, recoveryStrategies: strategies, communicationPlan: communications, activationCriteria: record.activationCriteria || undefined, nextTestDate: record.nextTestDate || undefined, status: record.status });
       if (kind === 'exercise') await bcmApi.updateExercise(id, { bcpId: record.bcpId, exerciseType: record.exerciseType, plannedAt: record.plannedAt, executedAt: record.executedAt || undefined, participants, results, findings, status: record.status });
       navigate('/isms-operations');
-    } catch (e) { setError(e instanceof Error ? e.message : t('common.saveError')); }
+    } catch (e) { setError(formatApiError(e, t('common.saveError'), t('common.referenceId'))); }
     finally { setSaving(false); }
   };
   const createCapa = async (findingIndex: number) => {
@@ -73,7 +74,7 @@ export default function BcmDetail() {
     const ownerId = record?.bcpOwnerId ?? related.bcp?.ownerId;
     if (!ownerId) { setError(t('bcm.detail.capaNeedsOwner')); return; }
     try { await bcmApi.createCapaFromExercise(id, { findingIndex, title: finding.title, description: finding.description, ownerId, dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), priority: finding.severity }); navigate('/isms-operations'); }
-    catch (e) { setError(e instanceof Error ? e.message : t('common.saveError')); }
+    catch (e) { setError(formatApiError(e, t('common.saveError'), t('common.referenceId'))); }
   };
   if (loading) return <div className="p-6">{t('common.loading')}</div>;
   if (!record || !kind) return <div className="p-6">{error ?? t('common.noResults')}</div>;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { phase6Api, type KriBoardItem, type KriBoardResponse } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 type BoardType = 'KPI' | 'KRI' | 'KCI';
 
@@ -42,8 +43,8 @@ export default function KriDashboard() {
     try {
       const response = await phase6Api.kriBoard(boardType);
       setBoard(response.data);
-    } catch {
-      setError(t('kri.loadError'));
+    } catch (caught) {
+      setError(formatApiError(caught, t('kri.loadError'), t('common.referenceId')));
     } finally {
       setBusy(false);
     }

@@ -5,6 +5,7 @@ import { SortableTh } from '../components/SortableTh';
 import { useI18n } from '../context/I18nContext';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 
 interface AiConfig {
   id?: string;
@@ -98,7 +99,7 @@ export default function AdminAI() {
       setConfig({ ...defaultConfig, ...configRes.data, apiKey: '' });
       setActivity(activityRes.data ?? []);
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? t('aiAssistant.loadError'));
+      setError(formatApiError(err, t('aiAssistant.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -118,7 +119,7 @@ export default function AdminAI() {
       setConfig({ ...defaultConfig, ...res.data, apiKey: '' });
       setMessage(t('aiAssistant.saved'));
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? t('aiAssistant.saveError'));
+      setError(formatApiError(err, t('aiAssistant.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -131,7 +132,7 @@ export default function AdminAI() {
       const res = await aiAdminApi.testConnection();
       setMessage(t('aiAssistant.testSuccess', { model: res.data.model, latency: res.data.latencyMs }));
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? t('aiAssistant.testError'));
+      setError(formatApiError(err, t('aiAssistant.testError'), t('common.referenceId')));
     }
   };
 
@@ -143,7 +144,7 @@ export default function AdminAI() {
       setMessage(t('aiAssistant.runResult', { triage: res.data.triageNotes, drafts: res.data.knowledgeDrafts, skipped: res.data.skipped, failed: res.data.failed }));
       await load();
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? err?.message ?? t('aiAssistant.runError'));
+      setError(formatApiError(err, t('aiAssistant.runError'), t('common.referenceId')));
     }
   };
 

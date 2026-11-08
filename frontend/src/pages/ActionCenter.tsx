@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { actionCenterApi, type ActionCenterItem, type ActionCenterParams, type ActionCenterResponse } from '../services/api';
 import { ACTION_CENTER_SOURCE_OPTIONS } from './actionCenterHelpers';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 const urgencyClasses: Record<ActionCenterItem['urgency'], string> = {
   overdue: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
@@ -23,7 +24,7 @@ export default function ActionCenter() {
     setLoading(true);
     actionCenterApi.list(filters)
       .then(({ data }) => active && setResult(data))
-      .catch(() => active && setError(t('actionCenter.loadError')))
+      .catch((caught: unknown) => active && setError(formatApiError(caught, t('actionCenter.loadError'), t('common.referenceId'))))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is only the error-message fallback; adding it would refetch the list on language switch.

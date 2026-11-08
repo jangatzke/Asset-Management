@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { ClockIcon, PencilSquareIcon, ShareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { assetApi, contractApi, licenseApi, organizationApi, userSearchApi } from '../services/api';
+import { assetApi, contractApi, licenseApi } from '../services/api';
+import { entitySearchEndpoint } from '../services/entityPickerApi';
 import { Modal } from '../components/Modal';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { usePersistedView } from '../hooks/usePersistedView';
@@ -22,7 +23,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { SavedViewsBar } from '../components/SavedViewsBar';
 import { useSavedViews } from '../hooks/useSavedViews';
 import { exportCsv } from '../utils/csvExport';
-import { extractApiError, formatToastMessage } from '../utils/apiError';
+import { extractApiError, formatApiError, formatToastMessage } from '../utils/apiError';
 import { useI18n } from '../context/I18nContext';
 import { useToast } from '../components/useToast';
 import { useAuthStore } from '../store/auth';
@@ -358,20 +359,11 @@ const Assets = () => {
     } catch { return []; }
   };
 
-  // Dedicated owner-search API: active users only, no admin user-list dependency.
-  const searchUsers = async (q: string) => {
-    try {
-      const res = await userSearchApi.owners(q);
-      return res.data ?? res ?? [];
-    } catch { return []; }
-  };
-
-  const searchOrganizationUnits = async (q: string) => {
-    try {
-      const res = await organizationApi.listUnits({ q, limit: 20 });
-      return res.data?.data ?? res.data ?? [];
-    } catch { return []; }
-  };
+  // Shared entity-picker search path: active users only (no admin user-list
+  // dependency) and organization units via the same adapter used by the
+  // reusable EntityPicker.
+  const searchUsers = entitySearchEndpoint('user');
+  const searchOrganizationUnits = entitySearchEndpoint('organizationUnit');
 
   // Debounce the search input before hitting the server
   useEffect(() => {
@@ -434,8 +426,8 @@ const Assets = () => {
     try {
       const res = await assetApi.previewInventoryNumber(form.values.assetTypeId, form.values.assetSubtypeId || undefined);
       form.handleChange({ inventoryNumber: res.data?.inventoryNumber ?? res.data?.nextInventoryNumber ?? res.data?.preview ?? '' });
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('assets.inventory.previewError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('assets.inventory.previewError'), t('common.referenceId')));
     }
   };
 

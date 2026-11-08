@@ -42,6 +42,7 @@ import { intuneRouter } from './routes/intune.routes';
 import { initializeScheduler } from './services/intune.scheduler';
 import { initializeReminderScheduler } from './services/reminder.scheduler';
 import { initializeEmailGatewayScheduler } from './services/emailGateway.scheduler';
+import { initializeJobRetentionScheduler } from './services/jobRetention.scheduler';
 import { initializeSlaScheduler } from './services/sla.scheduler';
 import { initializeAiAssistantScheduler } from './services/ai.scheduler';
 import { startWebhookQueueWorker } from './services/webhookQueue.service';
@@ -70,6 +71,7 @@ import { webhookRouter } from './routes/webhook.routes';
 import { serviceAccountRouter, serviceAccountAuthRouter } from './routes/serviceAccount.routes';
 import { authenticate, authorize } from './middleware/auth';
 import { prisma } from './config/database';
+import { assertProductionSecrets } from './config/secretValidation';
 import { ensureStandardAssetTypes } from './services/bootstrap.service';
 
 const app: Application = express();
@@ -141,6 +143,11 @@ const URL_ENCODED_PARAMETER_LIMIT = parsePositiveInteger(process.env.URL_ENCODED
 function isTestRuntime(): boolean {
   return process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
 }
+
+// Production-only secret hygiene: reject unresolved `<generate-with-openssl ...>`
+// placeholders (and other well-known weak values) before the app binds. Dev/test
+// runtimes are unaffected because the assertion short-circuits on NODE_ENV.
+assertProductionSecrets();
 
 // ==================== Global Middleware (Phase 8) ====================
 
@@ -334,6 +341,10 @@ async function startServer(): Promise<void> {
       await reminderScheduler.start();
       const emailGatewayScheduler = initializeEmailGatewayScheduler();
       await emailGatewayScheduler.start();
+      // Item 4: JobRun/JobLease retention pruning. Cluster-safe via the
+      // `job-retention-prune` durable lease inside executeTrackedJob.
+      const jobRetentionScheduler = initializeJobRetentionScheduler();
+      await jobRetentionScheduler.start();
       const slaScheduler = initializeSlaScheduler();
       await slaScheduler.start();
       const aiAssistantScheduler = initializeAiAssistantScheduler();

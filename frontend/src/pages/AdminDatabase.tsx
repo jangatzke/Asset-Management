@@ -1,18 +1,13 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
-import { AxiosError } from 'axios';
 import { adminApi, DatabaseImportMode, DatabaseImportResult, SafeDatabaseConfig } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { SortableTh } from '../components/SortableTh';
+import { formatApiError } from '../utils/apiError';
 
 const extractFileName = (contentDisposition?: string) => {
   const match = contentDisposition?.match(/filename="?([^";]+)"?/i);
   return match?.[1] || `asset-management-portable-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-};
-
-const extractErrorMessage = (err: unknown, fallback: string) => {
-  const axiosError = err as AxiosError<{ error?: { message?: string }; message?: string }>;
-  return axiosError.response?.data?.error?.message || axiosError.response?.data?.message || axiosError.message || fallback;
 };
 
 const AdminDatabase = () => {
@@ -51,7 +46,7 @@ const AdminDatabase = () => {
       const { data } = await adminApi.getDatabaseConfig();
       setConfig(data);
     } catch (err) {
-      setError(extractErrorMessage(err, t('databaseAdmin.messages.configError')));
+      setError(formatApiError(err, t('databaseAdmin.messages.configError'), t('common.referenceId')));
     } finally {
       setLoadingConfig(false);
     }
@@ -76,7 +71,7 @@ const AdminDatabase = () => {
       URL.revokeObjectURL(url);
       setMessage(t('databaseAdmin.messages.exportSuccess'));
     } catch (err) {
-      setError(extractErrorMessage(err, t('databaseAdmin.messages.exportError')));
+      setError(formatApiError(err, t('databaseAdmin.messages.exportError'), t('common.referenceId')));
     } finally {
       setExporting(false);
     }
@@ -108,7 +103,7 @@ const AdminDatabase = () => {
       setResult(data);
       setMessage(mode === 'dryRun' ? t('databaseAdmin.messages.dryRunSuccess') : t('databaseAdmin.messages.importSuccess'));
     } catch (err) {
-      setError(extractErrorMessage(err, t('databaseAdmin.messages.importError')));
+      setError(formatApiError(err, t('databaseAdmin.messages.importError'), t('common.referenceId')));
     } finally {
       setImporting(false);
     }

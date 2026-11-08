@@ -3,6 +3,7 @@ import { adminApi, type TicketTypeConfig } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { SortableTh } from '../components/SortableTh';
 import { exportCsv } from '../utils/csvExport';
+import { formatApiError } from '../utils/apiError';
 
 const priorities = ['low', 'medium', 'high', 'critical'];
 
@@ -30,7 +31,7 @@ export default function AdminTicketSla() {
       setConfigs(response.data.map(cloneConfig));
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('ticketSla.loadError'));
+      setError(formatApiError(err, t('ticketSla.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -95,7 +96,7 @@ export default function AdminTicketSla() {
       setMessage(t('ticketSla.saved'));
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message ?? t('ticketSla.saveError'));
+      setError(formatApiError(err, t('ticketSla.saveError'), t('common.referenceId')));
     } finally {
       setSaving(null);
     }

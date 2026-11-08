@@ -275,6 +275,32 @@ jobs:
       - name: Run frontend tests
         run: npm test --workspace=frontend -- --watch=false
 
+      # Playwright E2E: mocked browser-contract suite (Vite dev server only, all
+      # /api/v1 calls fulfilled via page.route()). Chromium is the only project.
+      - name: Typecheck Playwright specs
+        working-directory: frontend
+        run: npm run e2e:typecheck
+
+      - name: Install Playwright browser (chromium)
+        working-directory: frontend
+        run: npm run e2e:install
+
+      - name: Run Playwright E2E suite
+        working-directory: frontend
+        env:
+          CI: 'true'
+        run: npm run e2e:ci
+
+      - name: Upload Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-e2e-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
+
   # =====================================================================
   # SAST (Static Application Security Testing) — REPORT-ONLY SARIF OUTPUT
   # =====================================================================

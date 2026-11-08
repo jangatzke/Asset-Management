@@ -250,6 +250,14 @@ Server → Client: 200 OK [X-Correlation-Id: abc-123]
 ### Usage in Logs
 All log entries for a request share the same `correlationId`, enabling full traceability.
 
+### Usage in API Error Surfaces
+The correlation ID is returned as a header only; the JSON error envelope does not repeat it. Clients must therefore read the header, not the body:
+
+- [`apiError.ts`](frontend/src/utils/apiError.ts:33) `readCorrelationId` reads `X-Correlation-Id` from an Axios error response (lowercase, canonical spelling or `AxiosHeaders.get()`), and `extractApiError` stores it as `referenceId`.
+- [`formatToastMessage()`](frontend/src/utils/apiError.ts:64) and [`formatApiError()`](frontend/src/utils/apiError.ts:82) append the localized reference label (`error.referenceId`, e.g. `Ref: <correlation-id>`) to the user-visible message in one call.
+- [`ErrorAlert.tsx`](frontend/src/components/ErrorAlert.tsx:31) renders `role="alert"` for every page that adopts it and, when a structured error carries `referenceId`, prints a dedicated `data-testid="error-reference-id"` line so operators can quote it in support tickets.
+- Use the quoted reference ID to grep the structured logs (Section 3) for the same `correlationId` and reconstruct the failing request end-to-end.
+
 ---
 
 ## 5. Metrics
@@ -723,6 +731,18 @@ SELECT * FROM job_runs WHERE status = 'failed' ORDER BY finishedAt DESC;
 -- Skipped jobs (lock contention)
 SELECT * FROM job_runs WHERE status = 'skipped' ORDER BY scheduledAt DESC;
 ```
+
+### 14.6 Admin Job-Run History API + UI (Improvement #10)
+Diagnostics can be read without direct database access; both endpoints are read-only, require `administration.access` and never return the raw `data` payload column or secrets. Error text is redacted (mailbox addresses, auth fragments) and length-bounded.
+
+| Endpoint | Purpose | Query parameters |
+|---|---|---|
+| `GET /api/v1/admin/job-runs` | Paginated run history, locked `{ data, pagination }` envelope + `X-Total-Count` header | `jobId`, `jobType` (CSV), `status` (CSV), `from`, `to`, `page` (default 1), `limit` (default 20, max 100), `order` (`asc`/`desc`) |
+| `GET /api/v1/admin/job-runs/summary` | Last run per job plus status counts inside the window | `windowHours` (1-720, default 24) |
+
+Invalid filters, dates or pagination input return `400` with a structured error envelope; missing administration permission returns `403`. The frontend page `/admin/job-runs` ([`AdminJobRuns.tsx`](frontend/src/pages/AdminJobRuns.tsx:1)) exposes the same filters, pagination, a summary window selector and an automatic refresh, and shows the correlation reference ID on load failures.
+
+---
 
 ## Appendix C: Compliance Mapping
 

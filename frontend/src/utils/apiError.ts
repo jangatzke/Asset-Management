@@ -8,6 +8,12 @@
  *
  * All pages should use `extractApiError` instead of ad-hoc `messageFrom` chains so
  * validation details can be mapped onto form fields consistently.
+ *
+ * Backward compatibility: some routes/consumers still return the legacy flat
+ * shape `{ message }` (`response.data.message`). `extractApiError` keeps the
+ * canonical envelope as first precedence and falls back to that legacy message
+ * so migrated pages still surface the server text instead of the generic
+ * localized fallback.
  */
 
 export interface ApiErrorInfo {
@@ -69,9 +75,33 @@ export function formatToastMessage(info: ApiErrorInfo, referenceTemplate: string
   return `${info.message} (${label})`;
 }
 
+/**
+ * One-call wrapper for page catch blocks: extract the envelope, then append the
+ * localized reference label. Use this instead of ad-hoc
+ * `err.response?.data?.error?.message` chains so every error surface carries
+ * the correlation ID when the backend emitted one.
+ *
+ * Falls back to `formatToastMessage` behaviour: without a reference ID the
+ * returned string is exactly the extracted message, so existing assertions on
+ * plain error text keep working.
+ */
+export function formatApiError(error: unknown, fallback: string, referenceTemplate: string): string {
+  return formatToastMessage(extractApiError(error, fallback), referenceTemplate);
+}
+
+/**
+ * Safely read a non-empty string field from an unknown value.
+ * Used for the legacy flat error shapes, which may be plain objects or absent.
+ */
+function readStringField(source: unknown, key: string): string | undefined {
+  if (typeof source !== 'object' || source === null) return undefined;
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 export function extractApiError(error: unknown, fallback: string): ApiErrorInfo {
   const response = (error as { response?: { data?: unknown } })?.response?.data as
-    | { error?: unknown }
+    | { error?: unknown; message?: unknown }
     | undefined;
   const errorObject = response?.error as
     | { message?: string; code?: string; details?: Array<{ field?: string; message?: string }> }
@@ -80,8 +110,16 @@ export function extractApiError(error: unknown, fallback: string): ApiErrorInfo 
 
   const referenceId = readCorrelationId(error);
 
+  // Message resolution, in documented precedence order:
+  //   1. canonical backend envelope: response.data.error.message (or error as a string)
+  //   2. legacy flat shape: response.data.message (pre-envelope routes/consumers)
+  //   3. native error.message (axios/network layer)
+  //   4. caller-provided localized fallback
+  // The canonical envelope always wins, so migrated pages keep surfacing the
+  // server message even when a route still returns the legacy flat shape.
   const message =
     (typeof errorObject === 'string' ? errorObject : errorObject?.message) ??
+    readStringField(response, 'message') ??
     (error as { message?: string })?.message ??
     fallback;
 

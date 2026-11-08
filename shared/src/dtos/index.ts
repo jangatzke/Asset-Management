@@ -236,6 +236,14 @@ export const BulkArchiveIdsSchema = z.object({
 
 export type BulkArchiveIdsDTO = z.infer<typeof BulkArchiveIdsSchema>;
 
+// Generic restore DTO mirroring ArchiveAssetSchema for tickets, risks, controls
+// and incidents. The reason is optional and bounded to keep audit details small.
+export const RestoreEntitySchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export type RestoreEntityDTO = z.infer<typeof RestoreEntitySchema>;
+
 // Disposal proof DTO (AST-031)
 export const DisposalProofSchema = z.object({
   disposalDate: z.coerce.date(),
@@ -772,9 +780,10 @@ export const CreatePolicyDocumentSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   documentType: z.string().min(1),
+  // ownerId/reviewerId/approverId are real User relations (F-01/F-14 integrity)
   ownerId: z.string().min(1),
-  reviewerId: z.string().optional(),
-  approverId: z.string().optional(),
+  reviewerId: z.string().nullable().optional(),
+  approverId: z.string().nullable().optional(),
   validFrom: z.coerce.date().optional(),
   validUntil: z.coerce.date().optional(),
   nextReviewDate: z.coerce.date().optional(),
@@ -1101,7 +1110,7 @@ const RiskTreatmentBaseSchema = z.object({
   assessmentId: z.string().uuid('Invalid assessment ID').optional(),
   treatmentOption: z.enum(['reduce', 'mitigate', 'transfer', 'accept', 'avoid']),
   plannedActions: z.string().max(2000).optional(),
-  responsibleUserId: z.string().uuid().optional(),
+  responsibleUserId: z.string().uuid().nullable().optional(),
   targetDate: z.coerce.date().optional(),
   budget: z.number().positive().optional(),
   expectedReduction: z.string().max(1000).optional(),
@@ -1109,13 +1118,13 @@ const RiskTreatmentBaseSchema = z.object({
   implementationStatus: z.string().optional(),
   justification: z.string().max(2000).optional(),
   expiryDate: z.coerce.date().optional(),
-  approverId: z.string().uuid('Invalid approver ID').optional(),
+  approverId: z.string().uuid('Invalid approver ID').nullable().optional(),
   actions: z.array(z.object({
     actionType: z.enum(['create', 'extend', 'replace', 'improve']),
     title: z.string().min(1),
     description: z.string().optional(),
     controlImplementationId: z.string().uuid().optional(),
-    responsibleUserId: z.string().uuid().optional(),
+    responsibleUserId: z.string().uuid().nullable().optional(),
     targetDate: z.coerce.date().optional(),
   })).default([]),
 });
@@ -1141,7 +1150,7 @@ export const UpdateRiskTreatmentSchema = RiskTreatmentBaseSchema.partial().exten
     title: z.string().min(1),
     description: z.string().optional(),
     controlImplementationId: z.string().uuid().optional(),
-    responsibleUserId: z.string().uuid().optional(),
+    responsibleUserId: z.string().uuid().nullable().optional(),
     targetDate: z.coerce.date().optional(),
   })).optional(),
 }).superRefine((data, ctx) => {
@@ -1159,7 +1168,7 @@ export type ApproveRiskTreatmentDTO = z.infer<typeof ApproveRiskTreatmentSchema>
 export const EffectivenessReviewSchema = z.object({
   result: z.string().min(1, 'Effectiveness review result is required').max(2000),
   reviewDate: z.coerce.date(),
-  reviewerId: z.string().uuid('Invalid reviewer ID').optional(),
+  reviewerId: z.string().uuid('Invalid reviewer ID').nullable().optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -1659,13 +1668,20 @@ export const TrainingAcknowledgementCreateSchema = z.object({
 export type TrainingAcknowledgementCreateDTO = z.infer<typeof TrainingAcknowledgementCreateSchema>;
 
 // --- Management Review schemas ---
+// Aligned with the ManagementReview model: the meeting date is stored as
+// `reviewDate` and the responsible person is the `chairId` User relation.
+// `scheduledDate`/`ownerId` are retained as accepted aliases for compatibility.
 export const ManagementReviewCreateSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional(),
-  scheduledDate: z.coerce.date(),
-  ownerId: z.string().min(1, 'Owner is required'),
+  reviewDate: z.coerce.date().optional(),
+  scheduledDate: z.coerce.date().optional(),
+  chairId: z.string().min(1, 'Chair is required').optional(),
+  ownerId: z.string().min(1, 'Owner is required').optional(),
+  participants: z.array(z.string().min(1)).optional(),
   nextReviewDate: z.coerce.date().optional(),
-});
+}).refine((data) => Boolean(data.chairId ?? data.ownerId), { message: 'Chair is required' })
+  .refine((data) => Boolean(data.reviewDate ?? data.scheduledDate), { message: 'Review date is required' });
 
 export type ManagementReviewCreateDTO = z.infer<typeof ManagementReviewCreateSchema>;
 
@@ -2027,6 +2043,21 @@ export type UpdateServiceCatalogItemDTO = z.input<typeof UpdateServiceCatalogIte
 export const KnowledgeArticleCategorySchema = z.enum(['general', 'incident', 'risk', 'control', 'supplier', 'nis2', 'service']);
 export type KnowledgeArticleCategoryDTO = z.infer<typeof KnowledgeArticleCategorySchema>;
 
+// List query for GET /knowledge. Mirrors the D1 pagination contract
+// (`page`/`limit` with defaults) plus the existing filter fields. `status`
+// stays a free-form string because the route accepts the archived filter that
+// is not part of the write schemas.
+export const KnowledgeArticleListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().trim().max(255).optional(),
+  category: KnowledgeArticleCategorySchema.optional(),
+  status: z.string().trim().max(50).optional(),
+  tag: z.string().trim().max(50).optional(),
+  relatedEntityId: z.string().trim().max(120).optional(),
+});
+export type KnowledgeArticleListQueryDTO = z.infer<typeof KnowledgeArticleListQuerySchema>;
+
 export const CreateKnowledgeArticleSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(250),
   summary: z.string().trim().max(500).optional(),
@@ -2063,3 +2094,124 @@ export const AiConfigUpdateSchema = z.object({
   knowledgeDrafts: z.boolean().optional(),
 }).strict();
 export type AiConfigUpdateDTO = z.input<typeof AiConfigUpdateSchema>;
+
+// ---- Ticket e-mail gateway (IMAP / Exchange Online OAuth2 / SMTP) ----
+//
+// Type/format concerns live here so the admin route returns structured 400
+// validation errors instead of scattering AppError throws. Business rules that
+// depend on the *effective* persisted configuration (e.g. the IMAP OAuth2 /
+// Exchange provider pairing) remain in emailGateway.service.ts.
+//
+// SECURITY: `exchangeClientSecretRef` must be a reference (`env:` / `file:`);
+// raw inline Exchange client secrets are rejected. IMAP/SMTP passwords may be
+// inline (app-layer AES-256-GCM encrypted) but may also be supplied as a
+// reference, in which case backend resolution enforces SECRET_FILES_DIR path
+// containment.
+
+/** `env:VARIABLE_NAME` or a relative `file:path` inside SECRET_FILES_DIR. */
+const SecretReferenceSchema = z
+  .string()
+  .trim()
+  .min(1, 'Secret reference is required')
+  .max(500)
+  .refine((value) => value.startsWith('env:') || value.startsWith('file:'),
+    'Secret must use an env: or file: reference')
+  .refine((value) => {
+    if (!value.startsWith('env:')) return true;
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value.slice(4));
+  }, 'env: reference must name a valid environment variable')
+  .refine((value) => {
+    if (!value.startsWith('file:')) return true;
+    const raw = value.slice(5).replace(/\\/g, '/');
+    if (!raw) return false;
+    if (raw.startsWith('/') || /^[A-Za-z]:/.test(raw)) return false; // no absolute paths
+    return !raw.split('/').some((segment) => segment === '..');
+  }, 'file: reference must be a relative path inside the secrets directory');
+
+/**
+ * IMAP/SMTP password input: plaintext (encrypted before storage) or an
+ * `env:`/`file:` reference resolved through the SECRET_FILES_DIR guard.
+ */
+const MailPasswordSchema = z
+  .string()
+  .min(1)
+  .max(1000)
+  .refine((value) => {
+    if (value.startsWith('env:') || value.startsWith('file:')) {
+      const parsed = SecretReferenceSchema.safeParse(value);
+      return parsed.success;
+    }
+    return true;
+  }, 'Password secret reference must be a valid env: or file: reference');
+
+const HostSchema = z
+  .string()
+  .trim()
+  .min(1, 'Host is required')
+  .max(253)
+  .regex(/^[A-Za-z0-9.:-]+$/, 'Host must be a valid hostname or IP address');
+
+const EmailAddressSchema = z.string().trim().email('Invalid e-mail address').max(320);
+
+/**
+ * Treat a blank string (the UI default for an unconfigured field) as `null`
+ * so admins can clear a setting without tripping format validation. Anything
+ * non-empty is validated by the wrapped schema.
+ */
+const blankToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+    schema.nullable().optional()) as z.ZodType<z.infer<T> | null | undefined>;
+
+export const EmailGatewayConfigUpdateSchema = z.object({
+  enabled: z.boolean().optional(),
+  inboundProvider: z.enum(['imap', 'exchange']).optional(),
+
+  // Blank strings are the UI's "unconfigured" value → coerced to null.
+  imapHost: blankToNull(HostSchema),
+  imapPort: z.coerce.number().int().min(1).max(65535).optional(),
+  imapSecure: z.boolean().optional(),
+  imapUser: blankToNull(z.string().trim().max(320)),
+  imapPassword: MailPasswordSchema.nullable().optional(),
+  imapMailbox: blankToNull(z.string().trim().min(1).max(255)),
+  imapAuthType: z.enum(['password', 'oauth2']).optional(),
+
+  exchangeTenantId: blankToNull(z.string().trim().max(200)),
+  exchangeClientId: blankToNull(z.string().trim().max(200)),
+  exchangeClientSecretRef: SecretReferenceSchema.nullable().optional(),
+  exchangeScopes: z
+    .string()
+    .trim()
+    .max(1000)
+    .refine((value) => value.split(/\s+/).every((scope) => scope.length > 0 && scope.length <= 500),
+      'exchangeScopes must be space-separated scopes')
+    .nullable()
+    .optional(),
+
+  smtpHost: blankToNull(HostSchema),
+  smtpPort: z.coerce.number().int().min(1).max(65535).optional(),
+  smtpSecure: z.boolean().optional(),
+  smtpUser: blankToNull(z.string().trim().max(320)),
+  smtpPassword: MailPasswordSchema.nullable().optional(),
+  smtpAuthType: z.enum(['none', 'basic', 'oauth2']).optional(),
+  smtpFromEmail: blankToNull(EmailAddressSchema),
+  smtpRejectUnauthorized: z.boolean().optional(),
+  tlsRejectUnauthorized: z.boolean().optional(),
+
+  pollIntervalMinutes: z.coerce.number().int().min(1).max(1440).optional(),
+  subjectPrefix: z.string().trim().max(100).nullable().optional(),
+  defaultTicketType: TicketTypeSchema.nullable().optional(),
+  autoAssignToEmail: blankToNull(EmailAddressSchema),
+}).superRefine((value, ctx) => {
+  // IMAP XOAUTH2 acquisition is not implemented. Restrict `imapAuthType=oauth2`
+  // to the Exchange Online provider so a passwordless IMAP login can never be
+  // requested with an empty access token (see buildImapClient).
+  if (value.imapAuthType === 'oauth2' && value.inboundProvider !== 'exchange') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['imapAuthType'],
+      message: 'imapAuthType=oauth2 is only supported with inboundProvider=exchange',
+    });
+  }
+});
+
+export type EmailGatewayConfigUpdateDTO = z.input<typeof EmailGatewayConfigUpdateSchema>;

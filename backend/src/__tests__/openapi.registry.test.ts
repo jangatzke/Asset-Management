@@ -79,11 +79,19 @@ describe('Phase 1.5 route registry', () => {
     ]);
     const idempotencyPrefixes = ROUTE_REGISTRY.filter((entry) => entry.hasIdempotency).map((entry) => entry.path);
     expect(idempotencyPrefixes.sort()).toEqual([
+      '/api/v1/admin',
       '/api/v1/assets',
+      '/api/v1/contracts',
+      '/api/v1/controls',
+      '/api/v1/documents',
       '/api/v1/incidents',
+      '/api/v1/isms-operations',
+      '/api/v1/licenses',
+      '/api/v1/phase6',
       '/api/v1/risks',
       '/api/v1/service-accounts',
       '/api/v1/tickets',
+      '/api/v1/treatments',
       '/api/v1/webhooks',
     ].sort());
   });

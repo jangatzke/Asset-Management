@@ -22,6 +22,11 @@ const entityTypeLabels: Record<EntityType, string> = {
   bia: 'Business impact analysis',
   requirement: 'Requirement',
   evidence: 'Evidence',
+  trainingCourse: 'Training course',
+  workflowDefinition: 'Workflow definition',
+  auditPlan: 'Audit plan',
+  managementReview: 'Management review',
+  incident: 'Incident',
 };
 
 export function pickerEntityTypeForWorkflow(entityType?: string | null): EntityType | null {

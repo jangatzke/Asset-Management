@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
+import { authorizeEntityWrite, authorizeEntityDelete, requireAdminAccess, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
 import { controlService } from '../services/control.service';
 import { authorizationService } from '../services/authorization.service';
 import { getEntityHistory } from '../services/entityHistory.service';
 import { validateBody, validateParams } from '../middleware/validation';
 import { AppError } from '../middleware/errorHandler';
-import { ApproveRiskTreatmentSchema, BulkArchiveIdsSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, GenerateIso27001SoASchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
+import { ApproveRiskTreatmentSchema, BulkArchiveIdsSchema, ControlImplementationRiskParamsSchema, ControlImplementationSchema, CreateControlSchema, CreateControlTestSchema, CreateSoASchema, GenerateIso27001SoASchema, IdParamSchema, RestoreEntitySchema, UpdateControlSchema, UpdateSoAItemSchema } from 'shared';
 import { setPaginationHeader } from '../utils/pagination';
 import { idempotency } from '../middleware/idempotency';
 
@@ -26,7 +26,7 @@ controlRouter.get('/', authenticate, requirePermission('controls.read'), async (
   }
 });
 
-controlRouter.post('/', authenticate, authorizeEntityWrite('controls'), validateBody(CreateControlSchema), async (req: AuthRequest, res, next) => {
+controlRouter.post('/', authenticate, authorizeEntityWrite('controls'), idempotency({ includeRouteParams: true }), validateBody(CreateControlSchema), async (req: AuthRequest, res, next) => {
   try {
     const control = await controlService.create(req.body, req.userId);
     res.status(201).json(control);
@@ -132,7 +132,7 @@ controlRouter.get('/soa/:id/export', authenticate, requirePermission('controls.r
   }
 });
 
-controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), validateBody(ControlImplementationSchema), async (req: AuthRequest, res, next) => {
+controlRouter.post('/implementations', authenticate, authorizeEntityWrite('controls'), idempotency({ includeRouteParams: true }), validateBody(ControlImplementationSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createImplementation(req.body, req.userId));
   } catch (error) {
@@ -148,7 +148,7 @@ controlRouter.get('/implementations/:implementationId/risks', authenticate, requ
   }
 });
 
-controlRouter.post('/tests', authenticate, requirePermission('controls.test'), validateBody(CreateControlTestSchema), async (req: AuthRequest, res, next) => {
+controlRouter.post('/tests', authenticate, requirePermission('controls.test'), idempotency({ includeRouteParams: true }), validateBody(CreateControlTestSchema), async (req: AuthRequest, res, next) => {
   try {
     res.status(201).json(await controlService.createControlTest(req.body, req.userId));
   } catch (error) {
@@ -227,7 +227,7 @@ controlRouter.get('/:id/history', authenticate, requirePermission('controls.read
   }
 });
 
-controlRouter.put('/:id', authenticate, authorizeEntityWrite('controls'), validateBody(UpdateControlSchema), async (req: AuthRequest, res, next) => {
+controlRouter.put('/:id', authenticate, authorizeEntityWrite('controls'), idempotency({ includeRouteParams: true }), validateBody(UpdateControlSchema), async (req: AuthRequest, res, next) => {
   try {
     const control = await controlService.update(req.params.id, req.body, req.userId);
     res.json(control);
@@ -236,9 +236,20 @@ controlRouter.put('/:id', authenticate, authorizeEntityWrite('controls'), valida
   }
 });
 
-controlRouter.delete('/:id', authenticate, authorizeEntityDelete('controls'), async (req: AuthRequest, res, next) => {
+controlRouter.delete('/:id', authenticate, authorizeEntityDelete('controls'), idempotency({ includeRouteParams: true }), async (req: AuthRequest, res, next) => {
   try {
     const result = await controlService.delete(req.params.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Restore an archived control (undo of the archive/soft-delete). Admin-only,
+// mirroring the Assets restore endpoint semantics (404 missing / 409 active).
+controlRouter.post('/:id/restore', authenticate, requireAdminAccess, validateParams(IdParamSchema), validateBody(RestoreEntitySchema), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await controlService.restore(req.params.id, req.userId, req.body?.reason);
     res.json(result);
   } catch (error) {
     next(error);

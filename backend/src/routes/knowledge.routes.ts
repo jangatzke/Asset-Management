@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { authorizeEntityWrite, authorizeEntityDelete, requirePermission } from '../middleware/entityAuth';
-import { validateBody } from '../middleware/validation';
+import { validateBody, validateQuery } from '../middleware/validation';
 import { knowledgeService } from '../services/knowledge.service';
-import { CreateKnowledgeArticleSchema, UpdateKnowledgeArticleSchema } from 'shared';
+import { CreateKnowledgeArticleSchema, KnowledgeArticleListQuerySchema, UpdateKnowledgeArticleSchema } from 'shared';
+import { setPaginationHeader } from '../utils/pagination';
 
 export const knowledgeRouter = Router();
 
-knowledgeRouter.get('/', authenticate, requirePermission('documents.read'), async (req: AuthRequest, res, next) => {
+knowledgeRouter.get('/', authenticate, requirePermission('documents.read'), validateQuery(KnowledgeArticleListQuerySchema), async (req: AuthRequest, res, next) => {
   try {
-    res.json(await knowledgeService.list(req.query as any));
+    const result = await knowledgeService.list(req.query);
+    setPaginationHeader(res, result);
+    res.json(result);
   } catch (error) {
     next(error);
   }

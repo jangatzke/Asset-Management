@@ -10,6 +10,7 @@ import { SortableTh } from '../components/SortableTh';
 import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { formatApiError } from '../utils/apiError';
 
 interface User {
   id: string;
@@ -100,7 +101,7 @@ const AdminUsers = () => {
       const response = await adminApi.listUsers();
       setUsers(response.data || []);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.loadError'));
+      setError(formatApiError(err, t('adminUsers.messages.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -179,7 +180,7 @@ const AdminUsers = () => {
       loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.createError'));
+      setError(formatApiError(err, t('adminUsers.messages.createError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -197,7 +198,7 @@ const AdminUsers = () => {
       loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.deleteError'));
+      setError(formatApiError(err, t('adminUsers.messages.deleteError'), t('common.referenceId')));
     }
   };
 
@@ -209,7 +210,7 @@ const AdminUsers = () => {
       loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.updateError'));
+      setError(formatApiError(err, t('adminUsers.messages.updateError'), t('common.referenceId')));
     }
   };
 
@@ -266,7 +267,7 @@ const AdminUsers = () => {
       await loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.updateError'));
+      setError(formatApiError(err, t('adminUsers.messages.updateError'), t('common.referenceId')));
     } finally {
       setSavingEdit(false);
     }
@@ -288,7 +289,7 @@ const AdminUsers = () => {
       loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.rolesUpdateError'));
+      setError(formatApiError(err, t('adminUsers.messages.rolesUpdateError'), t('common.referenceId')));
     } finally {
       setSavingRoles(false);
     }
@@ -319,7 +320,7 @@ const AdminUsers = () => {
       setSuccess(t('adminUsers.messages.passwordResetSuccess'));
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('adminUsers.messages.passwordResetError'));
+      setError(formatApiError(err, t('adminUsers.messages.passwordResetError'), t('common.referenceId')));
     }
   };
 

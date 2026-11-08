@@ -27,6 +27,7 @@ import type {
   DisposalProofDTO,
   JsonValue,
   LifecycleTransitionDTO,
+  RestoreEntityDTO,
   RiskAggregationQueryDTO,
   RiskControlAssessmentListQueryDTO,
   RiskControlDto,
@@ -663,6 +664,7 @@ export const riskApi = {
   create: (data: CreateRiskDTO) => api.post('/risks', data),
   update: (id: string, data: UpdateRiskDTO) => api.put(`/risks/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/risks/${id}`),
+  restore: (id: string, data: RestoreEntityDTO) => api.post(`/risks/${id}/restore`, data),
   bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/risks/bulk-archive', data),
   createTreatmentPlan: (riskId: string, data: any) => api.post(`/risks/${riskId}/treatment`, data),
   createAssessment: (data: CreateRiskAssessmentDTO) => api.post('/risks/assessments', data),
@@ -764,6 +766,7 @@ export const controlApi = {
   create: (data: CreateControlDTO | { catalogId: string; catalogVersion: string; title: string; description: string; controlGoal: string; applicability?: string }) => api.post('/controls', data),
   update: (id: string, data: UpdateControlDTO) => api.put(`/controls/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/controls/${id}`),
+  restore: (id: string, data: RestoreEntityDTO) => api.post(`/controls/${id}/restore`, data),
   bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/controls/bulk-archive', data),
   createImplementation: (data: ControlImplementationDTO) => api.post('/controls/implementations', data),
   listImplementationRisks: (implementationId: string, params?: RiskControlAssessmentListQueryDTO) => api.get(`/controls/implementations/${implementationId}/risks`, { params }),
@@ -942,6 +945,7 @@ export const ticketApi = {
   getById: (id: string) => api.get<TicketResponse>(`/tickets/${id}`),
   create: (data: unknown) => api.post<TicketResponse>('/tickets', data),
   update: (id: string, data: unknown) => api.put<TicketResponse>(`/tickets/${id}`, data),
+  restore: (id: string, data: RestoreEntityDTO) => api.post(`/tickets/${id}/restore`, data),
   bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/tickets/bulk-archive', data),
   bulkTransition: (ids: string[], toStatus: string, justification?: string) => api.post<BulkOperationResult>('/tickets/bulk-transition', { ids, toStatus, justification }),
   changeType: (id: string, data: { type: 'service_request' | 'problem' | 'change' }) => api.post<TicketResponse>(`/tickets/${id}/type`, data),
@@ -996,6 +1000,7 @@ export const incidentApi = {
   create: (data: CreateIncidentDTO) => api.post('/incidents', data),
   update: (id: string, data: UpdateIncidentDTO) => api.put(`/incidents/${id}`, data),
   delete: (id: string) => api.delete<DeleteResponse>(`/incidents/${id}`),
+  restore: (id: string, data: RestoreEntityDTO) => api.post(`/incidents/${id}/restore`, data),
   bulkArchive: (data: BulkArchiveIdsDTO) => api.post<BulkOperationResult>('/incidents/bulk-archive', data),
   assess: (id: string, data: AssessIncidentDTO) => api.post(`/incidents/${id}/assess`, data),
   changeStatus: (id: string, data: ChangeIncidentStatusDTO) => api.post(`/incidents/${id}/status`, data),
@@ -1431,6 +1436,49 @@ export const aiAdminApi = {
   activity: (limit = 50) => api.get('/admin/ai/activity', { params: { limit } }),
 };
 
+/** Improvement #10: admin-visible background job history (read-only). */
+export type JobRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+export interface JobRunListItem {
+  id: string;
+  jobId: string;
+  jobType: string;
+  status: JobRunStatus | string;
+  workerId?: string | null;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  attempt: number;
+  /** Sanitized + truncated server-side; never contains mailbox/SMTP secrets. */
+  error?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobRunSummary {
+  generatedAt: string;
+  windowHours: number;
+  totalRecentRuns: number;
+  statusCounts: Record<string, number>;
+  jobs: JobRunListItem[];
+}
+
+export interface JobRunListParams {
+  jobId?: string;
+  jobType?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+  order?: 'asc' | 'desc';
+}
+
+export const jobRunsAdminApi = {
+  list: (params?: JobRunListParams) => api.get<PaginatedResponse<JobRunListItem>>('/admin/job-runs', { params }),
+  summary: (windowHours?: number) => api.get<JobRunSummary>('/admin/job-runs/summary', { params: windowHours ? { windowHours } : undefined }),
+};
+
 // Proxmox API
 export const proxmoxApi = {
   getCredentials: () => api.get('/admin/proxmox/credentials'),
@@ -1483,7 +1531,9 @@ export interface KnowledgeArticleInput {
 }
 
 export const knowledgeApi = {
-  list: (params?: { search?: string; category?: string; status?: string; tag?: string }) => api.get<KnowledgeArticleSummary[]>('/knowledge', { params }),
+  // D1 envelope: `{ data, pagination }`; the route also sets X-Total-Count.
+  list: (params?: { page?: number; limit?: number; search?: string; category?: string; status?: string; tag?: string; relatedEntityId?: string }) =>
+    api.get<PaginatedApiResponse<KnowledgeArticleSummary>>('/knowledge', { params }),
   getById: (id: string) => api.get<KnowledgeArticleDetail>(`/knowledge/${id}`),
   create: (data: KnowledgeArticleInput) => api.post<KnowledgeArticleDetail>('/knowledge', data),
   update: (id: string, data: Partial<KnowledgeArticleInput> & { status?: KnowledgeArticleStatus }) => api.patch<KnowledgeArticleDetail>(`/knowledge/${id}`, data),

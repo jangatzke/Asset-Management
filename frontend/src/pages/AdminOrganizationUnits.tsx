@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../services/api';
+import { entitySearchEndpoint } from '../services/entityPickerApi';
 import { Modal } from '../components/Modal';
 import EntitySearchSelect from '../components/EntitySearchSelect';
 import { useI18n } from '../context/I18nContext';
 import { useDirtyForm } from '../hooks/useDirtyForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { formatApiError } from '../utils/apiError';
 
 interface OrganizationUnit {
   id: string;
@@ -64,7 +66,7 @@ const AdminOrganizationUnits = () => {
       const response = await adminApi.listOrganizationUnits(includeArchived);
       setUnits(response.data?.data ?? response.data ?? []);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('organizationUnits.loadError'));
+      setError(formatApiError(err, t('organizationUnits.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -75,10 +77,12 @@ const AdminOrganizationUnits = () => {
     return unit.name.toLowerCase().includes(term) || (unit.description || '').toLowerCase().includes(term) || (unit.type || '').toLowerCase().includes(term);
   }), [searchTerm, units]);
 
+  // Reuse the shared entity-picker organization-unit search, excluding the
+  // unit currently being edited so it cannot become its own parent.
   const searchParentUnits = async (q: string) => {
     try {
-      const response = await adminApi.searchOrganizationUnits(q, 20);
-      return (response.data?.data ?? response.data ?? []).filter((unit: any) => unit.id !== editingUnit?.id);
+      const items = await entitySearchEndpoint('organizationUnit')(q);
+      return items.filter((unit) => unit.id !== editingUnit?.id);
     } catch { return []; }
   };
 
@@ -123,7 +127,7 @@ const AdminOrganizationUnits = () => {
       setSaving(false);
       await loadUnits();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('organizationUnits.saveError'));
+      setError(formatApiError(err, t('organizationUnits.saveError'), t('common.referenceId')));
       setSaving(false);
     } finally {
       setTimeout(() => setSuccess(''), 3000);
@@ -142,7 +146,7 @@ const AdminOrganizationUnits = () => {
       await loadUnits();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('organizationUnits.archiveError'));
+      setError(formatApiError(err, t('organizationUnits.archiveError'), t('common.referenceId')));
     }
   };
 
@@ -153,7 +157,7 @@ const AdminOrganizationUnits = () => {
       await loadUnits();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('organizationUnits.restoreError'));
+      setError(formatApiError(err, t('organizationUnits.restoreError'), t('common.referenceId')));
     }
   };
 

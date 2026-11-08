@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal';
 import { phase6Api } from '../services/api';
 import type { EntityPickerResult } from '../services/entityPickerApi';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 import { humanizeWorkflowAction, pickerEntityTypeForWorkflow, workflowEntityTypes, type WorkflowAction } from './workflowUx';
 import { optionalNumber } from './operationsHelpers';
 
@@ -33,7 +34,7 @@ export default function OperationsWorkspace() {
     try {
       const responses = await Promise.all(active.resources.map(resource => phase6Api.list(resource, { limit: 100 })));
       setData(previous => ({ ...previous, ...Object.fromEntries(active.resources.map((resource, index) => [resource, responses[index].data.data ?? responses[index].data])) }));
-    } catch { setError(t('operationsWorkspace.loadError')); }
+    } catch (caught) { setError(formatApiError(caught, t('operationsWorkspace.loadError'), t('common.referenceId'))); }
     finally { setBusy(false); }
   }, [active.resources, t]);
   useEffect(() => { void load(); }, [load]);

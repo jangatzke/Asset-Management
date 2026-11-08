@@ -35,7 +35,7 @@ import HealthIcon from '@mui/icons-material/Favorite';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../services/api';
 import { useI18n } from '../context/I18nContext';
-import { getErrorMessage } from '../utils/statusHelpers';
+import { formatApiError } from '../utils/apiError';
 import { useLocalSort } from '../hooks/useLocalSort';
 import { MuiSortableTh } from '../components/MuiSortableTh';
 import { exportCsv } from '../utils/csvExport';
@@ -183,7 +183,7 @@ export default function IntuneAdmin() {
       setConfig(res.data);
     } catch (e) {
       console.error('Failed to load Intune config:', e);
-      setError(getErrorMessage(e) || t('common.loadError'));
+      setError(formatApiError(e, t('common.loadError'), t('common.referenceId')));
     }
   };
 
@@ -193,7 +193,7 @@ export default function IntuneAdmin() {
       setSyncStatus(res.data);
     } catch (e) {
       console.error('Failed to load sync status:', e);
-      setError(getErrorMessage(e) || t('common.loadError'));
+      setError(formatApiError(e, t('common.loadError'), t('common.referenceId')));
     }
   };
 
@@ -265,7 +265,7 @@ export default function IntuneAdmin() {
       loadCredentials();
     } catch (e) {
       console.error('Failed to save credentials:', e);
-      setError(getErrorMessage(e) || t('common.saveError'));
+      setError(formatApiError(e, t('common.saveError'), t('common.referenceId')));
     }
   };
 
@@ -279,7 +279,7 @@ export default function IntuneAdmin() {
       setCredentialsOpen(false);
     } catch (e) {
       console.error('Failed to delete credentials:', e);
-      setError(getErrorMessage(e) || t('common.deleteError'));
+      setError(formatApiError(e, t('common.deleteError'), t('common.referenceId')));
     }
   };
 
@@ -333,7 +333,7 @@ export default function IntuneAdmin() {
       setDeviceTotal(res.data.pagination.total);
     } catch (e) {
       console.error('Failed to load devices:', e);
-      setError(getErrorMessage(e) || t('common.loadError'));
+      setError(formatApiError(e, t('common.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
@@ -346,7 +346,7 @@ export default function IntuneAdmin() {
       setConfig(res.data);
     } catch (e) {
       console.error('Failed to update config:', e);
-      setError(getErrorMessage(e) || t('common.saveError'));
+      setError(formatApiError(e, t('common.saveError'), t('common.referenceId')));
     }
   };
 
@@ -356,7 +356,7 @@ export default function IntuneAdmin() {
       loadSyncStatus();
     } catch (e) {
       console.error('Failed to trigger full sync:', e);
-      setError(getErrorMessage(e) || t('intune.syncFailed'));
+      setError(formatApiError(e, t('intune.syncFailed'), t('common.referenceId')));
     }
   };
 
@@ -366,7 +366,7 @@ export default function IntuneAdmin() {
       loadSyncStatus();
     } catch (e) {
       console.error('Failed to trigger incremental sync:', e);
-      setError(getErrorMessage(e) || t('intune.syncFailed'));
+      setError(formatApiError(e, t('intune.syncFailed'), t('common.referenceId')));
     }
   };
 
@@ -375,7 +375,7 @@ export default function IntuneAdmin() {
       await api.post('/intune/scheduler/start');
     } catch (e) {
       console.error('Failed to start scheduler:', e);
-      setError(getErrorMessage(e) || t('common.saveError'));
+      setError(formatApiError(e, t('common.saveError'), t('common.referenceId')));
     }
   };
 
@@ -384,7 +384,7 @@ export default function IntuneAdmin() {
       await api.post('/intune/scheduler/stop');
     } catch (e) {
       console.error('Failed to stop scheduler:', e);
-      setError(getErrorMessage(e) || t('common.saveError'));
+      setError(formatApiError(e, t('common.saveError'), t('common.referenceId')));
     }
   };
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdminAccess } from '../middleware/entityAuth';
 import { authorizeEntityWrite } from '../middleware/entityAuth';
+import { idempotency } from '../middleware/idempotency';
 import { validateBody } from '../middleware/validation';
 import {
   ApproveRiskTreatmentSchema, CompleteRiskTreatmentSchema, CreateRiskTreatmentSchema,
@@ -24,7 +25,7 @@ riskTreatmentRouter.get('/', authenticate, async (req, res, next) => {
 });
 
 // POST /api/v1/treatments - Create risk treatment
-riskTreatmentRouter.post('/', authenticate, authorizeEntityWrite('risks'), validateBody(CreateRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
+riskTreatmentRouter.post('/', authenticate, authorizeEntityWrite('risks'), idempotency({ includeRouteParams: true }), validateBody(CreateRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
   try {
     const treatment = await riskTreatmentService.create(req.body, req.userId);
     res.status(201).json(treatment);
@@ -44,7 +45,7 @@ riskTreatmentRouter.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // PATCH /api/v1/treatments/:id - Update risk treatment
-riskTreatmentRouter.patch('/:id', authenticate, authorizeEntityWrite('risks'), validateBody(UpdateRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
+riskTreatmentRouter.patch('/:id', authenticate, authorizeEntityWrite('risks'), idempotency({ includeRouteParams: true }), validateBody(UpdateRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
   try {
     const treatment = await riskTreatmentService.update(req.params.id, req.body, req.userId);
     res.json(treatment);
@@ -54,7 +55,7 @@ riskTreatmentRouter.patch('/:id', authenticate, authorizeEntityWrite('risks'), v
 });
 
 // DELETE /api/v1/treatments/:id - Soft delete risk treatment
-riskTreatmentRouter.delete('/:id', authenticate, requireAdminAccess, async (req, res, next) => {
+riskTreatmentRouter.delete('/:id', authenticate, idempotency({ includeRouteParams: true }), requireAdminAccess, async (req, res, next) => {
   try {
     const result = await riskTreatmentService.delete(req.params.id, (req as AuthRequest).userId);
     res.json(result);
@@ -64,7 +65,7 @@ riskTreatmentRouter.delete('/:id', authenticate, requireAdminAccess, async (req,
 });
 
 // POST /api/v1/treatments/:id/approve - Approve treatment plan
-riskTreatmentRouter.post('/:id/approve', authenticate, authorizeEntityWrite('risks'), validateBody(ApproveRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
+riskTreatmentRouter.post('/:id/approve', authenticate, authorizeEntityWrite('risks'), idempotency({ includeRouteParams: true }), validateBody(ApproveRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
   try {
     const treatment = await riskTreatmentService.approve(req.params.id, req.userId!, req.body);
     res.json(treatment);
@@ -74,7 +75,7 @@ riskTreatmentRouter.post('/:id/approve', authenticate, authorizeEntityWrite('ris
 });
 
 // POST /api/v1/treatments/:id/effectiveness-review - Record effectiveness review
-riskTreatmentRouter.post('/:id/effectiveness-review', authenticate, authorizeEntityWrite('risks'), validateBody(EffectivenessReviewSchema), async (req: AuthRequest, res, next) => {
+riskTreatmentRouter.post('/:id/effectiveness-review', authenticate, authorizeEntityWrite('risks'), idempotency({ includeRouteParams: true }), validateBody(EffectivenessReviewSchema), async (req: AuthRequest, res, next) => {
   try {
     const review = await riskTreatmentService.recordEffectivenessReview(req.params.id, req.body, req.userId!);
     res.status(201).json(review);
@@ -84,7 +85,7 @@ riskTreatmentRouter.post('/:id/effectiveness-review', authenticate, authorizeEnt
 });
 
 // POST /api/v1/treatments/:id/complete - Complete treatment with target/residual assessment
-riskTreatmentRouter.post('/:id/complete', authenticate, authorizeEntityWrite('risks'), validateBody(CompleteRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
+riskTreatmentRouter.post('/:id/complete', authenticate, authorizeEntityWrite('risks'), idempotency({ includeRouteParams: true }), validateBody(CompleteRiskTreatmentSchema), async (req: AuthRequest, res, next) => {
   try {
     const treatment = await riskTreatmentService.complete(req.params.id, req.body, req.userId!);
     res.json(treatment);

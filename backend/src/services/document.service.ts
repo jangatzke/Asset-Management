@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
+import { validateUserReferences } from './userReference.service';
 
 export interface CreatePolicyDocumentData {
   title: string;
@@ -46,6 +47,15 @@ export class DocumentControlService {
   }
 
   async create(data: CreatePolicyDocumentData, userId?: string) {
+    // Validate every user reference before writing (F-01/F-14 integrity)
+    await validateUserReferences(prisma, {
+      ownerId: data.ownerId,
+      reviewerId: data.reviewerId,
+      approverId: data.approverId,
+      authorId: userId ?? data.ownerId,
+      createdBy: userId,
+    });
+
     const document = await prisma.policyDocument.create({
       data: {
         title: data.title,
@@ -76,6 +86,11 @@ export class DocumentControlService {
   }
 
   async transition(documentId: string, nextStatus: 'review' | 'approved' | 'published' | 'withdrawn' | 'draft', userId: string, comment?: string) {
+    // The approver reference is written to both the document and its version
+    if (nextStatus === 'approved') {
+      await validateUserReferences(prisma, { approverId: userId });
+    }
+
     const document = await prisma.policyDocument.findUnique({ where: { id: documentId }, include: { versions: { orderBy: { createdAt: 'desc' }, take: 1 } } });
     if (!document) throw new AppError('Policy document not found', 404);
     if (document.isImmutable && document.workflowStatus === 'approved') throw new AppError('Approved document version is immutable', 409);
@@ -97,6 +112,8 @@ export class DocumentControlService {
   }
 
   async acknowledge(documentId: string, userId: string, versionId?: string, comment?: string) {
+    await validateUserReferences(prisma, { userId });
+
     const document = await prisma.policyDocument.findUnique({ where: { id: documentId } });
     if (!document) throw new AppError('Policy document not found', 404);
     if (!['published', 'approved'].includes(document.workflowStatus)) throw new AppError('Only approved or published documents can be acknowledged', 400);
@@ -106,12 +123,16 @@ export class DocumentControlService {
   }
 
   async scheduleReview(documentId: string, reviewerId: string, dueDate: Date) {
+    await validateUserReferences(prisma, { reviewerId });
+
     const document = await prisma.policyDocument.findUnique({ where: { id: documentId } });
     if (!document) throw new AppError('Policy document not found', 404);
     return prisma.documentReview.create({ data: { documentId, reviewerId, dueDate } });
   }
 
   async completeReview(reviewId: string, reviewerId: string, result: string) {
+    await validateUserReferences(prisma, { reviewerId });
+
     const review = await prisma.documentReview.findUnique({ where: { id: reviewId } });
     if (!review) throw new AppError('Document review not found', 404);
     if (review.reviewerId !== reviewerId) throw new AppError('Only assigned reviewer can complete review', 403);

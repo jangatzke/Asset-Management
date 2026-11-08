@@ -3,6 +3,7 @@ const mockPrismaClient: any = {
   frameworkVersion: { create: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
   requirement: { findMany: jest.fn(), count: jest.fn() },
   control: { findUnique: jest.fn() },
+  user: { findMany: jest.fn() },
   userRole: { findMany: jest.fn() },
   userGroup: { findMany: jest.fn() },
   organizationUnit: { findUnique: jest.fn() },
@@ -34,6 +35,11 @@ import { documentControlService } from '../services/document.service';
 describe('Phase 4 compliance services', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Active-user lookup used by validateUserReferences (F-01/F-14 integrity)
+    mockPrismaClient.user.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => ({ id, isActive: true }));
+    });
     mockPrismaClient.auditLog.create.mockResolvedValue({});
   });
 

@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { authorizeEntityWrite, authorizeEntityDelete, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
-import { validateBody } from '../middleware/validation';
+import { authorizeEntityWrite, authorizeEntityDelete, requireAdminAccess, requireEntityPermission, requirePermission } from '../middleware/entityAuth';
+import { validateBody, validateParams } from '../middleware/validation';
 import { incidentService } from '../services/incident.service';
 import { authorizationService } from '../services/authorization.service';
-import { AssessIncidentSchema, BulkArchiveIdsSchema, ChangeIncidentStatusSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, UpdateIncidentSchema } from 'shared';
+import { AssessIncidentSchema, BulkArchiveIdsSchema, ChangeIncidentStatusSchema, ChangeKnowledgeTimeSchema, CloseIncidentSchema, CreateIncidentCommunicationSchema, CreateIncidentReportSchema, CreateIncidentSchema, CreateSignificanceRuleVersionSchema, DecideIncidentNonReportableApprovalSchema, IdParamSchema, RestoreEntitySchema, UpdateIncidentSchema } from 'shared';
 import { z } from 'zod';
 import { setPaginationHeader } from '../utils/pagination';
 import { idempotency } from '../middleware/idempotency';
@@ -76,6 +76,17 @@ incidentRouter.post('/bulk-archive', authenticate, requirePermission('incidents.
 incidentRouter.delete('/:id', authenticate, authorizeEntityDelete('incidents'), idempotency(), async (req: AuthRequest, res, next) => {
   try {
     const result = await incidentService.delete(req.params.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Restore an archived incident (undo of the archive/soft-delete). Admin-only,
+// mirroring the Assets restore endpoint semantics (404 missing / 409 active).
+incidentRouter.post('/:id/restore', authenticate, requireAdminAccess, validateParams(IdParamSchema), validateBody(RestoreEntitySchema), async (req: AuthRequest, res, next) => {
+  try {
+    const result = await incidentService.restore(req.params.id, req.userId, req.body?.reason);
     res.json(result);
   } catch (error) {
     next(error);

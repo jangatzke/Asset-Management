@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api';
 import { useI18n } from '../context/I18nContext';
+import { formatApiError } from '../utils/apiError';
 
 type Mode = 'login' | 'register';
 type PreAuthState = 'mfa_required' | 'mfa_enrollment_required' | 'password_change_required' | 'disabled' | null;
@@ -113,8 +114,7 @@ const Login = () => {
         redirectAfterLogin();
       }
     } catch (err: unknown) {
-      const maybeError = err as { response?: { data?: { error?: { message?: string }; message?: string } } };
-      setError(maybeError.response?.data?.error?.message || maybeError.response?.data?.message || t('login.requestFailed'));
+      setError(formatApiError(err, t('login.requestFailed'), t('common.referenceId')));
     } finally {
       setSubmitting(false);
     }

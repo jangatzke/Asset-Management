@@ -127,6 +127,56 @@ export class AuthorizationService {
     return (await this.getUserRoles(userId)).filter((role) => this.isRoleActive(role));
   }
 
+  /**
+   * Batched form of `getActiveRoles()` for many users: two bulk queries instead
+   * of two per user. Role mapping is identical (`mapAssignment`) so the result
+   * is semantically equivalent to calling `getActiveRoles()` per user.
+   */
+  async getActiveRolesForUsers(userIds: string[]): Promise<Map<string, EffectiveRoleAssignment[]>> {
+    const ids = Array.from(new Set(userIds.filter((id) => Boolean(id))));
+    const result = new Map<string, EffectiveRoleAssignment[]>();
+    if (!ids.length) return result;
+    const db = prisma as any;
+    const [directAssignments, userGroups] = await Promise.all([
+      db.userRole.findMany({
+        where: { userId: { in: ids } },
+        include: { role: { include: { rolePermissions: { include: { permission: true } } } } },
+      }),
+      db.userGroup.findMany({
+        where: { userId: { in: ids } },
+        include: { group: { include: { groupRoles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } } } } },
+      }),
+    ]);
+    for (const id of ids) result.set(id, []);
+    for (const assignment of directAssignments ?? []) {
+      const roles = result.get(assignment.userId);
+      if (roles) roles.push(this.mapAssignment(assignment, assignment.role, assignment.validFrom ?? null, assignment.validUntil ?? null));
+    }
+    for (const userGroup of userGroups ?? []) {
+      const roles = result.get(userGroup.userId);
+      if (!roles) continue;
+      for (const groupRole of userGroup.group?.groupRoles ?? []) {
+        roles.push(this.mapAssignment(groupRole, groupRole.role, groupRole.validFrom ?? null, groupRole.validUntil ?? null));
+      }
+    }
+    for (const [id, roles] of result) result.set(id, roles.filter((role) => this.isRoleActive(role)));
+    return result;
+  }
+
+  /**
+   * Batched permission check: returns the subset of `userIds` that hold
+   * `permission`. Uses the same active-role derivation as `can()`, so callers
+   * get identical authorization semantics with a single role-resolution pass.
+   */
+  async canBatch(userIds: string[], permission: PermissionName): Promise<Set<string>> {
+    const rolesByUser = await this.getActiveRolesForUsers(userIds);
+    const allowed = new Set<string>();
+    for (const [userId, roles] of rolesByUser) {
+      if (roles.some((role) => role.permissions.has(permission))) allowed.add(userId);
+    }
+    return allowed;
+  }
+
   async can(userId: string, permission: PermissionName): Promise<boolean> {
     const activeRoles = await this.getActiveRoles(userId);
     return activeRoles.some((role) => role.permissions.has(permission));

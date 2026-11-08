@@ -2,6 +2,7 @@ jest.mock('../config/database', () => {
   const prisma: any = {
     knowledgeArticle: {
       findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
       findFirst: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue({}),
     },
@@ -43,6 +44,53 @@ describe('KnowledgeService', () => {
         { tags: { has: 'patch' } },
       ],
     }));
+    // Defaults still page the filtered set (D1): page 1, limit 20, no skip.
+    expect(args.skip).toBe(0);
+    expect(args.take).toBe(20);
+    expect(mockPrisma.knowledgeArticle.count).toHaveBeenCalledWith({ where: args.where });
+  });
+
+  it('returns the locked envelope and pages with skip/take from page and limit', async () => {
+    mockPrisma.knowledgeArticle.findMany.mockResolvedValueOnce([
+      { id: 'article-2', title: 'Second page item' },
+      { id: 'article-3', title: 'Third page item' },
+    ]);
+    mockPrisma.knowledgeArticle.count.mockResolvedValueOnce(7);
+
+    const result = await service.list({ page: '2', limit: '2' });
+
+    const args = mockPrisma.knowledgeArticle.findMany.mock.calls[0][0];
+    expect(args.skip).toBe(2);
+    expect(args.take).toBe(2);
+    expect(args.orderBy).toEqual({ updatedAt: 'desc' });
+
+    // Locked envelope shape (assets/tickets/risks/controls/incidents).
+    expect(result).toEqual({
+      data: [
+        { id: 'article-2', title: 'Second page item' },
+        { id: 'article-3', title: 'Third page item' },
+      ],
+      pagination: { page: 2, limit: 2, total: 7, totalPages: 4 },
+    });
+  });
+
+  it('returns totalPages 0 and an empty page slice when the filter matches nothing', async () => {
+    mockPrisma.knowledgeArticle.findMany.mockResolvedValueOnce([]);
+    mockPrisma.knowledgeArticle.count.mockResolvedValueOnce(0);
+
+    const result = await service.list({ page: '1', limit: '20' });
+
+    expect(result).toEqual({
+      data: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+  });
+
+  it('treats non-numeric page/limit values as the documented defaults', async () => {
+    await service.list({ page: 'abc', limit: '0' });
+    const args = mockPrisma.knowledgeArticle.findMany.mock.calls[0][0];
+    expect(args.skip).toBe(0);
+    expect(args.take).toBe(20);
   });
 
   it('creates articles with a KB display id, defaults to draft status and audits the event', async () => {

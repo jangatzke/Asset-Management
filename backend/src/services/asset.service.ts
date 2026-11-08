@@ -6,6 +6,7 @@ import { nextDisplayId } from './displayId.service';
 import { recordCreateHistory, recordUpdateHistory, recordDeleteHistory, toHistoryData } from './entityHistory.service';
 import { authorizationService } from './authorization.service';
 import { serializeEntity, serializeEnvelope } from '../utils/dto';
+import { validateUserReferences } from './userReference.service';
 import type { ScopeConstraints } from './authorization.service';
 
 async function resolveOrganizationUnitScope(organizationUnitId: string): Promise<ScopeConstraints> {
@@ -29,19 +30,8 @@ async function resolveLocationScope(locationId: string): Promise<ScopeConstraint
 }
 
 // Owner/responsible fields reference active users (F-01/F-14 referential integrity).
-// Nullable relations: null is allowed (clearing the assignment), supplied IDs must exist and be active.
-async function validateAssetOwnerReferences(tx: any, refs: { technicalOperatorId?: string | null; businessOwnerId?: string | null; informationSecurityResponsibleId?: string | null }) {
-  const ids = [refs.technicalOperatorId, refs.businessOwnerId, refs.informationSecurityResponsibleId].filter((v): v is string => Boolean(v));
-  if (!ids.length) return refs;
-  const users = await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, isActive: true } });
-  const byId = new Map(users.map((u: any) => [u.id, u.isActive]));
-  for (const field of ['technicalOperatorId', 'businessOwnerId', 'informationSecurityResponsibleId'] as const) {
-    const id = refs[field];
-    if (id && !byId.has(id)) throw new AppError(`${field} references a user that does not exist`, 400);
-    if (id && byId.get(id) === false) throw new AppError(`${field} references an inactive user`, 409);
-  }
-  return refs;
-}
+// Nullable relations: null is allowed (clearing the assignment), supplied IDs must
+// exist and be active. Validation runs through the central userReference helper.
 
 // Lifecycle status transitions allowed (AST-030)
 const LIFECYCLE_TRANSITIONS: Record<string, string[]> = {
@@ -364,7 +354,11 @@ export class AssetService {
 
     const asset = await prisma.$transaction(async (tx) => {
       // Owner/responsible person validation (referential integrity)
-      await validateAssetOwnerReferences(tx, data);
+      await validateUserReferences(tx, {
+        technicalOperatorId: data.technicalOperatorId,
+        businessOwnerId: data.businessOwnerId,
+        informationSecurityResponsibleId: data.informationSecurityResponsibleId,
+      });
       // Generate sequential display ID (ASSET-0001, ASSET-0002, ...)
       const displayId = await nextDisplayId(tx, 'Asset');
       const inventoryNumber = await this.allocateInventoryNumber(tx, data.assetTypeId, data.assetSubtypeId, data.inventoryNumber);
@@ -554,8 +548,14 @@ export class AssetService {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Owner/responsible person validation (referential integrity)
-      await validateAssetOwnerReferences(tx, data);
+      // Owner/responsible person validation (referential integrity).
+      // Only fields present on the payload are checked; omitted fields keep their
+      // current value and explicit nulls clear the assignment.
+      await validateUserReferences(tx, {
+        technicalOperatorId: data.technicalOperatorId,
+        businessOwnerId: data.businessOwnerId,
+        informationSecurityResponsibleId: data.informationSecurityResponsibleId,
+      });
       // Audit log for critical field changes
       if (updatedBy && (data.criticality !== undefined || data.lifecycleStatus !== undefined)) {
         await auditService.logEventStandalone(prisma, {

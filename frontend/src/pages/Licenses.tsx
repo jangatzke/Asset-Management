@@ -13,6 +13,7 @@ import { DataTableShell } from '../components/DataTableShell';
 import { exportCsv } from '../utils/csvExport';
 import { useListQuery } from '../hooks/useListQuery';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { formatApiError } from '../utils/apiError';
 
 interface License {
   id: string;
@@ -118,7 +119,7 @@ const Licenses = () => {
       }));
         setLicenses(normalized);
       },
-      onError: (err: any) => { setError(err.response?.data?.error?.message || t('licenses.loadError')); },
+      onError: (err: unknown) => { setError(formatApiError(err, t('licenses.loadError'), t('common.referenceId'))); },
       onSettled: () => setLoading(false),
     });
   }, [runLicenseListQuery, t]);
@@ -210,8 +211,8 @@ const Licenses = () => {
       form.resetForm();
       setEditingId(null);
       await loadLicenses();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.saveError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('common.saveError'), t('common.referenceId')));
     } finally { setSaving(false); }
   };
 
@@ -246,8 +247,8 @@ const Licenses = () => {
     try {
       await licenseApi.delete(id);
       await loadLicenses();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || t('common.deleteError'));
+    } catch (err: unknown) {
+      setError(formatApiError(err, t('common.deleteError'), t('common.referenceId')));
     }
   };
 

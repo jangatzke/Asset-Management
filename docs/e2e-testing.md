@@ -4,7 +4,20 @@
 
 This document is the implementation source of truth for the next E2E stage. It specifies **only** the work required to introduce five database-backed, browser-to-database workflows. It does not implement tests, scripts, CI configuration, database schema changes, or product behavior.
 
-> **Status update (2026-10-30):** This plan remains unimplemented. The only E2E specs in the repository are still the three mocked browser-contract specs under [`frontend/e2e`](../frontend/e2e) (`core-workflows.spec.ts`, `nis2-reporting.spec.ts`, `tickets.spec.ts`); no real-E2E config, scripts (`e2e:real`, `e2e:db:reset`, …), E2E seed, or `real-e2e` CI job exists. [`frontend/package.json`](../frontend/package.json:12) exposes only `e2e`, `e2e:ui`, and `e2e:report`; [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) contains no Playwright job. Line references in the baseline section below were re-verified against current code on 2026-10-30.
+> **Status update (2026-11-07):** The **mocked browser-contract suite is now wired into CI** and stabilized; the full-stack real-E2E plan in the sections below **remains unimplemented and deferred**.
+
+## Decision record: mocked suite in CI (2026-11-07)
+
+Improvement #4 was implemented as CI wiring + stabilization of the existing mocked suite, not as the full-stack real-E2E stage:
+
+- **Strategy (mock).** [`playwright.config.ts`](../frontend/playwright.config.ts) keeps its `webServer` starting **only** the Vite dev server (port `3100`, `PLAYWRIGHT_PORT` override). No Express backend, no database, no `real-e2e` orchestration. Every spec intercepts `/api/v1` with `page.route()` and per-page fixtures, so tests are isolated and parallel-safe.
+- **CI.** The `frontend-tests` job in [`ci.yml`](../.github/workflows/ci.yml) now runs, after the existing Vitest step: `npm run e2e:typecheck` (`tsc --noEmit -p tsconfig.playwright.json`), `npm run e2e:install` (`playwright install --with-deps chromium`), and `npm run e2e:ci` (`playwright test --reporter=github,list,html`, `CI=true`, Chromium only). Playwright report/traces (`frontend/playwright-report/`, `frontend/test-results/`) are uploaded as the `playwright-e2e-report` artifact on every run (`if: always()`).
+- **Scripts.** [`frontend/package.json`](../frontend/package.json:13) now exposes `e2e`, `e2e:ci`, `e2e:list`, `e2e:typecheck`, `e2e:install`, `e2e:ui`, and `e2e:report`.
+- **TypeScript.** [`tsconfig.playwright.json`](../frontend/tsconfig.playwright.json) was switched from `module/moduleResolution: Node16` to `module: ESNext` + `moduleResolution: Bundler`, removing the TS2835 cascade and the implicit-`any` fixture errors that blocked typechecking the older specs.
+- **Stabilization.** Specs now use shared typed fixtures ([`fixtures.ts`](../frontend/e2e/fixtures.ts)), stable selectors (roles, `data-testid`, section-scoped locators) instead of Tailwind classes, and no fixed sleep/forced-click timeouts. The four spec files are `core-workflows.spec.ts`, `nis2-reporting.spec.ts`, `tickets.spec.ts`, and `phase3.regressions.spec.ts`.
+- **Real suite remains deferred.** The dedicated disposable E2E database, E2E seed, `e2e:real` scripts, and `real-e2e` CI job described below are still not implemented. The mocked suite must stay clearly labeled as browser-contract coverage: it is not evidence that a request authorizes, persists, or transitions correctly.
+
+Line references in the baseline section below were verified against current code on 2026-11-07.
 
 The target path for each test is:
 
@@ -32,15 +45,16 @@ flowchart LR
 
 The existing mocked journeys remain fast browser-contract coverage and must stay clearly labeled as mocked. They are not evidence that a request authorizes, persists, or transitions correctly. The new real-E2E suite complements rather than replaces backend unit/integration tests.
 
-## Mocked browser-contract specs (current)
+## Mocked browser-contract specs (current, CI-wired)
 
-All specs under [`frontend/e2e`](../frontend/e2e) run against the Vite dev server only ([`playwright.config.ts`](../frontend/playwright.config.ts) starts Vite on port `3100`) and intercept every `/api/v1` call with [`page.route()`](../frontend/e2e/fixtures.ts) fulfillment from the shared [`fixtures.ts`](../frontend/e2e/fixtures.ts) module (synthetic `system_admin` session, `paginated()` envelope helper, ticket/asset fixtures). They are browser-contract coverage, not persistence evidence:
+All specs under [`frontend/e2e`](../frontend/e2e) run against the Vite dev server only ([`playwright.config.ts`](../frontend/playwright.config.ts) starts Vite on port `3100`) and intercept every `/api/v1` call with [`page.route()`](../frontend/e2e/fixtures.ts) fulfillment from the shared [`fixtures.ts`](../frontend/e2e/fixtures.ts) module (synthetic `system_admin` session, `paginated()` envelope helper, ticket/asset fixtures). They are browser-contract coverage, not persistence evidence. The suite runs in CI (see the decision record above) as `npm run e2e:ci` after the Vitest step.
 
 | Spec | Workflows covered |
 | --- | --- |
 | [`core-workflows.spec.ts`](../frontend/e2e/core-workflows.spec.ts) | Login → dashboard navigation; Action Center → incident detail routing; incident NIS2 assessment save; ISMS operations training workspace entry. |
-| [`nis2-reporting.spec.ts`](../frontend/e2e/nis2-reporting.spec.ts) | NIS2 Art. 23 reporting: mark NIS2-relevant → 24h/30d deadline rendering incl. overdue visualization → early warning → 72h notification → final report; severity badge and overdue-tag suppression once the final report is submitted. |
-| [`tickets.spec.ts`](../frontend/e2e/tickets.spec.ts) | Ticket creation (requester set automatically, assignee/manager optional), ITIL status transitions per [`ticketTransitions.ts`](../shared/src/ticketTransitions.ts) incl. the `fulfilled → new` reopen, assignee assignment, multi-asset TicketAsset linking, and the inactive-user validation error surfaced to the user. |
+| [`nis2-reporting.spec.ts`](../frontend/e2e/nis2-reporting.spec.ts) | NIS2 Art. 23 reporting: mark NIS2-relevant → 24h/30d deadline rendering incl. overdue visualization → early warning → 72h notification → final report; severity badge and overdue-tag suppression once the final report is submitted. Uses stable `data-testid` hooks (`deadline-row-*`, `deadline-status-*`, `nis2-severity`, `nis2-report-deadline`, `nis2-final-report-due`, `nis2-reported-at`) added to [`IncidentDetail.tsx`](../frontend/src/pages/IncidentDetail.tsx:108). |
+| [`tickets.spec.ts`](../frontend/e2e/tickets.spec.ts) | Ticket creation (requester set automatically, assignee/manager optional), ITIL status transitions per [`ticketTransitions.ts`](../shared/src/ticketTransitions.ts) incl. the `fulfilled → new` reopen, assignee assignment, multi-asset TicketAsset linking, and the inactive-user validation error surfaced to the user. User picker mocks the active-owner endpoint `/users/owners` and the label format `${firstName} ${lastName} (${email})`. |
+| [`phase3.regressions.spec.ts`](../frontend/e2e/phase3.regressions.spec.ts) | Admin pages render without secret leakage (e-mail gateway, OIDC, SLA escalation), assets bulk-archive toolbar + confirm dialog, and the double-submit/401-refresh idempotency-key regression (exactly two POSTs, one shared `Idempotency-Key`). |
 
 ## Repository baseline and constraints
 

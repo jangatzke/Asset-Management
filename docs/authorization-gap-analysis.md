@@ -592,16 +592,43 @@ async createRelation(assetId: string, relationData: {...}, userId?: string) {
 - The implementation follows the same pattern as the reference implementation in the risk service.
 - All three service methods now receive the authenticated user's ID, enabling their target scope authorization checks to execute properly.
 
-### 11.7 Recommended Follow-up
+### 11.7 Scoped-Write Authorization Tests (implemented)
 
-1. **Add integration tests** — Create test cases in [`backend/src/__tests__/authorization.integration.test.ts`](backend/src/__tests__/authorization.integration.test.ts) that verify:
-   - User with scope-limited write cannot create assets outside their scope
-   - User with scope-limited write cannot move assets to scopes outside their authorization
-   - User cannot create relations to target assets outside their scope
+**Status:** ✅ Implemented — negative/positive regression coverage for scoped writes now exists.
 
-2. **Audit log enhancement** — Consider logging scope change events in the audit log for compliance tracking.
+Two complementary suites were added (no middleware or authorization behaviour was changed to make them pass):
 
-3. **API documentation update** — Update the OpenAPI spec to document the new authorization requirements for relation creation.
+| Suite | Layer | Scope |
+|-------|-------|-------|
+| [`backend/src/__tests__/authorization.scoped-writes.routes.test.ts`](backend/src/__tests__/authorization.scoped-writes.routes.test.ts) | Supertest against the real Express app — real `authenticate`, `authorize`, `entityAuth`, `authorizationService`, `validation`, `errorHandler`, `idempotency`, `requireScopes` middleware. Only handler collaborators (`asset.service`, `ticket.service`, `risk.service`, `control.service`, `document.service`, history/audit services) are mocked. | End-to-end middleware chain, HTTP status and error shape. |
+| [`backend/src/__tests__/authorization.scoped-writes.services.test.ts`](backend/src/__tests__/authorization.scoped-writes.services.test.ts) | Real service classes (`AssetService`, `RiskService`, `ControlService`) plus the real `authorizationService`; mocked Prisma client and persistence collaborators. | Service-layer gate ordering and exact denied messages. |
+
+**Covered write routes (negative + positive control paths):**
+
+- Assets: `POST /assets`, `PUT /assets/:id`, `DELETE /assets/:id` (archive), `POST /assets/:id/relations` — service-layer coverage additionally exercises `AssetService.create`, `update`, `createRelation`.
+- Tickets: `POST /tickets`, `PUT /tickets/:id`, transition route — including fail-closed behaviour for tickets without a linked asset under a scoped role.
+- Risks: `POST /risks`, `PUT /risks/:id`, `DELETE /risks/:id` — service-layer coverage additionally exercises `RiskService.create` and `update` (entity gate + OU-move gate).
+- Controls: `POST /controls`, `PUT /controls/:id`, `DELETE /controls/:id`, `PATCH /soa/items/:itemId`, `POST /implementations` — service-layer coverage additionally exercises `ControlService.createImplementation` and catalog-only fail-closed behaviour.
+- ISMS documents: document create, document version update, transition (characterization of the 500-mapping gap).
+
+**Negative paths asserted:** missing permission (`*` role with no write permission), wrong permission (e.g. `assets.read` or a category wildcard `assets:*` that does not satisfy the exact `assets.write` scope), missing entity authorization, cross-entity/out-of-scope target OU or legal entity, unknown user (no role rows), inactive assignment (expired `validUntil`), authenticated user with no roles, and missing bearer/pre-auth token (401).
+
+**Positive control paths:** every denial case has a paired allow case that asserts the expected 2xx HTTP status on the route suite and, on the service suite, a downstream marker rejection (transaction, display-id allocation, relation write, or implementation insert) proving the authorization gate was passed and execution proceeded.
+
+**Characterization (documented gaps, not fixed):**
+
+- The entity write middleware (`authorizeEntityWrite`) ignores `user.isActive`; authorization uses role validity only.
+- `authorizeEntity` maps unexpected (non-403) errors to 500, while `requireEntityPermission` preserves 404 — both are pinned by tests.
+- A category wildcard API scope (`assets:*`) does not satisfy the exact required scope (`assets.write`).
+- Clearing `organizationUnitId`/`locationId` on update skips the scope gate (no target scope to check).
+- Scoped roles fail closed for entities without an authorization-scope linkage (ticket without linked asset, catalog-only control, document transition).
+
+**Remaining follow-up:**
+
+1. **Audit log enhancement** — consider logging scope change events in the audit log for compliance tracking.
+2. **API documentation update** — document the scoped-write authorization requirements for relation creation and the fail-closed cases above.
+
+**Verified:** both new suites pass (76 tests); affected existing suites [`authorization.integration.test.ts`](backend/src/__tests__/authorization.integration.test.ts) and [`asset.crud.test.ts`](backend/src/__tests__/asset.crud.test.ts) pass unchanged (87 tests).
 # Action Center P1: Phase-6 scoped-role filtering decision (2026-08-09)
 
 ## Decision

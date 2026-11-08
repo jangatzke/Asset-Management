@@ -2,11 +2,13 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useI18n } from '../context/I18nContext';
 import { useAuthStore } from '../store/auth';
+import { PaginationControls } from '../components/PaginationControls';
 import { knowledgeApi, type KnowledgeArticleCategory, type KnowledgeArticleDetail, type KnowledgeArticleInput, type KnowledgeArticleSummary } from '../services/api';
-import { extractApiError } from '../utils/apiError';
+import { formatApiError } from '../utils/apiError';
 
 const card = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
 const input = 'mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white';
+const PAGE_SIZE = 20;
 
 const CATEGORIES: KnowledgeArticleCategory[] = ['general', 'incident', 'risk', 'control', 'supplier', 'nis2', 'service'];
 const STATUSES = ['draft', 'published'] as const;
@@ -21,6 +23,8 @@ export default function KnowledgeBase() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<{ total: number; totalPages: number }>({ total: 0, totalPages: 1 });
   // Seed from ?search= so the global search "show all" deep-link works.
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
@@ -41,18 +45,26 @@ export default function KnowledgeBase() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // D1 envelope: `{ data, pagination }`; the route also sets X-Total-Count.
       const res = await knowledgeApi.list({
+        page,
+        limit: PAGE_SIZE,
         search: search.trim() || undefined,
         category: category || undefined,
         status: status || undefined,
       });
-      setArticles(res.data);
+      setArticles(res.data?.data ?? []);
+      const paginationData = res.data?.pagination;
+      setPagination({
+        total: paginationData?.total ?? res.data?.total ?? 0,
+        totalPages: paginationData?.totalPages ?? res.data?.totalPages ?? 1,
+      });
     } catch (caught) {
-      setError(extractApiError(caught, t('knowledge.loadError')).message);
+      setError(formatApiError(caught, t('knowledge.loadError'), t('common.referenceId')));
     } finally {
       setLoading(false);
     }
-  }, [search, category, status, t]);
+  }, [page, search, category, status, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -62,7 +74,7 @@ export default function KnowledgeBase() {
       const res = await knowledgeApi.getById(id);
       setDetail(res.data);
     } catch (caught) {
-      setError(extractApiError(caught, t('knowledge.loadError')).message);
+      setError(formatApiError(caught, t('knowledge.loadError'), t('common.referenceId')));
     }
   };
 
@@ -90,7 +102,7 @@ export default function KnowledgeBase() {
       setDetail(null);
       setFormOpen(true);
     } catch (caught) {
-      setError(extractApiError(caught, t('knowledge.loadError')).message);
+      setError(formatApiError(caught, t('knowledge.loadError'), t('common.referenceId')));
     }
   };
 
@@ -117,7 +129,7 @@ export default function KnowledgeBase() {
       setFormOpen(false);
       await load();
     } catch (caught) {
-      setError(extractApiError(caught, t('knowledge.saveError')).message);
+      setError(formatApiError(caught, t('knowledge.saveError'), t('common.referenceId')));
     } finally {
       setSaving(false);
     }
@@ -131,7 +143,7 @@ export default function KnowledgeBase() {
       setDetail(null);
       await load();
     } catch (caught) {
-      setError(extractApiError(caught, t('common.deleteError')).message);
+      setError(formatApiError(caught, t('common.deleteError'), t('common.referenceId')));
     }
   };
 
@@ -153,11 +165,11 @@ export default function KnowledgeBase() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="block flex-1 text-sm font-medium">
             {t('common.search')}
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('knowledge.searchPlaceholder')} className={input} />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder={t('knowledge.searchPlaceholder')} className={input} />
           </label>
           <label className="block text-sm font-medium">
             {t('knowledge.fields.category')}
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${input} min-w-40`}>
+            <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} className={`${input} min-w-40`}>
               <option value="">{t('common.all')}</option>
               {CATEGORIES.map((value) => (
                 <option key={value} value={value}>{t(`knowledge.categories.${value}`)}</option>
@@ -166,7 +178,7 @@ export default function KnowledgeBase() {
           </label>
           <label className="block text-sm font-medium">
             {t('common.status')}
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className={`${input} min-w-32`}>
+            <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className={`${input} min-w-32`}>
               <option value="">{t('common.allStatuses')}</option>
               {STATUSES.map((value) => (
                 <option key={value} value={value}>{t(`knowledge.statuses.${value}`)}</option>
@@ -215,6 +227,7 @@ export default function KnowledgeBase() {
             ))}
           </ul>
         )}
+        <PaginationControls page={page} totalPages={pagination.totalPages} onPageChange={setPage} />
       </section>
 
       {/* Read view overlay (counts a view per open) */}
