@@ -17,8 +17,12 @@ COPY package.json package-lock.json ./
 COPY shared/package.json ./shared/
 COPY backend/package.json ./backend/
 
-# Install all workspace dependencies
-RUN npm ci
+# Install all workspace dependencies.
+# --ignore-scripts is REQUIRED here: the root postinstall runs `npm run db:generate`,
+# which needs DATABASE_URL and backend/prisma/ — neither exists in this stage yet.
+# Prisma client generation happens explicitly later (build + production stages),
+# once the schema and a placeholder DATABASE_URL are available.
+RUN npm ci --ignore-scripts
 
 # ---------- Stage 2: Build ----------
 FROM node:22-alpine AS build
