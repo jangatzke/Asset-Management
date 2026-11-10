@@ -23,6 +23,7 @@
     "openapi:check": "node scripts/check-openapi-coverage.js"
   },
   "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "7.0.0",
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",

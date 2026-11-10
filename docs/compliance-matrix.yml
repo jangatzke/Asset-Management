@@ -845,7 +845,9 @@
     - backend/src/services/asset.service.ts (confirmAssetResponsibility setzt Owner-FK und schreibt AssetLifecycleLog)
     - backend/prisma/schema.prisma (technicalOperator/businessOwner/informationSecurityResponsible als User-Relationen)
     - backend/prisma/migrations/20261026100000_user_owner_relations/migration.sql
-  tests: []
+  tests:
+    - backend/src/__tests__/asset.crud.test.ts
+    - backend/src/__tests__/user-reference.service.test.ts
   gaps: []
   evidence:
     - Bestätigung über /assets/:id/confirm-responsibility mit Rollenwahl owner/operator/security_responsible.

@@ -814,4 +814,68 @@ describe('getLifecycleLogs', () => {
       expect(createCall.data.displayId).toBe('ASSET-0001');
     });
   });
+
+  // ==========================================
+  // AST-001: Confirm Asset Responsibility
+  // ==========================================
+
+  describe('confirmResponsibility', () => {
+    it('should set business owner FK and log responsibility_owner_confirmed', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
+      mockPrisma.asset.update.mockResolvedValue(createdAsset);
+      mockPrisma.assetLifecycleLog.create.mockResolvedValue({});
+
+      const result = await assetService.confirmResponsibility('asset-123', 'user-456', 'owner');
+
+      expect(result).toEqual({ success: true, role: 'owner', userId: 'user-456' });
+      expect(mockPrisma.asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-123' },
+        data: { businessOwnerId: 'user-456' },
+      });
+      expect(mockPrisma.assetLifecycleLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          assetId: 'asset-123',
+          newStatus: 'responsibility_owner_confirmed',
+          changedByUserId: 'user-456',
+        }),
+      });
+    });
+
+    it('should set technical operator FK for role operator', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
+      mockPrisma.asset.update.mockResolvedValue(createdAsset);
+      mockPrisma.assetLifecycleLog.create.mockResolvedValue({});
+
+      await assetService.confirmResponsibility('asset-123', 'user-456', 'operator');
+
+      expect(mockPrisma.asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-123' },
+        data: { technicalOperatorId: 'user-456' },
+      });
+      expect(mockPrisma.assetLifecycleLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ newStatus: 'responsibility_operator_confirmed' }),
+      });
+    });
+
+    it('should set information security responsible FK for role security_responsible', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(createdAsset);
+      mockPrisma.asset.update.mockResolvedValue(createdAsset);
+      mockPrisma.assetLifecycleLog.create.mockResolvedValue({});
+
+      await assetService.confirmResponsibility('asset-123', 'user-456', 'security_responsible');
+
+      expect(mockPrisma.asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-123' },
+        data: { informationSecurityResponsibleId: 'user-456' },
+      });
+    });
+
+    it('should throw 404 when asset does not exist', async () => {
+      mockPrisma.asset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        assetService.confirmResponsibility('missing-asset', 'user-456', 'owner'),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+  });
 });

@@ -90,47 +90,47 @@ model User {
   assessedRisks             Risk[]  @relation("RiskAssessor")
 
   // ISMS/document/governance user references (F-01/F-14 referential integrity)
-  authoredTicketComments            TicketComment[]                   @relation("TicketCommentAuthor")
-  ownedDocuments                    Document[]                        @relation("DocumentOwner")
-  reviewedDocuments                 Document[]                        @relation("DocumentReviewer")
-  approvedDocuments                 Document[]                        @relation("DocumentApprover")
-  ownedPolicyDocuments              PolicyDocument[]                  @relation("PolicyDocumentOwner")
-  reviewedPolicyDocuments           PolicyDocument[]                  @relation("PolicyDocumentReviewer")
-  approvedPolicyDocuments           PolicyDocument[]                  @relation("PolicyDocumentApprover")
-  authoredDocumentVersions          DocumentVersion[]                 @relation("DocumentVersionAuthor")
-  reviewedDocumentVersions          DocumentVersion[]                 @relation("DocumentVersionReviewer")
-  approvedDocumentVersions          DocumentVersion[]                 @relation("DocumentVersionApprover")
-  documentAcknowledgements          DocumentAcknowledgement[]         @relation("DocumentAcknowledgementUser")
-  documentReviews                   DocumentReview[]                  @relation("DocumentReviewReviewer")
-  submittedSoAs                     StatementOfApplicability[]        @relation("SoASubmittedBy")
-  approvedSoAs                      StatementOfApplicability[]        @relation("SoAApprovedBy")
-  rejectedSoAs                      StatementOfApplicability[]        @relation("SoARejectedBy")
-  soaApprovals                      SoAApproval[]                     @relation("SoAApprovalApprover")
-  riskAssessmentVersions            RiskAssessmentVersion[]           @relation("RiskAssessmentVersionAssessor")
-  riskControlAssessments            RiskControlAssessment[]           @relation("RiskControlAssessmentAssessor")
-  responsibleRiskTreatments         RiskTreatment[]                   @relation("RiskTreatmentResponsible")
-  approvedRiskTreatments            RiskTreatment[]                   @relation("RiskTreatmentApprovedBy")
-  responsibleTreatmentActions       TreatmentAction[]                 @relation("TreatmentActionResponsible")
-  approvedRiskAcceptances           RiskAcceptance[]                  @relation("RiskAcceptanceApprovedBy")
-  riskTreatmentApprovals            RiskTreatmentApproval[]           @relation("RiskTreatmentApprovalApprover")
+  authoredTicketComments            TicketComment[]                    @relation("TicketCommentAuthor")
+  ownedDocuments                    Document[]                         @relation("DocumentOwner")
+  reviewedDocuments                 Document[]                         @relation("DocumentReviewer")
+  approvedDocuments                 Document[]                         @relation("DocumentApprover")
+  ownedPolicyDocuments              PolicyDocument[]                   @relation("PolicyDocumentOwner")
+  reviewedPolicyDocuments           PolicyDocument[]                   @relation("PolicyDocumentReviewer")
+  approvedPolicyDocuments           PolicyDocument[]                   @relation("PolicyDocumentApprover")
+  authoredDocumentVersions          DocumentVersion[]                  @relation("DocumentVersionAuthor")
+  reviewedDocumentVersions          DocumentVersion[]                  @relation("DocumentVersionReviewer")
+  approvedDocumentVersions          DocumentVersion[]                  @relation("DocumentVersionApprover")
+  documentAcknowledgements          DocumentAcknowledgement[]          @relation("DocumentAcknowledgementUser")
+  documentReviews                   DocumentReview[]                   @relation("DocumentReviewReviewer")
+  submittedSoAs                     StatementOfApplicability[]         @relation("SoASubmittedBy")
+  approvedSoAs                      StatementOfApplicability[]         @relation("SoAApprovedBy")
+  rejectedSoAs                      StatementOfApplicability[]         @relation("SoARejectedBy")
+  soaApprovals                      SoAApproval[]                      @relation("SoAApprovalApprover")
+  riskAssessmentVersions            RiskAssessmentVersion[]            @relation("RiskAssessmentVersionAssessor")
+  riskControlAssessments            RiskControlAssessment[]            @relation("RiskControlAssessmentAssessor")
+  responsibleRiskTreatments         RiskTreatment[]                    @relation("RiskTreatmentResponsible")
+  approvedRiskTreatments            RiskTreatment[]                    @relation("RiskTreatmentApprovedBy")
+  responsibleTreatmentActions       TreatmentAction[]                  @relation("TreatmentActionResponsible")
+  approvedRiskAcceptances           RiskAcceptance[]                   @relation("RiskAcceptanceApprovedBy")
+  riskTreatmentApprovals            RiskTreatmentApproval[]            @relation("RiskTreatmentApprovalApprover")
   riskTreatmentEffectivenessReviews RiskTreatmentEffectivenessReview[] @relation("RiskTreatmentEffectivenessReviewer")
-  chairedManagementReviews          ManagementReview[]                @relation("ManagementReviewChair")
-  approvedManagementReviews         ManagementReview[]                @relation("ManagementReviewApprovedBy")
-  ownedManagementReviewActions      ManagementReviewAction[]          @relation("ManagementReviewActionOwner")
-  ownedSecurityObjectives           SecurityObjective[]               @relation("SecurityObjectiveOwner")
-  ownedMetricDefinitions            MetricDefinition[]                @relation("MetricDefinitionOwner")
-  ownedBias                         BusinessImpactAnalysis[]          @relation("BusinessImpactAnalysisOwner")
-  ownedBcps                         BusinessContinuityPlan[]          @relation("BusinessContinuityPlanOwner")
-  approvedBcps                      BusinessContinuityPlan[]          @relation("BusinessContinuityPlanApprovedBy")
-  ownedAuditPrograms                AuditProgram[]                    @relation("AuditProgramOwner")
-  approvedAuditPlans                AuditPlan[]                       @relation("AuditPlanApprovedBy")
-  ownedAuditFindings                AuditFinding[]                    @relation("AuditFindingOwner")
-  ownedCorrectiveActions            CorrectiveAction[]                @relation("CorrectiveActionOwner")
-  ownedTrainingCourses              TrainingCourse[]                  @relation("TrainingCourseOwner")
-  trainingAssignments               TrainingAssignment[]              @relation("TrainingAssignmentUser")
-  assignedTrainingAssignments       TrainingAssignment[]              @relation("TrainingAssignmentAssignedBy")
-  trainingCompletions               TrainingCompletion[]              @relation("TrainingCompletionUser")
-  trainingAcknowledgements          TrainingAcknowledgement[]         @relation("TrainingAcknowledgementUser")
+  chairedManagementReviews          ManagementReview[]                 @relation("ManagementReviewChair")
+  approvedManagementReviews         ManagementReview[]                 @relation("ManagementReviewApprovedBy")
+  ownedManagementReviewActions      ManagementReviewAction[]           @relation("ManagementReviewActionOwner")
+  ownedSecurityObjectives           SecurityObjective[]                @relation("SecurityObjectiveOwner")
+  ownedMetricDefinitions            MetricDefinition[]                 @relation("MetricDefinitionOwner")
+  ownedBias                         BusinessImpactAnalysis[]           @relation("BusinessImpactAnalysisOwner")
+  ownedBcps                         BusinessContinuityPlan[]           @relation("BusinessContinuityPlanOwner")
+  approvedBcps                      BusinessContinuityPlan[]           @relation("BusinessContinuityPlanApprovedBy")
+  ownedAuditPrograms                AuditProgram[]                     @relation("AuditProgramOwner")
+  approvedAuditPlans                AuditPlan[]                        @relation("AuditPlanApprovedBy")
+  ownedAuditFindings                AuditFinding[]                     @relation("AuditFindingOwner")
+  ownedCorrectiveActions            CorrectiveAction[]                 @relation("CorrectiveActionOwner")
+  ownedTrainingCourses              TrainingCourse[]                   @relation("TrainingCourseOwner")
+  trainingAssignments               TrainingAssignment[]               @relation("TrainingAssignmentUser")
+  assignedTrainingAssignments       TrainingAssignment[]               @relation("TrainingAssignmentAssignedBy")
+  trainingCompletions               TrainingCompletion[]               @relation("TrainingCompletionUser")
+  trainingAcknowledgements          TrainingAcknowledgement[]          @relation("TrainingAcknowledgementUser")
 
   @@index([oidcId, oidcProvider])
   @@index([activeNavigationViewId])
@@ -1244,9 +1244,9 @@ model RiskAcceptance {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  treatment   RiskTreatment         @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
-  assessment  RiskAssessmentVersion @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
-  approvedByUser User?               @relation("RiskAcceptanceApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  treatment      RiskTreatment         @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  assessment     RiskAssessmentVersion @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  approvedByUser User?                 @relation("RiskAcceptanceApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
 
   @@index([riskId])
   @@index([assessmentId])
@@ -1477,10 +1477,10 @@ model Document {
   createdBy          String?
   updatedBy          String?
 
-  owner         User? @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  reviewer      User? @relation("DocumentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  approver      User? @relation("DocumentApprover", fields: [approverId], references: [id], onDelete: SetNull)
-  assetLinks    AssetDocument[]
+  owner      User?           @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewer   User?           @relation("DocumentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  approver   User?           @relation("DocumentApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  assetLinks AssetDocument[]
 
   @@index([ownerId])
   @@index([reviewerId])
@@ -2302,9 +2302,9 @@ model PolicyDocument {
   createdBy          String?
   updatedBy          String?
 
-  owner         User @relation("PolicyDocumentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  reviewer      User? @relation("PolicyDocumentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  approver      User? @relation("PolicyDocumentApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  owner    User  @relation("PolicyDocumentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  reviewer User? @relation("PolicyDocumentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  approver User? @relation("PolicyDocumentApprover", fields: [approverId], references: [id], onDelete: SetNull)
 
   versions         DocumentVersion[]
   acknowledgements DocumentAcknowledgement[]
@@ -2532,8 +2532,8 @@ model BusinessContinuityPlan {
   createdBy          String?
   updatedBy          String?
 
-  owner      User  @relation("BusinessContinuityPlanOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  approver   User? @relation("BusinessContinuityPlanApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  owner    User  @relation("BusinessContinuityPlanOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  approver User? @relation("BusinessContinuityPlanApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
 
   @@index([biaId])
   @@index([nextTestDate])
@@ -2729,7 +2729,7 @@ model TrainingAssignment {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  user User @relation("TrainingAssignmentUser", fields: [userId], references: [id], onDelete: Restrict)
+  user     User  @relation("TrainingAssignmentUser", fields: [userId], references: [id], onDelete: Restrict)
   assigner User? @relation("TrainingAssignmentAssignedBy", fields: [assignedBy], references: [id], onDelete: SetNull)
 
   @@unique([courseId, userId, assignedAt])

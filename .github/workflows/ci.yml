@@ -433,7 +433,12 @@ jobs:
           fi
 
       - name: Generate SBOM (CycloneDX)
-        run: npx @cyclonedx/cyclonedx-npm --output-format JSON --output-file sbom.json
+        # Use the pinned devDependency from package.json/package-lock.json so CI and
+        # local runs use the identical version without a runtime registry fetch.
+        # --ignore-npm-errors: the tool shells out to `npm ls`, which exits non-zero
+        # on this repo's pre-existing overridden resolutions (ajv/qs/@types/node);
+        # SBOM content is unaffected.
+        run: npx --no-install @cyclonedx/cyclonedx-npm --ignore-npm-errors --output-format JSON --output-file sbom.json
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v6
@@ -470,7 +475,8 @@ jobs:
 
       - name: Run Trivy scan
         if: steps.dockerfile-check.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@master
+        # Pinned to the latest stable release (signed tag). Update via Renovate, not @master.
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: asset-mgmt-test:latest
           format: 'sarif'

@@ -78,10 +78,15 @@ test.describe('NIS2 incident reporting workflow', () => {
     await expect(page.getByText('(overdue)', { exact: true })).toHaveCount(2);
 
     // Deadline rows visualize state: the 24h deadline is overdue (red chip),
-    // the 30d final-report deadline is still pending (default chip).
+    // the 30d final-report deadline is still pending (default chip). The design
+    // system rework replaced raw Tailwind palette classes with semantic status
+    // tokens (DEADLINE_TONE in styles/severity.ts): overdue now renders as
+    // `bg-status-critical-bg`, so the class assertion checks the token instead
+    // of the old literal color — the visual-intent check (overdue = critical)
+    // is unchanged.
     const earlyWarningStatus = page.getByTestId('deadline-status-early_warning_24h');
     await expect(earlyWarningStatus).toHaveText('pending');
-    await expect(earlyWarningStatus).toHaveClass(/bg-red-100/);
+    await expect(earlyWarningStatus).toHaveClass(/bg-status-critical-bg/);
     const finalReportStatus = page.getByTestId('deadline-status-monthly_final_report');
     await expect(finalReportStatus).toHaveText('pending');
     await expect(finalReportStatus).toHaveClass(/bg-primary-100/);

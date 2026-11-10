@@ -128,10 +128,9 @@ test.describe('ticket workflow', () => {
     await expect(page.getByRole('heading', { name: /TKT-E2E-001/ })).toBeVisible();
     await expect(page.getByText('Unassigned')).toBeVisible();
 
-    // Section-scoped locators: the Assignment/Asset-context headings own their
-    // respective EntityPicker in TicketDetail.tsx.
+    // Section-scoped locators: the Assignment heading owns its EntityPicker in
+    // TicketDetail.tsx (Details tab, active by default).
     const assignmentSection = page.getByRole('heading', { name: 'Assignment' }).locator('..');
-    const assetSection = page.getByRole('heading', { name: 'Asset context' }).locator('..');
 
     // Assignee EntityPicker: search, pick the user, then assign.
     await assignmentSection.getByRole('combobox').fill('jane');
@@ -142,9 +141,16 @@ test.describe('ticket workflow', () => {
     await expect(assignmentSection.getByText('Unassigned')).toHaveCount(0);
     expect(postedAssigneeId).toBe(janeFix.id);
 
-    // Asset EntityPicker (multiple): link both assets to the ticket. The
-    // multi-select keeps its dropdown open, so close it via Escape (the picker
-    // keydown handler) before clicking the Attach button.
+    // Asset EntityPicker (multiple): link both assets to the ticket. Since
+    // Stage 10c / LT-5 the asset context lives in the "Assets" DetailTab —
+    // inactive panels are hidden, so activate the tab first and scope to its
+    // tabpanel (accessible name comes from the tab label via aria-labelledby).
+    // Domain expectation unchanged: assets remain selectable through the
+    // EntityPicker and linkable to the ticket. The multi-select keeps its
+    // dropdown open, so close it via Escape (the picker keydown handler)
+    // before clicking the Attach button.
+    await page.getByRole('tab', { name: 'Assets' }).click();
+    const assetSection = page.getByRole('tabpanel', { name: 'Assets' });
     await assetSection.getByRole('combobox').fill('AST');
     await assetSection.getByRole('option', { name: 'AST-E2E-001 - E2E file server' }).click();
     await assetSection.getByRole('option', { name: 'AST-E2E-002 - E2E database host' }).click();
