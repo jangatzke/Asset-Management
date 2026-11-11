@@ -86,7 +86,7 @@ The data model is defined via Prisma in [`backend/prisma/schema.prisma`](backend
 | i18n | react-i18next v17 |
 | HTTP/Validation/Auth | Axios, Zod, JWT, OpenID Connect, cors, helmet |
 | Tests | Jest, ts-jest, Supertest, Vitest, Playwright |
-| Tooling | npm Workspaces, ESLint, Prettier, TypeScript (~5.9.0 backend, ^5.3.3 frontend/shared) |
+| Tooling | npm Workspaces, ESLint, Prettier, TypeScript (~5.9.0 across all workspaces) |
 | Deployment | Docker (multi-stage builds), Docker Compose, Nginx 1.27 (frontend), Portainer (optional stack management) |
 | Security/Infrastructure (Backend) | bcryptjs, compression, cors, dotenv, helmet, nodemailer, @otplib/v12-adapter, prom-client, qrcode, redis, @azure/msal-node, multer, imapflow, mailparser, openid-client, express-rate-limit |
 | Icon Library (Frontend) | @emotion/react, @emotion/styled, @headlessui/react, @heroicons/react, @mui/icons-material |
@@ -109,7 +109,7 @@ asset-management-isms/
 |   `-- src/                 # App, components, pages, contexts, locales, services, hooks, utils, tests
 |-- shared/                  # Shared types and DTOs
 |   `-- src/                 # index, dtos, types
-|-- docs/                    # Requirements, architecture, operations, security, compliance, OpenAPI, plans, artifacts
+|-- docs/                    # Requirements, architecture, operations, security, compliance, OpenAPI, artifacts
 |   |-- api/                 # OpenAPI specification
 |   `-- baseline-artifacts/  # Build, test, lint, Prisma validation baselines
 |-- analysis/                # ISO 27001 / NIS 2 improvement analysis
@@ -130,7 +130,7 @@ asset-management-isms/
 
 ## Prerequisites
 
-- Node.js version 20 or later (the CI pipeline runs on Node.js 22; the backend Docker runtime uses `node:20-alpine`). Node.js 18 is end-of-life and no longer recommended.
+- Node.js version 22 or later (the CI pipeline runs on Node.js 22, and all stages of [`backend/Dockerfile`](backend/Dockerfile) and [`frontend/Dockerfile`](frontend/Dockerfile) use `node:22-alpine`). Node.js 18 and 20 are end-of-life and no longer recommended.
 - npm version 10 or later.
 - PostgreSQL for default local development and tests against a real database, or Microsoft SQL Server when `DB_PROVIDER=sqlserver` is configured and the SQL Server Prisma schema/client path is generated.
 - Optional: credentials/permissions for Microsoft Intune, VMware vCenter, or Proxmox if these integrations are used.
@@ -145,7 +145,7 @@ asset-management-isms/
 npm install
 ```
 
-The root workspace installs dependencies for `backend`, `frontend`, and `shared`. A root `postinstall` hook then automatically runs `npm run db:generate --workspace backend` (error-tolerant via `|| true`), so the Prisma client is generated as part of `npm install`. Step 3 can therefore be skipped in most cases; it is kept here for explicitness and re-runs.
+The root workspace installs dependencies for `backend`, `frontend`, and `shared`. A root `postinstall` hook then runs a small `node -e` existence check for `backend/package.json` and, only if it succeeds, chains into `npm run db:generate --workspace backend` via `&&`. There is no `|| true`: if the Prisma client generation fails, `npm install` fails visibly. Step 3 can therefore be skipped in most cases; it is kept here for explicitness and re-runs.
 
 ### 2. Configure the Backend Environment
 
@@ -239,12 +239,14 @@ All other variables (encryption keys, integration settings, rate limits, etc.) a
 
 ### Docker Image Stages
 
-Each Dockerfile uses a multi-stage build:
+Each Dockerfile uses a multi-stage build based on `node:22-alpine`:
 
-1. **`deps`** – Installs npm workspace dependencies.
-2. **`build`** – Compiles TypeScript (shared + backend/frontend) and runs Prisma generate.
+1. **`deps`** – Installs npm workspace dependencies (`npm ci --ignore-scripts`).
+2. **`build`**:
+   - Backend image: builds the `shared` workspace, runs Prisma generate (with a placeholder `DATABASE_URL`, no database connection), and compiles the backend TypeScript.
+   - Frontend image: builds the `shared` workspace and compiles the frontend (`tsc` + Vite build); it does not run Prisma generate.
 3. **`production`** – Minimal runtime image:
-   - Backend: `node:20-alpine` with Prisma `migrate deploy` on container start.
+   - Backend: `node:22-alpine` with a fresh Prisma client generation and Prisma `migrate deploy` on container start.
    - Frontend: `nginx:1.27-alpine` with SPA fallback and `/api` proxy to the backend.
 
 The backend container runs Prisma migrations automatically on startup before starting the Express server, ensuring the database schema is always in sync.
@@ -377,7 +379,9 @@ The central backend configuration is provided through [`backend/.env`](backend/.
 | Auth/Sessions | `JWT_SECRET`, token lifetimes, pre-auth/MFA configurations, `MFA_ENCRYPTION_KEY` | Local authentication, JWTs, session/refresh flows, MFA secret encryption |
 | CORS/HTTP | `CORS_ORIGINS`, rate limit options (`AUTH_RATE_LIMIT_MAX`, `REFRESH_RATE_LIMIT_MAX`), upload limits, `BACKUP_MAX_FILE_SIZE_MB` | Browser access, API hardening, and request limits |
 | Monitoring | `METRICS_TOKEN`, log/health-related variables | Access to metrics and operational observability |
-| Integrations | `INTUNE_*`, `VMWARE_ENCRYPTION_KEY`, `PROXMOX_ENCRYPTION_KEY`, Proxmox/webhook/SMTP-related variables | External systems, credential encryption, and background jobs |
+| Integrations | `INTUNE_*`, `VMWARE_ENCRYPTION_KEY`, `PROXMOX_ENCRYPTION_KEY`, Proxmox/webhook-related variables | External systems, credential encryption, and background jobs |
+
+> **E-mail configuration:** There are no SMTP/e-mail environment variables in [`backend/.env.example`](backend/.env.example). E-mail settings for the email gateway, SLA escalation notifications, and reminders (SMTP/mailbox credentials) are stored in the database and configured exclusively via the admin UI (e.g. `/admin/email-gateway`); secrets are never returned to clients.
 
 Details on operational variables and production considerations are available in [`docs/operations.md`](docs/operations.md) and [`docs/security-model.md`](docs/security-model.md).
 
@@ -562,11 +566,13 @@ SQL Server runtime is implemented through the generated provider-specific schema
 | `npm run dev:backend` | Start backend in watch mode |
 | `npm run dev:frontend` | Start Vite frontend |
 | `npm run build` | Run all workspace builds, where available |
+| `npm run typecheck` | Type-check all workspaces without emitting output (`shared`, `backend`, `frontend`) |
 | `npm run test` | Run tests in workspaces, where available |
 | `npm run lint` | Run linting in workspaces, where available |
 | `npm run format` | Run Prettier for TypeScript, JavaScript, and JSON |
 | `npm run requirements-check` | Run requirements check script |
 | `npm run vulnerability-check` | Run vulnerability/allowlist check script |
+| `npm run openapi:check` | Check that all registered API route prefixes are documented in the OpenAPI spec ([`scripts/check-openapi-coverage.js`](scripts/check-openapi-coverage.js)); known gaps are allowlisted in [`docs/openapi-coverage-allowlist.json`](docs/openapi-coverage-allowlist.json) |
 
 ### Backend Scripts
 
@@ -574,6 +580,7 @@ SQL Server runtime is implemented through the generated provider-specific schema
 |---|---|
 | `npm run dev --workspace=backend` | Start the Express/TypeScript backend with `tsx watch` |
 | `npm run build --workspace=backend` | Compile backend TypeScript |
+| `npm run typecheck --workspace=backend` | Type-check backend sources without emitting output (`tsc --noEmit`) |
 | `npm run start --workspace=backend` | Start the compiled backend from `dist` |
 | `npm run test --workspace=backend` | Run Jest tests |
 | `npm run lint --workspace=backend` | Run ESLint for backend sources |
@@ -591,10 +598,34 @@ SQL Server runtime is implemented through the generated provider-specific schema
 
 ### Frontend and Shared Scripts
 
-| Workspace | Scripts |
+Frontend:
+
+| Script | Purpose |
 |---|---|
-| `frontend` | `dev`, `build`, `preview`, `test`, `lint`, `e2e`, `e2e:ui`, `e2e:report` |
-| `shared` | `build`, `clean` |
+| `npm run dev --workspace=frontend` | Start the Vite dev server |
+| `npm run build --workspace=frontend` | Compile TypeScript and build the production bundle (`tsc` + Vite) |
+| `npm run typecheck --workspace=frontend` | Type-check frontend sources without emitting output (`tsc --noEmit`) |
+| `npm run preview --workspace=frontend` | Serve the built frontend locally via `vite preview` |
+| `npm run test --workspace=frontend` | Run Vitest unit tests |
+| `npm run lint --workspace=frontend` | Run ESLint for frontend sources plus the design-token guard |
+| `npm run lint:ci --workspace=frontend` | CI alias for `lint` |
+| `npm run lint:tokens --workspace=frontend` | Check design tokens against the baseline (`scripts/check-design-tokens.cjs`) |
+| `npm run lint:tokens:update --workspace=frontend` | Update the design-token baseline after intentional token changes |
+| `npm run e2e --workspace=frontend` | Run Playwright end-to-end tests |
+| `npm run e2e:ci --workspace=frontend` | Run Playwright with GitHub/list/HTML reporters for CI |
+| `npm run e2e:list --workspace=frontend` | List discovered Playwright tests without running them |
+| `npm run e2e:typecheck --workspace=frontend` | Type-check the Playwright test code (`tsconfig.playwright.json`) |
+| `npm run e2e:install --workspace=frontend` | Install Playwright browsers (Chromium with system dependencies) |
+| `npm run e2e:ui --workspace=frontend` | Run Playwright in interactive UI mode |
+| `npm run e2e:report --workspace=frontend` | Show the last Playwright HTML report |
+
+Shared:
+
+| Script | Purpose |
+|---|---|
+| `npm run build --workspace=shared` | Compile shared types/DTOs to `dist` |
+| `npm run typecheck --workspace=shared` | Type-check the shared workspace without emitting output (`tsc --noEmit`) |
+| `npm run clean --workspace=shared` | Remove the generated `dist` directory |
 
 Recommended quick check after changes:
 
@@ -635,6 +666,8 @@ The API is versioned under `/api/v1`. Registered routes in the backend include, 
 | Automation | `/api/v1/webhooks`, `/api/v1/service-accounts` |
 
 The OpenAPI specification is located at [`docs/api/openapi.yaml`](docs/api/openapi.yaml). It should be used as the primary reference for documented API contracts and updated whenever API changes are made.
+
+`npm run openapi:check` ([`scripts/check-openapi-coverage.js`](scripts/check-openapi-coverage.js)) is the CI drift gate between routers mounted in [`backend/src/index.ts`](backend/src/index.ts) and paths documented in `docs/api/openapi.yaml`: registered-but-undocumented prefixes fail the check unless they are allowlisted as known gaps in [`docs/openapi-coverage-allowlist.json`](docs/openapi-coverage-allowlist.json); documented-but-unregistered paths are reported as warnings.
 
 ---
 
@@ -684,7 +717,12 @@ The following operational modules are part of the current repository state:
 - **OIDC admin configuration:** `/api/v1/admin/oidc/config` (GET/PUT in [`backend/src/routes/admin.routes.ts`](backend/src/routes/admin.routes.ts)) with frontend page [`frontend/src/pages/AdminOIDC.tsx`](frontend/src/pages/AdminOIDC.tsx).
 - **Navigation configuration:** Backend service [`backend/src/services/navigationConfig.service.ts`](backend/src/services/navigationConfig.service.ts) exposed under `/api/v1/navigation`, edited in the frontend via [`frontend/src/pages/AdminNavigation.tsx`](frontend/src/pages/AdminNavigation.tsx) and [`frontend/src/components/NavigationOrderEditor.tsx`](frontend/src/components/NavigationOrderEditor.tsx).
 - **Cluster-safe job runner:** `executeTrackedJob` ([`backend/src/services/jobRunner.service.ts`](backend/src/services/jobRunner.service.ts)) with lease-based locks ([`backend/src/services/jobLock.service.ts`](backend/src/services/jobLock.service.ts)) is the shared foundation for all scheduled jobs (Intune sync, reminders, email gateway polling, SLA escalation, AI scheduler).
+- **Job run history and retention:** Every `executeTrackedJob` execution is recorded as a `JobRun`. The admin API under `/api/v1/admin/job-runs*` (paginated list plus `/summary`, [`backend/src/services/jobRunHistory.service.ts`](backend/src/services/jobRunHistory.service.ts)) exposes filtered run history, and the retention scheduler ([`backend/src/services/jobRetention.scheduler.ts`](backend/src/services/jobRetention.scheduler.ts)) prunes old rows cluster-safely via a durable lease. Admin page: [`frontend/src/pages/AdminJobRuns.tsx`](frontend/src/pages/AdminJobRuns.tsx).
 - **Database administration:** Admin page [`frontend/src/pages/AdminDatabase.tsx`](frontend/src/pages/AdminDatabase.tsx) for database/backup-related operations.
+- **Organization units:** Admin page [`frontend/src/pages/AdminOrganizationUnits.tsx`](frontend/src/pages/AdminOrganizationUnits.tsx) for creating, editing, archiving, and restoring organizational units.
+- **Reminders:** Reminder scheduling configuration, SMTP settings, and run logs in the admin page [`frontend/src/pages/AdminReminders.tsx`](frontend/src/pages/AdminReminders.tsx).
+- **Users, roles, and groups:** Admin pages [`frontend/src/pages/AdminUsers.tsx`](frontend/src/pages/AdminUsers.tsx), [`frontend/src/pages/AdminRoles.tsx`](frontend/src/pages/AdminRoles.tsx), and [`frontend/src/pages/AdminGroups.tsx`](frontend/src/pages/AdminGroups.tsx) for user accounts, role/permission management, and groups.
+- **Authentication settings:** Admin page [`frontend/src/pages/AdminAuthSettings.tsx`](frontend/src/pages/AdminAuthSettings.tsx) for local authentication/session configuration.
 
 ---
 
@@ -736,6 +774,7 @@ The script runs `prisma migrate deploy` and `prisma generate` in the backend. Fo
 | [`docs/phase12-cicd-gates-plan.md`](docs/phase12-cicd-gates-plan.md) | Phase 12: CI/CD quality-gate plan |
 | [`docs/phase13-compliance-documentation-plan.md`](docs/phase13-compliance-documentation-plan.md) | Phase 13: Compliance documentation plan |
 | [`docs/phase14-code-quality-plan.md`](docs/phase14-code-quality-plan.md) | Phase 14: Code quality plan |
+| [`docs/phase15-design-system.md`](docs/phase15-design-system.md) | Phase 15: Design system layers and guardrails (design tokens, styling guardrails) |
 
 Additional phase-related planning documents are located under [`docs`](docs) and [`plans`](plans).
 
